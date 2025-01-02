@@ -13,4 +13,5 @@ private:
 public:
 	Air(int x, int y, int z, int neighbors);
 	~Air();
+	virtual Air *clone() const override;
 };

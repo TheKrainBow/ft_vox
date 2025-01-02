@@ -8,3 +8,8 @@ Air::Air(int x, int y, int z, int neighbors) : ABlock(x, y, z, neighbors)
 Air::~Air()
 {
 }
+
+Air *Air::clone() const
+{
+	return new Air(*this);
+}

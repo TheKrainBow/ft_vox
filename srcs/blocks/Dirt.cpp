@@ -9,3 +9,8 @@ Dirt::Dirt(int x, int y, int z, int neighbors) : ABlock(x, y, z, neighbors)
 Dirt::~Dirt()
 {
 }
+
+Dirt *Dirt::clone() const
+{
+	return new Dirt(*this);
+}

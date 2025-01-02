@@ -29,6 +29,7 @@ class ABlock
 		ABlock(int x, int y, int z, int neighbors);
 		virtual ~ABlock() = default;
 		virtual GLuint display(GLuint currentText);
+		virtual ABlock* clone() const = 0;
 		vec3 getPosition(void);
 		BlockType getType(void);
 	protected:

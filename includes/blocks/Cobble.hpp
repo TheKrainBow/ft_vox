@@ -13,5 +13,6 @@ private:
 	void initTexture();
 public:
 	Cobble(int x, int y, int z, int neighbors);
+	virtual Cobble *clone() const override;
 	~Cobble();
 };

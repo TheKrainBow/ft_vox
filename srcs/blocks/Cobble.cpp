@@ -6,6 +6,11 @@ Cobble::Cobble(int x, int y, int z, int neighbors) : ABlock(x, y, z, neighbors)
 	_type = COBBLE;
 }
 
+Cobble *Cobble::clone() const
+{
+	return new Cobble(*this);
+}
+
 Cobble::~Cobble()
 {
 }
