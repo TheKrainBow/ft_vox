@@ -143,16 +143,18 @@ void update(int value)
 	if (keyStates['v']) cam.move(0.0, 0.0, 1.0);
 
 	//Camera movement with keys
-	if (specialKeyStates[GLUT_KEY_UP]) cam.yangle += cam.rotationspeed;
-	if (specialKeyStates[GLUT_KEY_DOWN]) cam.yangle -= cam.rotationspeed;
+	if (specialKeyStates[GLUT_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
+	if (specialKeyStates[GLUT_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
 	if (specialKeyStates[GLUT_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
 	if (specialKeyStates[GLUT_KEY_LEFT]) cam.xangle += cam.rotationspeed;
 
+	std::cout << cam.yangle << std::endl;
 	// Camera rotations
 	if (cam.xangle > 360.0)
 		cam.xangle = 0.0;
 	else if (cam.xangle < 0.0)
 		cam.xangle = 360.0;
+
 
 	glutPostRedisplay();
 	// Call update every 8 milliseconds (~120 FPS)
