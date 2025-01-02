@@ -10,6 +10,7 @@ bool specialKeyStates[256] = {false};
 Dirt dirt(0, 0, 0, 0);
 Cobble cobble(1, 0, 0, 0);
 Camera cam;
+bool ignoreMouseEvent = false;
 
 void specialKeyPress(int key, int x, int y)
 {
@@ -58,12 +59,14 @@ void mouseCallback(int x, int y)
 	int windowCenterX = windowWidth / 2;
 	int windowCenterY = windowHeight / 2;
 
-	if (firstMouse) {
+	if (firstMouse || ignoreMouseEvent) {
 		lastX = windowCenterX;
 		lastY = windowCenterY;
 		firstMouse = false;
+		ignoreMouseEvent = false;
 		return ;
 	}
+
 
 	// Calculate the mouse movement offsets
 	float xOffset = lastX - x;
@@ -86,6 +89,9 @@ void mouseCallback(int x, int y)
 	if (cam.yangle > 89.0f) cam.yangle = 89.0f;
 	if (cam.yangle < -89.0f) cam.yangle = -89.0f;
 
+	// Ignore movement for next call to move mouse from warpPointer function
+	ignoreMouseEvent = true;
+
 	// Optionally, recenter the mouse after each movement
 	glutWarpPointer(windowCenterX, windowCenterY);
 }
@@ -93,7 +99,7 @@ void mouseCallback(int x, int y)
 void display()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
+	glMatrixMode(GL_MODELVIEW);
 
 	// Matrix operations for the camera
 	float radY;
