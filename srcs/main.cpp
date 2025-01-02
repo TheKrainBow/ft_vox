@@ -1,9 +1,8 @@
 #include "ft_vox.hpp"
-
 #include "Chunk.hpp"
 #include "Camera.hpp"
-
 #include "globals.hpp"
+#include "NoiseGenerator.hpp"
 
 mat4 projectionMatrix;
 mat4 viewMatrix;
@@ -318,6 +317,7 @@ int main(int argc, char **argv)
 		seed = atoi(argv[1]);
 		return 1;
 	}
+	NoiseGenerator noise(seed);
 
 	initGlutWindow(argc, argv);
 	initGlutEvents();
@@ -328,7 +328,6 @@ int main(int argc, char **argv)
 
 	updateChunks(vec3(0, 0, 0));
 	// Load textures
-	std::cout << "This is a seed: " << seed << std::endl;
 	glutMainLoop();
 	return 0;
 }
