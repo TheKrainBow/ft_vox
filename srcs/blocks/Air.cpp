@@ -2,7 +2,7 @@
 
 Air::Air(int x, int y, int z, int neighbors) : ABlock(x, y, z, neighbors)
 {
-	_isAir = true;
+	_type = AIR;
 }
 
 Air::~Air()

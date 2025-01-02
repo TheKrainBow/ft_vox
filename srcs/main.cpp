@@ -146,10 +146,6 @@ void display()
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
-
-	// Draw the dirt block
-	for (std::vector<ABlock>::iterator it = blocks.begin(); it != blocks.end(); it++)
-		it->display();
 	
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
 		it->display();
@@ -236,6 +232,7 @@ int main(int argc, char **argv)
 
 	initGlutWindow(argc, argv);
 	initGlutEvents();
+	glEnable(GL_TEXTURE_2D);
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 

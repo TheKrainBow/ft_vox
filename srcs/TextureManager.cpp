@@ -67,7 +67,7 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		
 	// Upload the pixel data to the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Free the RGB data after uploading
@@ -76,12 +76,12 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 }
 
 // Add a texture to the manager
-void TextureManager::addTexture(TextureType type, std::string path) {
+void TextureManager::addTexture(BlockType type, std::string path) {
 	_textures[type] = loadTexture(path);
 }
 
 // Retrieve a texture from the manager
-GLuint TextureManager::getTexture(TextureType type) {
+GLuint TextureManager::getTexture(BlockType type) {
 	return (_textures[type]);
 }
 
@@ -91,7 +91,7 @@ TextureManager::TextureManager() {
 
 // Destructor definition (no specific code yet)
 TextureManager::~TextureManager() {
-	for (std::map<TextureType, GLuint>::iterator it = _textures.begin(); it != _textures.end(); it++)
+	for (std::map<BlockType, GLuint>::iterator it = _textures.begin(); it != _textures.end(); it++)
 	{
 		glDeleteTextures(1, &(it->second));
 	}

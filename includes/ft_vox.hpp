@@ -20,5 +20,12 @@ using namespace glm;
 #include <cmath>
 #include <algorithm>
 
+
+enum BlockType {
+	DIRT,
+	COBBLE,
+	AIR
+};
+
 #define W_WIDTH 800
 #define W_HEIGHT 600

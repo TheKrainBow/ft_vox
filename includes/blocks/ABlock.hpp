@@ -24,12 +24,13 @@ class ABlock
 		bool		_hasFrontNeighbor;
 		bool		_hasBackNeighbor;
 		GLuint		_faceTextures[6];
-		bool		_isAir = false;
+		BlockType	_type;
 	public:
 		ABlock(int x, int y, int z, int neighbors);
 		virtual ~ABlock() = default;
-		virtual void display();
+		virtual GLuint display(GLuint currentText);
 		vec3 getPosition(void);
+		BlockType getType(void);
 	protected:
 		virtual void displayNorthFace();
 		virtual void displaySouthFace();

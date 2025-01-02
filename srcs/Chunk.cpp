@@ -29,11 +29,24 @@ Chunk::Chunk(int chunkX, int chunkZ)
 
 void Chunk::display(void)
 {
+	GLuint currentText = -1;
 	for (int x = 0; x < CHUNK_SIZE_X; ++x) {
 		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
-			for (int y = 0; y < 6; ++y) { // Only iterate Y < 10
+			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
 				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
-				_blocks[index]->display();
+				if (_blocks[index]->getType() != DIRT)
+					continue ;
+				currentText = _blocks[index]->display(currentText);
+			}
+		}
+	}
+	for (int x = 0; x < CHUNK_SIZE_X; ++x) {
+		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
+			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
+				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
+				if (_blocks[index]->getType() != COBBLE)
+					continue ;
+				currentText = _blocks[index]->display(currentText);
 			}
 		}
 	}
