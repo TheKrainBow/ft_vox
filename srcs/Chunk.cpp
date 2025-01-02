@@ -54,7 +54,6 @@ void Chunk::display(void)
 
 Chunk::~Chunk()
 {
-	std::cout << "Hello" << std::endl;
 	// for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; i++)
 	// 	delete _blocks[i];
 }
