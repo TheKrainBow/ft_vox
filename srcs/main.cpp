@@ -163,9 +163,22 @@ void display()
 	calculateFps();
 }
 
+void updateChunks(vec3 newCameraPosition)
+{
+	chunks.clear();
+	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
+		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
+			chunks.push_back(Chunk(newCameraPosition.x + x, newCameraPosition.z + z));
+}
+
 void update(int value)
 {
 	(void)value;
+	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+	if (oldCamChunk.x < 0)
+		oldCamChunk.x--;
+	if (oldCamChunk.z < 0)
+		oldCamChunk.z--;
 	// Camera movement
 	if (keyStates['z'] || keyStates['w']) cam.move(1.0, 0.0, 0.0);
 	if (keyStates['q'] || keyStates['a']) cam.move(0.0, 1.0, 0.0);
@@ -173,6 +186,16 @@ void update(int value)
 	if (keyStates['d']) cam.move(0.0, -1.0, 0.0);
 	if (keyStates[' ']) cam.move(0.0, 0.0, -1.0);
 	if (keyStates['v']) cam.move(0.0, 0.0, 1.0);
+
+	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+
+	if (camChunk.x < 0)
+		camChunk.x--;
+	if (camChunk.z < 0)
+		camChunk.z--;
+
+	if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
+		updateChunks(camChunk);
 
 	//Camera movement with keys
 	if (specialKeyStates[GLUT_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
@@ -245,9 +268,9 @@ int main(int argc, char **argv)
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 
-	for (int x = 0; x < 10; x++)
+	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
 	{
-		for (int z = 0; z < 10; z++)
+		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
 		{
 			chunks.push_back(Chunk(x, z));
 		}

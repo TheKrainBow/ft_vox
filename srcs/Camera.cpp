@@ -6,7 +6,7 @@
 /*   By: krain <krain@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/01 20:27:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/02 02:44:16 by krain            ###   ########.fr       */
+/*   Updated: 2025/01/02 16:58:03 by krain            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,14 +18,14 @@
 void Camera::move(float  forward, float  strafe, float up)
 {
 	// Calculate the direction based on the current angles
-	float radiansY = yangle * (M_PI / 180.0);
+	//float radiansY = yangle * (M_PI / 180.0);
 	float radiansX = xangle * (M_PI / 180.0);
 
-	float scaleForward = forward * cos(radiansY);
+	//float scaleForward = forward * cos(radiansY);
 
 	// Determine the forward movement vector
-	float forwardX = cos(radiansX) * scaleForward;
-	float forwardZ = sin(radiansX) * scaleForward;
+	float forwardX = cos(radiansX) * forward;
+	float forwardZ = sin(radiansX) * forward;
 
 	// Determine the strafe movement vector (perpendicular to forward)
 	float strafeX = cos(radiansX + M_PI / 2) * strafe;

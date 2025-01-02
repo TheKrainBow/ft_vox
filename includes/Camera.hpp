@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Camera.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
+/*   By: krain <krain@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/01 20:26:25 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/02 04:52:40 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/02 17:05:11 by krain            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,7 +16,7 @@
 
 class Camera {
 	public:
-		Camera() : position{0.0, 0.0, -10.0}, center{0.0f, 0.0f, 10.0f} {};
+		Camera() : position{0.0, 0.0, 0.0}, center{0.0f, 0.0f, 10.0f} {};
 		~Camera() {};
 		void move(float forward, float strafe, float up);
 		void reset();

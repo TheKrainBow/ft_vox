@@ -29,3 +29,4 @@ enum BlockType {
 
 #define W_WIDTH 800
 #define W_HEIGHT 600
+#define RENDER_DISTANCE 11

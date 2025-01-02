@@ -6,17 +6,19 @@ Chunk::Chunk(int chunkX, int chunkZ)
 	bzero(_blocks, CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y * sizeof(ABlock *));
 	for (int x = 0; x < 16; x++)
 	{
-		for (int y = 0; y < 255; y++)
+		for (int z = 0; z < 16; z++)
 		{
-			for (int z = 0; z < 16; z++)
+			//int maxY = rand() * 10;
+			int y = 0;
+			for (; y < 255; y++)
 			{
 				int state = 0;
-				state |= ((y != 5) << 0);
-				state |= ((y != 0) << 1);
-				state |= ((x != 15) << 2);
-				state |= ((x != 0) << 3);
-				state |= ((z != 0) << 4);
-				state |= ((z != 15) << 5);
+				state |= ((y != 5) << 0); // Up
+				state |= ((y != 0) << 1); // Down
+				state |= ((x != 15) << 2); // Left
+				state |= ((x != 0) << 3); // Right
+				state |= ((z != 0) << 4); // Front
+				state |= ((z != 15) << 5); // Back
 				if (y < 3)
 					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Cobble((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z, state);
 				else if (y < 6)
