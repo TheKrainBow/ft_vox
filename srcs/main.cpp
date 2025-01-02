@@ -14,6 +14,32 @@ std::vector<Chunk> chunks;
 Camera cam;
 bool ignoreMouseEvent = false;
 
+// FPS counter
+int frameCount = 0;
+double lastFrameTime = 0.0;
+double currentFrameTime = 0.0;
+
+void calculateFps()
+{
+	double fps = 0.0;
+	frameCount++;
+	currentFrameTime = glutGet(GLUT_ELAPSED_TIME);
+
+	double timeInterval = currentFrameTime - lastFrameTime;
+
+	if (timeInterval > 1000)
+	{
+		fps = frameCount / (timeInterval / 1000.0);
+
+		lastFrameTime = currentFrameTime;
+		frameCount = 0;
+
+		std::stringstream title;
+		title << "Not ft_minecraft | FPS: " << fps;
+		glutSetWindowTitle(title.str().c_str());
+	}
+}
+
 bool isWSL() {
 	return (std::getenv("WSL_DISTRO_NAME") != nullptr); // WSL_DISTRO_NAME is set in WSL
 }
@@ -129,6 +155,7 @@ void display()
 		it->display();
 
 	glutSwapBuffers();
+	calculateFps();
 }
 
 void update(int value)
@@ -178,7 +205,7 @@ void initGlutWindow(int ac, char **av)
 	glutInit(&ac, av);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
 	glutInitWindowSize(W_WIDTH, W_HEIGHT);
-	glutCreateWindow("Not ft_minecraft");
+	glutCreateWindow("Not_ft_minecraft | FPS: 0");
 	glEnable(GL_DEPTH_TEST);
 	glutSetCursor(GLUT_CURSOR_NONE);
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // Black background
@@ -212,9 +239,9 @@ int main(int argc, char **argv)
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 
-	for (int x = 0; x < 10; x++)
+	for (int x = 0; x < 3; x++)
 	{
-		for (int z = 0; z < 10; z++)
+		for (int z = 0; z < 3; z++)
 		{
 			chunks.push_back(Chunk(x, z));
 		}
