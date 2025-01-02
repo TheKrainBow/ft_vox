@@ -2,6 +2,7 @@
 
 ABlock::ABlock(int x, int y, int z) {
 	_position = vec3(x, y, z);
+	_type = AIR;
 	updateNeighbors(0);
 }
 

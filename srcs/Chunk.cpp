@@ -49,8 +49,9 @@ void Chunk::freeChunkData()
 {
 	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; i++)
 	{
-		if (_blocks[i])
-			delete _blocks[i];
+		if (!_blocks[i])
+			continue ;
+		delete _blocks[i];
 		_blocks[i] = nullptr;
 	}
 }
@@ -74,7 +75,7 @@ void Chunk::display(void)
 		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
 			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
 				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
-				if (!_blocks[index] || _blocks[index]->getType() != DIRT)
+				if (_blocks[index] == nullptr || _blocks[index]->getType() != DIRT)
 					continue ;
 				currentText = _blocks[index]->display(currentText);
 			}
@@ -84,7 +85,7 @@ void Chunk::display(void)
 		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
 			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
 				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
-				if (!_blocks[index] || _blocks[index]->getType() != COBBLE)
+				if (_blocks[index] == nullptr || _blocks[index]->getType() != COBBLE)
 					continue ;
 				currentText = _blocks[index]->display(currentText);
 			}
@@ -94,10 +95,10 @@ void Chunk::display(void)
 
 Chunk::~Chunk()
 {
-	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; i++)
-	{
-		if (_blocks[i])
-			delete _blocks[i];
-		_blocks[i] = nullptr;
-	}
+	// freeChunkData();
+}
+
+vec2 Chunk::getPosition(void)
+{
+	return _position;
 }

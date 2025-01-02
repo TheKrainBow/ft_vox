@@ -20,4 +20,5 @@ class Chunk
 		~Chunk();
 		void display(void);
 		void freeChunkData();
+		vec2 getPosition(void);
 };

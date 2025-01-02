@@ -163,12 +163,60 @@ void display()
 	calculateFps();
 }
 
+struct pair_hash {
+    template <class T1, class T2>
+    std::size_t operator () (const std::pair<T1, T2>& pair) const {
+        auto h1 = std::hash<T1>{}(pair.first);
+        auto h2 = std::hash<T2>{}(pair.second);
+        return h1 ^ (h2 << 1);
+    }
+};
+
 void updateChunks(vec3 newCameraPosition)
 {
-	chunks.clear();
-	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-			chunks.push_back(Chunk(newCameraPosition.x + x, newCameraPosition.z + z));
+	std::cout << "Update Chunks:" << std::endl;
+    // Store the set of positions for currently loaded chunks
+    std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
+    for (Chunk& chunk : chunks)
+        loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
+
+    // Set to track positions of chunks that should remain
+    std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
+
+    // Add chunks within the render distance
+    for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
+    {
+        for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
+        {
+            int chunkX = newCameraPosition.x + x;
+            int chunkZ = newCameraPosition.z + z;
+
+            // Add this position to the required set
+            requiredChunkPositions.emplace(chunkX, chunkZ);
+
+            // If this chunk is not already loaded, create and add it
+            if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
+            {
+				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
+                chunks.push_back(Chunk(chunkX, chunkZ));
+            }
+        }
+    }
+
+    // Remove chunks that are no longer needed
+    chunks.erase(
+        std::remove_if(chunks.begin(), chunks.end(),
+            [&requiredChunkPositions](Chunk& chunk)
+            {
+				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
+				{
+					std::cout << "remove chunk (" << chunk.getPosition().x << ", " << chunk.getPosition().y << ")" << std::endl;
+    	            return true;
+				}
+				return false;
+            }),
+        chunks.end()
+    );
 }
 
 void update(int value)
@@ -278,13 +326,7 @@ int main(int argc, char **argv)
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 
-	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-	{
-		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-		{
-			chunks.push_back(Chunk(x, z));
-		}
-	}
+	updateChunks(vec3(0, 0, 0));
 	// Load textures
 	std::cout << "This is a seed: " << seed << std::endl;
 	glutMainLoop();
