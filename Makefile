@@ -15,7 +15,12 @@ INCLUDES	=	-Iincludes
 SRC_NAME	=	main.cpp			\
 				Camera.cpp			\
 				TextureManager.cpp	\
-				globals.cpp			
+				globals.cpp			\
+				Chunk.cpp			\
+				blocks/Dirt.cpp		\
+				blocks/Cobble.cpp	\
+				blocks/ABlock.cpp	\
+				blocks/Air.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

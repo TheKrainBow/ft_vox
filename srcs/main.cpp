@@ -148,7 +148,6 @@ void update(int value)
 	if (specialKeyStates[GLUT_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
 	if (specialKeyStates[GLUT_KEY_LEFT]) cam.xangle += cam.rotationspeed;
 
-	std::cout << cam.yangle << std::endl;
 	// Camera rotations
 	if (cam.xangle > 360.0)
 		cam.xangle = 0.0;

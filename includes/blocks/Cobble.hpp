@@ -5,6 +5,7 @@
 #include "globals.hpp"
 
 using namespace glm;
+class ABlock;
 
 class Cobble : public ABlock
 {
@@ -14,12 +15,3 @@ public:
 	Cobble(int x, int y, int z, int neighbors);
 	~Cobble();
 };
-
-Cobble::Cobble(int x, int y, int z, int neighbors) : ABlock(x, y, z, neighbors)
-{
-	_faceTextures[DOWN] = textManager.getTexture(COBBLE);
-}
-
-Cobble::~Cobble()
-{
-}
