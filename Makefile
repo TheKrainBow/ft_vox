@@ -1,7 +1,7 @@
 NAME		=	ft_vox
 DEBUG_NAME	=	ft_voxDebug
 
-LDFLAGS =	-lGL -lGLU -lglut
+LDFLAGS =	-lGL -lGLU -lglut -lGLEW	
 
 CFLAGS	=	-Wall -Wextra -Werror -O2 -g3
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3 -fsanitize=address

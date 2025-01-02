@@ -253,6 +253,15 @@ void initGlutEvents()
 	glutCloseFunc(closeCallback);
 }
 
+void initGLEW() {
+	GLenum err = glewInit();
+	if (err != GLEW_OK)
+	{
+		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+		return ;
+	}
+}
+
 int main(int argc, char **argv)
 {
 	int seed = 42;
@@ -264,6 +273,7 @@ int main(int argc, char **argv)
 
 	initGlutWindow(argc, argv);
 	initGlutEvents();
+	initGLEW();
 	glEnable(GL_TEXTURE_2D);
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");

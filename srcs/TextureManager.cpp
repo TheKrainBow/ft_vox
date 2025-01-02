@@ -59,16 +59,16 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 
 	std::vector<t_rgb> rgb_data(data, data + (width * height));
 	std::reverse(rgb_data.begin(), rgb_data.end());
+	// Upload the pixel data to the texture
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
+	
+	glGenerateMipmap(GL_TEXTURE_2D);
 
 	// Set texture parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		
-	// Upload the pixel data to the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
-	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Free the RGB data after uploading
 	delete[] data;
@@ -91,5 +91,8 @@ TextureManager::TextureManager() {
 
 // Destructor definition (no specific code yet)
 TextureManager::~TextureManager() {
-	glDeleteTextures(2, _textures);
+	for (size_t i = 0; i < NB_TEXTURES; i++)
+	{
+		glDeleteTextures(1, &_textures[i]);
+	}
 }
