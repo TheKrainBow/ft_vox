@@ -20,7 +20,5 @@ using namespace glm;
 #include <cmath>
 #include <algorithm>
 
-#include "Camera.hpp"
-
 #define W_WIDTH 800
 #define W_HEIGHT 600

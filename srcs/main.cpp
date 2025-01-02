@@ -2,18 +2,21 @@
 
 #include "blocks/Cobble.hpp"
 #include "blocks/Dirt.hpp"
+#include "Camera.hpp"
+
+#include "globals.hpp"
 
 mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[256] = {false};
 bool specialKeyStates[256] = {false};
-Dirt dirt(0, 0, 0, 0);
-Cobble cobble(1, 0, 0, 0);
+Dirt *dirt;
+Cobble *cobble;
 Camera cam;
 bool ignoreMouseEvent = false;
 
 bool isWSL() {
-    return (std::getenv("WSL_DISTRO_NAME") != nullptr); // WSL_DISTRO_NAME is set in WSL
+	return (std::getenv("WSL_DISTRO_NAME") != nullptr); // WSL_DISTRO_NAME is set in WSL
 }
 
 void specialKeyPress(int key, int x, int y)
@@ -120,8 +123,8 @@ void display()
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
 
 	// Draw the dirt block
-	dirt.display();
-	cobble.display();
+	dirt->display();
+	cobble->display();
 
 	glutSwapBuffers();
 }
@@ -200,10 +203,17 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	dirt.display();  // This draws the dirt block
 
 	initGlutWindow(argc, argv);
 	initGlutEvents();
+	textManager.addTexture(COBBLE, "textures/cobble.ppm");
+	textManager.addTexture(DIRT, "textures/dirt.ppm");
+
+	Dirt dirtt(0, 0, 0, 0);
+	Cobble cobblee(1, 0, 0, 0);
+
+	dirt = &dirtt;
+	cobble = &cobblee;
 	// Load textures
 	std::cout << "This is a seed: " << seed << std::endl;
 	glutMainLoop();

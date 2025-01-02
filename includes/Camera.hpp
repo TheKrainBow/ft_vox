@@ -6,7 +6,7 @@
 /*   By: krain <krain@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/01 20:26:25 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/02 02:44:15 by krain            ###   ########.fr       */
+/*   Updated: 2025/01/02 04:07:58 by krain            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,7 +27,7 @@ class Camera {
 		float xangle = 0.0;
 		float yangle = 0.0;
 		float rotationspeed = 1;
-		float movementspeed = 0.25;
+		float movementspeed = 0.15;
 		bool mouseRotation = false;
 		vec2 mousePos;
 };
