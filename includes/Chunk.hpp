@@ -3,7 +3,6 @@
 #include "blocks/ABlock.hpp"
 #include "blocks/Dirt.hpp"
 #include "blocks/Cobble.hpp"
-#include "blocks/Air.hpp"
 #include "ft_vox.hpp"
 
 #define CHUNK_SIZE_X 16

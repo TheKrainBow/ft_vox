@@ -4,14 +4,14 @@ DEBUG_NAME	=	ft_voxDebug
 LDFLAGS =	-lGL -lGLU -lglut
 
 CFLAGS	=	-Wall -Wextra -Werror -O2 -g3
-DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
+DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3 -fsanitize=address
 
 OBJ_PATH		=	obj/
 DEBUG_OBJ_PATH		=	debug_obj/
 
 CC			=	g++
 SRC_PATH	=	srcs/
-INCLUDES	=	-Iincludes
+INCLUDES	=	-Iincludes -Iglm
 SRC_NAME	=	main.cpp			\
 				Camera.cpp			\
 				TextureManager.cpp	\
@@ -20,7 +20,6 @@ SRC_NAME	=	main.cpp			\
 				blocks/Dirt.cpp		\
 				blocks/Cobble.cpp	\
 				blocks/ABlock.cpp	\
-				blocks/Air.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

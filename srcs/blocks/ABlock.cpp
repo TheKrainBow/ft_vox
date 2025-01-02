@@ -1,13 +1,18 @@
 #include "blocks/ABlock.hpp"
 
-ABlock::ABlock(int x, int y, int z, int neighbors) {
+ABlock::ABlock(int x, int y, int z) {
+	_position = vec3(x, y, z);
+	updateNeighbors(0);
+}
+
+void ABlock::updateNeighbors(int neighbors)
+{
 	_hasUpNeighbor = (neighbors >> 0) & 1;
 	_hasDownNeighbor = (neighbors >> 1) & 1;
 	_hasLeftNeighbor = (neighbors >> 2) & 1;
 	_hasRightNeighbor = (neighbors >> 3) & 1;
 	_hasFrontNeighbor = (neighbors >> 4) & 1;
 	_hasBackNeighbor = (neighbors >> 5) & 1;
-	_position = vec3(x, y, z);
 }
 
 vec3 ABlock::getPosition(void)
@@ -24,17 +29,17 @@ GLuint ABlock::display(GLuint currentText) {
 	if (currentText != _faceTextures[DOWN])
 		glBindTexture(GL_TEXTURE_2D, _faceTextures[DOWN]);
 	glBegin(GL_QUADS);
-	if (!_hasDownNeighbor)
+	if (_hasDownNeighbor)
 		displayDownFace();
-	if (!_hasUpNeighbor)
+	if (_hasUpNeighbor)
 		displayUpFace();
-	if (!_hasFrontNeighbor)
+	if (_hasFrontNeighbor)
 		displayNorthFace();
-	if (!_hasBackNeighbor)
+	if (_hasBackNeighbor)
 		displaySouthFace();
-	if (!_hasLeftNeighbor)
+	if (_hasLeftNeighbor)
 		displayWestFace();
-	if (!_hasRightNeighbor)
+	if (_hasRightNeighbor)
 		displayEastFace();
 	glEnd();
 	return (_faceTextures[DOWN]);

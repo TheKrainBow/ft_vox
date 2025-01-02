@@ -12,7 +12,7 @@ class Cobble : public ABlock
 private:
 	void initTexture();
 public:
-	Cobble(int x, int y, int z, int neighbors);
+	Cobble(int x, int y, int z);
 	virtual Cobble *clone() const override;
 	~Cobble();
 };

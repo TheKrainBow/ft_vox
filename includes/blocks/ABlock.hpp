@@ -1,6 +1,5 @@
 #pragma once
 
-#include <glm/glm.hpp>
 #include "ft_vox.hpp"
 
 class ABlock
@@ -26,10 +25,11 @@ class ABlock
 		GLuint		_faceTextures[6];
 		BlockType	_type;
 	public:
-		ABlock(int x, int y, int z, int neighbors);
+		ABlock(int x, int y, int z);
 		virtual ~ABlock() = default;
 		virtual GLuint display(GLuint currentText);
 		virtual ABlock* clone() const = 0;
+		void updateNeighbors(int neighbors);
 		vec3 getPosition(void);
 		BlockType getType(void);
 	protected:

@@ -11,7 +11,7 @@ class Dirt : public ABlock
 	private:
 		void initTexture();
 	public:
-		Dirt(int x, int y, int z, int neighbors);
+		Dirt(int x, int y, int z);
 		~Dirt();
 		Dirt *clone() const override;
 };

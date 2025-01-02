@@ -4,27 +4,42 @@ Chunk::Chunk(int chunkX, int chunkZ)
 {
 	_position = vec2(chunkX, chunkZ);
 	bzero(_blocks, CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y * sizeof(ABlock *));
+	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
 	{
 		for (int z = 0; z < 16; z++)
 		{
-			//int maxY = rand() * 10;
+			int maxY = rand() % 100;
+			maxY = (maxY > 90) + (maxY > 95) + 1;
 			int y = 0;
-			for (; y < 255; y++)
-			{
+			for (; y < 10 + maxY / 2; y++)
+				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Cobble((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
+			for (;y < 10 + maxY; y++)
+				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
+		}
+	}
+
+	// Check for faces to display (Only for current chunk)
+	for (int x = 0; x < CHUNK_SIZE_X; ++x) {
+		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
+			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
+				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
+				if (!_blocks[index])
+					continue ;
 				int state = 0;
-				state |= ((y != 5) << 0); // Up
-				state |= ((y != 0) << 1); // Down
-				state |= ((x != 15) << 2); // Left
-				state |= ((x != 0) << 3); // Right
-				state |= ((z != 0) << 4); // Front
-				state |= ((z != 15) << 5); // Back
-				if (y < 3)
-					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Cobble((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z, state);
-				else if (y < 6)
-					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z, state);
-				else
-					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Air((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z, state);
+				bool displayDown = (y == 0) || _blocks[x + z * CHUNK_SIZE_X + (y - 1) * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
+				bool displayUp = (y == 255) || _blocks[x + z * CHUNK_SIZE_X + (y + 1) * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
+				bool displayRight = (x == 0) || _blocks[(x - 1) + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
+				bool displayLeft = (x == 15) || _blocks[(x + 1) + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
+				bool displayFront = (z == 0) || _blocks[x + (z - 1) * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
+				bool displayBack = (z == 15) || _blocks[x + (z + 1) * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
+				state |= (displayUp << 0);
+				state |= (displayDown << 1);
+				state |= (displayLeft << 2);
+				state |= (displayRight << 3);
+				state |= (displayFront << 4);
+				state |= (displayBack << 5);
+				_blocks[index]->updateNeighbors(state);
 			}
 		}
 	}
@@ -59,7 +74,7 @@ void Chunk::display(void)
 		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
 			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
 				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
-				if (_blocks[index]->getType() != DIRT)
+				if (!_blocks[index] || _blocks[index]->getType() != DIRT)
 					continue ;
 				currentText = _blocks[index]->display(currentText);
 			}
@@ -69,7 +84,7 @@ void Chunk::display(void)
 		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
 			for (int y = 0; y < CHUNK_SIZE_Z; ++y) {
 				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
-				if (_blocks[index]->getType() != COBBLE)
+				if (!_blocks[index] || _blocks[index]->getType() != COBBLE)
 					continue ;
 				currentText = _blocks[index]->display(currentText);
 			}
