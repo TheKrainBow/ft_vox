@@ -20,6 +20,7 @@ SRC_NAME	=	main.cpp			\
 				blocks/Dirt.cpp		\
 				blocks/Cobble.cpp	\
 				blocks/ABlock.cpp	\
+				NoiseGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))
