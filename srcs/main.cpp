@@ -239,9 +239,9 @@ int main(int argc, char **argv)
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 
-	for (int x = 0; x < 3; x++)
+	for (int x = 0; x < 10; x++)
 	{
-		for (int z = 0; z < 3; z++)
+		for (int z = 0; z < 10; z++)
 		{
 			chunks.push_back(Chunk(x, z));
 		}

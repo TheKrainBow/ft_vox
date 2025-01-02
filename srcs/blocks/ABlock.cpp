@@ -22,15 +22,15 @@ void ABlock::display() {
 	glBindTexture(GL_TEXTURE_2D, _faceTextures[DOWN]);
 	if (!_hasDownNeighbor)
 		displayDownFace();
-	if (!_hasDownNeighbor)
+	if (!_hasUpNeighbor)
 		displayUpFace();
-	if (!_hasDownNeighbor)
+	if (!_hasFrontNeighbor)
 		displayNorthFace();
-	if (!_hasDownNeighbor)
+	if (!_hasBackNeighbor)
 		displaySouthFace();
-	if (!_hasDownNeighbor)
+	if (!_hasLeftNeighbor)
 		displayWestFace();
-	if (!_hasDownNeighbor)
+	if (!_hasRightNeighbor)
 		displayEastFace();
 	glDisable(GL_TEXTURE_2D);
 }
