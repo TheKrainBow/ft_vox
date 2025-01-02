@@ -1,7 +1,6 @@
 #include "ft_vox.hpp"
 
-#include "blocks/Cobble.hpp"
-#include "blocks/Dirt.hpp"
+#include "Chunk.hpp"
 #include "Camera.hpp"
 
 #include "globals.hpp"
@@ -10,9 +9,8 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[256] = {false};
 bool specialKeyStates[256] = {false};
-Dirt *dirt;
-Cobble *cobble;
 std::vector<ABlock> blocks;
+std::vector<Chunk> chunks;
 Camera cam;
 bool ignoreMouseEvent = false;
 
@@ -126,6 +124,9 @@ void display()
 	// Draw the dirt block
 	for (std::vector<ABlock>::iterator it = blocks.begin(); it != blocks.end(); it++)
 		it->display();
+	
+	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+		it->display();
 
 	glutSwapBuffers();
 }
@@ -210,11 +211,13 @@ int main(int argc, char **argv)
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 
-	blocks.push_back(Cobble(0, 0, 0, 0));
-	blocks.push_back(Cobble(1, 2, 0, 0));
-	blocks.push_back(Dirt(2, 1, 0, 0));
-	blocks.push_back(Dirt(1, 1, 0, 0));
-	blocks.push_back(Dirt(1, 3, 0, 0));
+	for (int x = 0; x < 10; x++)
+	{
+		for (int z = 0; z < 10; z++)
+		{
+			chunks.push_back(Chunk(x, z));
+		}
+	}
 	// Load textures
 	std::cout << "This is a seed: " << seed << std::endl;
 	glutMainLoop();

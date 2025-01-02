@@ -12,27 +12,12 @@ private:
 	void initTexture();
 public:
 	Cobble(int x, int y, int z, int neighbors);
-	Cobble(vec3 pos, int neighbors);
 	~Cobble();
 };
 
-void Cobble::initTexture(void)
+Cobble::Cobble(int x, int y, int z, int neighbors) : ABlock(x, y, z, neighbors)
 {
 	_faceTextures[DOWN] = textManager.getTexture(COBBLE);
-}
-
-Cobble::Cobble(int x, int y, int z, int neighbors)
-{
-	_position = vec3(x, y, z);
-	_neighbors = neighbors;
-	initTexture();
-}
-
-Cobble::Cobble(vec3 pos, int neighbors)
-{
-	_position = pos;
-	_neighbors = neighbors;
-	initTexture();
 }
 
 Cobble::~Cobble()
