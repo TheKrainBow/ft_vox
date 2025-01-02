@@ -12,6 +12,7 @@ bool keyStates[256] = {false};
 bool specialKeyStates[256] = {false};
 Dirt *dirt;
 Cobble *cobble;
+std::vector<ABlock> blocks;
 Camera cam;
 bool ignoreMouseEvent = false;
 
@@ -123,8 +124,8 @@ void display()
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
 
 	// Draw the dirt block
-	dirt->display();
-	cobble->display();
+	for (std::vector<ABlock>::iterator it = blocks.begin(); it != blocks.end(); it++)
+		it->display();
 
 	glutSwapBuffers();
 }
@@ -209,11 +210,11 @@ int main(int argc, char **argv)
 	textManager.addTexture(COBBLE, "textures/cobble.ppm");
 	textManager.addTexture(DIRT, "textures/dirt.ppm");
 
-	Dirt dirtt(0, 0, 0, 0);
-	Cobble cobblee(1, 0, 0, 0);
-
-	dirt = &dirtt;
-	cobble = &cobblee;
+	blocks.push_back(Cobble(0, 0, 0, 0));
+	blocks.push_back(Cobble(1, 2, 0, 0));
+	blocks.push_back(Dirt(2, 1, 0, 0));
+	blocks.push_back(Dirt(1, 1, 0, 0));
+	blocks.push_back(Dirt(1, 3, 0, 0));
 	// Load textures
 	std::cout << "This is a seed: " << seed << std::endl;
 	glutMainLoop();
