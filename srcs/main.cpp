@@ -209,7 +209,7 @@ void updateChunks(vec3 newCameraPosition)
             {
 				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
 				{
-					std::cout << "remove chunk (" << chunk.getPosition().x << ", " << chunk.getPosition().y << ")" << std::endl;
+					// std::cout << "remove chunk (" << chunk.getPosition().x << ", " << chunk.getPosition().y << ")" << std::endl;
     	            return true;
 				}
 				return false;
