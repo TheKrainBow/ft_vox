@@ -2,6 +2,8 @@
 
 #include "ft_vox.hpp"
 
+#define NB_TEXTURES 2
+
 struct t_rgb {
     unsigned char r;
     unsigned char g;
@@ -12,7 +14,7 @@ struct t_rgb {
 
 class TextureManager {
 private:
-    std::map<BlockType, GLuint> _textures;
+    GLuint _textures[NB_TEXTURES];
 public:
     TextureManager(); // Constructor declaration
     ~TextureManager(); // Destructor declaration

@@ -58,6 +58,11 @@ void specialKeyRelease(int key, int x, int y)
 	specialKeyStates[key] = false;
 }
 
+void closeCallback()
+{
+	//Closing window callback to free all data
+	exit(0);
+}
 
 void keyPress(unsigned char key, int x, int y)
 {
@@ -218,6 +223,7 @@ void initGlutEvents()
 	glutSpecialUpFunc(specialKeyRelease);
 	if (isWSL() == false)
 		glutPassiveMotionFunc(mouseCallback);
+	glutCloseFunc(closeCallback);
 }
 
 int main(int argc, char **argv)

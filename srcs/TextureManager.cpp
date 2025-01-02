@@ -91,8 +91,5 @@ TextureManager::TextureManager() {
 
 // Destructor definition (no specific code yet)
 TextureManager::~TextureManager() {
-	for (std::map<BlockType, GLuint>::iterator it = _textures.begin(); it != _textures.end(); it++)
-	{
-		glDeleteTextures(1, &(it->second));
-	}
+	glDeleteTextures(2, _textures);
 }
