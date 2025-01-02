@@ -12,6 +12,10 @@ Cobble cobble(1, 0, 0, 0);
 Camera cam;
 bool ignoreMouseEvent = false;
 
+bool isWSL() {
+    return (std::getenv("WSL_DISTRO_NAME") != nullptr); // WSL_DISTRO_NAME is set in WSL
+}
+
 void specialKeyPress(int key, int x, int y)
 {
 	(void)x;
@@ -177,7 +181,8 @@ void initGlutEvents()
 	glutKeyboardUpFunc(keyRelease);
 	glutSpecialFunc(specialKeyPress);
 	glutSpecialUpFunc(specialKeyRelease);
-	glutPassiveMotionFunc(mouseCallback);
+	if (isWSL() == false)
+		glutPassiveMotionFunc(mouseCallback);
 }
 
 int main(int argc, char **argv)
