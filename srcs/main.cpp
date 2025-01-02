@@ -61,6 +61,10 @@ void specialKeyRelease(int key, int x, int y)
 void closeCallback()
 {
 	//Closing window callback to free all data
+	for (Chunk &chunk : chunks)
+	{
+		chunk.freeChunkData();
+	}
 	exit(0);
 }
 
@@ -234,7 +238,6 @@ int main(int argc, char **argv)
 		seed = atoi(argv[1]);
 		return 1;
 	}
-
 
 	initGlutWindow(argc, argv);
 	initGlutEvents();

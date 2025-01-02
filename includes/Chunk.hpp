@@ -19,4 +19,5 @@ class Chunk
 		Chunk(int x, int z);
 		~Chunk();
 		void display(void);
+		void freeChunkData();
 };

@@ -3,6 +3,7 @@
 Chunk::Chunk(int chunkX, int chunkZ)
 {
 	_position = vec2(chunkX, chunkZ);
+	bzero(_blocks, CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y * sizeof(ABlock *));
 	for (int x = 0; x < 16; x++)
 	{
 		for (int y = 0; y < 255; y++)
@@ -24,6 +25,16 @@ Chunk::Chunk(int chunkX, int chunkZ)
 					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Air((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z, state);
 			}
 		}
+	}
+}
+
+void Chunk::freeChunkData()
+{
+	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; i++)
+	{
+		if (_blocks[i])
+			delete _blocks[i];
+		_blocks[i] = nullptr;
 	}
 }
 
@@ -54,6 +65,4 @@ void Chunk::display(void)
 
 Chunk::~Chunk()
 {
-	// for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; i++)
-	// 	delete _blocks[i];
 }
