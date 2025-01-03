@@ -5,11 +5,7 @@
 #define NB_TEXTURES 2
 
 struct t_rgb {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    t_rgb(unsigned char r, unsigned char g, unsigned char b) : r(r), g(g), b(b) {}
-    t_rgb() : r(0), g(0), b(0) {}
+	uint8_t r, g, b;
 };
 
 class TextureManager {

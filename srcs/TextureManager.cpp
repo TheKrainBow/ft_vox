@@ -51,7 +51,7 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 	t_rgb* data = loadPPM(filename, width, height);
 	if (!data) {
 		std::cerr << "Error: Couldn't load texture from " << filename << std::endl;
-		return -1;
+		return 0;
 	}
 
 	glGenTextures(1, &newTextureID);
@@ -61,16 +61,16 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 	std::reverse(rgb_data.begin(), rgb_data.end());
 	// Upload the pixel data to the texture
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
-	
-	glGenerateMipmap(GL_TEXTURE_2D);
 
 	// Set texture parameters
 	if (isWSL())
 	{
+		std::cout << "Wsl detected, omitting mipmaps and anistropic filters" << std::endl;
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
 	else
 	{
+		glGenerateMipmap(GL_TEXTURE_2D);
 		GLfloat maxAniso = 0.0f;
 		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
@@ -80,7 +80,6 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
 
 	// Free the RGB data after uploading
 	delete[] data;
@@ -105,6 +104,10 @@ TextureManager::TextureManager() {
 TextureManager::~TextureManager() {
 	for (size_t i = 0; i < NB_TEXTURES; i++)
 	{
-		glDeleteTextures(1, &_textures[i]);
+		if (_textures[i] && glIsTexture(_textures[i]))
+		{
+			glDeleteTextures(1, &_textures[i]);
+			_textures[i] = 0;
+		}
 	}
 }

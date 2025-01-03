@@ -64,6 +64,7 @@ void closeCallback()
 	{
 		chunk.freeChunkData();
 	}
+	textManager.~TextureManager();
 	exit(0);
 }
 
@@ -317,7 +318,8 @@ int main(int argc, char **argv)
 		seed = atoi(argv[1]);
 		return 1;
 	}
-	NoiseGenerator noise(seed);
+	(void)seed;
+	NoiseGenerator noise;
 
 	initGlutWindow(argc, argv);
 	initGlutEvents();
