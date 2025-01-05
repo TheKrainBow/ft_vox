@@ -2,15 +2,20 @@
 
 Dirt::Dirt(int x, int y, int z) : ABlock(x, y, z)
 {
-	_faceTextures[DOWN] = textManager.getTexture(DIRT);
 	_type = DIRT;
-}
-
-Dirt::~Dirt()
-{
+	_textures[DOWN]  = T_DIRT;
+	_textures[UP]    = T_DIRT;
+	_textures[EAST]  = T_DIRT;
+	_textures[WEST]  = T_DIRT;
+	_textures[NORTH] = T_DIRT;
+	_textures[SOUTH] = T_DIRT;
 }
 
 Dirt *Dirt::clone() const
 {
 	return new Dirt(*this);
+}
+
+Dirt::~Dirt()
+{
 }

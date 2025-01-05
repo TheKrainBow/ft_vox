@@ -10,7 +10,6 @@ bool keyStates[256] = {false};
 bool specialKeyStates[256] = {false};
 std::vector<ABlock> blocks;
 std::vector<Chunk> chunks;
-Camera cam;
 bool ignoreMouseEvent = false;
 
 // FPS counter
@@ -156,67 +155,67 @@ void display()
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
 	
-	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
-		it->display();
+	textManager.displayAllTexture();
 
 	glutSwapBuffers();
 	calculateFps();
 }
 
 struct pair_hash {
-    template <class T1, class T2>
-    std::size_t operator () (const std::pair<T1, T2>& pair) const {
-        auto h1 = std::hash<T1>{}(pair.first);
-        auto h2 = std::hash<T2>{}(pair.second);
-        return h1 ^ (h2 << 1);
-    }
+	template <class T1, class T2>
+	std::size_t operator () (const std::pair<T1, T2>& pair) const {
+		auto h1 = std::hash<T1>{}(pair.first);
+		auto h2 = std::hash<T2>{}(pair.second);
+		return h1 ^ (h2 << 1);
+	}
 };
 
 void updateChunks(vec3 newCameraPosition)
 {
-	std::cout << "Update Chunks:" << std::endl;
-    // Store the set of positions for currently loaded chunks
-    std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
-    for (Chunk& chunk : chunks)
-        loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
+	// Store the set of positions for currently loaded chunks
+	std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
+	for (Chunk& chunk : chunks)
+		loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
 
-    // Set to track positions of chunks that should remain
-    std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
+	// Set to track positions of chunks that should remain
+	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
 
-    // Add chunks within the render distance
-    for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-    {
-        for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-        {
-            int chunkX = newCameraPosition.x + x;
-            int chunkZ = newCameraPosition.z + z;
+	// Add chunks within the render distance
+	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
+	{
+		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
+		{
+			int chunkX = newCameraPosition.x + x;
+			int chunkZ = newCameraPosition.z + z;
 
-            // Add this position to the required set
-            requiredChunkPositions.emplace(chunkX, chunkZ);
+			// Add this position to the required set
+			requiredChunkPositions.emplace(chunkX, chunkZ);
 
-            // If this chunk is not already loaded, create and add it
-            if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
-            {
+			// If this chunk is not already loaded, create and add it
+			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
+			{
 				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-                chunks.push_back(Chunk(chunkX, chunkZ));
-            }
-        }
-    }
+				chunks.push_back(Chunk(chunkX, chunkZ));
+			}
+		}
+	}
 
-    // Remove chunks that are no longer needed
-    chunks.erase(
-        std::remove_if(chunks.begin(), chunks.end(),
-            [&requiredChunkPositions](Chunk& chunk)
-            {
+	// Remove chunks that are no longer needed
+	chunks.erase(
+		std::remove_if(chunks.begin(), chunks.end(),
+			[&requiredChunkPositions](Chunk& chunk)
+			{
 				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
-				{
-					// std::cout << "remove chunk (" << chunk.getPosition().x << ", " << chunk.getPosition().y << ")" << std::endl;
-    	            return true;
-				}
+					return true;
 				return false;
-            }),
-        chunks.end()
-    );
+			}),
+		chunks.end()
+	);
+	
+	textManager.resetAllTextureVertex();
+
+	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+		it->display();
 }
 
 void update(int value)
@@ -325,8 +324,11 @@ int main(int argc, char **argv)
 	initGlutEvents();
 	initGLEW();
 	glEnable(GL_TEXTURE_2D);
-	textManager.addTexture(COBBLE, "textures/cobble.ppm");
-	textManager.addTexture(DIRT, "textures/dirt.ppm");
+	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
+	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
+	textManager.loadTexture(T_GRASS_TOP, "textures/moss_block_.ppm");
+	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
+	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
 	updateChunks(vec3(0, 0, 0));
 	// Load textures

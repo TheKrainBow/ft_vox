@@ -7,11 +7,11 @@
 using namespace glm;
 class ABlock;
 
-class Cobble : public ABlock
+class Grass : public ABlock
 {
 private:
 public:
-	Cobble(int x, int y, int z);
-	virtual Cobble *clone() const override;
-	~Cobble();
+	Grass(int x, int y, int z);
+	virtual Grass *clone() const override;
+	~Grass();
 };

@@ -25,7 +25,9 @@ using namespace glm;
 enum BlockType {
 	DIRT,
 	COBBLE,
-	AIR
+	STONE,
+	GRASS,
+	AIR,
 };
 
 #define W_WIDTH 800

@@ -15,10 +15,13 @@ INCLUDES	=	-Iincludes -Iglm
 SRC_NAME	=	main.cpp			\
 				Camera.cpp			\
 				TextureManager.cpp	\
+				Texture.cpp			\
 				globals.cpp			\
 				Chunk.cpp			\
 				blocks/Dirt.cpp		\
 				blocks/Cobble.cpp	\
+				blocks/Grass.cpp	\
+				blocks/Stone.cpp	\
 				blocks/ABlock.cpp	\
 				NoiseGenerator.cpp
 

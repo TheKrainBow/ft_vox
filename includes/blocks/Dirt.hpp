@@ -9,7 +9,6 @@ using namespace glm;
 class Dirt : public ABlock
 {
 	private:
-		void initTexture();
 	public:
 		Dirt(int x, int y, int z);
 		~Dirt();

@@ -44,14 +44,14 @@ t_rgb *TextureManager::loadPPM(const std::string &path, int &width, int &height)
 	return data;
 }
 
-// Load texture from the file
-GLuint TextureManager::loadTexture(const std::string& filename) {
+// Add a texture to the manager
+void TextureManager::loadTexture(TextureType type, std::string path) {
 	GLuint newTextureID;
 	int width, height;
-	t_rgb* data = loadPPM(filename, width, height);
+	t_rgb* data = loadPPM(path, width, height);
 	if (!data) {
-		std::cerr << "Error: Couldn't load texture from " << filename << std::endl;
-		return 0;
+		std::cerr << "Error: Couldn't load texture from " << path << std::endl;
+		return ;
 	}
 
 	glGenTextures(1, &newTextureID);
@@ -64,10 +64,7 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 
 	// Set texture parameters
 	if (isWSL())
-	{
-		std::cout << "Wsl detected, omitting mipmaps and anistropic filters" << std::endl;
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	}
 	else
 	{
 		glGenerateMipmap(GL_TEXTURE_2D);
@@ -83,17 +80,7 @@ GLuint TextureManager::loadTexture(const std::string& filename) {
 
 	// Free the RGB data after uploading
 	delete[] data;
-	return newTextureID;
-}
-
-// Add a texture to the manager
-void TextureManager::addTexture(BlockType type, std::string path) {
-	_textures[type] = loadTexture(path);
-}
-
-// Retrieve a texture from the manager
-GLuint TextureManager::getTexture(BlockType type) {
-	return (_textures[type]);
+	_textures[type] = new Texture(newTextureID);
 }
 
 // Constructor definition (no specific code yet)
@@ -102,12 +89,40 @@ TextureManager::TextureManager() {
 
 // Destructor definition (no specific code yet)
 TextureManager::~TextureManager() {
-	for (size_t i = 0; i < NB_TEXTURES; i++)
+	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
 	{
-		if (_textures[i] && glIsTexture(_textures[i]))
-		{
-			glDeleteTextures(1, &_textures[i]);
-			_textures[i] = 0;
-		}
+		if (it->second)
+			delete it->second;
+		it->second = nullptr;
+	}
+}
+
+void TextureManager::addTextureVertex(TextureType type, int x, int y, int z)
+{
+	_textures[type]->addVertex(x, y, z);
+}
+
+void TextureManager::resetTextureVertex(TextureType type)
+{
+	_textures[type]->resetVertex();
+}
+
+void TextureManager::resetAllTextureVertex()
+{
+	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
+		it->second->resetVertex();
+}
+
+void TextureManager::displayTexture(TextureType type)
+{
+	_textures[type]->display();
+}
+
+void TextureManager::displayAllTexture()
+{
+	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
+	{
+		glBindTexture(GL_TEXTURE_2D, it->second->getTexture());
+		it->second->display();
 	}
 }

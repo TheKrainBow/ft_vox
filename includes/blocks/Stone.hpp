@@ -5,13 +5,13 @@
 #include "globals.hpp"
 
 using namespace glm;
+class ABlock;
 
-
-class Air : public ABlock
+class Stone : public ABlock
 {
 private:
 public:
-	Air(int x, int y, int z);
-	~Air();
-	virtual Air *clone() const override;
+	Stone(int x, int y, int z);
+	virtual Stone *clone() const override;
+	~Stone();
 };

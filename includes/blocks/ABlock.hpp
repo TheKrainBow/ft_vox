@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ft_vox.hpp"
+#include "globals.hpp"
 
 class ABlock
 {
@@ -15,29 +16,27 @@ class ABlock
 		};
 	protected:
 		glm::vec3	_position;
-		int			_neighbors;
+		TextureType	_textures[6];
+		BlockType	_type;
 		bool		_hasUpNeighbor;
 		bool		_hasDownNeighbor;
 		bool		_hasLeftNeighbor;
 		bool		_hasRightNeighbor;
 		bool		_hasFrontNeighbor;
 		bool		_hasBackNeighbor;
-		GLuint		_faceTextures[6];
-		BlockType	_type;
 	public:
 		ABlock(int x, int y, int z);
 		virtual ~ABlock() = default;
-		virtual GLuint display(GLuint currentText);
+		virtual void display();
 		virtual ABlock* clone() const = 0;
-		void updateNeighbors(int neighbors);
 		vec3 getPosition(void);
 		BlockType getType(void);
-	protected:
-		virtual void displayNorthFace();
-		virtual void displaySouthFace();
-		virtual void displayEastFace();
-		virtual void displayWestFace();
-		virtual void displayUpFace();
-		virtual void displayDownFace();
-	
+		void updateNeighbors(int neighbors);
+	private:
+		void displayNorthFace();
+		void displaySouthFace();
+		void displayEastFace();
+		void displayWestFace();
+		void displayUpFace();
+		void displayDownFace();
 };
