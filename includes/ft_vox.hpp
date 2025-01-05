@@ -17,7 +17,7 @@
 #include <array>
 #include <limits>
 #include <memory>
-#include <cmath>
+#include <random>
 #include <algorithm>
 
 using namespace glm;
@@ -30,6 +30,6 @@ enum BlockType {
 
 #define W_WIDTH 800
 #define W_HEIGHT 600
-#define RENDER_DISTANCE 11
+#define RENDER_DISTANCE 8
 
 bool isWSL();

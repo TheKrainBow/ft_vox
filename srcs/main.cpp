@@ -8,8 +8,6 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[256] = {false};
 bool specialKeyStates[256] = {false};
-std::vector<ABlock> blocks;
-std::vector<Chunk> chunks;
 Camera cam;
 bool ignoreMouseEvent = false;
 
@@ -17,6 +15,11 @@ bool ignoreMouseEvent = false;
 int frameCount = 0;
 double lastFrameTime = 0.0;
 double currentFrameTime = 0.0;
+
+//World gen
+std::vector<ABlock> blocks;
+std::vector<Chunk> chunks;
+NoiseGenerator noise_gen(42);
 
 void calculateFps()
 {
@@ -198,7 +201,7 @@ void updateChunks(vec3 newCameraPosition)
             if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
             {
 				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-                chunks.push_back(Chunk(chunkX, chunkZ));
+                chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
             }
         }
     }
@@ -318,9 +321,7 @@ int main(int argc, char **argv)
 		seed = atoi(argv[1]);
 		return 1;
 	}
-	(void)seed;
-	NoiseGenerator noise;
-
+	noise_gen.setSeed((size_t)seed);
 	initGlutWindow(argc, argv);
 	initGlutEvents();
 	initGLEW();
