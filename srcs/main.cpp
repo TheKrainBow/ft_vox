@@ -4,10 +4,12 @@
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
 
+// Display
+GLFWwindow* _window;
+
 mat4 projectionMatrix;
 mat4 viewMatrix;
-bool keyStates[256] = {false};
-bool specialKeyStates[256] = {false};
+bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
 
 // FPS counter
@@ -24,20 +26,20 @@ void calculateFps()
 {
 	double fps = 0.0;
 	frameCount++;
-	currentFrameTime = glutGet(GLUT_ELAPSED_TIME);
+	currentFrameTime = glfwGetTime();
 
 	double timeInterval = currentFrameTime - lastFrameTime;
 
-	if (timeInterval > 1000)
+	if (timeInterval > 1.0)
 	{
-		fps = frameCount / (timeInterval / 1000.0);
+		fps = frameCount / timeInterval;
 
 		lastFrameTime = currentFrameTime;
 		frameCount = 0;
 
 		std::stringstream title;
 		title << "Not ft_minecraft | FPS: " << fps;
-		glutSetWindowTitle(title.str().c_str());
+		glfwSetWindowTitle(_window, title.str().c_str());
 	}
 }
 
@@ -45,109 +47,73 @@ bool isWSL() {
 	return (std::getenv("WSL_DISTRO_NAME") != nullptr); // WSL_DISTRO_NAME is set in WSL
 }
 
-void specialKeyPress(int key, int x, int y)
+void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	(void)x;
-	(void)y;
-	specialKeyStates[key] = true;
+	(void)window;
+	(void)scancode;
+	(void)mods;
+	if (action == GLFW_PRESS)
+		keyStates[key] = true;
+	else if (action == GLFW_RELEASE)
+		keyStates[key] = false;
+
+	if (key == GLFW_KEY_ESCAPE)
+		glfwSetWindowShouldClose(_window, GL_TRUE);
 }
 
-void specialKeyRelease(int key, int x, int y)
+void mouseCallback(GLFWwindow* window, double x, double y)
 {
-	(void)x;
-	(void)y;
-	specialKeyStates[key] = false;
-}
-
-void closeCallback()
-{
-	//Closing window callback to free all data
-	for (Chunk &chunk : chunks)
-	{
-		chunk.freeChunkData();
-	}
-	exit(0);
-}
-
-void keyPress(unsigned char key, int x, int y)
-{
-	(void)x;
-	(void)y;
-	keyStates[key] = true;
-	if (key == 27)
-		glutLeaveMainLoop();
-}
-void keyRelease(unsigned char key, int x, int y)
-{
-	(void)x;
-	(void)y;
-	keyStates[key] = false;
-}
-
-void mouseCallback(int x, int y)
-{
+	(void)window;
 	static bool firstMouse = true;
-	static int lastX = 0, lastY = 0;
+	static double lastX = 0, lastY = 0;
 
 	// Get the current window size dynamically
-	int windowWidth = glutGet(GLUT_WINDOW_WIDTH);
-	int windowHeight = glutGet(GLUT_WINDOW_HEIGHT);
+	int windowWidth, windowHeight;
+	glfwGetWindowSize(_window, &windowWidth, &windowHeight);
+	glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	// Update the size
-	//particle_sys.update_window_size(windowWidth, windowHeight);
 	cam.updateMousePos(x, y);
-
 
 	int windowCenterX = windowWidth / 2;
 	int windowCenterY = windowHeight / 2;
 
-	if (firstMouse || ignoreMouseEvent) {
+	if (firstMouse || ignoreMouseEvent)
+	{
 		lastX = windowCenterX;
 		lastY = windowCenterY;
 		firstMouse = false;
 		ignoreMouseEvent = false;
-		return ;
+		return;
 	}
 
-
-	// Calculate the mouse movement offsets
 	float xOffset = lastX - x;
-	float yOffset = lastY - y; // Invert y-axis to match typical camera movement
+	float yOffset = lastY - y;
 
-	// Save the current mouse position for the next callback
 	lastX = x;
 	lastY = y;
 
-	// Apply sensitivity to smooth the movement
 	float sensitivity = 0.05f;
 	xOffset *= sensitivity;
 	yOffset *= sensitivity;
 
-	// Update the camera angles
 	cam.xangle += xOffset * cam.rotationspeed;
 	cam.yangle += yOffset * cam.rotationspeed;
 
-	// Limit the pitch (yangle) to avoid flipping
 	if (cam.yangle > 89.0f) cam.yangle = 89.0f;
 	if (cam.yangle < -89.0f) cam.yangle = -89.0f;
 
-	// Ignore movement for next call to move mouse from warpPointer function
 	ignoreMouseEvent = true;
 
-	// Optionally, recenter the mouse after each movement
-	glutWarpPointer(windowCenterX, windowCenterY);
+	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
 }
 
-void display()
+void display(GLFWwindow* window)
 {
+	(void)window;
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
-	// Matrix operations for the camera
-	float radY;
-	float radX;
-
-	// Radians conversion
+	float radY, radX;
 	radX = cam.xangle * (M_PI / 180.0);
 	radY = cam.yangle * (M_PI / 180.0);
 
@@ -156,11 +122,11 @@ void display()
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
-	
+
 	textManager.displayAllTexture();
 
-	glutSwapBuffers();
 	calculateFps();
+	glfwSwapBuffers(_window);
 }
 
 struct pair_hash {
@@ -197,10 +163,10 @@ void updateChunks(vec3 newCameraPosition)
 			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
 			{
 				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-                chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
-            }
-        }
-    }
+				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
+			}
+		}
+	}
 
 	// Remove chunks that are no longer needed
 	chunks.erase(
@@ -223,86 +189,63 @@ void updateChunks(vec3 newCameraPosition)
 		it->display();
 }
 
-void update(int value)
+void update(GLFWwindow* window)
 {
-	(void)value;
+	(void)window;
 	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
-	if (oldCamChunk.x < 0)
-		oldCamChunk.x--;
-	if (oldCamChunk.z < 0)
-		oldCamChunk.z--;
-	// Camera movement
-	if (keyStates['z'] || keyStates['w']) cam.move(1.0, 0.0, 0.0);
-	if (keyStates['q'] || keyStates['a']) cam.move(0.0, 1.0, 0.0);
-	if (keyStates['s']) cam.move(-1.0, 0.0, 0.0);
-	if (keyStates['d']) cam.move(0.0, -1.0, 0.0);
-	if (keyStates[' ']) cam.move(0.0, 0.0, -1.0);
-	if (keyStates['v']) cam.move(0.0, 0.0, 1.0);
+	if (oldCamChunk.x < 0) oldCamChunk.x--;
+	if (oldCamChunk.z < 0) oldCamChunk.z--;
+
+	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(1.0, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) cam.move(0.0, 1.0, 0.0);
+	if (keyStates[GLFW_KEY_S]) cam.move(-1.0, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_D]) cam.move(0.0, -1.0, 0.0);
+	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
+	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
 
 	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+	if (camChunk.x < 0) camChunk.x--;
+	if (camChunk.z < 0) camChunk.z--;
 
-	if (camChunk.x < 0)
-		camChunk.x--;
-	if (camChunk.z < 0)
-		camChunk.z--;
+	// if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
+	// 	updateChunks(camChunk);
 
-	if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
-		updateChunks(camChunk);
+	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
+	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
+	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
+	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += cam.rotationspeed;
 
-	//Camera movement with keys
-	if (specialKeyStates[GLUT_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
-	if (specialKeyStates[GLUT_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
-	if (specialKeyStates[GLUT_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
-	if (specialKeyStates[GLUT_KEY_LEFT]) cam.xangle += cam.rotationspeed;
+	if (cam.xangle > 360.0) cam.xangle = 0.0;
+	else if (cam.xangle < 0.0) cam.xangle = 360.0;
 
-	// Camera rotations
-	if (cam.xangle > 360.0)
-		cam.xangle = 0.0;
-	else if (cam.xangle < 0.0)
-		cam.xangle = 360.0;
-
-
-	glutPostRedisplay();
-	// Call update every 8 milliseconds (~120 FPS)
-	glutTimerFunc(8, update, 0);
+	display(_window);
 }
 
-void reshape(int width, int height)
+void reshape(GLFWwindow* window, int width, int height)
 {
+	(void)window;
 	glViewport(0, 0, width, height);
-
-	// Apply projection matrix operations
 	glMatrixMode(GL_PROJECTION);
-
-	// Load identity matrix
 	projectionMatrix = glm::mat4(1.0f);
 	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
 	glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
 
-void initGlutWindow(int ac, char **av)
+int initGLFW()
 {
-	glutInit(&ac, av);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-	glutInitWindowSize(W_WIDTH, W_HEIGHT);
-	glutCreateWindow("Not_ft_minecraft | FPS: 0");
-	glEnable(GL_DEPTH_TEST);
-	glutSetCursor(GLUT_CURSOR_NONE);
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // Black background
-}
+	_window = glfwCreateWindow(W_WIDTH, W_HEIGHT, "Not_ft_minecraft | FPS: 0", NULL, NULL);
+	if (!_window)
+	{
+		std::cerr << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return 0;
+	}
 
-void initGlutEvents()
-{
-	glutDisplayFunc(display);
-	glutReshapeFunc(reshape);
-	glutTimerFunc(8, update, 0); // 8 ticks per second update, 120 fps~
-	glutKeyboardFunc(keyPress);
-	glutKeyboardUpFunc(keyRelease);
-	glutSpecialFunc(specialKeyPress);
-	glutSpecialUpFunc(specialKeyRelease);
-	if (isWSL() == false)
-		glutPassiveMotionFunc(mouseCallback);
-	glutCloseFunc(closeCallback);
+	glfwMakeContextCurrent(_window);
+	glfwSetFramebufferSizeCallback(_window, reshape);
+	glfwSetKeyCallback(_window, keyPress);
+	glfwSetCursorPosCallback(_window, mouseCallback);
+	return 1;
 }
 
 void initGLEW() {
@@ -322,9 +265,16 @@ int main(int argc, char **argv)
 		seed = atoi(argv[1]);
 		return 1;
 	}
+	if (!glfwInit())
+	{
+		std::cerr << "Failed to initialize GLFW" << std::endl;
+		return -1;
+	}
+
 	noise_gen.setSeed((size_t)seed);
-	initGlutWindow(argc, argv);
-	initGlutEvents();
+	if (!initGLFW())
+		return 1;
+
 	initGLEW();
 	glEnable(GL_TEXTURE_2D);
 	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
@@ -334,7 +284,22 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
 	updateChunks(vec3(0, 0, 0));
-	// Load textures
-	glutMainLoop();
+
+	reshape(_window, W_WIDTH, W_HEIGHT);
+	glEnable(GL_DEPTH_TEST);
+	// Main loop
+	while (!glfwWindowShouldClose(_window))
+	{
+		update(_window);
+		glfwPollEvents();
+	}
+	//Free chunk data
+	for (Chunk &chunk : chunks)
+	{
+		chunk.freeChunkData();
+	}
+
+	glfwDestroyWindow(_window);
+	glfwTerminate();
 	return 0;
 }

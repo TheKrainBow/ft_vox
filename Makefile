@@ -1,7 +1,7 @@
 NAME		=	ft_vox
 DEBUG_NAME	=	ft_voxDebug
 
-LDFLAGS =	-lGL -lGLU -lglut -Llib64 -lGLEW
+LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
 CFLAGS	=	-Wall -Wextra -Werror -O3 -g3
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
