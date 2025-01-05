@@ -66,7 +66,6 @@ void closeCallback()
 	{
 		chunk.freeChunkData();
 	}
-	textManager.~TextureManager();
 	exit(0);
 }
 
@@ -209,7 +208,10 @@ void updateChunks(vec3 newCameraPosition)
 			[&requiredChunkPositions](Chunk& chunk)
 			{
 				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
+				{
+					chunk.freeChunkData();
 					return true;
+				}
 				return false;
 			}),
 		chunks.end()
