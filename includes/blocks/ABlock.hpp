@@ -28,7 +28,6 @@ class ABlock
 		ABlock(int x, int y, int z);
 		virtual ~ABlock() = default;
 		virtual void display();
-		virtual ABlock* clone() const = 0;
 		vec3 getPosition(void);
 		BlockType getType(void);
 		void updateNeighbors(int neighbors);

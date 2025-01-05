@@ -12,6 +12,5 @@ class Stone : public ABlock
 private:
 public:
 	Stone(int x, int y, int z);
-	virtual Stone *clone() const override;
 	~Stone();
 };

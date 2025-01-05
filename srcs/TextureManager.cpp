@@ -89,11 +89,11 @@ TextureManager::TextureManager() {
 
 // Destructor definition (no specific code yet)
 TextureManager::~TextureManager() {
-	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
+	for (auto &pair : _textures)
 	{
-		if (it->second)
-			delete it->second;
-		it->second = nullptr;
+		if (pair.second)
+			delete pair.second;
+		pair.second = nullptr;
 	}
 }
 

@@ -12,6 +12,5 @@ class Grass : public ABlock
 private:
 public:
 	Grass(int x, int y, int z);
-	virtual Grass *clone() const override;
 	~Grass();
 };

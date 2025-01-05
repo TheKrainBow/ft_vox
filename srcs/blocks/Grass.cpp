@@ -11,11 +11,6 @@ Grass::Grass(int x, int y, int z) : ABlock(x, y, z)
 	_textures[SOUTH] = T_GRASS_SIDE;
 }
 
-Grass *Grass::clone() const
-{
-	return new Grass(*this);
-}
-
 Grass::~Grass()
 {
 }

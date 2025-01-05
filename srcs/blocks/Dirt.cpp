@@ -11,11 +11,6 @@ Dirt::Dirt(int x, int y, int z) : ABlock(x, y, z)
 	_textures[SOUTH] = T_DIRT;
 }
 
-Dirt *Dirt::clone() const
-{
-	return new Dirt(*this);
-}
-
 Dirt::~Dirt()
 {
 }

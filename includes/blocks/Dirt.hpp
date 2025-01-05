@@ -12,5 +12,4 @@ class Dirt : public ABlock
 	public:
 		Dirt(int x, int y, int z);
 		~Dirt();
-		Dirt *clone() const override;
 };

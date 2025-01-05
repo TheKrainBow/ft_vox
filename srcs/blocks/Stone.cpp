@@ -11,11 +11,6 @@ Stone::Stone(int x, int y, int z) : ABlock(x, y, z)
 	_textures[SOUTH] = T_STONE;
 }
 
-Stone *Stone::clone() const
-{
-	return new Stone(*this);
-}
-
 Stone::~Stone()
 {
 }

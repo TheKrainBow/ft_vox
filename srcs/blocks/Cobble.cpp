@@ -11,10 +11,6 @@ Cobble::Cobble(int x, int y, int z) : ABlock(x, y, z)
 	_textures[SOUTH] = T_COBBLE;
 }
 
-Cobble *Cobble::clone() const
-{
-	return new Cobble(*this);
-}
 
 Cobble::~Cobble()
 {

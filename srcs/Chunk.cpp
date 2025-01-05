@@ -60,18 +60,6 @@ void Chunk::freeChunkData()
 	}
 }
 
-Chunk::Chunk(const Chunk& other)
-{
-	_position = other._position;
-	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; ++i)
-	{
-		if (other._blocks[i])
-			_blocks[i] = other._blocks[i]->clone();
-		else
-			_blocks[i] = nullptr;
-	}
-}
-
 void Chunk::display()
 {
 	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; ++i)
