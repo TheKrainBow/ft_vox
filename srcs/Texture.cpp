@@ -7,7 +7,11 @@ Texture::Texture(GLuint texture) : _texture(texture)
 Texture::~Texture()
 {
 	resetVertex();
-	glDeleteTextures(1, &_texture);
+	if (_texture)
+	{
+		glDeleteTextures(1, &_texture);
+		_texture = 0;
+	}
 }
 
 void Texture::addVertex(int x, int y, int z)
@@ -18,7 +22,11 @@ void Texture::addVertex(int x, int y, int z)
 void Texture::resetVertex(void)
 {
 	for (vec3 *face : _faces)
-		delete face;
+	{
+		if (face)
+			delete face;
+		face = nullptr;
+	}
 	_faces.clear();
 }
 

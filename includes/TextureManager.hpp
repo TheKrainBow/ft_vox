@@ -18,20 +18,19 @@ enum TextureType {
 };
 
 class TextureManager {
-private:
-	std::map<TextureType, Texture *> _textures;
-public:
-	TextureManager(); // Constructor declaration
-	~TextureManager(); // Destructor declaration
+	private:
+		std::map<TextureType, Texture *> _textures;
+	public:
+		TextureManager(); // Constructor declaration
+		~TextureManager(); // Destructor declaration
 
-	void loadTexture(TextureType type, std::string path);
-	void addTextureVertex(TextureType type, int x, int y, int z);
-	void resetTextureVertex(TextureType type);
-	void resetAllTextureVertex();
-	void displayTexture(TextureType type);
-	void displayAllTexture();
-
-private:
-	// Declaring external functions that are not part of the class
-	t_rgb *loadPPM(const std::string &path, int &width, int &height);
+		void loadTexture(TextureType type, std::string path);
+		void addTextureVertex(TextureType type, int x, int y, int z);
+		void resetTextureVertex(TextureType type);
+		void resetAllTextureVertex();
+		void displayTexture(TextureType type);
+		void displayAllTexture();
+	private:
+		// Declaring external functions that are not part of the class
+		t_rgb *loadPPM(const std::string &path, int &width, int &height);
 };
