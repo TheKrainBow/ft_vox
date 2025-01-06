@@ -3,8 +3,13 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
+<<<<<<< Updated upstream
 CFLAGS	=	-Wall -Wextra -Werror -O3 -g3
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
+=======
+CFLAGS	=	-Wall -Wextra -Werror -O2 -g3 -fsanitize=address
+DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3 -fsanitize=leak
+>>>>>>> Stashed changes
 
 OBJ_PATH		=	obj/
 DEBUG_OBJ_PATH		=	debug_obj/
@@ -23,6 +28,7 @@ SRC_NAME	=	main.cpp			\
 				blocks/Grass.cpp	\
 				blocks/Stone.cpp	\
 				blocks/ABlock.cpp	\
+				Skybox.cpp			\
 				NoiseGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
