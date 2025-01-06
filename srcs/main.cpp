@@ -3,12 +3,10 @@
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
-#include "Skybox.hpp"
 
 // Display
 GLFWwindow* _window;
 
-Skybox *skybox;
 mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
@@ -110,61 +108,6 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 }
 
 void display(GLFWwindow* window)
-void renderSkybox() {
-    glDisable(GL_DEPTH_TEST);  // Make sure skybox is always behind everything
-    
-    // Bind your skybox texture
-    glBindTexture(GL_TEXTURE_CUBE_MAP, skybox->getTextureID());
-
-    glTranslatef(cam.position.x, cam.position.y, cam.position.z);
-    
-    glEnable(GL_TEXTURE_CUBE_MAP);
-    
-    glBegin(GL_QUADS);
-    
-    // Front face (+Z)
-    glTexCoord3f(-10.0f, -10.0f, 10.0f); glVertex3f(-10.0f, -10.0f, 10.0f);
-    glTexCoord3f(10.0f, -10.0f, 10.0f); glVertex3f(10.0f, -10.0f, 10.0f);
-    glTexCoord3f(10.0f, 10.0f, 10.0f); glVertex3f(10.0f, 10.0f, 10.0f);
-    glTexCoord3f(-10.0f, 10.0f, 10.0f); glVertex3f(-10.0f, 10.0f, 10.0f);
-    
-    // Back face (-Z)
-    glTexCoord3f(10.0f, -10.0f, -10.0f); glVertex3f(-10.0f, -10.0f, -10.0f);
-    glTexCoord3f(-10.0f, -10.0f, -10.0f); glVertex3f(10.0f, -10.0f, -10.0f);
-    glTexCoord3f(-10.0f, 10.0f, -10.0f); glVertex3f(10.0f, 10.0f, -10.0f);
-    glTexCoord3f(10.0f, 10.0f, -10.0f); glVertex3f(-10.0f, 10.0f, -10.0f);
-    
-    // Left face (-X)
-    glTexCoord3f(-10.0f, -10.0f, -10.0f); glVertex3f(-10.0f, -10.0f, -10.0f);
-    glTexCoord3f(-10.0f, -10.0f, 10.0f); glVertex3f(-10.0f, -10.0f, 10.0f);
-    glTexCoord3f(-10.0f, 10.0f, 10.0f); glVertex3f(-10.0f, 10.0f, 10.0f);
-    glTexCoord3f(-10.0f, 10.0f, -10.0f); glVertex3f(-10.0f, 10.0f, -10.0f);
-    
-    // Right face (+X)
-    glTexCoord3f(10.0f, -10.0f, 10.0f); glVertex3f(10.0f, -10.0f, 10.0f);
-    glTexCoord3f(10.0f, -10.0f, -10.0f); glVertex3f(10.0f, -10.0f, -10.0f);
-    glTexCoord3f(10.0f, 10.0f, -10.0f); glVertex3f(10.0f, 10.0f, -10.0f);
-    glTexCoord3f(10.0f, 10.0f, 10.0f); glVertex3f(10.0f, 10.0f, 10.0f);
-    
-    // Top face (+Y)
-    glTexCoord3f(-10.0f, 10.0f, -10.0f); glVertex3f(-10.0f, 10.0f, -10.0f);
-    glTexCoord3f(-10.0f, 10.0f, 10.0f); glVertex3f(-10.0f, 10.0f, 10.0f);
-    glTexCoord3f(10.0f, 10.0f, 10.0f); glVertex3f(10.0f, 10.0f, 10.0f);
-    glTexCoord3f(10.0f, 10.0f, -10.0f); glVertex3f(10.0f, 10.0f, -10.0f);
-    
-    // Bottom face (-Y)
-    glTexCoord3f(-10.0f, -10.0f, -10.0f); glVertex3f(-10.0f, -10.0f, -10.0f);
-    glTexCoord3f(-10.0f, -10.0f, 10.0f); glVertex3f(-10.0f, -10.0f, 10.0f);
-    glTexCoord3f(10.0f, -10.0f, 10.0f); glVertex3f(10.0f, -10.0f, 10.0f);
-    glTexCoord3f(10.0f, -10.0f, -10.0f); glVertex3f(10.0f, -10.0f, -10.0f);
-    
-    glEnd();
-    
-    glDisable(GL_TEXTURE_CUBE_MAP);
-    glEnable(GL_DEPTH_TEST);
-}
-
-void display()
 {
 	(void)window;
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -181,8 +124,6 @@ void display()
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
 
 	textManager.displayAllTexture();
-	// skybox->render();
-	renderSkybox();
 
 	calculateFps();
 	glfwSwapBuffers(_window);
@@ -318,11 +259,18 @@ void initGLEW() {
 
 int main(int argc, char **argv)
 {
-	Skybox skyboxObject;
-
 	int seed = 42;
 	if (argc == 2)
+	{
 		seed = atoi(argv[1]);
+		return 1;
+	}
+	if (!glfwInit())
+	{
+		std::cerr << "Failed to initialize GLFW" << std::endl;
+		return -1;
+	}
+
 	noise_gen.setSeed((size_t)seed);
 	if (!initGLFW())
 		return 1;
@@ -336,9 +284,22 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
 	updateChunks(vec3(0, 0, 0));
-	// Load textures
-	skybox = &skyboxObject;
-	skyboxObject.loadFromPPM("textures/skybox.ppm", 900, 900);
-	glutMainLoop();
+
+	reshape(_window, W_WIDTH, W_HEIGHT);
+	glEnable(GL_DEPTH_TEST);
+	// Main loop
+	while (!glfwWindowShouldClose(_window))
+	{
+		update(_window);
+		glfwPollEvents();
+	}
+	//Free chunk data
+	for (Chunk &chunk : chunks)
+	{
+		chunk.freeChunkData();
+	}
+
+	glfwDestroyWindow(_window);
+	glfwTerminate();
 	return 0;
 }
