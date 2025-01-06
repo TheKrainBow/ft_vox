@@ -280,7 +280,7 @@ int main(int argc, char **argv)
 	glEnable(GL_TEXTURE_2D);
 	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
 	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
-	textManager.loadTexture(T_GRASS_TOP, "textures/moss_block_.ppm");
+	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
