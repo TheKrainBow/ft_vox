@@ -207,8 +207,8 @@ void update(GLFWwindow* window)
 	if (camChunk.x < 0) camChunk.x--;
 	if (camChunk.z < 0) camChunk.z--;
 
-	// if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
-	// 	updateChunks(camChunk);
+	if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
+		updateChunks(camChunk);
 
 	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
 	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
@@ -244,7 +244,8 @@ int initGLFW()
 	glfwMakeContextCurrent(_window);
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
-	glfwSetCursorPosCallback(_window, mouseCallback);
+	if (!isWSL())
+		glfwSetCursorPosCallback(_window, mouseCallback);
 	return 1;
 }
 
