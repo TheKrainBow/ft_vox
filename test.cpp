@@ -3,40 +3,38 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "includes/stb_truetype.hpp"
 
-
 // Window dimensions
 const int W_WIDTH = 800;
-const int W_HEIGHT = 600;
+const int W_HEIGHT = 100;
 
 // Font texture ID
 GLuint fontTexture;
+GLFWwindow* window;
 
 // stb_truetype font data
 stbtt_bakedchar cdata[96]; // ASCII 32..126
 unsigned char ttf_buffer[1 << 20]; // Load font data
-unsigned char bitmap[512 * 512];   // Font bitmap
+unsigned char bitmap[512 * 512 * 4]; // RGBA Font bitmap
 
 stbtt_fontinfo font;
-GLFWwindow *window;
+
+// OpenGL initialization and text rendering
 void renderText(const char* text, float x, float y) {
-    // Enable blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_DEPTH_TEST);  // Disable depth test for 2D text rendering
+    glDisable(GL_DEPTH_TEST);
 
-    glBindTexture(GL_TEXTURE_2D, fontTexture);
-
-    // Adjust y to move text upwards to the top of the screen
-    int windowHeight;
-    glfwGetWindowSize(window, NULL, &windowHeight); // Get the height of the window
-    y = windowHeight - y;  // Flip y so the text starts at the top
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    float startX = x;
+    float startY = y - (height - 512 - 20);
 
     while (*text) {
-        if (*text >= 32) { // Only render printable characters
+        if (*text >= 32) {
             stbtt_aligned_quad q;
-            stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
+            stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &startX, &startY, &q, 1);
 
-            // Correct y-flip
+
             q.y0 = 512 - q.y0;
             q.y1 = 512 - q.y1;
 
@@ -49,12 +47,9 @@ void renderText(const char* text, float x, float y) {
         }
         ++text;
     }
-
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
 }
-
-
 int main() {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -71,7 +66,7 @@ int main() {
     glfwMakeContextCurrent(window);
 
     // Load font
-    FILE* f = fopen("textures/CASCADIAMONO.TTF", "rb");
+    FILE* f = fopen("textures/TAHOMA.TTF", "rb");
     if (!f) {
         std::cerr << "Failed to load font" << std::endl;
         return -1;
@@ -80,14 +75,28 @@ int main() {
     fclose(f);
 
     stbtt_InitFont(&font, ttf_buffer, stbtt_GetFontOffsetForIndex(ttf_buffer, 0));
-    stbtt_BakeFontBitmap(ttf_buffer, 0, 32.0, bitmap, 512, 512, 32, 96, cdata);
+    unsigned char grayscale_bitmap[512 * 512];
+    stbtt_BakeFontBitmap(ttf_buffer, 0, 20.0, grayscale_bitmap, 512, 512, 32, 96, cdata);
+
+    // Convert grayscale bitmap to RGBA
+    memset(bitmap, 0, sizeof(bitmap)); // Initialize to transparent
+    for (int i = 0; i < 512 * 512; ++i) {
+        unsigned char intensity = grayscale_bitmap[i];
+        bitmap[i * 4 + 0] = intensity; // R
+        bitmap[i * 4 + 1] = intensity; // G
+        bitmap[i * 4 + 2] = intensity; // B
+        bitmap[i * 4 + 3] = intensity; // A
+    }
 
     // Create texture for font bitmap
     glGenTextures(1, &fontTexture);
     glBindTexture(GL_TEXTURE_2D, fontTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 512, 512, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 512, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Set texture environment mode to modulate color with texture
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     // OpenGL settings
     glEnable(GL_TEXTURE_2D);
@@ -101,8 +110,14 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT);
 
-        renderText("Hello, OpenGL!", 0.0f, 0.0f);  // Display text at position (100, 500)
+        glColor4f(0.0f, 0.0f, 1.0f, 1.0f); // Red text
+        renderText("Nique", 0.0f, 0.0f);
 
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // Green text
+        renderText("Ma", 0.0f, 20.0f);
+
+        glColor4f(1.0f, 0.0f, 0.0f, 1.0f); // Green text
+        renderText("Mere", 0.0f, 40.0f);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
