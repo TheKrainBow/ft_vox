@@ -11,6 +11,7 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
+bool updateChunk = true;
 
 // FPS counter
 int frameCount = 0;
@@ -52,6 +53,10 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	(void)window;
 	(void)scancode;
 	(void)mods;
+
+	if (action == GLFW_PRESS && key == GLFW_KEY_C)
+		updateChunk = !updateChunk;
+
 	if (action == GLFW_PRESS)
 		keyStates[key] = true;
 	else if (action == GLFW_RELEASE)
@@ -217,7 +222,7 @@ void update(GLFWwindow* window)
 	if (camChunk.x < 0) camChunk.x--;
 	if (camChunk.z < 0) camChunk.z--;
 
-	if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
+	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks(camChunk);
 
 	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
