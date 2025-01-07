@@ -123,6 +123,13 @@ void display(GLFWwindow* window)
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
 
+	#ifdef NDEBUG
+	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	{
+		it->renderBoundaries();
+	}
+	#endif
+
 	textManager.displayAllTexture();
 
 	calculateFps();
@@ -186,12 +193,15 @@ void updateChunks(vec3 newCameraPosition)
 	textManager.resetAllTextureVertex();
 
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	{
 		it->display();
+	}
 }
 
 void update(GLFWwindow* window)
 {
 	(void)window;
+
 	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
@@ -288,12 +298,14 @@ int main(int argc, char **argv)
 
 	reshape(_window, W_WIDTH, W_HEIGHT);
 	glEnable(GL_DEPTH_TEST);
+
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
 		update(_window);
 		glfwPollEvents();
 	}
+
 	//Free chunk data
 	for (Chunk &chunk : chunks)
 	{
