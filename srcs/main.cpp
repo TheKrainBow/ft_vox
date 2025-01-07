@@ -3,6 +3,9 @@
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.hpp"
+
 
 // Display
 GLFWwindow* _window;
@@ -21,6 +24,13 @@ double currentFrameTime = 0.0;
 std::vector<ABlock> blocks;
 std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
+
+// Initialize font
+stbtt_bakedchar cdata[96]; // ASCII 32..126
+unsigned char ttf_buffer[1 << 20];
+unsigned char bitmap[512 * 512];
+stbtt_fontinfo font;
+GLuint fontTexture;
 
 void calculateFps()
 {
@@ -107,24 +117,51 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
 }
 
+void renderText(const char* text, float x, float y) {
+    // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);  // Disable depth test for 2D text rendering
+
+    glBindTexture(GL_TEXTURE_2D, fontTexture);
+
+    while (*text) {
+        if (*text >= 32) { // Only render printable characters
+            stbtt_aligned_quad q;
+            stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
+
+            glBegin(GL_QUADS);
+            glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
+            glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
+            glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
+            glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
+            glEnd();
+        }
+        ++text;
+    }
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+}
+
 void display(GLFWwindow* window)
 {
 	(void)window;
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glMatrixMode(GL_MODELVIEW);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glMatrixMode(GL_MODELVIEW);
 
-	float radY, radX;
-	radX = cam.xangle * (M_PI / 180.0);
-	radY = cam.yangle * (M_PI / 180.0);
+	//float radY, radX;
+	//radX = cam.xangle * (M_PI / 180.0);
+	//radY = cam.yangle * (M_PI / 180.0);
 
-	viewMatrix = glm::mat4(1.0f);
-	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
-	glLoadMatrixf(glm::value_ptr(viewMatrix));
+	//viewMatrix = glm::mat4(1.0f);
+	//viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	//viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	//viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
+	//glLoadMatrixf(glm::value_ptr(viewMatrix));
 
-	textManager.displayAllTexture();
+	//textManager.displayAllTexture();
 
+	renderText("Test", 0, 0);
 	calculateFps();
 	glfwSwapBuffers(_window);
 }
@@ -207,8 +244,8 @@ void update(GLFWwindow* window)
 	if (camChunk.x < 0) camChunk.x--;
 	if (camChunk.z < 0) camChunk.z--;
 
-	if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
-		updateChunks(camChunk);
+	// if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
+	// 	updateChunks(camChunk);
 
 	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
 	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
@@ -244,8 +281,7 @@ int initGLFW()
 	glfwMakeContextCurrent(_window);
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
-	if (!isWSL())
-		glfwSetCursorPosCallback(_window, mouseCallback);
+	glfwSetCursorPosCallback(_window, mouseCallback);
 	return 1;
 }
 
@@ -286,6 +322,23 @@ int main(int argc, char **argv)
 
 	updateChunks(vec3(0, 0, 0));
 
+	if (!fread(ttf_buffer, 1, 1 << 20, fopen("textures/TAHOMA.TTF", "rb")))
+	{
+		return 1;
+	}
+
+	stbtt_InitFont(&font, ttf_buffer, stbtt_GetFontOffsetForIndex(ttf_buffer, 0));
+	stbtt_BakeFontBitmap(ttf_buffer, 0, 32.0, bitmap, 512, 512, 32, 96, cdata);
+
+	// Create texture from bitmap
+	glGenTextures(1, &fontTexture);
+	glBindTexture(GL_TEXTURE_2D, fontTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 512, 512, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+	GLenum error = glGetError();
+	if (error != GL_NO_ERROR) {
+		std::cerr << "OpenGL error: " << error << std::endl;
+		return 1;
+	}
 	reshape(_window, W_WIDTH, W_HEIGHT);
 	glEnable(GL_DEPTH_TEST);
 	// Main loop
