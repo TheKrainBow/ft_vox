@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:49:04 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/05 14:50:42 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/08 00:41:28 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,6 +20,7 @@ class NoiseGenerator {
 		~NoiseGenerator();
 		double noise(double x, double y) const;
 		void setSeed(size_t seed);
+		const size_t &getSeed() const;
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;

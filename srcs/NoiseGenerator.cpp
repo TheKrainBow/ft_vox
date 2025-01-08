@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:51:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/05 15:13:09 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/08 00:42:49 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -34,6 +34,11 @@ void NoiseGenerator::setSeed(size_t seed)
 {
 	std::cout << "Setting seed to: " << seed << std::endl;
 	_seed = seed;
+}
+
+const size_t &NoiseGenerator::getSeed() const
+{
+	return _seed;
 }
 
 // Layered perlin noise samples by octaves number

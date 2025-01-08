@@ -3,6 +3,7 @@
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
+#include "BiomeGenerator.hpp"
 
 // Display
 GLFWwindow* _window;
@@ -11,7 +12,11 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
+
+// Debug
 bool updateChunk = true;
+bool showChunkLimitations = false;
+bool showBiomeCenters = false;
 
 // FPS counter
 int frameCount = 0;
@@ -22,6 +27,7 @@ double currentFrameTime = 0.0;
 std::vector<ABlock> blocks;
 std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
+BiomeGenerator biomeGenerator;
 
 void calculateFps()
 {
@@ -56,6 +62,10 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 	if (action == GLFW_PRESS && key == GLFW_KEY_C)
 		updateChunk = !updateChunk;
+	if (action == GLFW_PRESS && key == GLFW_KEY_KP_0)
+		showChunkLimitations = !showChunkLimitations;
+	if (action == GLFW_PRESS && key == GLFW_KEY_KP_1)
+		showBiomeCenters = !showBiomeCenters;
 
 	if (action == GLFW_PRESS)
 		keyStates[key] = true;
@@ -114,9 +124,9 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 
 void display(GLFWwindow* window)
 {
-	(void)window;
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
+	(void)window;
 
 	float radY, radX;
 	radX = cam.xangle * (M_PI / 180.0);
@@ -128,27 +138,21 @@ void display(GLFWwindow* window)
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 	glLoadMatrixf(glm::value_ptr(viewMatrix));
 
-	#ifdef NDEBUG
-	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	if (showChunkLimitations)
 	{
-		it->renderBoundaries();
+		for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+		{
+			it->renderBoundaries();
+		}
 	}
-	#endif
+	if (showBiomeCenters)
+		biomeGenerator.showBiomeCenters();
 
 	textManager.displayAllTexture();
 
 	calculateFps();
 	glfwSwapBuffers(_window);
 }
-
-struct pair_hash {
-	template <class T1, class T2>
-	std::size_t operator () (const std::pair<T1, T2>& pair) const {
-		auto h1 = std::hash<T1>{}(pair.first);
-		auto h2 = std::hash<T2>{}(pair.second);
-		return h1 ^ (h2 << 1);
-	}
-};
 
 void updateChunks(vec3 newCameraPosition)
 {
@@ -159,6 +163,8 @@ void updateChunks(vec3 newCameraPosition)
 
 	// Set to track positions of chunks that should remain
 	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
+
+	biomeGenerator.findBiomeCenters({newCameraPosition.x, newCameraPosition.z}, noise_gen.getSeed());
 
 	// Add chunks within the render distance
 	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
@@ -299,6 +305,7 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
+	biomeGenerator.findBiomeCenters(vec2(0, 0), seed);
 	updateChunks(vec3(0, 0, 0));
 
 	reshape(_window, W_WIDTH, W_HEIGHT);

@@ -23,7 +23,8 @@ SRC_NAME	=	main.cpp			\
 				blocks/Grass.cpp	\
 				blocks/Stone.cpp	\
 				blocks/ABlock.cpp	\
-				NoiseGenerator.cpp
+				NoiseGenerator.cpp	\
+				BiomeGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))
