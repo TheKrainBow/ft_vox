@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:51:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/09 01:08:14 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/09 20:56:28 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,8 +14,6 @@
 
 NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 {
-	std::cout << "The seed for this world is: " << seed << std::endl;
-
 	// Initialize permutation table
 	std::mt19937 generator(seed);
 	std::vector<int> p(256);

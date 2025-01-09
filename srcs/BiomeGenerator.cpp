@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:55:27 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/09 20:52:08 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/09 20:52:58 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -70,7 +70,6 @@ void BiomeGenerator::findBiomeCenters(vec2 playerPos)
 }
 
 BiomeType BiomeGenerator::findClosestBiomes(double x, double y) const
-BiomeType BiomeGenerator::findClosestBiome(double x, double z) const
 {
 	double minDistanceSquared = std::numeric_limits<double>::max();
 	BiomeData closestBiome;
@@ -78,7 +77,7 @@ BiomeType BiomeGenerator::findClosestBiome(double x, double z) const
 	for (const BiomeData &data : _biomes)
 	{
 		double dx = x - data.center.x;
-		double dz = z - data.center.y;
+		double dz = y - data.center.y;
 		double distanceSquared = dx * dx + dz * dz;
 
 		if (distanceSquared < minDistanceSquared)
