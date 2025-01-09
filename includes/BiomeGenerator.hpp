@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:34:45 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/09 01:31:38 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/09 20:08:01 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,7 +50,7 @@ class BiomeGenerator
 		~BiomeGenerator();
 		void findBiomeCenters(vec2 playerPos);
 		void showBiomeCenters() const;
-		BiomeType findClosestBiome(double x, double y) const;
+		BiomeType findClosestBiomes(double x, double y) const;
 	private:
 		std::vector<BiomeData> _biomes;
 		std::unordered_set<std::pair<float, float>, pair_hash> _biomeCentersTemp;

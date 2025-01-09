@@ -5,15 +5,25 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 	_position = vec2(chunkX, chunkZ);
 	bzero(_blocks, CHUNK_SIZE * sizeof(ABlock *));
 
+	double relativePosX = _position.x * 16.0;
+	double relativePosZ = _position.y * 16.0;
+
+	NoiseGenerator warpingGenerator(42);
 	BiomeType type;
-	type = biome_gen.findClosestBiome(chunkX * 16.0, chunkZ * 16.0);
 	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
 	{
 		for (int z = 0; z < 16; z++)
 		{
-			double scaledX = (chunkX * 16.0 + x);
-			double scaledZ = (chunkZ * 16.0 + z);
+			double scaledX = (relativePosX + x);
+			double scaledZ = (relativePosZ + z);
+
+			double offSetX = noise_gen.noise(scaledX, scaledZ);
+			double offSetZ = noise_gen.noise(scaledX, scaledZ);
+			double remappedX = (int)(((offSetX + 1.0) * 0.5) * 255.0);
+			double remappedZ = (int)(((offSetZ + 1.0) * 0.5) * 255.0);
+			type = biome_gen.findClosestBiomes(scaledX + remappedX, scaledZ + remappedZ);
+
 			double noise = noise_gen.noise(scaledX, scaledZ);
 			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
 			size_t maxHeight = (size_t)(remappedNoise);
@@ -25,8 +35,6 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
 			else if (type == DESERT)
 				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Sand((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
-			else if (type == MOUNTAIN)
-				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
 
 		}
 	}
