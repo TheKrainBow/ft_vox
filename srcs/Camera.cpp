@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Camera.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: krain <krain@student.42.fr>                +#+  +:+       +#+        */
+/*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/01 20:27:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/02 16:58:03 by krain            ###   ########.fr       */
+/*   Updated: 2025/01/07 01:42:02 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,7 +18,6 @@
 void Camera::move(float  forward, float  strafe, float up)
 {
 	// Calculate the direction based on the current angles
-	//float radiansY = yangle * (M_PI / 180.0);
 	float radiansX = xangle * (M_PI / 180.0);
 
 	//float scaleForward = forward * cos(radiansY);

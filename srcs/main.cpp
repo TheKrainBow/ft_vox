@@ -72,6 +72,10 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	(void)window;
 	(void)scancode;
 	(void)mods;
+
+	if (action == GLFW_PRESS && key == GLFW_KEY_C)
+		updateChunk = !updateChunk;
+
 	if (action == GLFW_PRESS)
 		keyStates[key] = true;
 	else if (action == GLFW_RELEASE)
@@ -151,9 +155,10 @@ void display(GLFWwindow* window)
 	#endif
 	triangleDrown = textManager.displayAllTexture();
 
-	(void)window;
 	debugBox->render();
-	//reshape(_window, windowWidth, windowHeight);
+
+	textManager.displayAllTexture();
+
 	calculateFps();
 	glfwSwapBuffers(_window);
 }
@@ -215,12 +220,15 @@ void updateChunks(vec3 newCameraPosition)
 	textManager.resetAllTextureVertex();
 
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	{
 		it->display();
+	}
 }
 
 void update(GLFWwindow* window)
 {
 	(void)window;
+
 	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
@@ -265,7 +273,6 @@ int initGLFW()
 	glfwSetKeyCallback(_window, keyPress);
 	if (!isWSL())
 		glfwSetCursorPosCallback(_window, mouseCallback);
-		
 	return 1;
 }
 
@@ -300,7 +307,7 @@ int main(int argc, char **argv)
 	glEnable(GL_TEXTURE_2D);
 	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
 	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
-	textManager.loadTexture(T_GRASS_TOP, "textures/moss_block_.ppm");
+	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
@@ -321,6 +328,7 @@ int main(int argc, char **argv)
 		update(_window);
 		glfwPollEvents();
 	}
+
 	//Free chunk data
 	for (Chunk &chunk : chunks)
 	{

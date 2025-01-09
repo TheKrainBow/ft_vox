@@ -11,16 +11,18 @@
 #define CHUNK_SIZE_X 16
 #define CHUNK_SIZE_Z 16
 #define CHUNK_SIZE_Y 255
+#define CHUNK_SIZE CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y
 
 class Chunk
 {
 	private:
 		vec2	_position;
-		ABlock	*_blocks[CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y];
+		ABlock	*_blocks[CHUNK_SIZE];
 	public:
 		Chunk(int chunkX, int z, NoiseGenerator &noise_gen);
 		~Chunk();
 		void display(void);
 		void freeChunkData();
 		vec2 getPosition(void);
+		void renderBoundaries() const;
 };
