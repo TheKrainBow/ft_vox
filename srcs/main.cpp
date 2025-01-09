@@ -14,6 +14,7 @@ mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
 bool updateChunk = true;
+bool showDebugInfo = true;
 int windowHeight = W_HEIGHT;
 int windowWidth = W_WIDTH;
 
@@ -73,17 +74,11 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	(void)scancode;
 	(void)mods;
 
-	if (action == GLFW_PRESS && key == GLFW_KEY_C)
-		updateChunk = !updateChunk;
-
-	if (action == GLFW_PRESS)
-		keyStates[key] = true;
-	else if (action == GLFW_RELEASE)
-		keyStates[key] = false;
-	if (action == GLFW_PRESS && key == GLFW_KEY_C)
-		updateChunk = !updateChunk;
-	if (key == GLFW_KEY_ESCAPE)
-		glfwSetWindowShouldClose(_window, GL_TRUE);
+	if (action == GLFW_PRESS) keyStates[key] = true;
+	else if (action == GLFW_RELEASE) keyStates[key] = false;
+	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
+	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 }
 
 void mouseCallback(GLFWwindow* window, double x, double y)
@@ -155,7 +150,8 @@ void display(GLFWwindow* window)
 	#endif
 	triangleDrown = textManager.displayAllTexture();
 
-	debugBox->render();
+	if (showDebugInfo)
+		debugBox->render();
 
 	textManager.displayAllTexture();
 
