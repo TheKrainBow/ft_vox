@@ -59,10 +59,10 @@ void Texture::setupBuffers() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void Texture::display() {
+int Texture::display() {
     if (_vertexData.size() % 5 != 0) {
         std::cerr << "Couldn't display because array is not divisible by 5. Found " << _vertexData.size() << std::endl;
-        return;
+        return 0;
     }
 
     // Ensure the VAO is set up
@@ -78,6 +78,7 @@ void Texture::display() {
 
     // Unbind the texture
     glBindTexture(GL_TEXTURE_2D, 0);
+	return ((_vertexData.size() / 5) * 3);
 }
 
 GLuint Texture::getTexture() {

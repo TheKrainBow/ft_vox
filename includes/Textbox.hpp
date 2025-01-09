@@ -1,0 +1,37 @@
+#ifndef TEXTBOX_HPP
+#define TEXTBOX_HPP
+
+#include <GL/glew.h> // For GLEW
+#include <GL/gl.h>   // OpenGL headers
+#include <GLFW/glfw3.h>
+#include <string>
+#include <vector>
+#include "stb_truetype.hpp"
+
+class Textbox {
+private:
+    struct Line {
+        std::string label;
+        double* value;
+    };
+
+    std::vector<Line> lines;
+    GLFWwindow* window;
+    int positionX, positionY, width, height;
+    stbtt_bakedchar cdata[96];
+    unsigned char ttfBuffer[1 << 20];
+    unsigned char bitmap[512 * 512 * 4];
+    GLuint fontTexture;
+    bool fontLoaded;
+
+    void initializeFont(const std::string& fontPath, float fontSize);
+
+public:
+    Textbox(GLFWwindow* window, int x, int y, int width, int height);
+    void loadFont(const std::string& fontPath, float fontSize);
+    void addLine(const std::string& label, double* value);
+    void render();
+    ~Textbox();
+};
+
+#endif

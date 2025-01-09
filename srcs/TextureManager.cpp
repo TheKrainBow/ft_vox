@@ -75,6 +75,7 @@ void TextureManager::loadTexture(TextureType type, std::string path) {
 		glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 	}
+	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -119,11 +120,13 @@ void TextureManager::displayTexture(TextureType type)
 	_textures[type]->display();
 }
 
-void TextureManager::displayAllTexture()
+int TextureManager::displayAllTexture()
 {
+	int triangleDrown = 0;
 	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
 	{
 		glBindTexture(GL_TEXTURE_2D, it->second->getTexture());
-		it->second->display();
+		triangleDrown += it->second->display();
 	}
+	return (triangleDrown);
 }

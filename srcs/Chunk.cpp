@@ -4,7 +4,7 @@
 Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
 {
 	_position = vec2(chunkX, chunkZ);
-	bzero(_blocks, CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y * sizeof(ABlock *));
+	bzero(_blocks, CHUNK_SIZE * sizeof(ABlock *));
 
 	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
@@ -49,9 +49,42 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
 	}
 }
 
+void Chunk::renderBoundaries() const
+{
+	// Cyan blue color
+	glColor3f(0.0f, 0.5f, 1.0f);
+	float chunkSize = 16;
+	float startX = _position.x * chunkSize;
+	float startZ = _position.y * chunkSize;
+    float endX = startX + chunkSize;
+    float endZ = startZ + chunkSize;
+
+	glBegin(GL_LINES);
+
+	// Vertical edges (up and down lines at corners)
+	// Bottom-left corner
+	glVertex3f(startX, 0.0f, startZ);
+	glVertex3f(startX, 255.0f, startZ);
+
+	// Bottom-right corner
+	glVertex3f(endX, 0.0f, startZ);
+	glVertex3f(endX, 255.0f, startZ);
+
+	// Top-right corner
+	glVertex3f(endX, 0.0f, endZ);
+	glVertex3f(endX, 255.0f, endZ);
+
+	// Top-left corner
+	glVertex3f(startX, 0.0f, endZ);
+	glVertex3f(startX, 255.0f, endZ);
+
+	glEnd();
+	glColor3d(1.0f, 1.0f, 1.0f);
+}
+
 void Chunk::freeChunkData()
 {
-	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; i++)
+	for (int i = 0; i < CHUNK_SIZE; i++)
 	{
 		if (!_blocks[i])
 			continue ;
@@ -62,10 +95,12 @@ void Chunk::freeChunkData()
 
 void Chunk::display()
 {
-	for (int i = 0; i < CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y; ++i)
+	for (int i = 0; i < CHUNK_SIZE; ++i)
 	{
 		if (_blocks[i])
+		{
 			_blocks[i]->display();
+		}
 	}
 }
 

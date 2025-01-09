@@ -29,7 +29,7 @@ class TextureManager {
 		void resetTextureVertex(TextureType type);
 		void resetAllTextureVertex();
 		void displayTexture(TextureType type);
-		void displayAllTexture();
+		int displayAllTexture();
 	private:
 		// Declaring external functions that are not part of the class
 		t_rgb *loadPPM(const std::string &path, int &width, int &height);

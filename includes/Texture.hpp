@@ -20,6 +20,6 @@ public:
     void addVertex(int x, int y, int z, double u, double v);
     void resetVertex(void);
     void setupBuffers(void);
-    void display(void);
+    int display(void);
     GLuint getTexture(void);
 };

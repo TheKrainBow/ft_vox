@@ -4,6 +4,8 @@
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
 
+#include "Textbox.hpp"
+
 // Display
 GLFWwindow* _window;
 GLuint shaderProgram;
@@ -12,25 +14,33 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
+bool updateChunk = true;
+bool showDebugInfo = true;
+int windowHeight = W_HEIGHT;
+int windowWidth = W_WIDTH;
+
 // FPS counter
 int frameCount = 0;
 double lastFrameTime = 0.0;
 double currentFrameTime = 0.0;
+double fps = 0.0;
+double triangleDrown = 0.0;
 
 //World gen
 std::vector<ABlock> blocks;
 std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
 
+Textbox *debugBox;
+
 void calculateFps()
 {
-	double fps = 0.0;
 	frameCount++;
 	currentFrameTime = glfwGetTime();
 
 	double timeInterval = currentFrameTime - lastFrameTime;
 
-	if (timeInterval > 1.0)
+	if (timeInterval > 1)
 	{
 		fps = frameCount / timeInterval;
 
@@ -52,13 +62,12 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	(void)window;
 	(void)scancode;
 	(void)mods;
-	if (action == GLFW_PRESS)
-		keyStates[key] = true;
-	else if (action == GLFW_RELEASE)
-		keyStates[key] = false;
 
-	if (key == GLFW_KEY_ESCAPE)
-		glfwSetWindowShouldClose(_window, GL_TRUE);
+	if (action == GLFW_PRESS) keyStates[key] = true;
+	else if (action == GLFW_RELEASE) keyStates[key] = false;
+	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
+	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 }
 
 GLuint compileShader(const char* filePath, GLenum shaderType)
@@ -180,11 +189,22 @@ void display(GLFWwindow* window)
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 
+	if (showDebugInfo)
+		debugBox->render();
+		
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	textManager.displayAllTexture();
+	
+	#ifdef NDEBUG
+	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	{
+		it->renderBoundaries();
+	}
+	#endif
+	triangleDrown = textManager.displayAllTexture();
 
 	calculateFps();
 	glfwSwapBuffers(_window);
@@ -247,12 +267,15 @@ void updateChunks(vec3 newCameraPosition)
 	textManager.resetAllTextureVertex();
 
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	{
 		it->display();
+	}
 }
 
 void update(GLFWwindow* window)
 {
 	(void)window;
+
 	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
@@ -268,7 +291,7 @@ void update(GLFWwindow* window)
 	if (camChunk.x < 0) camChunk.x--;
 	if (camChunk.z < 0) camChunk.z--;
 
-	if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
+	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks(camChunk);
 
 	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
@@ -295,7 +318,7 @@ void reshape(GLFWwindow* window, int width, int height)
 
 int initGLFW()
 {
-	_window = glfwCreateWindow(W_WIDTH, W_HEIGHT, "Not_ft_minecraft | FPS: 0", NULL, NULL);
+	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{
 		std::cerr << "Failed to create GLFW window" << std::endl;
@@ -342,13 +365,13 @@ int main(int argc, char **argv)
 	glEnable(GL_TEXTURE_2D);
 	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
 	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
-	textManager.loadTexture(T_GRASS_TOP, "textures/moss_block_.ppm");
+	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
 	updateChunks(vec3(0, 0, 0));
 
-	reshape(_window, W_WIDTH, W_HEIGHT);
+	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
 
 	shaderProgram = createShaderProgram("shaders/basic.vert", "shaders/basic.frag");
@@ -361,12 +384,19 @@ int main(int argc, char **argv)
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
+	Textbox debugBoxObject(_window, 0, 0, 200, 200);
+	debugBox = &debugBoxObject;
+	debugBoxObject.loadFont("textures/CASCADIAMONO.TTF", 20);
+	debugBoxObject.addLine("FPS: ", &fps);
+	debugBoxObject.addLine("Triangles: ", &triangleDrown);
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
+		//glClear(GL_COLOR_BUFFER_BIT);
 		update(_window);
 		glfwPollEvents();
 	}
+
 	//Free chunk data
 	for (Chunk &chunk : chunks)
 	{
