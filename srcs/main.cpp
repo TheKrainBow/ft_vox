@@ -306,7 +306,7 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
-	textManager.loadTexture(T_SAND, "textures/stone.ppm");
+	textManager.loadTexture(T_SAND, "textures/sand.ppm");
 
 	updateChunks(vec3(0, 0, 0));
 
