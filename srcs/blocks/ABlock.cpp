@@ -16,18 +16,18 @@ BlockType ABlock::getType(void)
 	return (_type);
 }
 
-void ABlock::display() {
-	if (_hasDownNeighbor)
+void ABlock::display(Camera &camera) {
+	if (_hasDownNeighbor && camera.yangle > 0)
 		displayDownFace();
-	if (_hasUpNeighbor)
+	if (_hasUpNeighbor && camera.yangle < 0)
 		displayUpFace();
-	if (_hasFrontNeighbor)
+	if (_hasFrontNeighbor && !(camera.xangle <= 90 || camera.xangle >= 270))
 		displayNorthFace();
-	if (_hasBackNeighbor)
+	if (_hasBackNeighbor && (camera.xangle <= 90 || camera.xangle >= 270))
 		displaySouthFace();
-	if (_hasLeftNeighbor)
+	if (_hasLeftNeighbor && camera.xangle <= 180)
 		displayWestFace();
-	if (_hasRightNeighbor)
+	if (_hasRightNeighbor && camera.xangle > 180)
 		displayEastFace();
 }
 

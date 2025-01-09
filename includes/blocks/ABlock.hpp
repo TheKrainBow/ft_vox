@@ -27,7 +27,7 @@ class ABlock
 	public:
 		ABlock(int x, int y, int z);
 		virtual ~ABlock() = default;
-		virtual void display();
+		virtual void display(Camera &camera);
 		vec3 getPosition(void);
 		BlockType getType(void);
 		void updateNeighbors(int neighbors);

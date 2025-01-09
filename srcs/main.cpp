@@ -161,6 +161,11 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 	if (cam.yangle > 89.0f) cam.yangle = 89.0f;
 	if (cam.yangle < -89.0f) cam.yangle = -89.0f;
 
+	while (cam.xangle < 0)
+		cam.xangle += 360;
+	while (cam.xangle >= 360)
+		cam.xangle -= 360;
+
 	ignoreMouseEvent = true;
 
 	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
@@ -266,9 +271,10 @@ void updateChunks(vec3 newCameraPosition)
 	
 	textManager.resetAllTextureVertex();
 
+
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
 	{
-		it->display();
+		it->display(cam);
 	}
 }
 
@@ -299,8 +305,10 @@ void update(GLFWwindow* window)
 	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
 	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += cam.rotationspeed;
 
-	if (cam.xangle > 360.0) cam.xangle = 0.0;
-	else if (cam.xangle < 0.0) cam.xangle = 360.0;
+	while (cam.xangle < 0)
+		cam.xangle += 360;
+	while (cam.xangle >= 360)
+		cam.xangle -= 360;
 
 	display(_window);
 }
