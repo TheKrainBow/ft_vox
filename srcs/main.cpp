@@ -194,6 +194,7 @@ void display(GLFWwindow* window)
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 
+	glDisable(GL_CULL_FACE);   // Enable face culling
 	if (showDebugInfo)
 		debugBox->render();
 		
@@ -201,7 +202,6 @@ void display(GLFWwindow* window)
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-	textManager.displayAllTexture();
 	
 	#ifdef NDEBUG
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
@@ -209,7 +209,13 @@ void display(GLFWwindow* window)
 		it->renderBoundaries();
 	}
 	#endif
-	triangleDrown = textManager.displayAllTexture();
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+	//glPointSize(5.0f);
+	glEnable(GL_CULL_FACE);   // Enable face culling
+	glCullFace(GL_BACK);      // Cull back faces
+	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
+
+	triangleDrown = textManager.displayAllTexture(cam);
 
 	calculateFps();
 	glfwSwapBuffers(_window);
@@ -269,12 +275,12 @@ void updateChunks(vec3 newCameraPosition)
 		chunks.end()
 	);
 	
-	textManager.resetAllTextureVertex();
+	textManager.resetTextureVertex();
 
 
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
 	{
-		it->display(cam);
+		it->display();
 	}
 }
 

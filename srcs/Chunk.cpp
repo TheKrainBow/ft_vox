@@ -93,13 +93,13 @@ void Chunk::freeChunkData()
 	}
 }
 
-void Chunk::display(Camera &camera)
+void Chunk::display()
 {
 	for (int i = 0; i < CHUNK_SIZE; ++i)
 	{
 		if (_blocks[i])
 		{
-			_blocks[i]->display(camera);
+			_blocks[i]->display();
 		}
 	}
 }

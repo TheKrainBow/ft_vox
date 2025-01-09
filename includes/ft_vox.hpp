@@ -21,6 +21,16 @@
 
 using namespace glm;
 
+
+enum e_direction {
+	UP,
+	DOWN,
+	NORTH,
+	SOUTH,
+	WEST,
+	EAST
+};
+
 enum BlockType {
 	DIRT,
 	COBBLE,
@@ -31,7 +41,7 @@ enum BlockType {
 
 #define W_WIDTH 800
 #define W_HEIGHT 600
-#define RENDER_DISTANCE 12
+#define RENDER_DISTANCE 32
 #define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 
 bool isWSL();
