@@ -118,11 +118,13 @@ void TextureManager::displayTexture(TextureType type)
 	_textures[type]->display();
 }
 
-void TextureManager::displayAllTexture()
+int TextureManager::displayAllTexture()
 {
+	int triangleDrown = 0;
 	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
 	{
 		glBindTexture(GL_TEXTURE_2D, it->second->getTexture());
-		it->second->display();
+		triangleDrown += it->second->display();
 	}
+	return (triangleDrown);
 }

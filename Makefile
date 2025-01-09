@@ -12,7 +12,8 @@ DEBUG_OBJ_PATH		=	debug_obj/
 CC			=	g++
 SRC_PATH	=	srcs/
 INCLUDES	=	-Iincludes -Iglm
-SRC_NAME	=	main.cpp			\
+SRC_NAME	=	stb_truetype.cpp	\
+				main.cpp			\
 				Camera.cpp			\
 				TextureManager.cpp	\
 				Texture.cpp			\
@@ -23,6 +24,7 @@ SRC_NAME	=	main.cpp			\
 				blocks/Grass.cpp	\
 				blocks/Stone.cpp	\
 				blocks/ABlock.cpp	\
+				Textbox.cpp			\
 				NoiseGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)

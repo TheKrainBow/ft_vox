@@ -3,9 +3,8 @@
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.hpp"
 
+#include "Textbox.hpp"
 
 // Display
 GLFWwindow* _window;
@@ -14,33 +13,32 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
+bool updateChunk = true;
+int windowHeight = W_HEIGHT;
+int windowWidth = W_WIDTH;
 
 // FPS counter
 int frameCount = 0;
 double lastFrameTime = 0.0;
 double currentFrameTime = 0.0;
+double fps = 0.0;
+double triangleDrown = 0.0;
 
 //World gen
 std::vector<ABlock> blocks;
 std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
 
-// Initialize font
-stbtt_bakedchar cdata[96]; // ASCII 32..126
-unsigned char ttf_buffer[1 << 20];
-unsigned char bitmap[512 * 512];
-stbtt_fontinfo font;
-GLuint fontTexture;
+Textbox *debugBox;
 
 void calculateFps()
 {
-	double fps = 0.0;
 	frameCount++;
 	currentFrameTime = glfwGetTime();
 
 	double timeInterval = currentFrameTime - lastFrameTime;
 
-	if (timeInterval > 1.0)
+	if (timeInterval > 1)
 	{
 		fps = frameCount / timeInterval;
 
@@ -51,6 +49,18 @@ void calculateFps()
 		title << "Not ft_minecraft | FPS: " << fps;
 		glfwSetWindowTitle(_window, title.str().c_str());
 	}
+}
+
+void reshape(GLFWwindow* window, int width, int height)
+{
+	(void)window;
+	windowWidth = width;
+	windowHeight = height;
+	glViewport(0, 0, width, height);
+	glMatrixMode(GL_PROJECTION);
+	projectionMatrix = glm::mat4(1.0f);
+	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
+	glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
 
 bool isWSL() {
@@ -66,7 +76,8 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 		keyStates[key] = true;
 	else if (action == GLFW_RELEASE)
 		keyStates[key] = false;
-
+	if (action == GLFW_PRESS && key == GLFW_KEY_C)
+		updateChunk = !updateChunk;
 	if (key == GLFW_KEY_ESCAPE)
 		glfwSetWindowShouldClose(_window, GL_TRUE);
 }
@@ -117,51 +128,32 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
 }
 
-void renderText(const char* text, float x, float y) {
-    // Enable blending
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_DEPTH_TEST);  // Disable depth test for 2D text rendering
-
-    glBindTexture(GL_TEXTURE_2D, fontTexture);
-
-    while (*text) {
-        if (*text >= 32) { // Only render printable characters
-            stbtt_aligned_quad q;
-            stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
-
-            glBegin(GL_QUADS);
-            glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
-            glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
-            glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
-            glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
-            glEnd();
-        }
-        ++text;
-    }
-    glDisable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-}
-
 void display(GLFWwindow* window)
 {
 	(void)window;
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//glMatrixMode(GL_MODELVIEW);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
 
-	//float radY, radX;
-	//radX = cam.xangle * (M_PI / 180.0);
-	//radY = cam.yangle * (M_PI / 180.0);
+	float radY, radX;
+	radX = cam.xangle * (M_PI / 180.0);
+	radY = cam.yangle * (M_PI / 180.0);
 
-	//viewMatrix = glm::mat4(1.0f);
-	//viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
-	//viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	//viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
-	//glLoadMatrixf(glm::value_ptr(viewMatrix));
+	viewMatrix = glm::mat4(1.0f);
+	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
+	glLoadMatrixf(glm::value_ptr(viewMatrix));
+	#ifdef NDEBUG
+	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	{
+		it->renderBoundaries();
+	}
+	#endif
+	triangleDrown = textManager.displayAllTexture();
 
-	//textManager.displayAllTexture();
-
-	renderText("Test", 0, 0);
+	(void)window;
+	debugBox->render();
+	//reshape(_window, windowWidth, windowHeight);
 	calculateFps();
 	glfwSwapBuffers(_window);
 }
@@ -244,8 +236,8 @@ void update(GLFWwindow* window)
 	if (camChunk.x < 0) camChunk.x--;
 	if (camChunk.z < 0) camChunk.z--;
 
-	// if (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))
-	// 	updateChunks(camChunk);
+	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z)))
+		updateChunks(camChunk);
 
 	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
 	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
@@ -258,19 +250,9 @@ void update(GLFWwindow* window)
 	display(_window);
 }
 
-void reshape(GLFWwindow* window, int width, int height)
-{
-	(void)window;
-	glViewport(0, 0, width, height);
-	glMatrixMode(GL_PROJECTION);
-	projectionMatrix = glm::mat4(1.0f);
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
-	glLoadMatrixf(glm::value_ptr(projectionMatrix));
-}
-
 int initGLFW()
 {
-	_window = glfwCreateWindow(W_WIDTH, W_HEIGHT, "Not_ft_minecraft | FPS: 0", NULL, NULL);
+	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{
 		std::cerr << "Failed to create GLFW window" << std::endl;
@@ -281,7 +263,9 @@ int initGLFW()
 	glfwMakeContextCurrent(_window);
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
-	glfwSetCursorPosCallback(_window, mouseCallback);
+	if (!isWSL())
+		glfwSetCursorPosCallback(_window, mouseCallback);
+		
 	return 1;
 }
 
@@ -322,28 +306,18 @@ int main(int argc, char **argv)
 
 	updateChunks(vec3(0, 0, 0));
 
-	if (!fread(ttf_buffer, 1, 1 << 20, fopen("textures/TAHOMA.TTF", "rb")))
-	{
-		return 1;
-	}
-
-	stbtt_InitFont(&font, ttf_buffer, stbtt_GetFontOffsetForIndex(ttf_buffer, 0));
-	stbtt_BakeFontBitmap(ttf_buffer, 0, 32.0, bitmap, 512, 512, 32, 96, cdata);
-
-	// Create texture from bitmap
-	glGenTextures(1, &fontTexture);
-	glBindTexture(GL_TEXTURE_2D, fontTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 512, 512, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
-	GLenum error = glGetError();
-	if (error != GL_NO_ERROR) {
-		std::cerr << "OpenGL error: " << error << std::endl;
-		return 1;
-	}
-	reshape(_window, W_WIDTH, W_HEIGHT);
+	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
+
+	Textbox debugBoxObject(_window, 0, 0, 200, 200);
+	debugBox = &debugBoxObject;
+	debugBoxObject.loadFont("textures/CASCADIAMONO.TTF", 20);
+	debugBoxObject.addLine("FPS: ", &fps);
+	debugBoxObject.addLine("Triangles: ", &triangleDrown);
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
+		//glClear(GL_COLOR_BUFFER_BIT);
 		update(_window);
 		glfwPollEvents();
 	}

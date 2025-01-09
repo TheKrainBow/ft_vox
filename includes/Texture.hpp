@@ -13,5 +13,5 @@ public:
 	void addVertex(int x, int y, int z);
 	GLuint getTexture(void);
 	void resetVertex(void);
-	void display(void);
+	int display(void);
 };

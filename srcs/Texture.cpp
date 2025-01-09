@@ -30,14 +30,15 @@ void Texture::resetVertex(void)
 	_faces.clear();
 }
 
-void Texture::display(void)
+int Texture::display(void)
 {
+	int triangleDrown = 0;
 	//if (_texture == 1)
 	//	std::cout << _faces.size() << std::endl;
 	if (_faces.size() % 4 != 0)
 	{
 		std::cerr << "Couldn't display because array is not divided in 4 vertex" << std::endl;
-		return ;
+		return 0;
 	}
 	glBegin(GL_QUADS);
 	std::vector<vec3 *>::iterator it = _faces.begin();
@@ -55,8 +56,10 @@ void Texture::display(void)
 		glTexCoord2f(0, 1);
 		glVertex3d((*it)->x, (*it)->y, (*it)->z);
 		it++;
+		triangleDrown += 2;
 	}
 	glEnd();
+	return triangleDrown;
 }
 
 GLuint Texture::getTexture(void)
