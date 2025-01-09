@@ -12,7 +12,7 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
 	{
 		for (int z = 0; z < 16; z++)
 		{
-			for (size_t y = 0; y < 16 / 2; y++)
+			for (size_t y = 0; y < 16; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 			//double scaledX = (chunkX * 16.0 + x);
 			//double scaledZ = (chunkZ * 16.0 + z);
