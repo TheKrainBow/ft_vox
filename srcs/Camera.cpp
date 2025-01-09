@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/10/01 20:27:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/07 01:42:02 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/08 21:31:00 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -48,7 +48,7 @@ void Camera::reset()
 	xangle = 0.0;
 	yangle = 0.0;
 	rotationspeed = 1;
-	movementspeed = 0.1;
+	movementspeed = 0.5f;
 }
 
 void Camera::updateMousePos(int x, int y)

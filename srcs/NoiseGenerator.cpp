@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:51:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/08 00:42:49 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/09 01:08:14 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -41,20 +41,29 @@ const size_t &NoiseGenerator::getSeed() const
 	return _seed;
 }
 
+void NoiseGenerator::setNoiseData(const NoiseData &data)
+{
+	_data.amplitude = data.amplitude;
+	_data.frequency = data.frequency;
+	_data.nb_octaves = data.nb_octaves;
+	_data.lacunarity = data.lacunarity;
+	_data.persistance = data.persistance;
+}
+
 // Layered perlin noise samples by octaves number
 double NoiseGenerator::noise(double x, double y) const
 {
 	double total = 0.0;
-	double frequency = 0.01;
-	double amplitude = 1.0;
+	double amplitude = _data.amplitude;
+	double frequency = _data.frequency;
 	double maxValue = 0.0; // Used for normalizing
 
-	for (size_t i = 0; i < _nb_octaves; i++) {
+	for (size_t i = 0; i < _data.nb_octaves; i++) {
 		total += singleNoise(x * frequency, y * frequency) * amplitude;
 		maxValue += amplitude;
 
-		amplitude *= _persistance;
-		frequency *= _lacunarity;
+		amplitude *= _data.persistance;
+		frequency *= _data.lacunarity;
 	}
 	return total / maxValue; // Normalize
 }

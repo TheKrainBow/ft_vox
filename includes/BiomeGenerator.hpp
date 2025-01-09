@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:34:45 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/08 01:07:41 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/09 01:31:38 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,43 +15,45 @@
 #include "NoiseGenerator.hpp"
 #include "Chunk.hpp"
 
-#define BIOME_SIZE 4
-#define BIOME_LENGTH CHUNK_SIZE_X * RENDER_DISTANCE
+#define BIOME_SIZE 500.0
+#define OFFSET_METRIC 1000.0
 
 const vec2 directions[8] = {
-	{0, 1},
-	{1, 1},
-	{1, 0},
-	{1, -1},
-	{0, -1},
-	{-1, -1},
-	{-1, 0},
-	{-1, 1}
+	{0.0f, 1.0f},
+	{1.0f, 1.0f},
+	{1.0f, 0.0f},
+	{1.0f, -1.0f},
+	{0.0f, -1.0f},
+	{-1.0f, -1.0f},
+	{-1.0f, 0.0f},
+	{-1.0f, 1.0f}
 };
 
 enum BiomeType
 {
 	DEFAULT,
 	PLAINS,
-	DESERT
+	DESERT,
+	MOUNTAIN
 };
 
 struct BiomeData
 {
-	vec2 center = {0.0, 0.0};
-	vec2 origin  = {0.0, 0.0};;
+	vec2 center = {0.0f, 0.0f};
 	BiomeType type = DEFAULT;
 };
 
 class BiomeGenerator
 {
 	public:
-		BiomeGenerator();
+		BiomeGenerator(size_t seed);
 		~BiomeGenerator();
-		void findBiomeCenters(vec2 playerPos, size_t seed);
+		void findBiomeCenters(vec2 playerPos);
 		void showBiomeCenters() const;
+		BiomeType findClosestBiome(double x, double y) const;
 	private:
 		std::vector<BiomeData> _biomes;
-		std::unordered_set<std::pair<int, int>, pair_hash> _biomeCentersTemp;
+		std::unordered_set<std::pair<float, float>, pair_hash> _biomeCentersTemp;
 		size_t _seed;
+		NoiseGenerator _noiseGen;
 };

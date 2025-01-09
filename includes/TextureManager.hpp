@@ -15,6 +15,7 @@ enum TextureType {
 	T_STONE,
 	T_GRASS_SIDE,
 	T_GRASS_TOP,
+	T_SAND
 };
 
 class TextureManager {

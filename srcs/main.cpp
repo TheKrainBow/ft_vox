@@ -27,7 +27,7 @@ double currentFrameTime = 0.0;
 std::vector<ABlock> blocks;
 std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
-BiomeGenerator biomeGenerator;
+BiomeGenerator biomeGenerator(42);
 
 void calculateFps()
 {
@@ -164,7 +164,7 @@ void updateChunks(vec3 newCameraPosition)
 	// Set to track positions of chunks that should remain
 	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
 
-	biomeGenerator.findBiomeCenters({newCameraPosition.x, newCameraPosition.z}, noise_gen.getSeed());
+	biomeGenerator.findBiomeCenters({newCameraPosition.x, newCameraPosition.z});
 
 	// Add chunks within the render distance
 	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
@@ -181,7 +181,7 @@ void updateChunks(vec3 newCameraPosition)
 			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
 			{
 				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
+				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen, biomeGenerator));
 			}
 		}
 	}
@@ -217,12 +217,14 @@ void update(GLFWwindow* window)
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
 
+	if (keyStates[GLFW_KEY_LEFT_CONTROL]) cam.movementspeed += 1.0f;
 	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(1.0, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) cam.move(0.0, 1.0, 0.0);
 	if (keyStates[GLFW_KEY_S]) cam.move(-1.0, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) cam.move(0.0, -1.0, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
+	cam.movementspeed = 0.5f;
 
 	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
 	if (camChunk.x < 0) camChunk.x--;
@@ -304,8 +306,8 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
+	textManager.loadTexture(T_SAND, "textures/stone.ppm");
 
-	biomeGenerator.findBiomeCenters(vec2(0, 0), seed);
 	updateChunks(vec3(0, 0, 0));
 
 	reshape(_window, W_WIDTH, W_HEIGHT);

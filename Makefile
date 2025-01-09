@@ -22,6 +22,7 @@ SRC_NAME	=	main.cpp			\
 				blocks/Cobble.cpp	\
 				blocks/Grass.cpp	\
 				blocks/Stone.cpp	\
+				blocks/Sand.cpp		\
 				blocks/ABlock.cpp	\
 				NoiseGenerator.cpp	\
 				BiomeGenerator.cpp

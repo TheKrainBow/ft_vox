@@ -1,11 +1,12 @@
 #include "Chunk.hpp"
-#include "NoiseGenerator.hpp"
 
-Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
+Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &biome_gen)
 {
 	_position = vec2(chunkX, chunkZ);
 	bzero(_blocks, CHUNK_SIZE * sizeof(ABlock *));
 
+	BiomeType type;
+	type = biome_gen.findClosestBiome(chunkX * 16.0, chunkZ * 16.0);
 	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
 	{
@@ -20,7 +21,13 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 			for (size_t y = maxHeight / 2; y < maxHeight; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-			_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
+			if (type == DEFAULT || type == PLAINS)
+				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
+			else if (type == DESERT)
+				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Sand((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
+			else if (type == MOUNTAIN)
+				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
+
 		}
 	}
 	// Check for faces to display (Only for current chunk)
