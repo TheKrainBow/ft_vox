@@ -55,6 +55,7 @@ void TextureManager::loadTexture(TextureType type, std::string path) {
 	}
 
 	glGenTextures(1, &newTextureID);
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, newTextureID);
 
 	std::vector<t_rgb> rgb_data(data, data + (width * height));
@@ -97,9 +98,9 @@ TextureManager::~TextureManager() {
 	}
 }
 
-void TextureManager::addTextureVertex(TextureType type, int x, int y, int z)
+void TextureManager::addTextureVertex(TextureType type, int x, int y, int z, double u, double v)
 {
-	_textures[type]->addVertex(x, y, z);
+	_textures[type]->addVertex(x, y, z, u, v);
 }
 
 void TextureManager::resetTextureVertex(TextureType type)

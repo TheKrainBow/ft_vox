@@ -6,12 +6,12 @@
 
 // Display
 GLFWwindow* _window;
+GLuint shaderProgram;
 
 mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
-
 // FPS counter
 int frameCount = 0;
 double lastFrameTime = 0.0;
@@ -59,6 +59,56 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 	if (key == GLFW_KEY_ESCAPE)
 		glfwSetWindowShouldClose(_window, GL_TRUE);
+}
+
+GLuint compileShader(const char* filePath, GLenum shaderType)
+{
+    std::ifstream shaderFile(filePath);
+    if (!shaderFile.is_open()) {
+        std::cerr << "Error: Shader file could not be opened: " << filePath << std::endl;
+        return 0;
+    }
+
+    std::stringstream shaderStream;
+    shaderStream << shaderFile.rdbuf();
+    std::string shaderCode = shaderStream.str();
+    const char* shaderSource = shaderCode.c_str();
+
+    GLuint shader = glCreateShader(shaderType);
+    glShaderSource(shader, 1, &shaderSource, NULL);
+    glCompileShader(shader);
+
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(shader, 512, NULL, infoLog);
+        std::cerr << "Error: Shader compilation failed\n" << infoLog << std::endl;
+    }
+    return shader;
+}
+
+GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath)
+{
+    GLuint vertexShader = compileShader(vertexShaderPath, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderPath, GL_FRAGMENT_SHADER);
+
+    GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    GLint success;
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        std::cerr << "Error: Shader program linking failed\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    return shaderProgram;
 }
 
 void mouseCallback(GLFWwindow* window, double x, double y)
@@ -113,6 +163,14 @@ void display(GLFWwindow* window)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
+	glm::mat4 viewMatrix = glm::lookAt(
+		cam.position,         // cam position
+		cam.center,           // Look-at point
+		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
+	);
+	glm::mat4 modelMatrix = glm::mat4(1.0f);
+
+
 	float radY, radX;
 	radX = cam.xangle * (M_PI / 180.0);
 	radY = cam.yangle * (M_PI / 180.0);
@@ -121,8 +179,11 @@ void display(GLFWwindow* window)
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
-	glLoadMatrixf(glm::value_ptr(viewMatrix));
 
+	glUseProgram(shaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	textManager.displayAllTexture();
 
 	calculateFps();
@@ -226,9 +287,10 @@ void reshape(GLFWwindow* window, int width, int height)
 	(void)window;
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
-	projectionMatrix = glm::mat4(1.0f);
+	
 	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
-	glLoadMatrixf(glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
 
 int initGLFW()
@@ -288,6 +350,17 @@ int main(int argc, char **argv)
 
 	reshape(_window, W_WIDTH, W_HEIGHT);
 	glEnable(GL_DEPTH_TEST);
+
+	shaderProgram = createShaderProgram("shaders/basic.vert", "shaders/basic.frag");
+
+	//// Set the active shader program
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
+
+	glUseProgram(shaderProgram);
+	glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);  // Use texture unit 0
+	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
