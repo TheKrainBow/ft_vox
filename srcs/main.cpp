@@ -14,8 +14,10 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
-bool updateChunk = true;
+bool updateChunk = false;
 bool showDebugInfo = true;
+bool showTriangleMesh = true;
+
 int windowHeight = W_HEIGHT;
 int windowWidth = W_WIDTH;
 
@@ -67,6 +69,7 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 }
 
@@ -194,9 +197,6 @@ void display(GLFWwindow* window)
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(cam.position.x, cam.position.y, cam.position.z));
 
-	glDisable(GL_CULL_FACE);   // Enable face culling
-	if (showDebugInfo)
-		debugBox->render();
 		
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
@@ -209,13 +209,24 @@ void display(GLFWwindow* window)
 		it->renderBoundaries();
 	}
 	#endif
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-	//glPointSize(5.0f);
-	glEnable(GL_CULL_FACE);   // Enable face culling
+	
+	if (showTriangleMesh)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	else
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
 	triangleDrown = textManager.displayAllTexture(cam);
+
+
+
+	glDisable(GL_CULL_FACE);
+	if (showTriangleMesh)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	if (showDebugInfo)
+		debugBox->render();
 
 	calculateFps();
 	glfwSwapBuffers(_window);
@@ -232,51 +243,51 @@ struct pair_hash {
 
 void updateChunks(vec3 newCameraPosition)
 {
+	(void)newCameraPosition;
 	// Store the set of positions for currently loaded chunks
-	std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
-	for (Chunk& chunk : chunks)
-		loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
+	//std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
+	//for (Chunk& chunk : chunks)
+	//	loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
 
-	// Set to track positions of chunks that should remain
-	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
+	//// Set to track positions of chunks that should remain
+	//std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
 
-	// Add chunks within the render distance
-	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-	{
-		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-		{
-			int chunkX = newCameraPosition.x + x;
-			int chunkZ = newCameraPosition.z + z;
+	//// Add chunks within the render distance
+	//for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
+	//{
+	//	for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
+	//	{
+	//		int chunkX = newCameraPosition.x + x;
+	//		int chunkZ = newCameraPosition.z + z;
 
-			// Add this position to the required set
-			requiredChunkPositions.emplace(chunkX, chunkZ);
+	//		// Add this position to the required set
+	//		requiredChunkPositions.emplace(chunkX, chunkZ);
 
-			// If this chunk is not already loaded, create and add it
-			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
-			{
-				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
-			}
-		}
-	}
+	//		// If this chunk is not already loaded, create and add it
+	//		if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
+	//		{
+	//			// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
+	//			chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
+	//		}
+	//	}
+	//}
 
-	// Remove chunks that are no longer needed
-	chunks.erase(
-		std::remove_if(chunks.begin(), chunks.end(),
-			[&requiredChunkPositions](Chunk& chunk)
-			{
-				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
-				{
-					chunk.freeChunkData();
-					return true;
-				}
-				return false;
-			}),
-		chunks.end()
-	);
+	//// Remove chunks that are no longer needed
+	//chunks.erase(
+	//	std::remove_if(chunks.begin(), chunks.end(),
+	//		[&requiredChunkPositions](Chunk& chunk)
+	//		{
+	//			if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
+	//			{
+	//				chunk.freeChunkData();
+	//				return true;
+	//			}
+	//			return false;
+	//		}),
+	//	chunks.end()
+	//);
 	
 	textManager.resetTextureVertex();
-
 
 	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
 	{
@@ -383,6 +394,7 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
+	chunks.push_back(Chunk(0, 0, noise_gen));
 	updateChunks(vec3(0, 0, 0));
 
 	reshape(_window, windowWidth, windowHeight);

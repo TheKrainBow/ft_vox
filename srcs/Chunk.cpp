@@ -6,21 +6,22 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
 	_position = vec2(chunkX, chunkZ);
 	bzero(_blocks, CHUNK_SIZE * sizeof(ABlock *));
 
+	(void)noise_gen;
 	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
 	{
 		for (int z = 0; z < 16; z++)
 		{
-			double scaledX = (chunkX * 16.0 + x);
-			double scaledZ = (chunkZ * 16.0 + z);
-			double noise = noise_gen.noise(scaledX, scaledZ);
-			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
-			size_t maxHeight = (size_t)(remappedNoise);
-			for (size_t y = 0; y < maxHeight / 2; y++)
+			for (size_t y = 0; y < 16 / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-			for (size_t y = maxHeight / 2; y < maxHeight; y++)
-				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-			_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
+			//double scaledX = (chunkX * 16.0 + x);
+			//double scaledZ = (chunkZ * 16.0 + z);
+			//double noise = noise_gen.noise(scaledX, scaledZ);
+			//double remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
+			//size_t maxHeight = (size_t)(remappedNoise);
+			//for (size_t y = maxHeight / 2; y < maxHeight; y++)
+			//	_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
+			//_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
 		}
 	}
 	// Check for faces to display (Only for current chunk)

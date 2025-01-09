@@ -5,7 +5,8 @@
 
 class Camera {
 	public:
-		Camera() : position{0.0, -30.0, 0.0}, center{0.0f, 0.0f, 10.0f} {};
+		Camera() : position{14.1079, -20.0, 22.4159}, center{0.0f, 0.0f, 10.0f} { xangle = 217; yangle = -26;};
+		//Camera() : position{0.0, -30.0, 0.0}, center{0.0f, 0.0f, 10.0f} {};
 		~Camera() {};
 		void move(float forward, float strafe, float up);
 		void reset();

@@ -41,7 +41,7 @@ enum BlockType {
 
 #define W_WIDTH 800
 #define W_HEIGHT 600
-#define RENDER_DISTANCE 32
+#define RENDER_DISTANCE 2
 #define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 
 bool isWSL();

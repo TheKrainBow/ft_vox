@@ -9,9 +9,10 @@ class Texture
 {
 private:
     GLuint				_texture;
-    GLuint				_vao[6];               // Vertex Array Object
-    GLuint				_vbo[6];               // Vertex Buffer Object
-    std::vector<float>	_vertexData[6];     // Flattened vertex data: [x, y, z, texCoordX, texCoordY]
+    //
+    GLuint				_vao[6];
+    GLuint				_vbo[6];
+    std::vector<float>	_vertexData[6];
     int					_width, _height;
 
 public:
