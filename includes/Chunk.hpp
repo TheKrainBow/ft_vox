@@ -29,4 +29,7 @@ class Chunk
 		void freeChunkData();
 		vec2 getPosition(void);
 		void renderBoundaries() const;
+	private:
+		void displayCheckFaces() const;
+		vec2 getBorderWarping(double x, double z,  const NoiseGenerator &noise_gen) const;
 };

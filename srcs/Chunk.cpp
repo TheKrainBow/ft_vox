@@ -8,6 +8,7 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 	double relativePosX = _position.x * 16.0;
 	double relativePosZ = _position.y * 16.0;
 
+	vec2 offsetBorder = {0.0, 0.0};
 	NoiseGenerator warpingGenerator(42);
 	BiomeType type;
 	// Generate terrain. (Must be refactored using Perlin Noise)
@@ -15,29 +16,46 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 	{
 		for (int z = 0; z < 16; z++)
 		{
-			double scaledX = (relativePosX + x);
-			double scaledZ = (relativePosZ + z);
+			offsetBorder = getBorderWarping(relativePosX + x, relativePosZ + z, noise_gen);
+			type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
 
-			double offSetX = noise_gen.noise(scaledX, scaledZ);
-			double offSetZ = noise_gen.noise(scaledX, scaledZ);
-			double remappedX = (int)(((offSetX + 1.0) * 0.5) * 255.0);
-			double remappedZ = (int)(((offSetZ + 1.0) * 0.5) * 255.0);
-			type = biome_gen.findClosestBiomes(scaledX + remappedX, scaledZ + remappedZ);
-
-			double noise = noise_gen.noise(scaledX, scaledZ);
-			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 50.0);
+			double noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
+			double remappedNoise;
+			if (type == DESERT)
+				remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
+			else
+				remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
 			size_t maxHeight = (size_t)(remappedNoise);
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-			for (size_t y = maxHeight / 2; y < maxHeight; y++)
-				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 			if (type == DEFAULT || type == PLAINS)
+			{
+				for (size_t y = maxHeight / 2; y < maxHeight; y++)
+					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
+			}
 			else if (type == DESERT)
-				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Sand((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
-
+			{
+				for (size_t y = maxHeight / 2; y <= maxHeight; y++)
+					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Sand((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
+			}
+			displayCheckFaces();
 		}
 	}
+}
+
+vec2 Chunk::getBorderWarping(double x, double z, const NoiseGenerator &noise_gen) const
+{
+	vec2 offset = {0.0, 0.0};
+	double noiseX = noise_gen.noise(x, z);
+	double noiseZ = noise_gen.noise(x, z);
+	offset.x = (int)(((noiseX + 1.0) * 0.5) * 255.0);
+	offset.y = (int)(((noiseZ + 1.0) * 0.5) * 255.0);
+	return offset;
+}
+
+void Chunk::displayCheckFaces() const
+{
 	// Check for faces to display (Only for current chunk)
 	for (int x = 0; x < CHUNK_SIZE_X; ++x) {
 		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {

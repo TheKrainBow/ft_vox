@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:55:27 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/09 20:52:58 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/09 21:51:35 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -28,6 +28,11 @@ void BiomeGenerator::findBiomeCenters(vec2 playerPos)
 
 	pos.x = floor(playerPos.x / BIOME_SIZE) * BIOME_SIZE;
 	pos.y = floor(playerPos.y / BIOME_SIZE) * BIOME_SIZE;
+
+	if (pos.x == 0)
+		pos.x = BIOME_SIZE;
+	if (pos.y == 0)
+		pos.y = BIOME_SIZE;
 
 	// Generate raw centers
 	for (const vec2 &direction : directions)
