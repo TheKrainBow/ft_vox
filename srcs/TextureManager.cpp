@@ -55,6 +55,7 @@ void TextureManager::loadTexture(TextureType type, std::string path) {
 	}
 
 	glGenTextures(1, &newTextureID);
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, newTextureID);
 
 	std::vector<t_rgb> rgb_data(data, data + (width * height));
@@ -98,32 +99,30 @@ TextureManager::~TextureManager() {
 	}
 }
 
-void TextureManager::addTextureVertex(TextureType type, int x, int y, int z)
+void TextureManager::addTextureVertex(TextureType type, e_direction dir, int x, int y, int z, double u, double v)
 {
-	_textures[type]->addVertex(x, y, z);
+	_textures[type]->addVertex(dir, x, y, z, u, v);
 }
 
-void TextureManager::resetTextureVertex(TextureType type)
-{
-	_textures[type]->resetVertex();
-}
-
-void TextureManager::resetAllTextureVertex()
+void TextureManager::resetTextureVertex()
 {
 	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
 		it->second->resetVertex();
 }
 
-void TextureManager::displayTexture(TextureType type)
+int TextureManager::displayAllTexture(Camera &cam)
 {
-	_textures[type]->display();
-}
-
-void TextureManager::displayAllTexture()
-{
+	int triangleDrown = 0;
+	(void)cam;
 	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
 	{
 		glBindTexture(GL_TEXTURE_2D, it->second->getTexture());
-		it->second->display();
+			triangleDrown += it->second->display(UP);
+			triangleDrown += it->second->display(DOWN);
+			triangleDrown += it->second->display(SOUTH);
+			triangleDrown += it->second->display(NORTH);
+			triangleDrown += it->second->display(EAST);
+			triangleDrown += it->second->display(WEST);
 	}
+	return (triangleDrown);
 }

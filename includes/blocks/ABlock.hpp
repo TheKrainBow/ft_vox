@@ -6,15 +6,6 @@
 class ABlock
 {
 	protected:
-		enum e_direction {
-			UP,
-			DOWN,
-			NORTH,
-			SOUTH,
-			WEST,
-			EAST
-		};
-	protected:
 		glm::vec3	_position;
 		TextureType	_textures[6];
 		BlockType	_type;

@@ -25,7 +25,7 @@ class Chunk
 	public:
 		Chunk(int chunkX, int z, NoiseGenerator &noise_gen, BiomeGenerator &biome_gen);
 		~Chunk();
-		void display(void);
+		void display();
 		void freeChunkData();
 		vec2 getPosition(void);
 		void renderBoundaries() const;

@@ -2,6 +2,7 @@
 
 #include "ft_vox.hpp"
 #include "Texture.hpp"
+#include "Camera.hpp"
 
 #define NB_TEXTURES 2
 
@@ -26,11 +27,9 @@ class TextureManager {
 		~TextureManager(); // Destructor declaration
 
 		void loadTexture(TextureType type, std::string path);
-		void addTextureVertex(TextureType type, int x, int y, int z);
-		void resetTextureVertex(TextureType type);
-		void resetAllTextureVertex();
-		void displayTexture(TextureType type);
-		void displayAllTexture();
+		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int z, double u, double v);
+		void resetTextureVertex();
+		int displayAllTexture(Camera &cam);
 	private:
 		// Declaring external functions that are not part of the class
 		t_rgb *loadPPM(const std::string &path, int &width, int &height);

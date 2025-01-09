@@ -25,7 +25,7 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 			type = biome_gen.findClosestBiomes(scaledX + remappedX, scaledZ + remappedZ);
 
 			double noise = noise_gen.noise(scaledX, scaledZ);
-			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
+			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 50.0);
 			size_t maxHeight = (size_t)(remappedNoise);
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
@@ -66,8 +66,11 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 
 void Chunk::renderBoundaries() const
 {
+	glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_DEPTH_TEST);
 	// Cyan blue color
-	glColor3f(0.0f, 0.5f, 1.0f);
+	glColor3f(0.0f, 0.0f, 0.0f);
 	float chunkSize = 16;
 	float startX = _position.x * chunkSize;
 	float startZ = _position.y * chunkSize;

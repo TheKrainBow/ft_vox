@@ -42,43 +42,61 @@ void ABlock::updateNeighbors(int neighbors)
 }
 
 void ABlock::displayDownFace() {
-	textManager.addTextureVertex(_textures[DOWN], _position.x, _position.y, _position.z);
-	textManager.addTextureVertex(_textures[DOWN], _position.x + 1, _position.y, _position.z);
-	textManager.addTextureVertex(_textures[DOWN], _position.x + 1, _position.y, _position.z + 1);
-	textManager.addTextureVertex(_textures[DOWN], _position.x, _position.y, _position.z + 1);
+	textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x, _position.y, _position.z, 0, 0);
+	textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x + 1, _position.y, _position.z, 1, 0);
+	textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x + 1, _position.y, _position.z + 1, 1, 1);
+
+	textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x, _position.y, _position.z, 0, 0);
+	textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x + 1, _position.y, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x, _position.y, _position.z + 1, 0, 1);
 }
 
 void ABlock::displayUpFace() {
-	textManager.addTextureVertex(_textures[UP], _position.x, _position.y + 1, _position.z);
-	textManager.addTextureVertex(_textures[UP], _position.x + 1, _position.y + 1, _position.z);
-	textManager.addTextureVertex(_textures[UP], _position.x + 1, _position.y + 1, _position.z + 1);
-	textManager.addTextureVertex(_textures[UP], _position.x, _position.y + 1, _position.z + 1);
+	textManager.addTextureVertex(_textures[UP], UP, _position.x, _position.y + 1, _position.z + 1, 0, 1);
+	textManager.addTextureVertex(_textures[UP], UP, _position.x + 1, _position.y + 1, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[UP], UP, _position.x, _position.y + 1, _position.z, 0, 0);
+
+	textManager.addTextureVertex(_textures[UP], UP, _position.x + 1, _position.y + 1, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[UP], UP, _position.x + 1, _position.y + 1, _position.z, 1, 0);
+	textManager.addTextureVertex(_textures[UP], UP, _position.x, _position.y + 1, _position.z, 0, 0);
 }
 
 void ABlock::displayNorthFace() {
-	textManager.addTextureVertex(_textures[NORTH], _position.x, _position.y, _position.z);
-	textManager.addTextureVertex(_textures[NORTH], _position.x + 1, _position.y, _position.z);
-	textManager.addTextureVertex(_textures[NORTH], _position.x + 1, _position.y + 1, _position.z);
-	textManager.addTextureVertex(_textures[NORTH], _position.x, _position.y + 1, _position.z);
+    textManager.addTextureVertex(_textures[NORTH], NORTH, _position.x + 1, _position.y + 1, _position.z, 1.0f, 1.0f);
+    textManager.addTextureVertex(_textures[NORTH], NORTH, _position.x + 1, _position.y, _position.z, 1.0f, 0.0f);
+    textManager.addTextureVertex(_textures[NORTH], NORTH, _position.x, _position.y, _position.z, 0.0f, 0.0f);
+
+    textManager.addTextureVertex(_textures[NORTH], NORTH, _position.x, _position.y + 1, _position.z, 0.0f, 1.0f);
+    textManager.addTextureVertex(_textures[NORTH], NORTH, _position.x + 1, _position.y + 1, _position.z, 1.0f, 1.0f);
+    textManager.addTextureVertex(_textures[NORTH], NORTH, _position.x, _position.y, _position.z, 0.0f, 0.0f);
 }
 
 void ABlock::displaySouthFace() {
-	textManager.addTextureVertex(_textures[SOUTH], _position.x, _position.y, _position.z + 1);
-	textManager.addTextureVertex(_textures[SOUTH], _position.x + 1, _position.y, _position.z + 1);
-	textManager.addTextureVertex(_textures[SOUTH], _position.x + 1, _position.y + 1, _position.z + 1);
-	textManager.addTextureVertex(_textures[SOUTH], _position.x, _position.y + 1, _position.z + 1);
+	textManager.addTextureVertex(_textures[SOUTH], SOUTH, _position.x, _position.y, _position.z + 1, 0.0f, 0.0f);
+	textManager.addTextureVertex(_textures[SOUTH], SOUTH, _position.x + 1, _position.y, _position.z + 1, 1, 0);
+	textManager.addTextureVertex(_textures[SOUTH], SOUTH, _position.x + 1, _position.y + 1, _position.z + 1, 1, 1);
+
+	textManager.addTextureVertex(_textures[SOUTH], SOUTH, _position.x, _position.y, _position.z + 1, 0.0f, 0.0f);
+	textManager.addTextureVertex(_textures[SOUTH], SOUTH, _position.x + 1, _position.y + 1, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[SOUTH], SOUTH, _position.x, _position.y + 1, _position.z + 1, 0, 1);
 }
 
 void ABlock::displayWestFace() {
-	textManager.addTextureVertex(_textures[WEST], _position.x + 1, _position.y, _position.z);
-	textManager.addTextureVertex(_textures[WEST], _position.x + 1, _position.y, _position.z + 1);
-	textManager.addTextureVertex(_textures[WEST], _position.x + 1, _position.y + 1, _position.z + 1);
-	textManager.addTextureVertex(_textures[WEST], _position.x + 1, _position.y + 1, _position.z);
+	textManager.addTextureVertex(_textures[WEST], WEST, _position.x + 1, _position.y + 1, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[WEST], WEST, _position.x + 1, _position.y, _position.z + 1, 1, 0);
+	textManager.addTextureVertex(_textures[WEST], WEST, _position.x + 1, _position.y, _position.z, 0, 0);
+
+	textManager.addTextureVertex(_textures[WEST], WEST, _position.x + 1, _position.y + 1, _position.z, 0, 1);
+	textManager.addTextureVertex(_textures[WEST], WEST, _position.x + 1, _position.y + 1, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[WEST], WEST, _position.x + 1, _position.y, _position.z, 0, 0);
 }
 
 void ABlock::displayEastFace() {
-	textManager.addTextureVertex(_textures[EAST], _position.x, _position.y, _position.z);
-	textManager.addTextureVertex(_textures[EAST], _position.x, _position.y, _position.z + 1);
-	textManager.addTextureVertex(_textures[EAST], _position.x, _position.y + 1, _position.z + 1);
-	textManager.addTextureVertex(_textures[EAST], _position.x, _position.y + 1, _position.z);
+	textManager.addTextureVertex(_textures[EAST], EAST, _position.x, _position.y, _position.z, 0, 0);
+	textManager.addTextureVertex(_textures[EAST], EAST, _position.x, _position.y, _position.z + 1, 1, 0);
+	textManager.addTextureVertex(_textures[EAST], EAST, _position.x, _position.y + 1, _position.z + 1, 1, 1);
+
+	textManager.addTextureVertex(_textures[EAST], EAST, _position.x, _position.y, _position.z, 0, 0);
+	textManager.addTextureVertex(_textures[EAST], EAST, _position.x, _position.y + 1, _position.z + 1, 1, 1);
+	textManager.addTextureVertex(_textures[EAST], EAST, _position.x, _position.y + 1, _position.z, 0, 1);
 }
