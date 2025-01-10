@@ -14,9 +14,9 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
-bool updateChunk = false;
+bool updateChunk = true;
 bool showDebugInfo = true;
-bool showTriangleMesh = true;
+bool showTriangleMesh = false;
 
 int windowHeight = W_HEIGHT;
 int windowWidth = W_WIDTH;
@@ -245,47 +245,47 @@ void updateChunks(vec3 newCameraPosition)
 {
 	(void)newCameraPosition;
 	// Store the set of positions for currently loaded chunks
-	//std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
-	//for (Chunk& chunk : chunks)
-	//	loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
+	std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
+	for (Chunk& chunk : chunks)
+		loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
 
-	//// Set to track positions of chunks that should remain
-	//std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
+	// Set to track positions of chunks that should remain
+	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
 
-	//// Add chunks within the render distance
-	//for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-	//{
-	//	for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-	//	{
-	//		int chunkX = newCameraPosition.x + x;
-	//		int chunkZ = newCameraPosition.z + z;
+	// Add chunks within the render distance
+	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
+	{
+		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
+		{
+			int chunkX = newCameraPosition.x + x;
+			int chunkZ = newCameraPosition.z + z;
 
-	//		// Add this position to the required set
-	//		requiredChunkPositions.emplace(chunkX, chunkZ);
+			// Add this position to the required set
+			requiredChunkPositions.emplace(chunkX, chunkZ);
 
-	//		// If this chunk is not already loaded, create and add it
-	//		if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
-	//		{
-	//			// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-	//			chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
-	//		}
-	//	}
-	//}
+			// If this chunk is not already loaded, create and add it
+			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
+			{
+				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
+				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
+			}
+		}
+	}
 
-	//// Remove chunks that are no longer needed
-	//chunks.erase(
-	//	std::remove_if(chunks.begin(), chunks.end(),
-	//		[&requiredChunkPositions](Chunk& chunk)
-	//		{
-	//			if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
-	//			{
-	//				chunk.freeChunkData();
-	//				return true;
-	//			}
-	//			return false;
-	//		}),
-	//	chunks.end()
-	//);
+	// Remove chunks that are no longer needed
+	chunks.erase(
+		std::remove_if(chunks.begin(), chunks.end(),
+			[&requiredChunkPositions](Chunk& chunk)
+			{
+				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
+				{
+					chunk.freeChunkData();
+					return true;
+				}
+				return false;
+			}),
+		chunks.end()
+	);
 	
 	textManager.resetTextureVertex();
 
@@ -293,6 +293,7 @@ void updateChunks(vec3 newCameraPosition)
 	{
 		it->display();
 	}
+	textManager.processTextureVertex();
 }
 
 void update(GLFWwindow* window)
@@ -394,7 +395,8 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
-	chunks.push_back(Chunk(0, 0, noise_gen));
+	//chunks.push_back(Chunk(0, 0, noise_gen));
+	//chunks.push_back(Chunk(0, 1, noise_gen));
 	updateChunks(vec3(0, 0, 0));
 
 	reshape(_window, windowWidth, windowHeight);
@@ -415,6 +417,8 @@ int main(int argc, char **argv)
 	debugBoxObject.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBoxObject.addLine("FPS: ", &fps);
 	debugBoxObject.addLine("Triangles: ", &triangleDrown);
+	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
+
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
