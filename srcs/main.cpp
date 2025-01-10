@@ -293,6 +293,7 @@ void updateChunks(vec3 newCameraPosition)
 	{
 		it->display();
 	}
+	textManager.processTextureVertex();
 }
 
 void update(GLFWwindow* window)
@@ -415,6 +416,8 @@ int main(int argc, char **argv)
 	debugBoxObject.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBoxObject.addLine("FPS: ", &fps);
 	debugBoxObject.addLine("Triangles: ", &triangleDrown);
+	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
+
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{

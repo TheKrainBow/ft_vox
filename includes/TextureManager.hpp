@@ -26,9 +26,10 @@ class TextureManager {
 		~TextureManager(); // Destructor declaration
 
 		void loadTexture(TextureType type, std::string path);
-		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int z, double u, double v);
+		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int );
 		void resetTextureVertex();
 		int displayAllTexture(Camera &cam);
+		void processTextureVertex();
 	private:
 		// Declaring external functions that are not part of the class
 		t_rgb *loadPPM(const std::string &path, int &width, int &height);

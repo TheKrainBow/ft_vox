@@ -15,7 +15,7 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen)
 			double scaledX = (chunkX * 16.0 + x);
 			double scaledZ = (chunkZ * 16.0 + z);
 			double noise = noise_gen.noise(scaledX, scaledZ);
-			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
+			double remappedNoise = (int)(((noise + 1.0) * 0.5) * 50.0);
 			size_t maxHeight = (size_t)(remappedNoise);
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
