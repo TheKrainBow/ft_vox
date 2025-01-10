@@ -12,6 +12,14 @@ bool compareUpFaces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.z < b.position.z;
 }
 
+bool compareUpStep2Faces(const Texture::Face& a, const Texture::Face& b) {
+    if (a.position.y != b.position.y)
+        return a.position.y < b.position.y;
+    if (a.position.z != b.position.z)
+        return a.position.z < b.position.z;
+    return a.position.x < b.position.x;
+}
+
 bool compareNorthFaces(const Texture::Face& a, const Texture::Face& b) {
     if (a.position.z != b.position.z)
         return a.position.z < b.position.z;
@@ -20,12 +28,28 @@ bool compareNorthFaces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.x < b.position.x;
 }
 
+bool compareNorthStep2Faces(const Texture::Face& a, const Texture::Face& b) {
+    if (a.position.z != b.position.z)
+        return a.position.z < b.position.z;
+    if (a.position.x != b.position.x)
+        return a.position.x < b.position.x;
+    return a.position.y < b.position.y;
+}
+
 bool compareEastFaces(const Texture::Face& a, const Texture::Face& b) {
     if (a.position.x != b.position.x)
         return a.position.x < b.position.x;
     if (a.position.z != b.position.z)
         return a.position.z < b.position.z;
     return a.position.y < b.position.y;
+}
+
+bool compareEastStep2Faces(const Texture::Face& a, const Texture::Face& b) {
+    if (a.position.x != b.position.x)
+        return a.position.x < b.position.x;
+    if (a.position.y != b.position.y)
+        return a.position.y < b.position.y;
+    return a.position.z < b.position.z;
 }
 
 Texture::Texture(GLuint texture) : _texture(texture) {
@@ -111,6 +135,8 @@ void Texture::processUpVertex()
     }
     mergedFacesZ.push_back(newFace);
 
+
+    std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareUpStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
@@ -160,6 +186,7 @@ void Texture::processDownVertex()
     }
     mergedFacesZ.push_back(newFace);
 
+    std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareUpStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
@@ -209,6 +236,7 @@ void Texture::processNorthVertex()
     }
     mergedFacesZ.push_back(newFace);
 
+    std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareNorthStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
@@ -258,6 +286,7 @@ void Texture::processSouthVertex()
     }
     mergedFacesZ.push_back(newFace);
 
+    std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareNorthStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
@@ -306,6 +335,7 @@ void Texture::processEastVertex()
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
+    std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareEastStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
@@ -357,6 +387,7 @@ void Texture::processWestVertex()
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
+    std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareEastStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
     {

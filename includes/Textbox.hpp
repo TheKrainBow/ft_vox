@@ -9,10 +9,17 @@
 #include "stb_truetype.hpp"
 
 class Textbox {
+public:
+    enum e_type {
+        DOUBLE,
+        INT,
+        FLOAT
+    };
 private:
     struct Line {
         std::string label;
-        double* value;
+        void* value;
+        e_type type;
     };
 
     std::vector<Line> lines;
@@ -29,7 +36,7 @@ private:
 public:
     Textbox(GLFWwindow* window, int x, int y, int width, int height);
     void loadFont(const std::string& fontPath, float fontSize);
-    void addLine(const std::string& label, double* value);
+    void addLine(const std::string& label, e_type type, void* value);
     void render();
     ~Textbox();
 };

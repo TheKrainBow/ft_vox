@@ -318,8 +318,8 @@ void update(GLFWwindow* window)
 	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks(camChunk);
 
-	if (keyStates[GLFW_KEY_UP] && cam.yangle < 86.0) cam.yangle += cam.rotationspeed;
-	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -86.0) cam.yangle -= cam.rotationspeed;
+	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += cam.rotationspeed;
+	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= cam.rotationspeed;
 	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
 	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += cam.rotationspeed;
 
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
-	//chunks.push_back(Chunk(0, 0, noise_gen));
+	// chunks.push_back(Chunk(-cam.position.x / 16 - 1, -cam.position.z / 16 - 1, noise_gen));
 	updateChunks(vec3(0, 0, 0));
 
 	reshape(_window, windowWidth, windowHeight);
@@ -414,8 +414,13 @@ int main(int argc, char **argv)
 	Textbox debugBoxObject(_window, 0, 0, 200, 200);
 	debugBox = &debugBoxObject;
 	debugBoxObject.loadFont("textures/CASCADIAMONO.TTF", 20);
-	debugBoxObject.addLine("FPS: ", &fps);
-	debugBoxObject.addLine("Triangles: ", &triangleDrown);
+	debugBoxObject.addLine("FPS: ", Textbox::DOUBLE, &fps);
+	debugBoxObject.addLine("Triangles: ", Textbox::DOUBLE, &triangleDrown);
+	debugBoxObject.addLine("x: ", Textbox::FLOAT, &cam.position.x);
+	debugBoxObject.addLine("y: ", Textbox::FLOAT, &cam.position.y);
+	debugBoxObject.addLine("z: ", Textbox::FLOAT, &cam.position.z);
+	debugBoxObject.addLine("xangle: ", Textbox::FLOAT, &cam.xangle);
+	debugBoxObject.addLine("yangle: ", Textbox::FLOAT, &cam.yangle);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
 
 	// Main loop
