@@ -20,16 +20,12 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 		{
 			offsetBorder = getBorderWarping(relativePosX + x, relativePosZ + z, noise_gen);
 			type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
-
 			noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
-			if (type == DESERT)
-				remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
-			else
-				remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
+			remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
 			maxHeight = (size_t)(remappedNoise);
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-			if (type == DEFAULT || type == PLAINS)
+			if (type == PLAINS)
 			{
 				for (size_t y = maxHeight / 2; y < maxHeight; y++)
 					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
@@ -40,9 +36,9 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 				for (size_t y = maxHeight / 2; y <= maxHeight; y++)
 					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Sand((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 			}
-			displayCheckFaces();
 		}
 	}
+	displayCheckFaces();
 }
 
 vec2 Chunk::getBorderWarping(double x, double z, const NoiseGenerator &noise_gen) const
