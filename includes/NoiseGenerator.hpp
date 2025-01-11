@@ -19,6 +19,7 @@ class NoiseGenerator {
 		NoiseGenerator(size_t seed);
 		~NoiseGenerator();
 		double noise(double x, double y) const;
+		double *noiseMap(double x, double y, int size) const;
 		void setSeed(size_t seed);
 	private:
 		double singleNoise(double x, double y) const;

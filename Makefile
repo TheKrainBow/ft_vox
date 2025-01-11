@@ -3,7 +3,7 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
-CFLAGS	=	-Wall -Wextra -Werror -O3 -g3
+CFLAGS	=	-Wall -Wextra -Werror -O3 -g3 -fsanitize=address
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
 
 OBJ_PATH		=	obj/
@@ -25,6 +25,8 @@ SRC_NAME	=	stb_truetype.cpp	\
 				blocks/Stone.cpp	\
 				blocks/ABlock.cpp	\
 				Textbox.cpp			\
+				World.cpp			\
+				ChunkV2.cpp			\
 				NoiseGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)

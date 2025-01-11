@@ -1,5 +1,6 @@
 #include "ft_vox.hpp"
 #include "Chunk.hpp"
+#include "World.hpp"
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
@@ -9,6 +10,7 @@
 // Display
 GLFWwindow* _window;
 GLuint shaderProgram;
+World *_world;
 
 mat4 projectionMatrix;
 mat4 viewMatrix;
@@ -30,7 +32,7 @@ double triangleDrown = 0.0;
 
 //World gen
 std::vector<ABlock> blocks;
-std::vector<Chunk> chunks;
+// std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
 
 Textbox *debugBox;
@@ -220,8 +222,6 @@ void display(GLFWwindow* window)
 
 	triangleDrown = textManager.displayAllTexture(cam);
 
-
-
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -241,58 +241,13 @@ struct pair_hash {
 	}
 };
 
-void updateChunks(vec3 newCameraPosition)
+void updateChunks()
 {
-	(void)newCameraPosition;
-	// Store the set of positions for currently loaded chunks
-	std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
-	for (Chunk& chunk : chunks)
-		loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
-
-	// Set to track positions of chunks that should remain
-	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
-
-	// Add chunks within the render distance
-	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-	{
-		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-		{
-			int chunkX = newCameraPosition.x + x;
-			int chunkZ = newCameraPosition.z + z;
-
-			// Add this position to the required set
-			requiredChunkPositions.emplace(chunkX, chunkZ);
-
-			// If this chunk is not already loaded, create and add it
-			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
-			{
-				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen));
-			}
-		}
-	}
-
-	// Remove chunks that are no longer needed
-	chunks.erase(
-		std::remove_if(chunks.begin(), chunks.end(),
-			[&requiredChunkPositions](Chunk& chunk)
-			{
-				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
-				{
-					chunk.freeChunkData();
-					return true;
-				}
-				return false;
-			}),
-		chunks.end()
-	);
-	
+	_world->loadChunk(vec3(-cam.position.x, -cam.position.y, -cam.position.z), RENDER_DISTANCE);	
 	textManager.resetTextureVertex();
-
-	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
-	{
-		it->display();
-	}
+	_world->sendFacesToDisplay();
+	// for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
+	// 	it->display();
 	textManager.processTextureVertex();
 }
 
@@ -300,8 +255,9 @@ void update(GLFWwindow* window)
 {
 	(void)window;
 
-	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+	vec3 oldCamChunk(-cam.position.x / 16, -cam.position.y / 16, -cam.position.z / 16);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
+	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
 
 	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(1.0, 0.0, 0.0);
@@ -311,12 +267,13 @@ void update(GLFWwindow* window)
 	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
 
-	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+	vec3 camChunk(-cam.position.x / 16, -cam.position.y / 16, -cam.position.z / 16);
 	if (camChunk.x < 0) camChunk.x--;
+	if (camChunk.y < 0) camChunk.y--;
 	if (camChunk.z < 0) camChunk.z--;
 
-	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z)))
-		updateChunks(camChunk);
+	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
+		updateChunks();
 
 	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += cam.rotationspeed;
 	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= cam.rotationspeed;
@@ -395,8 +352,11 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
+	World overworld(42);
+
+	_world = &overworld;
 	// chunks.push_back(Chunk(-cam.position.x / 16 - 1, -cam.position.z / 16 - 1, noise_gen));
-	updateChunks(vec3(0, 0, 0));
+	updateChunks();
 
 	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
@@ -422,7 +382,6 @@ int main(int argc, char **argv)
 	debugBoxObject.addLine("xangle: ", Textbox::FLOAT, &cam.xangle);
 	debugBoxObject.addLine("yangle: ", Textbox::FLOAT, &cam.yangle);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
-
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
@@ -432,10 +391,10 @@ int main(int argc, char **argv)
 	}
 
 	//Free chunk data
-	for (Chunk &chunk : chunks)
-	{
-		chunk.freeChunkData();
-	}
+	// for (Chunk &chunk : chunks)
+	// {
+	// 	chunk.freeChunkData();
+	// }
 
 	glfwDestroyWindow(_window);
 	glfwTerminate();

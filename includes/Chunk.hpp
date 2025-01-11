@@ -17,7 +17,7 @@ class Chunk
 {
 	private:
 		vec2	_position;
-		ABlock	*_blocks[CHUNK_SIZE];
+		ABlock	*_blocks[CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y];
 	public:
 		Chunk(int chunkX, int z, NoiseGenerator &noise_gen);
 		~Chunk();

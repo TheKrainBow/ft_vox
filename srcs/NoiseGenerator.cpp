@@ -36,6 +36,18 @@ void NoiseGenerator::setSeed(size_t seed)
 	_seed = seed;
 }
 
+double *NoiseGenerator::noiseMap(double startX, double startY, int size) const
+{
+	double *dest = new double[size * size];
+	for (int x = 0; x < 16; x++)
+		for (int y = 0; y < 16; y++)
+		{
+			dest[y * size + x] = noise(startX + x, startY + y);
+			// std::cout << dest[y * size + x] << std::endl;
+		}
+	return (dest);
+}
+
 // Layered perlin noise samples by octaves number
 double NoiseGenerator::noise(double x, double y) const
 {
