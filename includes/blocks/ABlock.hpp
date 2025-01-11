@@ -22,11 +22,4 @@ class ABlock
 		vec3 getPosition(void);
 		BlockType getType(void);
 		void updateNeighbors(int neighbors);
-	private:
-		void displayNorthFace();
-		void displaySouthFace();
-		void displayEastFace();
-		void displayWestFace();
-		void displayUpFace();
-		void displayDownFace();
 };

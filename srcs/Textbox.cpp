@@ -50,8 +50,8 @@ void Textbox::loadFont(const std::string& fontPath, float fontSize) {
 	initializeFont(fontPath, fontSize);
 }
 
-void Textbox::addLine(const std::string& label, double* value) {
-	lines.push_back({label, value});
+void Textbox::addLine(const std::string& label, e_type type, void* value) {
+	lines.push_back({label, value, type});
 }
 
 std::string to_string_with_precision(double value, int precision) {
@@ -85,7 +85,13 @@ void Textbox::render() {
 	float startY = positionY - (windowHeight - 512 - 20); // Adjust for font alignment
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White color for text
 	for (const auto& line : lines) {
-		std::string text = line.label + to_string_with_precision(*line.value, 1);
+		std::string text;
+		if (line.type == DOUBLE)
+			text = line.label + to_string_with_precision(*((double *)(line.value)), 1);
+		else if (line.type == FLOAT)
+			text = line.label + std::to_string(*((float *)(line.value)));
+		else if (line.type == INT)
+			text = line.label + std::to_string(*((int *)(line.value)));
 		float startX = positionX + 5;
 		for (const char& ch : text) {
 			if (ch >= 32) {
