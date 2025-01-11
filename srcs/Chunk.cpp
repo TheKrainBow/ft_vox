@@ -7,9 +7,11 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 
 	double relativePosX = _position.x * 16.0;
 	double relativePosZ = _position.y * 16.0;
-
+	double noise;
 	vec2 offsetBorder = {0.0, 0.0};
-	NoiseGenerator warpingGenerator(42);
+	double remappedNoise;
+	size_t maxHeight;
+
 	BiomeType type;
 	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
@@ -19,13 +21,12 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 			offsetBorder = getBorderWarping(relativePosX + x, relativePosZ + z, noise_gen);
 			type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
 
-			double noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
-			double remappedNoise;
+			noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
 			if (type == DESERT)
 				remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
 			else
 				remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
-			size_t maxHeight = (size_t)(remappedNoise);
+			maxHeight = (size_t)(remappedNoise);
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 			if (type == DEFAULT || type == PLAINS)
@@ -46,12 +47,9 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 
 vec2 Chunk::getBorderWarping(double x, double z, const NoiseGenerator &noise_gen) const
 {
-	vec2 offset = {0.0, 0.0};
-	double noiseX = noise_gen.noise(x, z);
-	double noiseZ = noise_gen.noise(x, z);
-	offset.x = (int)(((noiseX + 1.0) * 0.5) * 255.0);
-	offset.y = (int)(((noiseZ + 1.0) * 0.5) * 255.0);
-	return offset;
+	double noise = noise_gen.noise(x, z);
+	double offset = (int)(((noise + 1.0) * 0.5) * 255.0);
+	return {offset, offset};
 }
 
 void Chunk::displayCheckFaces() const

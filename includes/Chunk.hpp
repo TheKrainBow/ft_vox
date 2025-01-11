@@ -13,7 +13,7 @@
 #define CHUNK_SIZE_X 16
 #define CHUNK_SIZE_Z 16
 #define CHUNK_SIZE_Y 255
-#define CHUNK_SIZE CHUNK_SIZE_X * CHUNK_SIZE_Z * CHUNK_SIZE_Y
+#define CHUNK_SIZE 65280
 
 class BiomeGenerator;
 
