@@ -26,6 +26,7 @@ class ChunkV2
 		~ChunkV2();
 		void sendFacesToDisplay();
 		void load();
+		void updateNeighbors();
 		void unload();
 		vec3 getPosition(void);
 	    BlockType getBlock(int x, int y, int z);

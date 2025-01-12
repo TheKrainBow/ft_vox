@@ -30,8 +30,11 @@ void ChunkV2::load()
 			}
 		}
 	}
-	
-	// Check for faces to display (Only for current chunk)
+	_isLoaded = true;
+}
+
+void ChunkV2::updateNeighbors()
+{
 	for (int x = 0; x < CHUNK_SIZEV2; ++x) {
 		for (int z = 0; z < CHUNK_SIZEV2; ++z) {
 			for (int y = 0; y < CHUNK_SIZEV2; ++y) {
@@ -39,23 +42,41 @@ void ChunkV2::load()
 				if (!_blocks[index])
 						continue ;
 				int state = 0;
-				bool displayDown = (y == 0) || _blocks[x + z * CHUNK_SIZEV2 + (y - 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2] == NULL;
-				bool displayUp = (y == 15) || _blocks[x + z * CHUNK_SIZEV2 + (y + 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2] == NULL;
-				bool displayRight = (x == 0) || _blocks[(x - 1) + z * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == NULL;
-				bool displayLeft = (x == 15) || _blocks[(x + 1) + z * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == NULL;
-				bool displayFront = (z == 0) || _blocks[x + (z - 1) * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == NULL;
-				bool displayBack = (z == 15) || _blocks[x + (z + 1) * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == NULL;
-				state |= (displayUp << 0);
-				state |= (displayDown << 1);
-				state |= (displayLeft << 2);
-				state |= (displayRight << 3);
-				state |= (displayFront << 4);
-				state |= (displayBack << 5);
+				bool down, up, right, left, front, back;
+				if (y == 15)
+					up = _world.getBlock(_position.x * CHUNK_SIZEV2 + x, _position.y * CHUNK_SIZEV2 + y + 1, _position.z * CHUNK_SIZEV2 + z) == AIR;
+				else
+					up = _blocks[x + (z * CHUNK_SIZEV2) + ((y + 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2)] == NULL;
+				if (y == 0)
+					down = _world.getBlock(_position.x * CHUNK_SIZEV2 + x, _position.y * CHUNK_SIZEV2 + y - 1, _position.z * CHUNK_SIZEV2 + z) == AIR;
+				else
+					down = _blocks[x + (z * CHUNK_SIZEV2) + ((y - 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2)] == NULL;
+				if (x == 0)
+					right = _world.getBlock(_position.x * CHUNK_SIZEV2 + x - 1, _position.y * CHUNK_SIZEV2 + y, _position.z * CHUNK_SIZEV2 + z) == AIR;
+				else
+					right = _blocks[(x - 1) + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] == NULL;
+				if (x == 15)
+					left = _world.getBlock(_position.x * CHUNK_SIZEV2 + x + 1, _position.y * CHUNK_SIZEV2 + y, _position.z * CHUNK_SIZEV2 + z) == AIR;
+				else
+					left = _blocks[(x + 1) + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] == NULL;
+				if (z == 0)
+					front = _world.getBlock(_position.x * CHUNK_SIZEV2 + x, _position.y * CHUNK_SIZEV2 + y, _position.z * CHUNK_SIZEV2 + z - 1) == AIR;
+				else
+					front = _blocks[x + ((z - 1) * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] == NULL;
+				if (z == 15)
+					back = _world.getBlock(_position.x * CHUNK_SIZEV2 + x, _position.y * CHUNK_SIZEV2 + y, _position.z * CHUNK_SIZEV2 + z + 1) == AIR;
+				else
+					back = _blocks[x + ((z + 1) * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] == NULL;
+				state |= (up << 0);
+				state |= (down << 1);
+				state |= (left << 2);
+				state |= (right << 3);
+				state |= (front << 4);
+				state |= (back << 5);
 				_blocks[index]->updateNeighbors(state);
 			}
 		}
 	}
-	_isLoaded = true;
 }
 
 void ChunkV2::unload()
@@ -74,11 +95,12 @@ BlockType ChunkV2::getBlock(int x, int y, int z)
 		return AIR;
 	if (x >= CHUNK_SIZEV2 || y >= CHUNK_SIZEV2 || z >= CHUNK_SIZEV2)
 		return AIR;
-	std::cout << x << y << z << std::endl;
-	ABlock *block = _blocks[x + y * CHUNK_SIZEV2 + z * CHUNK_SIZEV2 * CHUNK_SIZEV2];
+	x = abs(x);
+	y = abs(y);
+	z = abs(z);
+	ABlock *block = _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)];
 	if (!block)
 		return AIR;
-	std::cout << "Returned a type!" << std::endl;
 	return (block->getType());
 }
 
