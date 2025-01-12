@@ -11,17 +11,21 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 	vec2 offsetBorder = {0.0, 0.0};
 	double remappedNoise;
 	size_t maxHeight;
-
-	BiomeType type;
+	(void)biome_gen;
+	BiomeType type = PLAINS;
 	// Generate terrain. (Must be refactored using Perlin Noise)
 	for (int x = 0; x < 16; x++)
 	{
 		for (int z = 0; z < 16; z++)
 		{
 			offsetBorder = getBorderWarping(relativePosX + x, relativePosZ + z, noise_gen);
-			type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
+			//type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
+			// offsetBorder.x = relativePosX + x;
+			// offsetBorder.y = relativePosZ + z;
+			double minHeight = 25.0;
+			minHeight = getMinHeight(offsetBorder, noise_gen);
 			noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
-			remappedNoise = (int)(((noise + 1.0) * 0.5) * 25.0);
+			remappedNoise = 100.0 + noise * minHeight;
 			maxHeight = (size_t)(remappedNoise);
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
@@ -46,6 +50,42 @@ vec2 Chunk::getBorderWarping(double x, double z, const NoiseGenerator &noise_gen
 	double noise = noise_gen.noise(x, z);
 	double offset = (int)(((noise + 1.0) * 0.5) * 255.0);
 	return {offset, offset};
+}
+
+double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
+{
+	double noise = 0.0;
+	NoiseData nData = {
+		2.0, // amplitude
+		0.01, // frequency
+		0.5, // persistance
+		2.0, // lacunarity
+		4 // nb_octaves
+	};
+
+	noise_gen.setNoiseData(nData);
+	noise = noise_gen.noise(pos.x, pos.y);
+	noise_gen.setNoiseData(NoiseData());
+	return noise;
+}
+
+double Chunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
+{
+	double heightLow = 25.0;
+	double heightMid = 50.0;
+	double heightHigh = 100.0;
+
+	double continentalNoise = getContinentalNoise(pos, noise_gen);
+	if (continentalNoise <= 0.3)
+		return heightLow;
+	else if (continentalNoise < 0.9)
+	{
+		// Interpolate between heightLow and heightMid
+		double t = (continentalNoise - 0.3) / (0.9 - 0.3);
+		return heightLow * (1.0 - t) + heightMid * t;
+	}
+	double t = (continentalNoise - 0.9) / (1.0 - 0.9);
+	return heightMid * (1.0 - t) + heightHigh * t;
 }
 
 void Chunk::displayCheckFaces() const

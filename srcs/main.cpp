@@ -250,7 +250,7 @@ void updateChunks(vec3 newCameraPosition)
 	// Set to track positions of chunks that should remain
 	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
 
-	biomeGenerator.findBiomeCenters({newCameraPosition.x, newCameraPosition.z});
+	//biomeGenerator.findBiomeCenters({newCameraPosition.x, newCameraPosition.z});
 
 	// Add chunks within the render distance
 	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)

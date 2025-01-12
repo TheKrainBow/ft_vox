@@ -32,4 +32,6 @@ class Chunk
 	private:
 		void displayCheckFaces() const;
 		vec2 getBorderWarping(double x, double z,  const NoiseGenerator &noise_gen) const;
+		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
+		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 };
