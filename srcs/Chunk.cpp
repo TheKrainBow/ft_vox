@@ -27,6 +27,8 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 			noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
 			remappedNoise = 100.0 + noise * minHeight;
 			maxHeight = (size_t)(remappedNoise);
+			if (maxHeight > 254)
+				maxHeight = 254;
 			for (size_t y = 0; y < maxHeight / 2; y++)
 				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
 			if (type == PLAINS)
@@ -47,9 +49,12 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 
 vec2 Chunk::getBorderWarping(double x, double z, const NoiseGenerator &noise_gen) const
 {
-	double noise = noise_gen.noise(x, z);
-	double offset = (int)(((noise + 1.0) * 0.5) * 255.0);
-	return {offset, offset};
+	double noiseX = noise_gen.noise(x, z);
+	double noiseY = noise_gen.noise(z, x);
+	vec2 offset;
+	offset.x = noiseX * 20.0;
+	offset.y = noiseY * 20.0;
+	return offset;
 }
 
 double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
@@ -57,8 +62,8 @@ double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
 	double noise = 0.0;
 	NoiseData nData = {
 		2.0, // amplitude
-		0.01, // frequency
-		0.5, // persistance
+		0.05, // frequency
+		0.4, // persistance
 		2.0, // lacunarity
 		4 // nb_octaves
 	};
@@ -71,21 +76,12 @@ double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
 
 double Chunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
 {
-	double heightLow = 25.0;
-	double heightMid = 50.0;
-	double heightHigh = 100.0;
-
+	std::vector<Point> splinePoints = {{-1.0, 50.0}, {0.3, 100.0}, {0.4, 150.0}, {1.0, 150.0}};
 	double continentalNoise = getContinentalNoise(pos, noise_gen);
-	if (continentalNoise <= 0.3)
-		return heightLow;
-	else if (continentalNoise < 0.9)
-	{
-		// Interpolate between heightLow and heightMid
-		double t = (continentalNoise - 0.3) / (0.9 - 0.3);
-		return heightLow * (1.0 - t) + heightMid * t;
-	}
-	double t = (continentalNoise - 0.9) / (1.0 - 0.9);
-	return heightMid * (1.0 - t) + heightHigh * t;
+	SplineInterpolator spline(splinePoints);
+
+	double splineResult = spline.interpolate(continentalNoise);
+	return splineResult;
 }
 
 void Chunk::displayCheckFaces() const

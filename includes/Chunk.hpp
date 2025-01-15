@@ -8,6 +8,7 @@
 #include "blocks/Sand.hpp"
 #include "NoiseGenerator.hpp"
 #include "BiomeGenerator.hpp"
+#include "SplineInterpolator.hpp"
 #include "ft_vox.hpp"
 
 #define CHUNK_SIZE_X 16

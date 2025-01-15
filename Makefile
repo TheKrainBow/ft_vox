@@ -12,22 +12,23 @@ DEBUG_OBJ_PATH		=	debug_obj/
 CC			=	g++
 SRC_PATH	=	srcs/
 INCLUDES	=	-Iincludes -Iglm
-SRC_NAME	=	stb_truetype.cpp	\
-				main.cpp			\
-				Camera.cpp			\
-				TextureManager.cpp	\
-				Texture.cpp			\
-				globals.cpp			\
-				Chunk.cpp			\
-				blocks/Dirt.cpp		\
-				blocks/Cobble.cpp	\
-				blocks/Grass.cpp	\
-				blocks/Stone.cpp	\
-				blocks/Sand.cpp		\
-				blocks/ABlock.cpp	\
-				NoiseGenerator.cpp	\
-				Textbox.cpp			\
-				BiomeGenerator.cpp
+SRC_NAME	=	stb_truetype.cpp		\
+				main.cpp				\
+				Camera.cpp				\
+				TextureManager.cpp		\
+				Texture.cpp				\
+				globals.cpp				\
+				Chunk.cpp				\
+				blocks/Dirt.cpp			\
+				blocks/Cobble.cpp		\
+				blocks/Grass.cpp		\
+				blocks/Stone.cpp		\
+				blocks/Sand.cpp			\
+				blocks/ABlock.cpp		\
+				NoiseGenerator.cpp		\
+				Textbox.cpp				\
+				BiomeGenerator.cpp		\
+				SplineInterpolator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))
