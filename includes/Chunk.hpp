@@ -12,9 +12,10 @@ class Chunk
 {
 	private:
 		vec3	_position;
-		char	_blocks[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+		std::vector<char>	_blocks;
 		double	_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
 		World	&_world;
+		bool	loaded = false;
 	public:
 		Chunk(int x, int y, int z, World &world);
 		~Chunk();

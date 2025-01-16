@@ -233,7 +233,7 @@ struct pair_hash {
 
 void updateChunks()
 {
-	_world->loadChunk(cam.getWorldPosition(), RENDER_DISTANCE);	
+	_world->loadChunk(cam.getWorldPosition());	
 	textManager.resetTextureVertex();
 	_world->sendFacesToDisplay();
 	// for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)

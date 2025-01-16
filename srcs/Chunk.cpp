@@ -5,15 +5,18 @@
 Chunk::Chunk(int x, int y, int z, World &world) : _world(world)
 {
 	_position = vec3(x, y, z);
+	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	double *perlinMap = _world.getNoiseGenerator().noiseMap(x * CHUNK_SIZE, z * CHUNK_SIZE, CHUNK_SIZE);
 	memcpy(_perlinMap, perlinMap, (sizeof(double) * CHUNK_SIZE * CHUNK_SIZE));
-	delete []perlinMap;
-	bzero(_blocks, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * sizeof(char));
+	delete [] perlinMap;
+	bzero(_blocks.data(), _blocks.size());
 	load();
 }
 
 void Chunk::load()
 {
+	if (loaded) return ;
+	loaded = true;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
 		for (int x = 0; x < CHUNK_SIZE ; x++)
@@ -38,6 +41,7 @@ void Chunk::load()
 
 Chunk::~Chunk()
 {
+	loaded = false;
 }
 
 char Chunk::getBlock(int x, int y, int z)
