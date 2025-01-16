@@ -29,7 +29,7 @@ double getSquaredDist(vec3 a, vec3 b)
     
 void World::loadChunk(vec3 camPosition, int renderDistance)
 {
-	std::unordered_map<std::tuple<int, int, int>, ChunkV2 *> tempChunks;
+	std::unordered_map<std::tuple<int, int, int>, Chunk *> tempChunks;
 
     (void)renderDistance;
     vec3 position;
@@ -39,9 +39,9 @@ void World::loadChunk(vec3 camPosition, int renderDistance)
         {
             for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
             {
-                position.x = trunc(camPosition.x) / CHUNK_SIZEV2 + x;
-                position.y = trunc(camPosition.y) / CHUNK_SIZEV2 + y;
-                position.z = trunc(camPosition.z) / CHUNK_SIZEV2 + z;
+                position.x = trunc(camPosition.x) / CHUNK_SIZE + x;
+                position.y = trunc(camPosition.y) / CHUNK_SIZE + y;
+                position.z = trunc(camPosition.z) / CHUNK_SIZE + z;
                 if (camPosition.x < 0) position.x--;
                 if (camPosition.y < 0) position.y--;
                 if (camPosition.z < 0) position.z--;
@@ -54,7 +54,7 @@ void World::loadChunk(vec3 camPosition, int renderDistance)
                     tempChunks[currentTuple]->load();
                     _cachedChunks.erase(currentTuple);
                 } else {
-                    ChunkV2 *newChunk = new ChunkV2(trunc(position.x), trunc(position.y), trunc(position.z), *this);
+                    Chunk *newChunk = new Chunk(trunc(position.x), trunc(position.y), trunc(position.z), *this);
                     tempChunks[currentTuple] = newChunk;
                     newChunk->load();
                 }
@@ -74,7 +74,7 @@ char World::getBlock(int x, int y, int z)
     if (x < 0 && abs(x) % 16 != 0) chunkPos.x--;
     if (y < 0 && abs(y) % 16 != 0) chunkPos.y--;
     if (z < 0 && abs(z) % 16 != 0) chunkPos.z--;
-    ChunkV2 *chunk = getChunk(chunkPos.x, chunkPos.y, chunkPos.z);
+    Chunk *chunk = getChunk(chunkPos.x, chunkPos.y, chunkPos.z);
     if (!chunk)
         return 'D';
     vec3 blockPos;
@@ -93,7 +93,7 @@ char World::getBlock(int x, int y, int z)
     return chunk->getBlock((int)blockPos.x, (int)blockPos.y, (int)blockPos.z);
 }
 
-ChunkV2* World::getChunk(int chunkX, int chunkY, int chunkZ)
+Chunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
 {
 	auto it = _loadedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
 	if (it != _loadedChunks.end())

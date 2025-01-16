@@ -1,6 +1,6 @@
 #include "ft_vox.hpp"
 #include "NoiseGenerator.hpp"
-#include "ChunkV2.hpp"
+#include "Chunk.hpp"
 #include "Camera.hpp"
 namespace std {
     template <>
@@ -21,8 +21,8 @@ class World
 {
 private:
 	NoiseGenerator                                              _perlinGenerator;
-	std::unordered_map<std::tuple<int, int, int>, ChunkV2 *>    _loadedChunks;
-	std::unordered_map<std::tuple<int, int, int>, ChunkV2 *>    _cachedChunks;
+	std::unordered_map<std::tuple<int, int, int>, Chunk *>    _loadedChunks;
+	std::unordered_map<std::tuple<int, int, int>, Chunk *>    _cachedChunks;
 	Camera                                                      _player;
 public:
 	World(int seed);
@@ -31,5 +31,5 @@ public:
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(int x, int y, int z);
 	void sendFacesToDisplay();
-	ChunkV2* getChunk(int chunkX, int chunkY, int chunkZ);
+	Chunk* getChunk(int chunkX, int chunkY, int chunkZ);
 };

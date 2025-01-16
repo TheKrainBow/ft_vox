@@ -19,14 +19,8 @@ SRC_NAME	=	stb_truetype.cpp	\
 				Texture.cpp			\
 				globals.cpp			\
 				Chunk.cpp			\
-				blocks/Dirt.cpp		\
-				blocks/Cobble.cpp	\
-				blocks/Grass.cpp	\
-				blocks/Stone.cpp	\
-				blocks/ABlock.cpp	\
 				Textbox.cpp			\
 				World.cpp			\
-				ChunkV2.cpp			\
 				NoiseGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)

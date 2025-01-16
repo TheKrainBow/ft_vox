@@ -30,8 +30,6 @@ double fps = 0.0;
 double triangleDrown = 0.0;
 
 //World gen
-std::vector<ABlock> blocks;
-// std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
 
 Textbox *debugBox;
@@ -247,7 +245,7 @@ void update(GLFWwindow* window)
 {
 	(void)window;
 
-	vec3 oldCamChunk(cam.getWorldPosition().x / CHUNK_SIZEV2, cam.getWorldPosition().y / CHUNK_SIZEV2, cam.getWorldPosition().z / CHUNK_SIZEV2);
+	vec3 oldCamChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
@@ -259,12 +257,7 @@ void update(GLFWwindow* window)
 	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
 
-	// char currentBlock = _world->getBlock(cam.getWorldPosition().x, cam.getWorldPosition().y, cam.getWorldPosition().z);
-	// if (currentBlock)
-	// 	std::cout << currentBlock << std::endl;
-	// else
-	// 	std::cout << "Air" << std::endl;
-	vec3 camChunk(cam.getWorldPosition().x / CHUNK_SIZEV2, cam.getWorldPosition().y / CHUNK_SIZEV2, cam.getWorldPosition().z / CHUNK_SIZEV2);
+	vec3 camChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
 	if (cam.getWorldPosition().x < 0) camChunk.x--;
 	if (cam.getWorldPosition().y < 0) camChunk.y--;
 	if (cam.getWorldPosition().z < 0) camChunk.z--;
@@ -352,7 +345,7 @@ int main(int argc, char **argv)
 	World overworld(42);
 
 	_world = &overworld;
-	// chunks.push_back(Chunk(cam.position.x / CHUNK_SIZEV2 - 1, cam.position.z / CHUNK_SIZEV2 - 1, noise_gen));
+	// chunks.push_back(Chunk(cam.position.x / CHUNK_SIZE - 1, cam.position.z / CHUNK_SIZE - 1, noise_gen));
 	updateChunks();
 
 	reshape(_window, windowWidth, windowHeight);
