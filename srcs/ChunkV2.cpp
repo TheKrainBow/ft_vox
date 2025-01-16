@@ -23,12 +23,10 @@ void ChunkV2::load()
 				double remappedNoise = 100.0 + noise * 25.0;
 				size_t maxHeight = (size_t)(remappedNoise);
 				if (y + _position.y * CHUNK_SIZEV2 < maxHeight / 2)
-					_blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'G';
+					_blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'S';
 				else if (y + _position.y * CHUNK_SIZEV2 < maxHeight)
-					// _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'D';
-					_blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'G';
+					_blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'D';
 				else if (y + _position.y * CHUNK_SIZEV2 == maxHeight)
-					// _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'G';
 					_blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'G';
 				else
 					_blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] = 'A';
@@ -44,12 +42,7 @@ ChunkV2::~ChunkV2()
 char ChunkV2::getBlock(int x, int y, int z)
 {
 	if (x >= CHUNK_SIZEV2 || y >= CHUNK_SIZEV2 || z >= CHUNK_SIZEV2 || x < 0 || y < 0 || z < 0)
-	{
-		// std::cout << "Wrong pos: (" << x << ", " << y << ", " << z << ")" << std::endl;
 		return 'D';
-	}
-	// if (x == 0)
-	// 	std::cout << _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] << std::endl;
 	return _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)];
 }
 
@@ -57,37 +50,32 @@ void ChunkV2::addDirtBlock(int x, int y, int z)
 {
 	if (_world.getBlock(x, y - 1, z) == 'A')
 		textManager.addTextureVertex(T_DIRT, DOWN	, x, y, z);
-	if ((y == 255) || _blocks[x + z * CHUNK_SIZEV2 + (y + 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2] == 'A')
-		textManager.addTextureVertex(T_DIRT, UP		, x, y, z);
-	if ((x == 0) || _blocks[(x - 1) + z * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == 'A')
+	if (_world.getBlock(x, y + 1, z) == 'A')
+		textManager.addTextureVertex(T_DIRT, UP	, x, y, z);
+	if (_world.getBlock(x, y, z - 1) == 'A')
 		textManager.addTextureVertex(T_DIRT, NORTH	, x, y, z);
-	if ((x == 15) || _blocks[(x + 1) + z * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == 'A')
+	if (_world.getBlock(x, y, z + 1) == 'A')
 		textManager.addTextureVertex(T_DIRT, SOUTH	, x, y, z);
-	if ((z == 0) || _blocks[x + (z - 1) * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == 'A')
+	if (_world.getBlock(x - 1, y, z) == 'A')
 		textManager.addTextureVertex(T_DIRT, EAST	, x, y, z);
-	if ((z == 15) || _blocks[x + (z + 1) * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] == 'A')
+	if (_world.getBlock(x + 1, y, z) == 'A')
 		textManager.addTextureVertex(T_DIRT, WEST	, x, y, z);
 }
 
 void ChunkV2::addStoneBlock(int x, int y, int z)
 {
-	if ((y == 0) || _blocks[x + z * CHUNK_SIZEV2 + (y - 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2] != 'A')
+	if (_world.getBlock(x, y - 1, z) == 'A')
 		textManager.addTextureVertex(T_STONE, DOWN	, x, y, z);
-	if ((y == 255) || _blocks[x + z * CHUNK_SIZEV2 + (y + 1) * CHUNK_SIZEV2 * CHUNK_SIZEV2] != 'A')
-		textManager.addTextureVertex(T_STONE, UP		, x, y, z);
-	if ((z == 0) || _blocks[x + (z - 1) * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] != 'A')
+	if (_world.getBlock(x, y + 1, z) == 'A')
+		textManager.addTextureVertex(T_STONE, UP	, x, y, z);
+	if (_world.getBlock(x, y, z - 1) == 'A')
 		textManager.addTextureVertex(T_STONE, NORTH	, x, y, z);
-	if ((z == 15) || _blocks[x + (z + 1) * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] != 'A')
+	if (_world.getBlock(x, y, z + 1) == 'A')
 		textManager.addTextureVertex(T_STONE, SOUTH	, x, y, z);
-	if ((x == 0) || _blocks[(x - 1) + z * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] != 'A')
+	if (_world.getBlock(x - 1, y, z) == 'A')
 		textManager.addTextureVertex(T_STONE, EAST	, x, y, z);
-	if ((x == 15) || _blocks[(x + 1) + z * CHUNK_SIZEV2 + y * CHUNK_SIZEV2 * CHUNK_SIZEV2] != 'A')
+	if (_world.getBlock(x + 1, y, z) == 'A')
 		textManager.addTextureVertex(T_STONE, WEST	, x, y, z);
-}
-
-vec3 ChunkV2::getPosition()
-{
-	return _position;
 }
 
 void ChunkV2::addGrassBlock(int x, int y, int z)
@@ -104,6 +92,11 @@ void ChunkV2::addGrassBlock(int x, int y, int z)
 		textManager.addTextureVertex(T_GRASS_SIDE, EAST	, x, y, z);
 	if (_world.getBlock(x + 1, y, z) == 'A')
 		textManager.addTextureVertex(T_GRASS_SIDE, WEST	, x, y, z);
+}
+
+vec3 ChunkV2::getPosition()
+{
+	return _position;
 }
 
 void ChunkV2::sendFacesToDisplay()

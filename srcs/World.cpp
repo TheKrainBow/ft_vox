@@ -82,7 +82,6 @@ char World::getBlock(int x, int y, int z)
         blockPos.x = abs(x) % 16;
     else
         blockPos.x = (16 - (abs(x) % 16)) % 16;
-        // blockPos.x = abs(x - 1) % 16;
     if (y >= 0)
         blockPos.y = abs(y) % 16;
     else
