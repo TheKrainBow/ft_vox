@@ -33,19 +33,19 @@ void World::loadChunk(vec3 camPosition, int renderDistance)
 
     (void)renderDistance;
     vec3 position;
-    position.x = trunc(camPosition.x) / CHUNK_SIZEV2;
-    position.y = trunc(camPosition.y) / CHUNK_SIZEV2;
-    position.z = trunc(camPosition.z) / CHUNK_SIZEV2;
-    if (camPosition.x < 0) position.x--;
-    if (camPosition.y < 0) position.y--;
-    if (camPosition.z < 0) position.z--;
     for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
     {
         for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
         {
             for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
             {
-                auto currentTuple = std::make_tuple(trunc(position.x) + x, trunc(position.y) + y, trunc(position.z) + z);
+                position.x = trunc(camPosition.x) / CHUNK_SIZEV2 + x;
+                position.y = trunc(camPosition.y) / CHUNK_SIZEV2 + y;
+                position.z = trunc(camPosition.z) / CHUNK_SIZEV2 + z;
+                if (camPosition.x < 0) position.x--;
+                if (camPosition.y < 0) position.y--;
+                if (camPosition.z < 0) position.z--;
+                auto currentTuple = std::make_tuple(trunc(position.x), trunc(position.y), trunc(position.z));
                 if (_loadedChunks.find(currentTuple) != _loadedChunks.end()) {
                     tempChunks[currentTuple] = _loadedChunks[currentTuple];
                     _loadedChunks.erase(currentTuple);
@@ -54,7 +54,7 @@ void World::loadChunk(vec3 camPosition, int renderDistance)
                     tempChunks[currentTuple]->load();
                     _cachedChunks.erase(currentTuple);
                 } else {
-                    ChunkV2 *newChunk = new ChunkV2(trunc(position.x) + x, trunc(position.y) + y, trunc(position.z) + z, *this);
+                    ChunkV2 *newChunk = new ChunkV2(trunc(position.x), trunc(position.y), trunc(position.z), *this);
                     tempChunks[currentTuple] = newChunk;
                     newChunk->load();
                 }
@@ -71,13 +71,27 @@ void World::loadChunk(vec3 camPosition, int renderDistance)
 char World::getBlock(int x, int y, int z)
 {
     vec3 chunkPos(x / 16, y / 16, z / 16);
-    // if (x < 0) chunkPos.x--;
-    // if (y < 0) chunkPos.y--;
-    // if (z < 0) chunkPos.z--;
+    if (x < 0 && abs(x) % 16 != 0) chunkPos.x--;
+    if (y < 0 && abs(y) % 16 != 0) chunkPos.y--;
+    if (z < 0 && abs(z) % 16 != 0) chunkPos.z--;
     ChunkV2 *chunk = getChunk(chunkPos.x, chunkPos.y, chunkPos.z);
     if (!chunk)
         return 'D';
-    return chunk->getBlock(abs(x) % 16, abs(y) % 16, abs(z) % 16);
+    vec3 blockPos;
+    if (x >= 0)
+        blockPos.x = abs(x) % 16;
+    else
+        blockPos.x = (16 - (abs(x) % 16)) % 16;
+        // blockPos.x = abs(x - 1) % 16;
+    if (y >= 0)
+        blockPos.y = abs(y) % 16;
+    else
+        blockPos.y = (16 - (abs(y) % 16)) % 16;
+    if (z >= 0)
+        blockPos.z = abs(z) % 16;
+    else
+        blockPos.z = (16 - (abs(z) % 16)) % 16;
+    return chunk->getBlock((int)blockPos.x, (int)blockPos.y, (int)blockPos.z);
 }
 
 ChunkV2* World::getChunk(int chunkX, int chunkY, int chunkZ)

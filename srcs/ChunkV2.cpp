@@ -44,7 +44,12 @@ ChunkV2::~ChunkV2()
 char ChunkV2::getBlock(int x, int y, int z)
 {
 	if (x >= CHUNK_SIZEV2 || y >= CHUNK_SIZEV2 || z >= CHUNK_SIZEV2 || x < 0 || y < 0 || z < 0)
-		return 'A';
+	{
+		// std::cout << "Wrong pos: (" << x << ", " << y << ", " << z << ")" << std::endl;
+		return 'D';
+	}
+	// if (x == 0)
+	// 	std::cout << _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)] << std::endl;
 	return _blocks[x + (z * CHUNK_SIZEV2) + (y * CHUNK_SIZEV2 * CHUNK_SIZEV2)];
 }
 

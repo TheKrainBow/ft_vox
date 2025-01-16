@@ -24,6 +24,8 @@ class ChunkV2
 		~ChunkV2();
 		void sendFacesToDisplay();
 		void load();
+		void positiveLoad();
+		void negativeLoad();
 		vec3 getPosition(void);
 	    char getBlock(int x, int y, int z);
 		// void renderBoundaries() const;
