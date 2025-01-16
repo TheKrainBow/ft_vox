@@ -16,6 +16,23 @@ BlockType ABlock::getType(void)
 	return (_type);
 }
 
+std::string ABlock::getTypeToString(void)
+{
+	switch (_type)
+	{
+		case COBBLE:
+			return "Cobblestone";
+		case STONE:
+			return "Stone";
+		case DIRT:
+			return "Dirt";
+		case GRASS:
+			return "Grass";
+		default:
+			return "Air";
+	}
+}
+
 void ABlock::display() {
 	if (_hasDownNeighbor)
 		textManager.addTextureVertex(_textures[DOWN], DOWN, _position.x, _position.y, _position.z);

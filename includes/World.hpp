@@ -20,15 +20,16 @@ namespace std {
 class World
 {
 private:
-    NoiseGenerator                                              _perlinGenerator;
-    std::unordered_map<std::tuple<int, int, int>, ChunkV2 *>    _loadedChunks;
-    std::unordered_map<std::tuple<int, int, int>, ChunkV2 *>    _cachedChunks;
-    Camera                                                      _player;
+	NoiseGenerator                                              _perlinGenerator;
+	std::unordered_map<std::tuple<int, int, int>, ChunkV2 *>    _loadedChunks;
+	std::unordered_map<std::tuple<int, int, int>, ChunkV2 *>    _cachedChunks;
+	Camera                                                      _player;
 public:
-    World(int seed);
-    ~World();
-    void loadChunk(vec3 position, int renderDistance);
-    NoiseGenerator &getNoiseGenerator(void);
-    BlockType getBlock(int x, int y, int z);
-    void sendFacesToDisplay();
+	World(int seed);
+	~World();
+	void loadChunk(vec3 position, int renderDistance);
+	NoiseGenerator &getNoiseGenerator(void);
+	char getBlock(int x, int y, int z);
+	void sendFacesToDisplay();
+	ChunkV2* getChunk(int chunkX, int chunkY, int chunkZ);
 };

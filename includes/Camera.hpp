@@ -11,6 +11,7 @@ class Camera {
 		void move(float forward, float strafe, float up);
 		void reset();
 		void updateMousePos(int x, int y);
+		vec3 getWorldPosition(void);
 
 		vec3 position;
 		vec3 center;

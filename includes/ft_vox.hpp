@@ -18,9 +18,15 @@
 #include <memory>
 #include <random>
 #include <algorithm>
+#include <iomanip>
+#include <queue>
+#include <mutex>
+#include <thread>
+#include <atomic>
+#include <condition_variable>
+#include <stdexcept>
 
 using namespace glm;
-
 
 enum e_direction {
 	UP,
@@ -32,16 +38,19 @@ enum e_direction {
 };
 
 enum BlockType {
+	AIR,
 	DIRT,
 	COBBLE,
 	STONE,
 	GRASS,
-	AIR,
 };
 
 #define W_WIDTH 800
 #define W_HEIGHT 600
 #define RENDER_DISTANCE 10
 #define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
+#define Y_RENDER_DISTANCE 3
+#define XZ_RENDER_DISTANCE 10
+
 
 bool isWSL();

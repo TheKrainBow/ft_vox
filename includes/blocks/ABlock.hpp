@@ -21,5 +21,6 @@ class ABlock
 		virtual void display();
 		vec3 getPosition(void);
 		BlockType getType(void);
+		std::string getTypeToString(void);
 		void updateNeighbors(int neighbors);
 };

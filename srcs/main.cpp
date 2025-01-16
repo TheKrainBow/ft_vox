@@ -4,7 +4,6 @@
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
-
 #include "Textbox.hpp"
 
 // Display
@@ -163,8 +162,8 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 	cam.xangle += xOffset * cam.rotationspeed;
 	cam.yangle += yOffset * cam.rotationspeed;
 
-	if (cam.yangle > 89.0f) cam.yangle = 89.0f;
-	if (cam.yangle < -89.0f) cam.yangle = -89.0f;
+	if (cam.yangle > 90.0f) cam.yangle = 90.0f;
+	if (cam.yangle < -90.0f) cam.yangle = -90.0f;
 
 	while (cam.xangle < 0)
 		cam.xangle += 360;
@@ -205,13 +204,6 @@ void display(GLFWwindow* window)
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	
-	#ifdef NDEBUG
-	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
-	{
-		it->renderBoundaries();
-	}
-	#endif
-	
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
@@ -243,7 +235,7 @@ struct pair_hash {
 
 void updateChunks()
 {
-	_world->loadChunk(vec3(-cam.position.x, -cam.position.y, -cam.position.z), RENDER_DISTANCE);	
+	_world->loadChunk(cam.getWorldPosition(), RENDER_DISTANCE);	
 	textManager.resetTextureVertex();
 	_world->sendFacesToDisplay();
 	// for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
@@ -255,7 +247,7 @@ void update(GLFWwindow* window)
 {
 	(void)window;
 
-	vec3 oldCamChunk(-cam.position.x / 16, -cam.position.y / 16, -cam.position.z / 16);
+	vec3 oldCamChunk(cam.getWorldPosition().x / CHUNK_SIZEV2, cam.getWorldPosition().y / CHUNK_SIZEV2, cam.getWorldPosition().z / CHUNK_SIZEV2);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
@@ -267,10 +259,15 @@ void update(GLFWwindow* window)
 	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
 
-	vec3 camChunk(-cam.position.x / 16, -cam.position.y / 16, -cam.position.z / 16);
-	if (camChunk.x < 0) camChunk.x--;
-	if (camChunk.y < 0) camChunk.y--;
-	if (camChunk.z < 0) camChunk.z--;
+	// char currentBlock = _world->getBlock(cam.getWorldPosition().x, cam.getWorldPosition().y, cam.getWorldPosition().z);
+	// if (currentBlock)
+	// 	std::cout << currentBlock << std::endl;
+	// else
+	// 	std::cout << "Air" << std::endl;
+	vec3 camChunk(cam.getWorldPosition().x / CHUNK_SIZEV2, cam.getWorldPosition().y / CHUNK_SIZEV2, cam.getWorldPosition().z / CHUNK_SIZEV2);
+	if (cam.getWorldPosition().x < 0) camChunk.x--;
+	if (cam.getWorldPosition().y < 0) camChunk.y--;
+	if (cam.getWorldPosition().z < 0) camChunk.z--;
 
 	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks();
@@ -355,7 +352,7 @@ int main(int argc, char **argv)
 	World overworld(42);
 
 	_world = &overworld;
-	// chunks.push_back(Chunk(-cam.position.x / 16 - 1, -cam.position.z / 16 - 1, noise_gen));
+	// chunks.push_back(Chunk(cam.position.x / CHUNK_SIZEV2 - 1, cam.position.z / CHUNK_SIZEV2 - 1, noise_gen));
 	updateChunks();
 
 	reshape(_window, windowWidth, windowHeight);

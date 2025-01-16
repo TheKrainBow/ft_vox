@@ -2,7 +2,7 @@
 #include "Camera.hpp"
 
 
-Camera::Camera() : position{20.5, -22.0, 56}, center{0.0f, 0.0f, 10.0f} { xangle = 180; yangle = -90;};
+Camera::Camera() : position{-10000, -110, -10000}, center{0.0f, 0.0f, 10.0f} { xangle = 0; yangle = 0;};
 /*
 	Moving the camera around (first person view)
 */
@@ -40,6 +40,11 @@ void Camera::reset()
 	yangle = 0.0;
 	rotationspeed = 1;
 	movementspeed = 0.1;
+}
+
+vec3 Camera::getWorldPosition(void)
+{
+	return (vec3(-position.x, -position.y, -position.z));
 }
 
 void Camera::updateMousePos(int x, int y)

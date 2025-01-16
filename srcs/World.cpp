@@ -15,16 +15,10 @@ World::~World()
 {
     for (auto &chunk : _loadedChunks)
         if (chunk.second)
-        {
-            chunk.second->unload();
             delete chunk.second;
-        }
     for (auto &chunk : _cachedChunks)
         if (chunk.second)
-        {
-            chunk.second->unload();
             delete chunk.second;
-        }
 }
 
 double getSquaredDist(vec3 a, vec3 b)
@@ -33,20 +27,25 @@ double getSquaredDist(vec3 a, vec3 b)
     return (c.x * c.x + c.y * c.y + c.z * c.z);
 }
     
-void World::loadChunk(vec3 position, int renderDistance)
+void World::loadChunk(vec3 camPosition, int renderDistance)
 {
-    std::unordered_map<std::tuple<int, int, int>, ChunkV2 *> tempChunks;
+	std::unordered_map<std::tuple<int, int, int>, ChunkV2 *> tempChunks;
 
-    position.x = trunc(position.x) / CHUNK_SIZEV2;
-    position.y = trunc(position.y) / CHUNK_SIZEV2;
-    position.z = trunc(position.z) / CHUNK_SIZEV2;
-    for (int x = 0; x < renderDistance; x++)
+    (void)renderDistance;
+    vec3 position;
+    position.x = trunc(camPosition.x) / CHUNK_SIZEV2;
+    position.y = trunc(camPosition.y) / CHUNK_SIZEV2;
+    position.z = trunc(camPosition.z) / CHUNK_SIZEV2;
+    if (camPosition.x < 0) position.x--;
+    if (camPosition.y < 0) position.y--;
+    if (camPosition.z < 0) position.z--;
+    for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
     {
-        for (int y = 0; y < renderDistance; y++)
+        for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
         {
-            for (int z = 0; z < renderDistance; z++)
+            for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
             {
-                auto currentTuple = std::make_tuple(trunc(position.x) - renderDistance / 2 + x, trunc(position.y) - renderDistance / 2 + y, trunc(position.z) - renderDistance / 2 + z);
+                auto currentTuple = std::make_tuple(trunc(position.x) + x, trunc(position.y) + y, trunc(position.z) + z);
                 if (_loadedChunks.find(currentTuple) != _loadedChunks.end()) {
                     tempChunks[currentTuple] = _loadedChunks[currentTuple];
                     _loadedChunks.erase(currentTuple);
@@ -55,10 +54,9 @@ void World::loadChunk(vec3 position, int renderDistance)
                     tempChunks[currentTuple]->load();
                     _cachedChunks.erase(currentTuple);
                 } else {
-                    ChunkV2 *newChunk = new ChunkV2(trunc(position.x) - renderDistance / 2 + x, trunc(position.y) - renderDistance / 2 + y, trunc(position.z) - renderDistance / 2 + z, *this);
+                    ChunkV2 *newChunk = new ChunkV2(trunc(position.x) + x, trunc(position.y) + y, trunc(position.z) + z, *this);
                     tempChunks[currentTuple] = newChunk;
                     newChunk->load();
-                    // std::cout << "Loading chunk (" << pos.x / CHUNK_SIZEV2 << ", " << pos.y / CHUNK_SIZEV2 << ", " << pos.z / CHUNK_SIZEV2 << ")" << std::endl;
                 }
             }
         }
@@ -66,31 +64,31 @@ void World::loadChunk(vec3 position, int renderDistance)
 
     for (auto& chunk : _loadedChunks) {
         _cachedChunks[chunk.first] = chunk.second;
-        chunk.second->unload();
     }
-
     _loadedChunks = std::move(tempChunks);
-    for (auto& chunk: _loadedChunks)
-        chunk.second->updateNeighbors();
-    std::cout << _loadedChunks.size() << std::endl;
 }
 
-BlockType World::getBlock(int x, int y, int z)
+char World::getBlock(int x, int y, int z)
 {
-    auto chunk = _loadedChunks.find(std::make_tuple(
-        static_cast<int>(x) / CHUNK_SIZEV2,
-        static_cast<int>(y) / CHUNK_SIZEV2,
-        static_cast<int>(z) / CHUNK_SIZEV2
-    ));
-    if (chunk == _loadedChunks.end())
-    {
-        return AIR;
-    }
-    if (!(*chunk).second)
-    {
-        return AIR;
-    }
-    return (*chunk).second->getBlock(static_cast<int>(x) / CHUNK_SIZEV2, static_cast<int>(y) / CHUNK_SIZEV2, static_cast<int>(z) / CHUNK_SIZEV2);
+    vec3 chunkPos(x / 16, y / 16, z / 16);
+    // if (x < 0) chunkPos.x--;
+    // if (y < 0) chunkPos.y--;
+    // if (z < 0) chunkPos.z--;
+    ChunkV2 *chunk = getChunk(chunkPos.x, chunkPos.y, chunkPos.z);
+    if (!chunk)
+        return 'D';
+    return chunk->getBlock(abs(x) % 16, abs(y) % 16, abs(z) % 16);
+}
+
+ChunkV2* World::getChunk(int chunkX, int chunkY, int chunkZ)
+{
+	auto it = _loadedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
+	if (it != _loadedChunks.end())
+		return it->second;
+	auto itt = _cachedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
+	if (itt != _cachedChunks.end())
+		return itt->second;
+	return nullptr;
 }
 
 void World::sendFacesToDisplay()

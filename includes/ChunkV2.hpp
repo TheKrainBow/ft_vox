@@ -16,19 +16,19 @@ class ChunkV2
 {
 	private:
 		vec3	_position;
-		ABlock	*_blocks[CHUNK_SIZEV2 * CHUNK_SIZEV2 * CHUNK_SIZEV2];
-		// std::array<ABlock *, CHUNK_SIZEV2 * CHUNK_SIZEV2 * CHUNK_SIZEV2>	_blocks;
+		char	_blocks[CHUNK_SIZEV2 * CHUNK_SIZEV2 * CHUNK_SIZEV2];
 		double	_perlinMap[CHUNK_SIZEV2 * CHUNK_SIZEV2];
-		bool	_isLoaded = false;
 		World	&_world;
 	public:
 		ChunkV2(int x, int y, int z, World &world);
 		~ChunkV2();
 		void sendFacesToDisplay();
 		void load();
-		void updateNeighbors();
-		void unload();
 		vec3 getPosition(void);
-	    BlockType getBlock(int x, int y, int z);
+	    char getBlock(int x, int y, int z);
 		// void renderBoundaries() const;
+	private:
+		void addDirtBlock(int x, int y, int z);
+		void addStoneBlock(int x, int y, int z);
+		void addGrassBlock(int x, int y, int z);
 };
