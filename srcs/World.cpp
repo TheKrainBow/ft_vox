@@ -1,5 +1,5 @@
 #include "World.hpp"
-
+#include "define.hpp"
 
 NoiseGenerator &World::getNoiseGenerator(void)
 {
@@ -29,6 +29,8 @@ double getSquaredDist(vec3 a, vec3 b)
     
 void World::loadChunk(vec3 camPosition, int renderDistance)
 {
+
+    auto start = std::chrono::high_resolution_clock::now();
 	std::unordered_map<std::tuple<int, int, int>, Chunk *> tempChunks;
 
     (void)renderDistance;
@@ -66,6 +68,15 @@ void World::loadChunk(vec3 camPosition, int renderDistance)
         _cachedChunks[chunk.first] = chunk.second;
     }
     _loadedChunks = std::move(tempChunks);
+
+    if (SHOW_LOADCHUNK_TIME)
+    {
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+        std::cout << "Loaded " << _loadedChunks.size() << " in " << seconds.count() << "." 
+                << duration.count() << "s" << std::endl;
+    }
 }
 
 char World::getBlock(int x, int y, int z)

@@ -5,6 +5,7 @@
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
 #include "Textbox.hpp"
+#include "define.hpp"
 
 // Display
 GLFWwindow* _window;
@@ -15,9 +16,9 @@ mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
-bool updateChunk = true;
-bool showDebugInfo = true;
-bool showTriangleMesh = false;
+bool updateChunk = ENABLE_WORLD_GENERATION;
+bool showDebugInfo = SHOW_DEBUG;
+bool showTriangleMesh = SHOW_TRIANGLES;
 
 int windowHeight = W_HEIGHT;
 int windowWidth = W_WIDTH;
