@@ -6,11 +6,13 @@
 #include "NoiseGenerator.hpp"
 #include "Textbox.hpp"
 #include "define.hpp"
+#include "Chrono.hpp"
 
 // Display
 GLFWwindow* _window;
 GLuint shaderProgram;
 World *_world;
+Chrono chronoHelper;
 
 mat4 projectionMatrix;
 mat4 viewMatrix;
@@ -234,20 +236,22 @@ struct pair_hash {
 
 void updateChunks()
 {
-    auto start = std::chrono::high_resolution_clock::now();
+	chronoHelper.startChrono(0, "Update chunks");
+	chronoHelper.startChrono(1, "Perlin Generation");
 	_world->loadPerlinMap(cam.getWorldPosition());	
+	chronoHelper.stopChrono(1);
+	chronoHelper.startChrono(2, "Load chunks");
 	_world->loadChunk(cam.getWorldPosition());	
+	chronoHelper.stopChrono(2);
 	textManager.resetTextureVertex();
-	// for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
-	// 	it->display();
+	chronoHelper.startChrono(3, "Send Faces to display");
 	_world->sendFacesToDisplay();
+	chronoHelper.stopChrono(3);
+	chronoHelper.startChrono(4, "Process Vertex");
 	textManager.processTextureVertex();
-	
-	auto end = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-	auto seconds = std::chrono::duration_cast<std::chrono::seconds>(end - start);
-	std::cout << "UpdateChunk took " << seconds.count() << "." 
-		<< duration.count() << "s" << std::endl;
+	chronoHelper.stopChrono(4);
+	chronoHelper.stopChrono(0);
+	chronoHelper.printChronos();
 }
 
 void update(GLFWwindow* window)
@@ -395,6 +399,7 @@ int main(int argc, char **argv)
 	// 	chunk.freeChunkData();
 	// }
 
+    glDeleteProgram(shaderProgram);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 	return 0;

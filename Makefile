@@ -21,6 +21,7 @@ SRC_NAME	=	stb_truetype.cpp	\
 				Chunk.cpp			\
 				Textbox.cpp			\
 				World.cpp			\
+				Chrono.cpp			\
 				NoiseGenerator.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)

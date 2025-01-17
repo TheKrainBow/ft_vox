@@ -346,9 +346,6 @@ void Texture::processEastVertex()
             isFirst = false;
             newFace = Face(face);
         }
-        //std::cout << " Newf: " << newFace.position.x << ", " << newFace.position.y << ", " << newFace.position.z << " (" << newFace.size.y << ", " << newFace.size.x << ")" << std::endl;
-        //std::cout << "Face: " << face.position.x << ", " << face.position.y << ", " << face.position.z << " (" << face.size.y << ", " << face.size.x << ")" << std::endl;
-        //std::cout << "Last: " << lastFace.position.x << ", " << lastFace.position.y << ", " << lastFace.position.z << " (" << lastFace.size.y << ", " << lastFace.size.x << ")" << std::endl;
         newFace.size.y++;
         lastFace = Face(face);
     }
@@ -416,7 +413,6 @@ void Texture::processWestVertex()
 
 void Texture::addVertex(e_direction dir, int x, int y, int z) {
     Face newFace;
-
     newFace.position = vec3(x, y, z);
     newFace.size = vec2(0, 0);
     _faces[dir].push_back(newFace);

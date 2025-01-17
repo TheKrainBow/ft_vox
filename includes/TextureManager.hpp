@@ -18,9 +18,11 @@ enum TextureType {
 	T_GRASS_TOP,
 };
 
+# define N_TEXTURES 5
+
 class TextureManager {
 	private:
-		std::map<TextureType, Texture *> _textures;
+		Texture *_textures[N_TEXTURES];
 	public:
 		TextureManager(); // Constructor declaration
 		~TextureManager(); // Destructor declaration

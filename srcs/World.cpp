@@ -50,7 +50,6 @@ World::~World() = default;
 void World::loadPerlinMap(vec3 camPosition)
 {
     _perlinGenerator.clearPerlinMaps();
-    auto start = std::chrono::high_resolution_clock::now();
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
 
 	vec2 position;
@@ -63,20 +62,10 @@ void World::loadPerlinMap(vec3 camPosition)
             _perlinGenerator.addPerlinMap(position.x, position.y, CHUNK_SIZE, 1);
         }
 	}
-    
-    if (SHOW_LOADCHUNK_TIME)
-    {
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(end - start);
-        std::cout << "Generating Perlin took " << seconds.count() << "." 
-            << duration.count() << "s" << std::endl;
-    }
 }
 
 void World::loadChunk(vec3 camPosition)
 {
-    auto start = std::chrono::high_resolution_clock::now();
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
 
 	vec3 position;
@@ -96,15 +85,6 @@ void World::loadChunk(vec3 camPosition)
 
 	_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
 	_loadedChunks = std::move(tempChunks);
-    
-    if (SHOW_LOADCHUNK_TIME)
-    {
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(end - start);
-        std::cout << "Loaded " << _loadedChunks.size() << " in " << seconds.count() << "." 
-            << duration.count() << "s" << std::endl;
-    }
 }
 
 char World::getBlock(int x, int y, int z)
