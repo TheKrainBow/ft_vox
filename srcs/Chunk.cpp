@@ -2,18 +2,19 @@
 #include "World.hpp"
 #include "globals.hpp"
 
-Chunk::Chunk(int x, int y, int z, World &world) : _world(world)
+Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world) : _world(world)
 {
 	_position = vec3(x, y, z);
-	double *perlinMap = _world.getNoiseGenerator().noiseMap(x * CHUNK_SIZE, z * CHUNK_SIZE, CHUNK_SIZE);
-	memcpy(_perlinMap, perlinMap, (sizeof(double) * CHUNK_SIZE * CHUNK_SIZE));
-	delete []perlinMap;
-	bzero(_blocks, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * sizeof(char));
+	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
+	bzero(_blocks.data(), _blocks.size());
 	load();
 }
 
 void Chunk::load()
 {
+	if (loaded) return ;
+	loaded = true;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
 		for (int x = 0; x < CHUNK_SIZE ; x++)
@@ -21,7 +22,7 @@ void Chunk::load()
 			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
 				double noise = _perlinMap[z * CHUNK_SIZE + x];
-				double remappedNoise = 100.0 + noise * 25.0;
+				double remappedNoise = 100.0 + noise * 100.0;
 				size_t maxHeight = (size_t)(remappedNoise);
 				if (y + _position.y * CHUNK_SIZE < maxHeight / 2)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
@@ -38,6 +39,7 @@ void Chunk::load()
 
 Chunk::~Chunk()
 {
+	loaded = false;
 }
 
 char Chunk::getBlock(int x, int y, int z)
@@ -47,52 +49,23 @@ char Chunk::getBlock(int x, int y, int z)
 	return _blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)];
 }
 
-void Chunk::addDirtBlock(int x, int y, int z)
+void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
 {
-	if (_world.getBlock(x, y - 1, z) == 'A')
-		textManager.addTextureVertex(T_DIRT, DOWN	, x, y, z);
-	if (_world.getBlock(x, y + 1, z) == 'A')
-		textManager.addTextureVertex(T_DIRT, UP	, x, y, z);
-	if (_world.getBlock(x, y, z - 1) == 'A')
-		textManager.addTextureVertex(T_DIRT, NORTH	, x, y, z);
-	if (_world.getBlock(x, y, z + 1) == 'A')
-		textManager.addTextureVertex(T_DIRT, SOUTH	, x, y, z);
-	if (_world.getBlock(x - 1, y, z) == 'A')
-		textManager.addTextureVertex(T_DIRT, EAST	, x, y, z);
-	if (_world.getBlock(x + 1, y, z) == 'A')
-		textManager.addTextureVertex(T_DIRT, WEST	, x, y, z);
-}
-
-void Chunk::addStoneBlock(int x, int y, int z)
-{
-	if (_world.getBlock(x, y - 1, z) == 'A')
-		textManager.addTextureVertex(T_STONE, DOWN	, x, y, z);
-	if (_world.getBlock(x, y + 1, z) == 'A')
-		textManager.addTextureVertex(T_STONE, UP	, x, y, z);
-	if (_world.getBlock(x, y, z - 1) == 'A')
-		textManager.addTextureVertex(T_STONE, NORTH	, x, y, z);
-	if (_world.getBlock(x, y, z + 1) == 'A')
-		textManager.addTextureVertex(T_STONE, SOUTH	, x, y, z);
-	if (_world.getBlock(x - 1, y, z) == 'A')
-		textManager.addTextureVertex(T_STONE, EAST	, x, y, z);
-	if (_world.getBlock(x + 1, y, z) == 'A')
-		textManager.addTextureVertex(T_STONE, WEST	, x, y, z);
-}
-
-void Chunk::addGrassBlock(int x, int y, int z)
-{
-	if (_world.getBlock(x, y - 1, z) == 'A')
-		textManager.addTextureVertex(T_DIRT, DOWN	, x, y, z);
-	if (_world.getBlock(x, y + 1, z) == 'A')
-		textManager.addTextureVertex(T_GRASS_TOP, UP		, x, y, z);
-	if (_world.getBlock(x, y, z - 1) == 'A')
-		textManager.addTextureVertex(T_GRASS_SIDE, NORTH	, x, y, z);
-	if (_world.getBlock(x, y, z + 1) == 'A')
-		textManager.addTextureVertex(T_GRASS_SIDE, SOUTH	, x, y, z);
-	if (_world.getBlock(x - 1, y, z) == 'A')
-		textManager.addTextureVertex(T_GRASS_SIDE, EAST	, x, y, z);
-	if (_world.getBlock(x + 1, y, z) == 'A')
-		textManager.addTextureVertex(T_GRASS_SIDE, WEST	, x, y, z);
+	int x = _position.x * CHUNK_SIZE + blockX;
+	int y = _position.y * CHUNK_SIZE + blockY;
+	int z = _position.z * CHUNK_SIZE + blockZ;
+	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 'A') || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(down, DOWN, x, y, z);
+	if ((blockY == 15 && _world.getBlock(x, y + 1, z) == 'A') || ((blockY != 15 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(up, UP, x, y, z);
+	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 'A') || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(north, NORTH, x, y, z);
+	if ((blockZ == 15 && _world.getBlock(x, y, z + 1) == 'A') || ((blockZ != 15 && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(south, SOUTH, x, y, z);
+	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 'A') || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(east, EAST, x, y, z);
+	if ((blockX == 15 && _world.getBlock(x + 1, y, z) == 'A') || ((blockX != 15 && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(west, WEST, x, y, z);
 }
 
 vec3 Chunk::getPosition()
@@ -110,14 +83,16 @@ void Chunk::sendFacesToDisplay()
 			{
 				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
 				{
+					case 'A':
+						break;
 					case 'D':
-						addDirtBlock(_position.x * CHUNK_SIZE + x, _position.y * CHUNK_SIZE + y, _position.z * CHUNK_SIZE + z);
+						addBlock(x, y, z, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
 						break;
 					case 'S':
-						addStoneBlock(_position.x * CHUNK_SIZE + x, _position.y * CHUNK_SIZE + y, _position.z * CHUNK_SIZE + z);
+						addBlock(x, y, z, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
 						break;
 					case 'G':
-						addGrassBlock(_position.x * CHUNK_SIZE + x, _position.y * CHUNK_SIZE + y, _position.z * CHUNK_SIZE + z);
+						addBlock(x, y, z, T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
 						break;
 					default :
 						break;

@@ -234,12 +234,20 @@ struct pair_hash {
 
 void updateChunks()
 {
-	_world->loadChunk(cam.getWorldPosition(), RENDER_DISTANCE);	
+    auto start = std::chrono::high_resolution_clock::now();
+	_world->loadPerlinMap(cam.getWorldPosition());	
+	_world->loadChunk(cam.getWorldPosition());	
 	textManager.resetTextureVertex();
-	_world->sendFacesToDisplay();
 	// for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
 	// 	it->display();
+	_world->sendFacesToDisplay();
 	textManager.processTextureVertex();
+	
+	auto end = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	auto seconds = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+	std::cout << "UpdateChunk took " << seconds.count() << "." 
+		<< duration.count() << "s" << std::endl;
 }
 
 void update(GLFWwindow* window)

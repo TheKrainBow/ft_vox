@@ -36,16 +36,42 @@ void NoiseGenerator::setSeed(size_t seed)
 	_seed = seed;
 }
 
-double *NoiseGenerator::noiseMap(double startX, double startY, int size) const
+void NoiseGenerator::clearPerlinMaps(void)
 {
-	double *dest = new double[size * size];
-	for (int x = 0; x < 16; x++)
-		for (int y = 0; y < 16; y++)
+	for (auto &map : _perlinMaps)
+	{
+		delete [] map->map;
+		map->map = nullptr;
+	}
+	_perlinMaps.clear();
+}
+
+NoiseGenerator::PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
+{
+	NoiseGenerator::PerlinMap *newMap = new NoiseGenerator::PerlinMap();
+	newMap->size = size;
+	newMap->map = new double[size * size];
+	newMap->resolution = resolution;
+	newMap->position = vec2(startX, startZ);
+	for (int x = 0; x < size; x += resolution)
+		for (int z = 0; z < size; z += resolution)
 		{
-			dest[y * size + x] = noise(startX + x, startY + y);
-			// std::cout << dest[y * size + x] << std::endl;
+			newMap->map[z * size + x] = noise((startX * size) + x, (startZ * size) + z);
+			if (newMap->heighest == std::numeric_limits<double>::min() || newMap->map[z * size + x] > newMap->heighest)
+				newMap->heighest = newMap->map[z * size + x];
 		}
-	return (dest);
+	_perlinMaps.push_back(newMap);
+	return (newMap);
+}
+
+NoiseGenerator::PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
+{
+	for (auto &map : _perlinMaps)
+	{
+		if (map->position.x == x && map->position.y == y)
+			return (map);
+	}
+	return nullptr;
 }
 
 // Layered perlin noise samples by octaves number
