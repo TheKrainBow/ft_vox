@@ -44,6 +44,96 @@ t_rgb *TextureManager::loadPPM(const std::string &path, int &width, int &height)
 	return data;
 }
 
+void TextureManager::loadTextures(std::vector<std::pair<TextureType, std::string>> textureList)
+{
+	if (textureList.empty())
+		return ;
+	int totalWidth = 0;
+	int totalHeight = 0;
+	std::vector<t_rgb *> textureData;
+	std::vector<int> widths;
+	std::vector<int> heights;
+
+	for (auto &pair : textureList)
+	{
+		int width;
+		int height;
+		t_rgb* rgb_data = loadPPM(pair.second, width, height);
+		if (!rgb_data) {
+			std::cerr << "Error: Skipping texture" << pair.second << std::endl;
+			continue ;
+		}
+		textureData.push_back(rgb_data);
+		widths.push_back(width);
+		heights.push_back(height);
+		totalWidth = std::max(totalWidth, width);
+		totalHeight += height;
+	}
+
+	if (textureData.empty())
+	{
+		std::cerr << "Error no valid textures loaded" << std::endl;
+		return ;
+	}
+
+
+	// Allocate memory for the combined texture
+	t_rgb* combinedData = new t_rgb[totalWidth * totalHeight];
+
+	// Initialize to black
+	std::fill(combinedData, combinedData + (totalWidth * totalHeight), t_rgb{0, 0, 0});
+
+	// Combine textures vertically
+	int currentOffset = 0;
+	for (size_t i = 0; i < textureData.size(); ++i)
+	{
+		for (int y = 0; y < heights[i]; ++y)
+		{
+			for (int x = 0; x < widths[i]; ++x)
+			{
+				combinedData[(currentOffset + y) * totalWidth + x] = textureData[i][y * widths[i] + x];
+			}
+		}
+		currentOffset += heights[i];
+		// Free the original texture data
+		delete[] textureData[i];
+	}
+
+	std::vector<t_rgb> rgb_data(combinedData, combinedData + (totalWidth * totalHeight));
+	std::reverse(rgb_data.begin(), rgb_data.end());
+	glGenTextures(1, &mergedTextureId);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, mergedTextureId);
+
+	std::reverse(rgb_data.begin(), rgb_data.end());
+	// Upload the pixel data to the texture
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, totalWidth, totalHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
+
+	// Set texture parameters
+	if (isWSL())
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	else
+	{
+		glGenerateMipmap(GL_TEXTURE_2D);
+		GLfloat maxAniso = 0.0f;
+		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+		glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+	}
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // Clean up combined data
+    delete[] combinedData;
+}
+
+GLuint TextureManager::getMergedText() const
+{
+	return mergedTextureId;
+}
+
 // Add a texture to the manager
 void TextureManager::loadTexture(TextureType type, std::string path) {
 	GLuint newTextureID;
@@ -75,7 +165,6 @@ void TextureManager::loadTexture(TextureType type, std::string path) {
 		glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 	}
-	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
