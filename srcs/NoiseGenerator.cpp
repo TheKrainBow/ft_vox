@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:51:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/05 15:13:09 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/18 16:52:04 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,7 +27,7 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 
 NoiseGenerator::~NoiseGenerator()
 {
-
+	clearPerlinMaps();
 }
 
 void NoiseGenerator::setSeed(size_t seed)
@@ -40,8 +40,12 @@ void NoiseGenerator::clearPerlinMaps(void)
 {
 	for (auto &map : _perlinMaps)
 	{
-		delete [] map->map;
+		if (map && map->map)
+			delete [] map->map;
 		map->map = nullptr;
+		if (map)
+			delete map;
+		map = nullptr;
 	}
 	_perlinMaps.clear();
 }
