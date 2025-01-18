@@ -8,10 +8,11 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
 	bzero(_blocks.data(), _blocks.size());
-	load();
+	loadHeight();
+	loadBiome();
 }
 
-void Chunk::load()
+void Chunk::loadHeight()
 {
 	if (loaded) return ;
 	loaded = true;
@@ -21,17 +22,35 @@ void Chunk::load()
 		{
 			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
-				double noise = _perlinMap[z * CHUNK_SIZE + x];
-				double remappedNoise = 100.0 + noise * 100.0;
-				size_t maxHeight = (size_t)(remappedNoise);
+				double height = _perlinMap[z * CHUNK_SIZE + x];
+				size_t maxHeight = (size_t)(height);
+				if (y + _position.y * CHUNK_SIZE <= maxHeight)
+					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+				else
+					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'A';
+			}
+		}
+	}
+}
+
+void Chunk::loadBiome()
+{
+	for (int y = 0; y < CHUNK_SIZE ; y++)
+	{
+		for (int x = 0; x < CHUNK_SIZE ; x++)
+		{
+			for (int z = 0; z < CHUNK_SIZE ; z++)
+			{
+				if (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] == 'A')
+					continue ;
+				double height = _perlinMap[z * CHUNK_SIZE + x];
+				size_t maxHeight = (size_t)(height);
 				if (y + _position.y * CHUNK_SIZE < maxHeight / 2)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
 				else if (y + _position.y * CHUNK_SIZE < maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'D';
 				else if (y + _position.y * CHUNK_SIZE == maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'G';
-				else
-					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'A';
 			}
 		}
 	}

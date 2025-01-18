@@ -18,7 +18,8 @@ class Chunk
 		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world);
 		~Chunk();
 		void sendFacesToDisplay();
-		void load();
+		void loadHeight();
+		void loadBiome();
 		void positiveLoad();
 		void negativeLoad();
 		vec3 getPosition(void);
