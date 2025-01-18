@@ -7,7 +7,7 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 
 	double relativePosX = _position.x * 16.0;
 	double relativePosZ = _position.y * 16.0;
-	double noise;
+	//double noise;
 	vec2 offsetBorder = {0.0, 0.0};
 	double remappedNoise;
 	size_t maxHeight;
@@ -20,12 +20,10 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 		{
 			offsetBorder = getBorderWarping(relativePosX + x, relativePosZ + z, noise_gen);
 			//type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
-			// offsetBorder.x = relativePosX + x;
-			// offsetBorder.y = relativePosZ + z;
 			double minHeight = 25.0;
 			minHeight = getMinHeight(offsetBorder, noise_gen);
-			noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
-			remappedNoise = 100.0 + noise * minHeight;
+			//noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
+			remappedNoise = 100.0 + minHeight;
 			maxHeight = (size_t)(remappedNoise);
 			if (maxHeight > 254)
 				maxHeight = 254;
@@ -47,13 +45,13 @@ Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &
 	displayCheckFaces();
 }
 
-vec2 Chunk::getBorderWarping(double x, double z, const NoiseGenerator &noise_gen) const
+vec2 Chunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
 {
 	double noiseX = noise_gen.noise(x, z);
 	double noiseY = noise_gen.noise(z, x);
 	vec2 offset;
-	offset.x = noiseX * 20.0;
-	offset.y = noiseY * 20.0;
+	offset.x = noiseX * 15.0;
+	offset.y = noiseY * 15.0;
 	return offset;
 }
 
@@ -61,10 +59,10 @@ double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
 {
 	double noise = 0.0;
 	NoiseData nData = {
-		2.0, // amplitude
-		0.05, // frequency
-		0.4, // persistance
-		2.0, // lacunarity
+		1.0, // amplitude
+		0.001, // frequency
+		0.8, // persistance
+		4.0, // lacunarity
 		4 // nb_octaves
 	};
 

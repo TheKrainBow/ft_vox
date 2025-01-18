@@ -398,8 +398,11 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 	textManager.loadTexture(T_SAND, "textures/sand.ppm");
 
+	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+	if (camChunk.x < 0) camChunk.x--;
+	if (camChunk.z < 0) camChunk.z--;
 	// chunks.push_back(Chunk(-cam.position.x / 16 - 1, -cam.position.z / 16 - 1, noise_gen));
-	updateChunks(vec3(0, 0, 0));
+	updateChunks(camChunk);
 
 	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
