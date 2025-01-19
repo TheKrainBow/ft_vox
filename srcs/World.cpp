@@ -8,7 +8,7 @@
 
 // Helper function to calculate block position within a chunk
 vec3 World::calculateBlockPos(int x, int y, int z) const {
-	auto mod = [](int value) { return (value >= 0) ? value % 16 : (16 + (value % 16)) % 16; };
+	auto mod = [](int value) { return (value >= 0) ? value % CHUNK_SIZE : (CHUNK_SIZE + (value % CHUNK_SIZE)) % CHUNK_SIZE; };
 	return { mod(x), mod(y), mod(z) };
 }
 
@@ -89,10 +89,10 @@ void World::loadChunk(vec3 camPosition)
 
 char World::getBlock(int x, int y, int z)
 {
-    vec3 chunkPos(x / 16, y / 16, z / 16);
-    chunkPos.x -= (x < 0 && abs(x) % 16 != 0);
-    chunkPos.y -= (y < 0 && abs(y) % 16 != 0);
-    chunkPos.z -= (z < 0 && abs(z) % 16 != 0);
+    vec3 chunkPos(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE);
+    chunkPos.x -= (x < 0 && abs(x) % CHUNK_SIZE != 0);
+    chunkPos.y -= (y < 0 && abs(y) % CHUNK_SIZE != 0);
+    chunkPos.z -= (z < 0 && abs(z) % CHUNK_SIZE != 0);
 
     Chunk* chunk = getChunk((int)chunkPos.x, (int)chunkPos.y, (int)chunkPos.z);
     if (!chunk) return 'D';

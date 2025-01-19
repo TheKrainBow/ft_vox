@@ -75,15 +75,15 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 	int z = _position.z * CHUNK_SIZE + blockZ;
 	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 'A') || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
 		textManager.addTextureVertex(down, DOWN, x, y, z);
-	if ((blockY == 15 && _world.getBlock(x, y + 1, z) == 'A') || ((blockY != 15 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+	if ((blockY == CHUNK_SIZE - 1 && _world.getBlock(x, y + 1, z) == 'A') || ((blockY != CHUNK_SIZE - 1 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
 		textManager.addTextureVertex(up, UP, x, y, z);
 	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 'A') || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
 		textManager.addTextureVertex(north, NORTH, x, y, z);
-	if ((blockZ == 15 && _world.getBlock(x, y, z + 1) == 'A') || ((blockZ != 15 && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+	if ((blockZ == CHUNK_SIZE - 1 && _world.getBlock(x, y, z + 1) == 'A') || ((blockZ != CHUNK_SIZE - 1 && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
 		textManager.addTextureVertex(south, SOUTH, x, y, z);
 	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 'A') || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
 		textManager.addTextureVertex(east, EAST, x, y, z);
-	if ((blockX == 15 && _world.getBlock(x + 1, y, z) == 'A') || ((blockX != 15 && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+	if ((blockX == CHUNK_SIZE - 1 && _world.getBlock(x + 1, y, z) == 'A') || ((blockX != CHUNK_SIZE - 1 && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
 		textManager.addTextureVertex(west, WEST, x, y, z);
 }
 
