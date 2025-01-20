@@ -1,48 +1,34 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(int chunkX, int chunkZ, NoiseGenerator &noise_gen, BiomeGenerator &biome_gen)
+Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world) : _world(world)
 {
-	_position = vec2(chunkX, chunkZ);
-	bzero(_blocks, CHUNK_SIZE * sizeof(ABlock *));
+	_position = vec3(x, y, z);
+	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
+	bzero(_blocks.data(), _blocks.size());
+	loadHeight();
+	loadBiome();
+}
 
-	double relativePosX = _position.x * 16.0;
-	double relativePosZ = _position.y * 16.0;
-	//double noise;
-	vec2 offsetBorder = {0.0, 0.0};
-	double remappedNoise;
-	size_t maxHeight;
-	(void)biome_gen;
-	BiomeType type = PLAINS;
-	// Generate terrain. (Must be refactored using Perlin Noise)
-	for (int x = 0; x < 16; x++)
+void Chunk::loadHeight()
+{
+	if (loaded) return ;
+	loaded = true;
+	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
-		for (int z = 0; z < 16; z++)
+		for (int x = 0; x < CHUNK_SIZE ; x++)
 		{
-			offsetBorder = getBorderWarping(relativePosX + x, relativePosZ + z, noise_gen);
-			//type = biome_gen.findClosestBiomes(offsetBorder.x + relativePosX + x, offsetBorder.y + relativePosZ + z);
-			double minHeight = 25.0;
-			minHeight = getMinHeight(offsetBorder, noise_gen);
-			//noise = noise_gen.noise(relativePosX + x, relativePosZ + z);
-			remappedNoise = 100.0 + minHeight;
-			maxHeight = (size_t)(remappedNoise);
-			if (maxHeight > 254)
-				maxHeight = 254;
-			for (size_t y = 0; y < maxHeight / 2; y++)
-				_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Stone((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-			if (type == PLAINS)
+			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
-				for (size_t y = maxHeight / 2; y < maxHeight; y++)
-					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Dirt((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
-				_blocks[x + (z * CHUNK_SIZE_X) + (maxHeight * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Grass((chunkX * CHUNK_SIZE_X) + x, maxHeight, (chunkZ * CHUNK_SIZE_Z) + z);
-			}
-			else if (type == DESERT)
-			{
-				for (size_t y = maxHeight / 2; y <= maxHeight; y++)
-					_blocks[x + (z * CHUNK_SIZE_X) + (y * CHUNK_SIZE_X * CHUNK_SIZE_Z)] = new Sand((chunkX * CHUNK_SIZE_X) + x, y, (chunkZ * CHUNK_SIZE_Z) + z);
+				double height = _perlinMap[z * CHUNK_SIZE + x];
+				size_t maxHeight = (size_t)(height);
+				if (y + _position.y * CHUNK_SIZE <= maxHeight)
+					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+				else
+					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'A';
 			}
 		}
 	}
-	displayCheckFaces();
 }
 
 vec2 Chunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
@@ -82,97 +68,96 @@ double Chunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
 	return splineResult;
 }
 
-void Chunk::displayCheckFaces() const
+void Chunk::loadBiome()
 {
-	// Check for faces to display (Only for current chunk)
-	for (int x = 0; x < CHUNK_SIZE_X; ++x) {
-		for (int z = 0; z < CHUNK_SIZE_Z; ++z) {
-			for (int y = 0; y < CHUNK_SIZE_Y; ++y) {
-				int index = x + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z;
-				if (!_blocks[index])
-						continue ;
-				int state = 0;
-				bool displayDown = (y == 0) || _blocks[x + z * CHUNK_SIZE_X + (y - 1) * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
-				bool displayUp = (y == 255) || _blocks[x + z * CHUNK_SIZE_X + (y + 1) * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
-				bool displayRight = (x == 0) || _blocks[(x - 1) + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
-				bool displayLeft = (x == 15) || _blocks[(x + 1) + z * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
-				bool displayFront = (z == 0) || _blocks[x + (z - 1) * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
-				bool displayBack = (z == 15) || _blocks[x + (z + 1) * CHUNK_SIZE_X + y * CHUNK_SIZE_X * CHUNK_SIZE_Z] == NULL;
-				state |= (displayUp << 0);
-				state |= (displayDown << 1);
-				state |= (displayLeft << 2);
-				state |= (displayRight << 3);
-				state |= (displayFront << 4);
-				state |= (displayBack << 5);
-				_blocks[index]->updateNeighbors(state);
-			}
-		}
-	}
-}
-
-void Chunk::renderBoundaries() const
-{
-	glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_DEPTH_TEST);
-	// Cyan blue color
-	glColor3f(0.0f, 0.0f, 0.0f);
-	float chunkSize = 16;
-	float startX = _position.x * chunkSize;
-	float startZ = _position.y * chunkSize;
-    float endX = startX + chunkSize;
-    float endZ = startZ + chunkSize;
-
-	glBegin(GL_LINES);
-
-	// Vertical edges (up and down lines at corners)
-	// Bottom-left corner
-	glVertex3f(startX, 0.0f, startZ);
-	glVertex3f(startX, 255.0f, startZ);
-
-	// Bottom-right corner
-	glVertex3f(endX, 0.0f, startZ);
-	glVertex3f(endX, 255.0f, startZ);
-
-	// Top-right corner
-	glVertex3f(endX, 0.0f, endZ);
-	glVertex3f(endX, 255.0f, endZ);
-
-	// Top-left corner
-	glVertex3f(startX, 0.0f, endZ);
-	glVertex3f(startX, 255.0f, endZ);
-
-	glEnd();
-	glColor3d(1.0f, 1.0f, 1.0f);
-}
-
-void Chunk::freeChunkData()
-{
-	for (int i = 0; i < CHUNK_SIZE; i++)
+	for (int x = 0; x < CHUNK_SIZE ; x++)
 	{
-		if (!_blocks[i])
-			continue ;
-		delete _blocks[i];
-		_blocks[i] = nullptr;
-	}
-}
-
-void Chunk::display()
-{
-	for (int i = 0; i < CHUNK_SIZE; ++i)
-	{
-		if (_blocks[i])
+		for (int z = 0; z < CHUNK_SIZE ; z++)
 		{
-			_blocks[i]->display();
+			bool surfaceFound = false;
+			for (int y = CHUNK_SIZE - 1; y >= 0; y--)
+			{
+				int index = x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE);
+				if (!surfaceFound && _blocks[index] == 'S')
+				{
+					_blocks[index] = 'G';
+					surfaceFound = true;
+					for (int dirtLayer = 1; dirtLayer <= 5; dirtLayer++)
+					{
+						int dirtIndex = x + (z * CHUNK_SIZE) + ((y - dirtLayer) * CHUNK_SIZE * CHUNK_SIZE);
+						if (y - dirtLayer >= 0 && _blocks[dirtIndex] == 'S')
+							_blocks[dirtIndex] = 'D';
+						else
+							break ;
+					}
+				}
+			}
 		}
 	}
 }
 
 Chunk::~Chunk()
 {
+	loaded = false;
 }
 
-vec2 Chunk::getPosition(void)
+char Chunk::getBlock(int x, int y, int z)
+{
+	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
+		return 'D';
+	return _blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)];
+}
+
+void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
+{
+	int x = _position.x * CHUNK_SIZE + blockX;
+	int y = _position.y * CHUNK_SIZE + blockY;
+	int z = _position.z * CHUNK_SIZE + blockZ;
+
+	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 'A') || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(down, DOWN, x, y, z);
+	if ((blockY == 15 && _world.getBlock(x, y + 1, z) == 'A') || ((blockY != 15 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(up, UP, x, y, z);
+	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 'A') || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(north, NORTH, x, y, z);
+	if ((blockZ == 15 && _world.getBlock(x, y, z + 1) == 'A') || ((blockZ != 15 && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(south, SOUTH, x, y, z);
+	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 'A') || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(east, EAST, x, y, z);
+	if ((blockX == 15 && _world.getBlock(x + 1, y, z) == 'A') || ((blockX != 15 && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(west, WEST, x, y, z);
+}
+
+vec3 Chunk::getPosition()
 {
 	return _position;
+}
+
+void Chunk::sendFacesToDisplay()
+{
+	for (int x = 0; x < CHUNK_SIZE; x++)
+	{
+		for (int y = 0; y < CHUNK_SIZE; y++)
+		{
+			for (int z = 0; z < CHUNK_SIZE; z++)
+			{
+				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
+				{
+					case 'A':
+						break;
+					case 'D':
+						addBlock(x, y, z, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
+						break;
+					case 'S':
+						addBlock(x, y, z, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
+						break;
+					case 'G':
+						addBlock(x, y, z, T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
+						break;
+					default :
+						break;
+				}
+			}
+		}
+	}
 }

@@ -75,7 +75,6 @@ void TextureManager::loadTexture(TextureType type, std::string path) {
 		glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 	}
-	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -91,12 +90,8 @@ TextureManager::TextureManager() {
 
 // Destructor definition (no specific code yet)
 TextureManager::~TextureManager() {
-	for (auto &pair : _textures)
-	{
-		if (pair.second)
-			delete pair.second;
-		pair.second = nullptr;
-	}
+	for (int i = 0; i < N_TEXTURES; i++)
+		delete _textures[i];
 }
 
 void TextureManager::addTextureVertex(TextureType type, e_direction dir, int x, int y, int z)
@@ -106,20 +101,20 @@ void TextureManager::addTextureVertex(TextureType type, e_direction dir, int x, 
 
 void TextureManager::resetTextureVertex()
 {
-	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
-		it->second->resetVertex();
+	for (int i = 0; i < N_TEXTURES; i++)
+		_textures[i]->resetVertex();
 }
 
 void TextureManager::processTextureVertex()
 {
-	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
+	for (int i = 0; i < N_TEXTURES; i++)
 	{
-		it->second->processVertex(UP);
-		it->second->processVertex(DOWN);
-		it->second->processVertex(NORTH);
-		it->second->processVertex(SOUTH);
-		it->second->processVertex(EAST);
-		it->second->processVertex(WEST);
+		_textures[i]->processVertex(UP);
+		_textures[i]->processVertex(DOWN);
+		_textures[i]->processVertex(NORTH);
+		_textures[i]->processVertex(SOUTH);
+		_textures[i]->processVertex(EAST);
+		_textures[i]->processVertex(WEST);
 	}
 }
 
@@ -127,15 +122,15 @@ int TextureManager::displayAllTexture(Camera &cam)
 {
 	int triangleDrown = 0;
 	(void)cam;
-	for (std::map<TextureType, Texture *>::iterator it = _textures.begin(); it != _textures.end(); it++)
+	for (int i = 0; i < N_TEXTURES; i++)
 	{
-		glBindTexture(GL_TEXTURE_2D, it->second->getTexture());
-		triangleDrown += it->second->display(UP);
-		triangleDrown += it->second->display(DOWN);
-		triangleDrown += it->second->display(SOUTH);
-		triangleDrown += it->second->display(NORTH);
-		triangleDrown += it->second->display(EAST);
-		triangleDrown += it->second->display(WEST);
+		glBindTexture(GL_TEXTURE_2D, _textures[i]->getTexture());
+		triangleDrown += _textures[i]->display(UP);
+		triangleDrown += _textures[i]->display(DOWN);
+		triangleDrown += _textures[i]->display(SOUTH);
+		triangleDrown += _textures[i]->display(NORTH);
+		triangleDrown += _textures[i]->display(EAST);
+		triangleDrown += _textures[i]->display(WEST);
 	}
 	return (triangleDrown);
 }

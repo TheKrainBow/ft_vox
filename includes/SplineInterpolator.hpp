@@ -13,5 +13,9 @@ class SplineInterpolator
 	std::vector<double> a, b, c, d, h;
 	public:
 		SplineInterpolator(const std::vector<Point>& pts);
+		SplineInterpolator();
 		double interpolate(double x) const;
+		void setPoints(const std::vector<Point>& pts);
+	private:
+		void setupData();
 };

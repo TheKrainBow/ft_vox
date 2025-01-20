@@ -1,27 +1,27 @@
 #include "ft_vox.hpp"
 #include "Chunk.hpp"
+#include "World.hpp"
 #include "Camera.hpp"
 #include "globals.hpp"
 #include "NoiseGenerator.hpp"
 #include "BiomeGenerator.hpp"
-
 #include "Textbox.hpp"
+#include "define.hpp"
+#include "Chrono.hpp"
 
 // Display
 GLFWwindow* _window;
 GLuint shaderProgram;
+World *_world;
+Chrono chronoHelper;
 
 mat4 projectionMatrix;
 mat4 viewMatrix;
 bool keyStates[348] = {false};
 bool ignoreMouseEvent = false;
-
-// Debug
-bool updateChunk = true;
-bool showChunkLimitations = false;
-bool showBiomeCenters = false;
-bool showDebugInfo = true;
-bool showTriangleMesh = false;
+bool updateChunk = ENABLE_WORLD_GENERATION;
+bool showDebugInfo = SHOW_DEBUG;
+bool showTriangleMesh = SHOW_TRIANGLES;
 
 int windowHeight = W_HEIGHT;
 int windowWidth = W_WIDTH;
@@ -34,10 +34,13 @@ double fps = 0.0;
 double triangleDrown = 0.0;
 
 //World gen
-std::vector<ABlock> blocks;
-std::vector<Chunk> chunks;
 NoiseGenerator noise_gen(42);
 BiomeGenerator biomeGenerator(42);
+
+//Game time
+std::chrono::_V2::system_clock::time_point start;
+std::chrono::_V2::system_clock::time_point end;
+std::chrono::milliseconds delta;
 
 Textbox *debugBox;
 
@@ -73,8 +76,6 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 	if (action == GLFW_PRESS) keyStates[key] = true;
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
-	if (action == GLFW_PRESS && key == GLFW_KEY_KP_0) showChunkLimitations = !showChunkLimitations;
-	if (action == GLFW_PRESS && key == GLFW_KEY_KP_1) showBiomeCenters = !showBiomeCenters;
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
@@ -169,8 +170,8 @@ void mouseCallback(GLFWwindow* window, double x, double y)
 	cam.xangle += xOffset * cam.rotationspeed;
 	cam.yangle += yOffset * cam.rotationspeed;
 
-	if (cam.yangle > 89.0f) cam.yangle = 89.0f;
-	if (cam.yangle < -89.0f) cam.yangle = -89.0f;
+	if (cam.yangle > 90.0f) cam.yangle = 90.0f;
+	if (cam.yangle < -90.0f) cam.yangle = -90.0f;
 
 	while (cam.xangle < 0)
 		cam.xangle += 360;
@@ -224,15 +225,6 @@ void display(GLFWwindow* window)
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	if (showBiomeCenters)
-		biomeGenerator.showBiomeCenters();
-	if (showChunkLimitations)
-	{
-		for (Chunk &chunk : chunks)
-		{
-			chunk.renderBoundaries();
-		}
-	}
 	if (showDebugInfo)
 		debugBox->render();
 
@@ -240,90 +232,69 @@ void display(GLFWwindow* window)
 	glfwSwapBuffers(_window);
 }
 
-void updateChunks(vec3 newCameraPosition)
+
+void updateChunks()
 {
-	// Store the set of positions for currently loaded chunks
-	std::unordered_set<std::pair<int, int>, pair_hash> loadedChunkPositions;
-	for (Chunk& chunk : chunks)
-		loadedChunkPositions.emplace(chunk.getPosition().x, chunk.getPosition().y);
-
-	// Set to track positions of chunks that should remain
-	std::unordered_set<std::pair<int, int>, pair_hash> requiredChunkPositions;
-
-	//biomeGenerator.findBiomeCenters({newCameraPosition.x, newCameraPosition.z});
-
-	// Add chunks within the render distance
-	for (int x = -RENDER_DISTANCE / 2; x < RENDER_DISTANCE / 2; x++)
-	{
-		for (int z = -RENDER_DISTANCE / 2; z < RENDER_DISTANCE / 2; z++)
-		{
-			int chunkX = newCameraPosition.x + x;
-			int chunkZ = newCameraPosition.z + z;
-
-			// Add this position to the required set
-			requiredChunkPositions.emplace(chunkX, chunkZ);
-
-			// If this chunk is not already loaded, create and add it
-			if (loadedChunkPositions.find({chunkX, chunkZ}) == loadedChunkPositions.end())
-			{
-				// std::cout << "Add chunk (" << chunkX << ", " << chunkZ << ")" << std::endl;
-				chunks.push_back(Chunk(chunkX, chunkZ, noise_gen, biomeGenerator));
-			}
-		}
-	}
-
-	// Remove chunks that are no longer needed
-	chunks.erase(
-		std::remove_if(chunks.begin(), chunks.end(),
-			[&requiredChunkPositions](Chunk& chunk)
-			{
-				if (requiredChunkPositions.find({chunk.getPosition().x, chunk.getPosition().y}) == requiredChunkPositions.end())
-				{
-					chunk.freeChunkData();
-					return true;
-				}
-				return false;
-			}),
-		chunks.end()
-	);
-	
+	chronoHelper.startChrono(0, "Update chunks");
+	chronoHelper.startChrono(1, "Perlin Generation");
+	_world->loadPerlinMap(cam.getWorldPosition());	
+	chronoHelper.stopChrono(1);
+	chronoHelper.startChrono(2, "Load chunks");
+	_world->loadChunk(cam.getWorldPosition());	
+	chronoHelper.stopChrono(2);
 	textManager.resetTextureVertex();
-
-	for (std::vector<Chunk>::iterator it = chunks.begin(); it != chunks.end(); it++)
-	{
-		it->display();
-	}
+	chronoHelper.startChrono(3, "Send Faces to display");
+	_world->sendFacesToDisplay();
+	chronoHelper.stopChrono(3);
+	chronoHelper.startChrono(4, "Process Vertex");
 	textManager.processTextureVertex();
+	chronoHelper.stopChrono(4);
+	chronoHelper.stopChrono(0);
+	chronoHelper.printChronos();
 }
 
 void update(GLFWwindow* window)
 {
 	(void)window;
+	// Calculate delta time
+	static auto lastTime = std::chrono::high_resolution_clock::now();
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float> elapsedTime = currentTime - lastTime;
+	float deltaTime = elapsedTime.count();
+	lastTime = currentTime;
 
-	vec3 oldCamChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
+	// Apply delta
+	float rawMoveSpeed = 2.0f;
+	if (keyStates[GLFW_KEY_LEFT_CONTROL])
+		rawMoveSpeed += 5.0f;
+	float moveSpeed = rawMoveSpeed * deltaTime;
+	float rotationSpeed = cam.rotationspeed * deltaTime;
+
+	start = std::chrono::high_resolution_clock::now(); 
+	vec3 oldCamChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
+	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
 
-	if (keyStates[GLFW_KEY_LEFT_CONTROL]) cam.movementspeed += 1.0f;
-	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(1.0, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) cam.move(0.0, 1.0, 0.0);
-	if (keyStates[GLFW_KEY_S]) cam.move(-1.0, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_D]) cam.move(0.0, -1.0, 0.0);
-	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
-	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
-	cam.movementspeed = 0.5f;
+	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) cam.move(0.0, moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_S]) cam.move(-moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_D]) cam.move(0.0, -moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -moveSpeed);
+	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, moveSpeed);
 
-	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
-	if (camChunk.x < 0) camChunk.x--;
-	if (camChunk.z < 0) camChunk.z--;
+	vec3 camChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
+	if (cam.getWorldPosition().x < 0) camChunk.x--;
+	if (cam.getWorldPosition().y < 0) camChunk.y--;
+	if (cam.getWorldPosition().z < 0) camChunk.z--;
 
-	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z)))
-		updateChunks(camChunk);
+	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
+		updateChunks();
 
-	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += cam.rotationspeed;
-	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= cam.rotationspeed;
-	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
-	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += cam.rotationspeed;
+	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += rotationSpeed;
+	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= rotationSpeed;
+	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= rotationSpeed;
+	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += rotationSpeed;
 
 	while (cam.xangle < 0)
 		cam.xangle += 360;
@@ -331,6 +302,8 @@ void update(GLFWwindow* window)
 		cam.xangle -= 360;
 
 	display(_window);
+	end = std::chrono::high_resolution_clock::now(); 
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
 }
 
 void reshape(GLFWwindow* window, int width, int height)
@@ -398,11 +371,11 @@ int main(int argc, char **argv)
 	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 	textManager.loadTexture(T_SAND, "textures/sand.ppm");
 
-	vec3 camChunk(-cam.position.x / 16, 0, -cam.position.z / 16);
-	if (camChunk.x < 0) camChunk.x--;
-	if (camChunk.z < 0) camChunk.z--;
-	// chunks.push_back(Chunk(-cam.position.x / 16 - 1, -cam.position.z / 16 - 1, noise_gen));
-	updateChunks(camChunk);
+	World overworld(42);
+
+	_world = &overworld;
+	// chunks.push_back(Chunk(cam.position.x / CHUNK_SIZE - 1, cam.position.z / CHUNK_SIZE - 1, noise_gen));
+	updateChunks();
 
 	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
@@ -428,7 +401,6 @@ int main(int argc, char **argv)
 	debugBoxObject.addLine("xangle: ", Textbox::FLOAT, &cam.xangle);
 	debugBoxObject.addLine("yangle: ", Textbox::FLOAT, &cam.yangle);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
-
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{
@@ -438,11 +410,12 @@ int main(int argc, char **argv)
 	}
 
 	//Free chunk data
-	for (Chunk &chunk : chunks)
-	{
-		chunk.freeChunkData();
-	}
+	// for (Chunk &chunk : chunks)
+	// {
+	// 	chunk.freeChunkData();
+	// }
 
+    glDeleteProgram(shaderProgram);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 	return 0;

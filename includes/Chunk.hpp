@@ -1,38 +1,34 @@
 #pragma once
 
-#include "blocks/ABlock.hpp"
-#include "blocks/Dirt.hpp"
-#include "blocks/Cobble.hpp"
-#include "blocks/Grass.hpp"
-#include "blocks/Stone.hpp"
-#include "blocks/Sand.hpp"
 #include "NoiseGenerator.hpp"
-#include "BiomeGenerator.hpp"
-#include "SplineInterpolator.hpp"
 #include "ft_vox.hpp"
-
-#define CHUNK_SIZE_X 16
-#define CHUNK_SIZE_Z 16
-#define CHUNK_SIZE_Y 255
-#define CHUNK_SIZE 65280
+#include "TextureManager.hpp"
+#include "define.hpp"
+#include "globals.hpp"
+#include "World.hpp"
 
 class BiomeGenerator;
+class World;
 
 class Chunk
 {
 	private:
-		vec2	_position;
-		ABlock	*_blocks[CHUNK_SIZE];
+		vec3	_position;
+		std::vector<char>	_blocks;
+		double	_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
+		World	&_world;
+		bool	loaded = false;
 	public:
-		Chunk(int chunkX, int z, NoiseGenerator &noise_gen, BiomeGenerator &biome_gen);
+		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world);
 		~Chunk();
-		void display();
-		void freeChunkData();
-		vec2 getPosition(void);
-		void renderBoundaries() const;
-	private:
-		void displayCheckFaces() const;
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
+		void loadHeight();
+		void loadBiome();
+		vec3 getPosition(void);
+	    char getBlock(int x, int y, int z);
+		void sendFacesToDisplay();
+	private:
+		void addBlock(int blockX, int blockY, int blockZ, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
 };

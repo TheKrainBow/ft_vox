@@ -4,8 +4,15 @@
 #include <iostream>
 
 SplineInterpolator::SplineInterpolator(const std::vector<Point>& pts) : points(pts) {
-	if (points.size() < 2)
-		throw std::invalid_argument("At least two points are required for spline interpolation.");
+	setupData();
+}
+
+SplineInterpolator::SplineInterpolator() {}
+
+void SplineInterpolator::setupData()
+{
+	if (points.size() < 2) 
+	throw std::invalid_argument("At least two points are required for spline interpolation.");
 
 	int n = points.size() - 1;
 	h.resize(n);
@@ -56,6 +63,8 @@ SplineInterpolator::SplineInterpolator(const std::vector<Point>& pts) : points(p
 	}
 }
 
+
+
 double SplineInterpolator::interpolate(double x) const {
 	if (x < points.front().x || x > points.back().x)
 		return 0.0;
@@ -75,4 +84,10 @@ double SplineInterpolator::interpolate(double x) const {
 	// Compute spline value
 	double dx = x - points[i].x;
 	return a[i] + b[i] * dx + c[i] * dx * dx + d[i] * dx * dx * dx;
+}
+
+void SplineInterpolator::setPoints(const std::vector<Point> &pts)
+{
+	points = pts;
+	setupData();
 }

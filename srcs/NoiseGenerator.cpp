@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   NoiseGenerator.cpp                                 :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/01/02 22:51:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/09 20:56:28 by tmoragli         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "NoiseGenerator.hpp"
 
 NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
@@ -21,11 +9,14 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	std::shuffle(p.begin(), p.end(), generator);
 	_permutation.resize(512);
 	for (int i = 0; i < 512; i++) _permutation[i] = p[i % 256];
+
+	std::vector<Point> splinePoints = {{-1.0, 50.0}, {0.3, 100.0}, {0.4, 150.0}, {1.0, 150.0}};
+	spline.setPoints(splinePoints);
 }
 
 NoiseGenerator::~NoiseGenerator()
 {
-
+	clearPerlinMaps();
 }
 
 void NoiseGenerator::setSeed(size_t seed)
@@ -34,18 +25,91 @@ void NoiseGenerator::setSeed(size_t seed)
 	_seed = seed;
 }
 
-const size_t &NoiseGenerator::getSeed() const
+void NoiseGenerator::clearPerlinMaps(void)
 {
-	return _seed;
+	for (auto &map : _perlinMaps)
+	{
+		if (map && map->map)
+			delete [] map->map;
+		map->map = nullptr;
+		if (map)
+			delete map;
+		map = nullptr;
+	}
+	_perlinMaps.clear();
 }
 
 void NoiseGenerator::setNoiseData(const NoiseData &data)
 {
-	_data.amplitude = data.amplitude;
-	_data.frequency = data.frequency;
-	_data.nb_octaves = data.nb_octaves;
-	_data.lacunarity = data.lacunarity;
-	_data.persistance = data.persistance;
+	_data = data;
+}
+
+double NoiseGenerator::getContinentalNoise(vec2 pos)
+{
+	double _noise = 0.0;
+	NoiseData nData = {
+		1.0, // amplitude
+		0.001, // frequency
+		0.8, // persistance
+		4.0, // lacunarity
+		4 // nb_octaves
+	};
+
+	setNoiseData(nData);
+	_noise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return _noise;
+}
+
+vec2 NoiseGenerator::getBorderWarping(double x, double z) const
+{
+	double noiseX = noise(x, z);
+	double noiseY = noise(z, x);
+	vec2 offset;
+	offset.x = noiseX * 15.0;
+	offset.y = noiseY * 15.0;
+	return offset;
+}
+
+int NoiseGenerator::getHeight(vec2 pos)
+{
+	pos = getBorderWarping(pos.x, pos.y);
+	double continentalNoise = getContinentalNoise(pos);
+	double surfaceHeight = spline.interpolate(continentalNoise);
+	int height;
+	height = static_cast<size_t>(150.0 + surfaceHeight);
+	height = std::clamp(height, 0, 255);
+	return height;
+}
+
+
+NoiseGenerator::PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
+{
+	NoiseGenerator::PerlinMap *newMap = new NoiseGenerator::PerlinMap();
+	newMap->size = size;
+	newMap->map = new double[size * size];
+	newMap->resolution = resolution;
+	newMap->position = vec2(startX, startZ);
+
+	for (int x = 0; x < size; x += resolution)
+		for (int z = 0; z < size; z += resolution)
+		{
+			newMap->map[z * size + x] = getHeight({(startX * size) + x, (startZ * size) + z});
+			if (newMap->heighest == std::numeric_limits<double>::min() || newMap->map[z * size + x] > newMap->heighest)
+				newMap->heighest = newMap->map[z * size + x];
+		}
+	_perlinMaps.push_back(newMap);
+	return (newMap);
+}
+
+NoiseGenerator::PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
+{
+	for (auto &map : _perlinMaps)
+	{
+		if (map->position.x == x && map->position.y == y)
+			return (map);
+	}
+	return nullptr;
 }
 
 // Layered perlin noise samples by octaves number
