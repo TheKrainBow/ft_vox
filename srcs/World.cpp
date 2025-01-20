@@ -12,13 +12,13 @@ vec3 World::calculateBlockPos(int x, int y, int z) const {
 	return { mod(x), mod(y), mod(z) };
 }
 
-void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks)
+void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, int resolution)
 {
     NoiseGenerator::PerlinMap *perlinMap = nullptr;
     perlinMap = _perlinGenerator.getPerlinMap(position.x, position.z);
     if (!perlinMap)
         return ;
-    if (100.0 + perlinMap->heighest * 100.0 < (position.y - 1) * CHUNK_SIZE)
+    if (perlinMap->heighest < (position.y - 1) * CHUNK_SIZE)
         return ;
     auto currentTuple = std::make_tuple((int)position.x, (int)position.y, (int)position.z);
 	if (auto it = _loadedChunks.find(currentTuple); it != _loadedChunks.end())
@@ -33,7 +33,7 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
 	// }
 	else
 	{
-		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this);
+		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this, resolution);
 		tempChunks[currentTuple] = std::move(newChunk);
 	}
 }
@@ -50,12 +50,10 @@ World::~World() = default;
 void World::loadPerlinMap(vec3 camPosition)
 {
     _perlinGenerator.clearPerlinMaps();
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
-
 	vec2 position;
-	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
+	for (int x = -XZ_RENDER_DISTANCE * 8; x < XZ_RENDER_DISTANCE * 8; x++)
 	{
-        for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+        for (int z = -XZ_RENDER_DISTANCE * 8; z < XZ_RENDER_DISTANCE * 8; z++)
         {
             position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
             position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
@@ -64,28 +62,63 @@ void World::loadPerlinMap(vec3 camPosition)
 	}
 }
 
+
 void World::loadChunk(vec3 camPosition)
 {
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
 
 	vec3 position;
-	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
+
+	//int i = 1;
+	for (int i = 1; i <= 4; i *= 2)
 	{
-		for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
+		std::cout << "Generating for resolution " << i << " size " << (XZ_RENDER_DISTANCE * i) << std::endl;
+		for (int x = 0; x < (XZ_RENDER_DISTANCE * i); x++)
 		{
-			for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+			for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
 			{
-				position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-				position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
-				position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
-				findOrLoadChunk(position, tempChunks);
+				for (int z = 0; z < (XZ_RENDER_DISTANCE * i); z++)
+				{
+					position.x = trunc(camPosition.x / CHUNK_SIZE) + x - ((XZ_RENDER_DISTANCE * i) / 2);
+					position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
+					position.z = trunc(camPosition.z / CHUNK_SIZE) + z - ((XZ_RENDER_DISTANCE * i) / 2);
+					findOrLoadChunk(position, tempChunks, i);
+				}
 			}
 		}
+		for (auto& [key, value] : tempChunks) {
+    		_loadedChunks[key] = std::move(value);
+		}
+		//_loadedChunks = std::move(tempChunks);
+		//tempChunks.clear();
 	}
-
+	//_loadedChunks = std::move(tempChunks);
+	std::cout << _loadedChunks.size() << std::endl;
 	//_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
-	_loadedChunks = std::move(tempChunks);
 }
+
+//void World::loadChunk(vec3 camPosition)
+//{
+//	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
+
+//	vec3 position;
+//	for (int x = -XZ_RENDER_DISTANCE / 2; x < XZ_RENDER_DISTANCE / 2; x++)
+//	{
+//		for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
+//		{
+//			for (int z = -XZ_RENDER_DISTANCE / 2; z < XZ_RENDER_DISTANCE / 2; z++)
+//			{
+//				position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
+//				position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
+//				position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
+//				findOrLoadChunk(position, tempChunks);
+//			}
+//		}
+//	}
+
+//	//_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
+//	_loadedChunks = std::move(tempChunks);
+//}
 
 char World::getBlock(int x, int y, int z)
 {

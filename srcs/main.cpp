@@ -238,10 +238,10 @@ void updateChunks()
 {
 	chronoHelper.startChrono(0, "Update chunks");
 	chronoHelper.startChrono(1, "Perlin Generation");
-	_world->loadPerlinMap(cam.getWorldPosition());	
+	_world->loadPerlinMap(cam.getWorldPosition());
 	chronoHelper.stopChrono(1);
 	chronoHelper.startChrono(2, "Load chunks");
-	_world->loadChunk(cam.getWorldPosition());	
+	_world->loadChunk(cam.getWorldPosition());
 	chronoHelper.stopChrono(2);
 	textManager.resetTextureVertex();
 	chronoHelper.startChrono(3, "Send Faces to display");
@@ -297,7 +297,7 @@ void reshape(GLFWwindow* window, int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 	
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
+	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 100000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }

@@ -28,7 +28,7 @@ class TextureManager {
 		~TextureManager(); // Destructor declaration
 
 		void loadTexture(TextureType type, std::string path);
-		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int );
+		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int z, int resolution);
 		void resetTextureVertex();
 		int displayAllTexture(Camera &cam);
 		void processTextureVertex();

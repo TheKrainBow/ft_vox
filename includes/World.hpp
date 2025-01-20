@@ -35,5 +35,5 @@ public:
 	Chunk* getChunk(int chunkX, int chunkY, int chunkZ);
 private:
 	vec3 calculateBlockPos(int x, int y, int z) const;
-	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks);
+	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, int resolution);
 };

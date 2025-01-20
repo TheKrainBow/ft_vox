@@ -6,7 +6,7 @@
 /*   By: krain <krain@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:51:33 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/19 23:23:42 by krain            ###   ########.fr       */
+/*   Updated: 2025/01/20 00:36:52 by krain            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -61,7 +61,7 @@ NoiseGenerator::PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, 
 		for (int z = 0; z < size; z += resolution)
 		{
 			newMap->map[z * size + x] = noise((startX * size) + x, (startZ * size) + z);
-			newMap->map[z * size + x] = 100.0 + (newMap->map[z * size + x] * 50.0);
+			newMap->map[z * size + x] = 100.0 + (newMap->map[z * size + x] * 25.0);
 			newMap->map[z * size + x] = std::clamp(newMap->map[z * size + x], 0.0, 255.0);
 			if (newMap->heighest == std::numeric_limits<double>::min() || newMap->map[z * size + x] > newMap->heighest)
 				newMap->heighest = newMap->map[z * size + x];
