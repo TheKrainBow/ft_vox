@@ -38,8 +38,8 @@ void Camera::reset()
 	position = vec3(0.0, 0.0, 0.0);
 	xangle = 0.0;
 	yangle = 0.0;
-	rotationspeed = 1;
-	movementspeed = 0.1;
+	rotationspeed = 100.0f;
+	movementspeed = 50.0f;
 }
 
 vec3 Camera::getWorldPosition(void)

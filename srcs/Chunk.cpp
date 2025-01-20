@@ -35,22 +35,27 @@ void Chunk::loadHeight()
 
 void Chunk::loadBiome()
 {
-	for (int y = 0; y < CHUNK_SIZE ; y++)
+	for (int x = 0; x < CHUNK_SIZE ; x++)
 	{
-		for (int x = 0; x < CHUNK_SIZE ; x++)
+		for (int z = 0; z < CHUNK_SIZE ; z++)
 		{
-			for (int z = 0; z < CHUNK_SIZE ; z++)
+			bool surfaceFound = false;
+			for (int y = CHUNK_SIZE - 1; y >= 0; y--)
 			{
-				if (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] == 'A')
-					continue ;
-				double height = _perlinMap[z * CHUNK_SIZE + x];
-				size_t maxHeight = (size_t)(height);
-				if (y + _position.y * CHUNK_SIZE < maxHeight / 2)
-					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
-				else if (y + _position.y * CHUNK_SIZE < maxHeight)
-					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'D';
-				else if (y + _position.y * CHUNK_SIZE == maxHeight)
-					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'G';
+				int index = x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE);
+				if (!surfaceFound && _blocks[index] == 'S')
+				{
+					_blocks[index] = 'G';
+					surfaceFound = true;
+					for (int dirtLayer = 1; dirtLayer <= 5; dirtLayer++)
+					{
+						int dirtIndex = x + (z * CHUNK_SIZE) + ((y - dirtLayer) * CHUNK_SIZE * CHUNK_SIZE);
+						if (y - dirtLayer >= 0 && _blocks[dirtIndex] == 'S')
+							_blocks[dirtIndex] = 'D';
+						else
+							break ;
+					}
+				}
 			}
 		}
 	}

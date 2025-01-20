@@ -17,8 +17,8 @@ class Camera {
 		vec3 center;
 		float xangle = 0.0f;
 		float yangle = 0.0f;
-		float rotationspeed = 1.0f;
-		float movementspeed = 0.5f;
+		float rotationspeed = 125.0f;
+		float movementspeed = 50.0f;
 		bool mouseRotation = false;
 		vec2 mousePos;
 };
