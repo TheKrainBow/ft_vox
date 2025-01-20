@@ -16,14 +16,13 @@ void Chunk::loadHeight()
 {
 	if (loaded) return ;
 	loaded = true;
+	int maxHeight = (_position.x + _position.z) * 32;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
 		for (int x = 0; x < CHUNK_SIZE ; x++)
 		{
 			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
-				double height = _perlinMap[z * CHUNK_SIZE + x];
-				size_t maxHeight = (size_t)(height);
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
 				else

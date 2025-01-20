@@ -15,7 +15,7 @@ enum TextureType {
 	T_COBBLE,
 	T_STONE,
 	T_GRASS_SIDE,
-	T_GRASS_TOP,
+	T_GRASS_TOP
 };
 
 # define N_TEXTURES 5
@@ -23,11 +23,14 @@ enum TextureType {
 class TextureManager {
 	private:
 		Texture *_textures[N_TEXTURES];
+		GLuint mergedTextureId = 0;
 	public:
 		TextureManager(); // Constructor declaration
 		~TextureManager(); // Destructor declaration
 
 		void loadTexture(TextureType type, std::string path);
+		void loadTextures(std::vector<std::pair<TextureType, std::string>> data);
+		GLuint getMergedText() const;
 		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int );
 		void resetTextureVertex();
 		int displayAllTexture(Camera &cam);

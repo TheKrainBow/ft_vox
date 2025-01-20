@@ -49,17 +49,24 @@ World::~World() = default;
 
 void World::loadPerlinMap(vec3 camPosition)
 {
+	(void)camPosition;
     _perlinGenerator.clearPerlinMaps();
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
-
-	vec2 position;
-	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
+	//vec2 position;
+	//for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
+	//{
+    //    for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+    //    {
+    //        position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
+    //        position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
+    //        _perlinGenerator.addPerlinMap(position.x, position.y, CHUNK_SIZE, 1);
+    //    }
+	//}
+	
+	for (int x = -1; x <= 1; x++)
 	{
-        for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+        for (int z = -1; z <= 1; z++)
         {
-            position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-            position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
-            _perlinGenerator.addPerlinMap(position.x, position.y, CHUNK_SIZE, 1);
+            _perlinGenerator.addPerlinMap(x, z, CHUNK_SIZE, 1);
         }
 	}
 }

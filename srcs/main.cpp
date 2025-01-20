@@ -367,6 +367,13 @@ int main(int argc, char **argv)
 
 	initGLEW();
 	glEnable(GL_TEXTURE_2D);
+	textManager.loadTextures({
+		{ T_COBBLE, "textures/cobble.ppm" },
+		{ T_DIRT, "textures/dirt.ppm" },
+		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
+		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
+		{ T_STONE, "textures/stone.ppm" },
+	});
 	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
 	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
 	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
