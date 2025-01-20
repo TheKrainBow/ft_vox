@@ -35,6 +35,11 @@ double triangleDrown = 0.0;
 //World gen
 NoiseGenerator noise_gen(42);
 
+//Game time
+std::chrono::_V2::system_clock::time_point start;
+std::chrono::_V2::system_clock::time_point end;
+std::chrono::milliseconds delta;
+
 Textbox *debugBox;
 
 void calculateFps()
@@ -238,10 +243,10 @@ void updateChunks()
 {
 	chronoHelper.startChrono(0, "Update chunks");
 	chronoHelper.startChrono(1, "Perlin Generation");
-	_world->loadPerlinMap(cam.getWorldPosition());
+	_world->loadPerlinMap(cam.getWorldPosition());	
 	chronoHelper.stopChrono(1);
 	chronoHelper.startChrono(2, "Load chunks");
-	_world->loadChunk(cam.getWorldPosition());
+	_world->loadChunk(cam.getWorldPosition());	
 	chronoHelper.stopChrono(2);
 	textManager.resetTextureVertex();
 	chronoHelper.startChrono(3, "Send Faces to display");
@@ -257,18 +262,29 @@ void updateChunks()
 void update(GLFWwindow* window)
 {
 	(void)window;
+	// Calculate delta time
+	static auto lastTime = std::chrono::high_resolution_clock::now();
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float> elapsedTime = currentTime - lastTime;
+	float deltaTime = elapsedTime.count();
+	lastTime = currentTime;
 
+	// Apply delta
+	float moveSpeed = 1.0f * deltaTime;
+	float rotationSpeed = cam.rotationspeed * deltaTime;
+
+	start = std::chrono::high_resolution_clock::now(); 
 	vec3 oldCamChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
 
-	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(1.0, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) cam.move(0.0, 1.0, 0.0);
-	if (keyStates[GLFW_KEY_S]) cam.move(-1.0, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_D]) cam.move(0.0, -1.0, 0.0);
-	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -1.0);
-	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, 1.0);
+	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) cam.move(moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) cam.move(0.0, moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_S]) cam.move(-moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_D]) cam.move(0.0, -moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_SPACE]) cam.move(0.0, 0.0, -moveSpeed);
+	if (keyStates[GLFW_KEY_LEFT_SHIFT]) cam.move(0.0, 0.0, moveSpeed);
 
 	vec3 camChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
 	if (cam.getWorldPosition().x < 0) camChunk.x--;
@@ -278,10 +294,10 @@ void update(GLFWwindow* window)
 	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks();
 
-	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += cam.rotationspeed;
-	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= cam.rotationspeed;
-	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= cam.rotationspeed;
-	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += cam.rotationspeed;
+	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += rotationSpeed;
+	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= rotationSpeed;
+	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= rotationSpeed;
+	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += rotationSpeed;
 
 	while (cam.xangle < 0)
 		cam.xangle += 360;
@@ -289,6 +305,8 @@ void update(GLFWwindow* window)
 		cam.xangle -= 360;
 
 	display(_window);
+	end = std::chrono::high_resolution_clock::now(); 
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
 }
 
 void reshape(GLFWwindow* window, int width, int height)
@@ -297,7 +315,7 @@ void reshape(GLFWwindow* window, int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 	
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 100000.0f);
+	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }

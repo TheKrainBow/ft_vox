@@ -2,10 +2,9 @@
 #include "World.hpp"
 #include "globals.hpp"
 
-Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, int resolution) : _world(world)
+Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world) : _world(world)
 {
 	_position = vec3(x, y, z);
-	_resolution = resolution;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
 	bzero(_blocks.data(), _blocks.size());
@@ -15,22 +14,25 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 
 void Chunk::loadHeight()
 {
-	if (_loaded) return ;
-	_loaded = true;
-	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
+	if (loaded) return ;
+	loaded = true;
+	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
-		for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+		for (int x = 0; x < CHUNK_SIZE ; x++)
 		{
-			for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
+			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
 				double height = _perlinMap[z * CHUNK_SIZE + x];
 				size_t maxHeight = (size_t)(height);
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+				else
+					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'A';
 			}
 		}
 	}
 }
+
 void Chunk::loadBiome()
 {
 	for (int x = 0; x < CHUNK_SIZE ; x++)
@@ -61,7 +63,7 @@ void Chunk::loadBiome()
 
 Chunk::~Chunk()
 {
-	_loaded = false;
+	loaded = false;
 }
 
 char Chunk::getBlock(int x, int y, int z)
@@ -76,18 +78,18 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 	int x = _position.x * CHUNK_SIZE + blockX;
 	int y = _position.y * CHUNK_SIZE + blockY;
 	int z = _position.z * CHUNK_SIZE + blockZ;
-	if ((blockY <= 0 && !_world.getBlock(x, y - _resolution, z)) || ((blockY != 0 && !_blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - _resolution) * CHUNK_SIZE * CHUNK_SIZE)])))
-		textManager.addTextureVertex(down, DOWN, x, y, z, _resolution);
-	if ((blockY >= CHUNK_SIZE - _resolution && !_world.getBlock(x, y + _resolution, z)) || ((blockY < CHUNK_SIZE - _resolution && !_blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + _resolution) * CHUNK_SIZE * CHUNK_SIZE)])))
-		textManager.addTextureVertex(up, UP, x, y, z, _resolution);
-	if ((blockZ <= 0 && !_world.getBlock(x, y, z - _resolution)) || ((blockZ != 0 && !_blocks[blockX + ((blockZ - _resolution) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)])))
-		textManager.addTextureVertex(north, NORTH, x, y, z, _resolution);
-	if ((blockZ >= CHUNK_SIZE - _resolution && !_world.getBlock(x, y, z + _resolution)) || ((blockZ < CHUNK_SIZE - _resolution && !_blocks[blockX + ((blockZ + _resolution) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)])))
-		textManager.addTextureVertex(south, SOUTH, x, y, z, _resolution);
-	if ((blockX <= 0 && !_world.getBlock(x - _resolution, y, z)) || ((blockX != 0 && !_blocks[(blockX - _resolution) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)])))
-		textManager.addTextureVertex(east, EAST, x, y, z, _resolution);
-	if ((blockX >= CHUNK_SIZE - _resolution && !_world.getBlock(x + _resolution, y, z)) || ((blockX < CHUNK_SIZE - _resolution && !_blocks[(blockX + _resolution) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)])))
-		textManager.addTextureVertex(west, WEST, x, y, z, _resolution);
+	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 'A') || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(down, DOWN, x, y, z);
+	if ((blockY == (CHUNK_SIZE - 1) && _world.getBlock(x, y + 1, z) == 'A') || ((blockY != (CHUNK_SIZE - 1) && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(up, UP, x, y, z);
+	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 'A') || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(north, NORTH, x, y, z);
+	if ((blockZ == (CHUNK_SIZE - 1) && _world.getBlock(x, y, z + 1) == 'A') || ((blockZ != (CHUNK_SIZE - 1) && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(south, SOUTH, x, y, z);
+	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 'A') || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(east, EAST, x, y, z);
+	if ((blockX == (CHUNK_SIZE - 1) && _world.getBlock(x + 1, y, z) == 'A') || ((blockX != (CHUNK_SIZE - 1) && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
+		textManager.addTextureVertex(west, WEST, x, y, z);
 }
 
 vec3 Chunk::getPosition()
@@ -97,15 +99,15 @@ vec3 Chunk::getPosition()
 
 void Chunk::sendFacesToDisplay()
 {
-	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
+	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
-		for (int y = 0; y < CHUNK_SIZE; y += _resolution)
+		for (int y = 0; y < CHUNK_SIZE; y++)
 		{
-			for (int z = 0; z < CHUNK_SIZE; z += _resolution)
+			for (int z = 0; z < CHUNK_SIZE; z++)
 			{
 				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
 				{
-					case 0:
+					case 'A':
 						break;
 					case 'D':
 						addBlock(x, y, z, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
@@ -114,7 +116,7 @@ void Chunk::sendFacesToDisplay()
 						addBlock(x, y, z, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
 						break;
 					case 'G':
-						addBlock(x, y, z, T_GRASS_TOP, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
+						addBlock(x, y, z, T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
 						break;
 					default :
 						break;
@@ -122,19 +124,4 @@ void Chunk::sendFacesToDisplay()
 			}
 		}
 	}
-}
-
-void Chunk::updateResolution(int newResolution)
-{
-	std::cout << "Upgrading resolution from " << _resolution << " to " << newResolution << std::endl;
-	_resolution = newResolution;
-	_loaded = false;
-	bzero(_blocks.data(), _blocks.size());
-	loadHeight();
-	loadBiome();
-}
-
-int Chunk::getResolution()
-{
-	return (_resolution);
 }
