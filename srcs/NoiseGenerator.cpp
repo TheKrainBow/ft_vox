@@ -10,7 +10,7 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	_permutation.resize(512);
 	for (int i = 0; i < 512; i++) _permutation[i] = p[i % 256];
 
-	std::vector<Point> splinePoints = {{-1.0, 50.0}, {0.3, 100.0}, {0.4, 150.0}, {1.0, 150.0}};
+	std::vector<Point> splinePoints = {{-0.5, 50.0}, {-0.1, 100.0}, {0.2, 150.0}, {0.5, 150.0}};
 	spline.setPoints(splinePoints);
 }
 
@@ -49,9 +49,9 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		1.0, // amplitude
-		0.001, // frequency
-		0.8, // persistance
-		4.0, // lacunarity
+		0.01, // frequency
+		0.5, // persistance
+		2.0, // lacunarity
 		4 // nb_octaves
 	};
 
@@ -66,8 +66,8 @@ vec2 NoiseGenerator::getBorderWarping(double x, double z) const
 	double noiseX = noise(x, z);
 	double noiseY = noise(z, x);
 	vec2 offset;
-	offset.x = noiseX * 15.0;
-	offset.y = noiseY * 15.0;
+	offset.x = noiseX * 16.0;
+	offset.y = noiseY * 16.0;
 	return offset;
 }
 
@@ -77,7 +77,7 @@ int NoiseGenerator::getHeight(vec2 pos)
 	double continentalNoise = getContinentalNoise(pos);
 	double surfaceHeight = spline.interpolate(continentalNoise);
 	int height;
-	height = static_cast<size_t>(150.0 + surfaceHeight);
+	height = static_cast<size_t>(100.0 + surfaceHeight);
 	height = std::clamp(height, 0, 255);
 	return height;
 }
