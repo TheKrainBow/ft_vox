@@ -136,7 +136,7 @@ void Chunk::sendFacesToDisplay()
 	}
 }
 
-void Chunk::addTextureVertex(int x, int y, int z, unsigned int direction, int textureID, int u, int v)
+void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID, int u, int v)
 {
 	(void)u;
 	(void)v;
