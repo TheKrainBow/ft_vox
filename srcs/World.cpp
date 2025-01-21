@@ -21,7 +21,8 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
     if (100.0 + perlinMap->heighest * 100.0 < (position.y - 1) * CHUNK_SIZE)
         return ;
     auto currentTuple = std::make_tuple((int)position.x, (int)position.y, (int)position.z);
-	if (auto it = _loadedChunks.find(currentTuple); it != _loadedChunks.end())
+	auto it = _loadedChunks.find(currentTuple);
+	if (it != _loadedChunks.end())
 	{
 		tempChunks[currentTuple] = std::move(it->second);
 		_loadedChunks.erase(it);
@@ -75,20 +76,22 @@ void World::loadChunk(vec3 camPosition)
 {
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
 
-	vec3 position;
-	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
-	{
-		for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
-		{
-			for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
-			{
-				position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-				position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
-				position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
-				findOrLoadChunk(position, tempChunks);
-			}
-		}
-	}
+	(void)camPosition;
+	findOrLoadChunk(vec3(0, 0, 0), tempChunks);
+	// vec3 position;
+	// for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
+	// {
+	// 	for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
+	// 	{
+	// 		for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+	// 		{
+	// 			position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
+	// 			position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
+	// 			position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
+	// 			findOrLoadChunk(position, tempChunks);
+	// 		}
+	// 	}
+	// }
 
 	//_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
 	_loadedChunks = std::move(tempChunks);
@@ -126,4 +129,13 @@ void World::sendFacesToDisplay()
         if (chunk.second)
             chunk.second->sendFacesToDisplay();
     }
+}
+
+int World::display(Camera &cam)
+{
+	(void)cam;
+	int triangleDrown = 0;
+	for (auto &chunk : _loadedChunks)
+		triangleDrown += chunk.second->display();
+	return (triangleDrown);
 }

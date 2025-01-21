@@ -210,15 +210,18 @@ void display(GLFWwindow* window)
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	
+	glBindTexture(GL_TEXTURE_2D, textManager.getMergedText());  // Bind the texture
+	glUniform1i(glGetUniformLocation(shaderProgram, "textureAtlas"), 0);
+	
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);      // Cull back faces
+	// glEnable(GL_CULL_FACE);
+	// glCullFace(GL_BACK);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	triangleDrown = textManager.displayAllTexture(cam);
+	triangleDrown = _world->display(cam);
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
@@ -241,22 +244,22 @@ struct pair_hash {
 
 void updateChunks()
 {
-	chronoHelper.startChrono(0, "Update chunks");
-	chronoHelper.startChrono(1, "Perlin Generation");
+	// chronoHelper.startChrono(0, "Update chunks");
+	// chronoHelper.startChrono(1, "Perlin Generation");
 	_world->loadPerlinMap(cam.getWorldPosition());	
-	chronoHelper.stopChrono(1);
-	chronoHelper.startChrono(2, "Load chunks");
+	// chronoHelper.stopChrono(1);
+	// chronoHelper.startChrono(2, "Load chunks");
 	_world->loadChunk(cam.getWorldPosition());	
-	chronoHelper.stopChrono(2);
-	textManager.resetTextureVertex();
-	chronoHelper.startChrono(3, "Send Faces to display");
+	// chronoHelper.stopChrono(2);
+	// textManager.resetTextureVertex();
+	// chronoHelper.startChrono(3, "Send Faces to display");
 	_world->sendFacesToDisplay();
-	chronoHelper.stopChrono(3);
-	chronoHelper.startChrono(4, "Process Vertex");
-	textManager.processTextureVertex();
-	chronoHelper.stopChrono(4);
-	chronoHelper.stopChrono(0);
-	chronoHelper.printChronos();
+	// chronoHelper.stopChrono(3);
+	// chronoHelper.startChrono(4, "Process Vertex");
+	// textManager.processTextureVertex();
+	// chronoHelper.stopChrono(4);
+	// chronoHelper.stopChrono(0);
+	// chronoHelper.printChronos();
 }
 
 void update(GLFWwindow* window)
@@ -374,11 +377,6 @@ int main(int argc, char **argv)
 		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
 		{ T_STONE, "textures/stone.ppm" },
 	});
-	textManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
-	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
-	textManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
-	textManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
-	textManager.loadTexture(T_STONE, "textures/stone.ppm");
 
 	World overworld(42);
 
@@ -389,15 +387,16 @@ int main(int argc, char **argv)
 	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
 
-	shaderProgram = createShaderProgram("shaders/basic.vert", "shaders/basic.frag");
-
+	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
+	glfwSwapInterval(0);
 	//// Set the active shader program
 	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
 
 	glUseProgram(shaderProgram);
-	glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);  // Use texture unit 0
+	// glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);  // Use texture unit 0
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	
 
 	Textbox debugBoxObject(_window, 0, 0, 200, 200);
 	debugBox = &debugBoxObject;
