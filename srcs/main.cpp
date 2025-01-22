@@ -211,6 +211,7 @@ void display(GLFWwindow* window)
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	
 	glBindTexture(GL_TEXTURE_2D, textManager.getMergedText());  // Bind the texture
+	//glBindTexture(GL_TEXTURE_2D, textManager.getTexture(T_DIRT));  // Bind the texture
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureAtlas"), 0);
 	
 	if (showTriangleMesh)
@@ -371,12 +372,13 @@ int main(int argc, char **argv)
 	initGLEW();
 	glEnable(GL_TEXTURE_2D);
 	textManager.loadTextures({
-		{ T_COBBLE, "textures/cobble.ppm" },
 		{ T_DIRT, "textures/dirt.ppm" },
-		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
-		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
+		{ T_COBBLE, "textures/cobble.ppm" },
 		{ T_STONE, "textures/stone.ppm" },
+		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
+		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
 	});
+	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
 
 	World overworld(42);
 
@@ -408,7 +410,7 @@ int main(int argc, char **argv)
 	debugBoxObject.addLine("z: ", Textbox::FLOAT, &cam.position.z);
 	debugBoxObject.addLine("xangle: ", Textbox::FLOAT, &cam.xangle);
 	debugBoxObject.addLine("yangle: ", Textbox::FLOAT, &cam.yangle);
-	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
+	glClearColor(0.63f, 0.91f, 0.92f, 1.0f); // Soft sky blue
 	// Main loop
 	while (!glfwWindowShouldClose(_window))
 	{

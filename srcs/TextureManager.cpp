@@ -171,7 +171,7 @@ void TextureManager::loadTexture(TextureType type, std::string path) {
 
 	// Free the RGB data after uploading
 	delete[] data;
-	_textures[type] = new Texture(mergedTextureId);
+	_textures[type] = new Texture(newTextureID);
 }
 
 // Constructor definition (no specific code yet)
@@ -223,4 +223,9 @@ int TextureManager::displayAllTexture(Camera &cam)
 		triangleDrown += _textures[i]->display(WEST);
 	}
 	return (triangleDrown);
+}
+
+GLuint TextureManager::getTexture(TextureType text)
+{
+	return _textures[text]->getTexture();
 }

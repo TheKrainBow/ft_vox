@@ -31,6 +31,7 @@ class TextureManager {
 		void loadTexture(TextureType type, std::string path);
 		void loadTextures(std::vector<std::pair<TextureType, std::string>> data);
 		GLuint getMergedText() const;
+		GLuint getTexture(TextureType text);
 		void addTextureVertex(TextureType type, e_direction dir, int x, int y, int );
 		void resetTextureVertex();
 		int displayAllTexture(Camera &cam);
