@@ -10,7 +10,7 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	_permutation.resize(512);
 	for (int i = 0; i < 512; i++) _permutation[i] = p[i % 256];
 
-	std::vector<Point> splinePoints = {{-1.0, 0.0}, {-0.3, 50.0}, {0.2, 100.0}, {0.6, 150.0}, {1.0, 150.0}};
+	std::vector<Point> splinePoints = {{-1.0, 0.0}, {-0.2, 50.0}, {0.2, 100.0}, {0.6, 150.0}, {1.0, 150.0}};
 	spline.setPoints(splinePoints);
 }
 
