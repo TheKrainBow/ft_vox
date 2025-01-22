@@ -10,7 +10,7 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	_permutation.resize(512);
 	for (int i = 0; i < 512; i++) _permutation[i] = p[i % 256];
 
-	std::vector<Point> splinePoints = {{-0.5, 50.0}, {-0.1, 100.0}, {0.2, 150.0}, {0.5, 150.0}};
+	std::vector<Point> splinePoints = {{-1.0, 0.0}, {-0.3, 50.0}, {0.2, 100.0}, {0.6, 150.0}, {1.0, 150.0}};
 	spline.setPoints(splinePoints);
 }
 
@@ -49,7 +49,24 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		1.0, // amplitude
-		0.01, // frequency
+		0.005, // frequency
+		0.5, // persistance
+		2.0, // lacunarity
+		4 // nb_octaves
+	};
+
+	setNoiseData(nData);
+	_noise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return _noise;
+}
+
+double NoiseGenerator::getPeaksAndValleysNoise(vec2 pos)
+{
+	double _noise = 0.0;
+	NoiseData nData = {
+		1.0, // amplitude
+		0.005, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
 		4 // nb_octaves
@@ -73,7 +90,7 @@ vec2 NoiseGenerator::getBorderWarping(double x, double z) const
 
 int NoiseGenerator::getHeight(vec2 pos)
 {
-	pos = getBorderWarping(pos.x, pos.y);
+	//pos = getBorderWarping(pos.x, pos.y);
 	double continentalNoise = getContinentalNoise(pos);
 	double surfaceHeight = spline.interpolate(continentalNoise);
 	int height;
