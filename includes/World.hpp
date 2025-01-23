@@ -21,7 +21,7 @@ class World
 private:
 	NoiseGenerator                                              _perlinGenerator;
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _loadedChunks;
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _cachedChunks;
+	//std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _cachedChunks;
 	Camera                                                      _player;
 public:
 	World(int seed);

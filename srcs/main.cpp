@@ -262,7 +262,7 @@ void updateChunks()
 	// textManager.processTextureVertex();
 	// chronoHelper.stopChrono(4);
 	 chronoHelper.stopChrono(0);
-	 std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	 std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << std::endl;
 	 chronoHelper.printChronos();
 }
 
