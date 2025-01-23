@@ -29,12 +29,12 @@
 using namespace glm;
 
 enum e_direction {
-	UP,
-	DOWN,
 	NORTH,
 	SOUTH,
 	WEST,
-	EAST
+	EAST,
+	DOWN,
+	UP,
 };
 
 enum BlockType {

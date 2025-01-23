@@ -50,9 +50,9 @@ void TextureManager::loadTextures(std::vector<std::pair<TextureType, std::string
 		return ;
 	int totalWidth = 0;
 	int totalHeight = 0;
-	std::vector<t_rgb *> textureData;
-	std::vector<int> widths;
-	std::vector<int> heights;
+	std::deque<t_rgb *> textureData;
+	std::deque<int> widths;
+	std::deque<int> heights;
 
 	for (auto &pair : textureList)
 	{
@@ -63,9 +63,9 @@ void TextureManager::loadTextures(std::vector<std::pair<TextureType, std::string
 			std::cerr << "Error: Skipping texture" << pair.second << std::endl;
 			continue ;
 		}
-		textureData.push_back(rgb_data);
-		widths.push_back(width);
-		heights.push_back(height);
+		textureData.push_front(rgb_data);
+		widths.push_front(width);
+		heights.push_front(height);
 		totalWidth = std::max(totalWidth, width);
 		totalHeight += height;
 	}

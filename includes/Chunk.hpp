@@ -27,7 +27,7 @@ class Chunk
 		char getBlock(int x, int y, int z);
 		void setupBuffers();
 		int display(void);
-		void addTextureVertex(int x, int y, int z, int direction, int textureID, int u, int v);
+		void addTextureVertex(int x, int y, int z, int direction, int textureID);
 		// void renderBoundaries() const;
 	private:
 		void addBlock(int x, int y, int z, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);

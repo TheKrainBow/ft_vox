@@ -18,21 +18,21 @@ void Chunk::loadHeight()
 {
 	if (loaded) return ;
 	loaded = true;
-	// int maxHeight = (_position.x + _position.z) * 32;
 	// _blocks[0] = 'S';
-	_blocks[(4 * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
-	_blocks[(6 * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
-	// for (int y = 0; y < CHUNK_SIZE ; y++)
-	// {
-	// 	for (int x = 0; x < CHUNK_SIZE ; x++)
-	// 	{
-	// 		for (int z = 0; z < CHUNK_SIZE ; z++)
-	// 		{
-	// 			if (y + _position.y * CHUNK_SIZE <= maxHeight)
-	// 				_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
-	// 		}
-	// 	}
-	// }
+	//_blocks[(4 * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+	//_blocks[(6 * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+	 for (int y = 0; y < CHUNK_SIZE ; y++)
+	 {
+	 	for (int x = 0; x < CHUNK_SIZE ; x++)
+	 	{
+	 		for (int z = 0; z < CHUNK_SIZE ; z++)
+	 		{
+				int maxHeight = (_position.x + _position.z) * 32;
+	 			if (y + _position.y * CHUNK_SIZE <= maxHeight)
+	 				_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+	 		}
+	 	}
+	 }
 }
 
 void Chunk::loadBiome()
@@ -83,27 +83,25 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 	(void)west;
 	(void)north;
 	(void)south;
+	(void)blockX;
+	(void)blockY;
+	(void)blockZ;
 	int x = _position.x * CHUNK_SIZE + blockX;
 	int y = _position.y * CHUNK_SIZE + blockY;
 	int z = _position.z * CHUNK_SIZE + blockZ;
-	// if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 0) || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-	addTextureVertex(x, y, z, 0, T_COBBLE, 0, 0);
-	addTextureVertex(x + 1, y, z, 0, T_COBBLE, 1, 0);
-	addTextureVertex(x, y + 1, z, 0, T_COBBLE, 0, 1);
-	addTextureVertex(x + 1, y + 1, z, 0, T_COBBLE, 1, 1);
 
-	//addTextureVertex(x, y, z, 0, T_DIRT, 0, 0);
-	//addTextureVertex(x + 1, y + 1, z, 0, T_DIRT, 1, 1);
-	// if ((blockY == (CHUNK_SIZE - 1) && _world.getBlock(x, y + 1, z) == 0) || ((blockY != (CHUNK_SIZE - 1) && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		// addTextureVertex(x, y, z, UP, up);
-	// if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 0) || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		// addTextureVertex(x, y, z, NORTH, north);
-	// if ((blockZ == (CHUNK_SIZE - 1) && _world.getBlock(x, y, z + 1) == 0) || ((blockZ != (CHUNK_SIZE - 1) && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		// addTextureVertex(x, y, z, SOUTH, south);
-	// if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 0) || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		// addTextureVertex(x, y, z, EAST, east);
-	// if ((blockX == (CHUNK_SIZE - 1) && _world.getBlock(x + 1, y, z) == 0) || ((blockX != (CHUNK_SIZE - 1) && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		// addTextureVertex(x, y, z, WEST, west);
+	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 0) || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	addTextureVertex(x, y, z, DOWN, down);
+	if ((blockY == (CHUNK_SIZE - 1) && _world.getBlock(x, y + 1, z) == 0) || ((blockY != (CHUNK_SIZE - 1) && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addTextureVertex(x, y, z, UP, up);
+	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 0) || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addTextureVertex(x, y, z, NORTH, north);
+	if ((blockZ == (CHUNK_SIZE - 1) && _world.getBlock(x, y, z + 1) == 0) || ((blockZ != (CHUNK_SIZE - 1) && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addTextureVertex(x, y, z, SOUTH, south);
+	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 0) || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addTextureVertex(x, y, z, EAST, east);
+	if ((blockX == (CHUNK_SIZE - 1) && _world.getBlock(x + 1, y, z) == 0) || ((blockX != (CHUNK_SIZE - 1) && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addTextureVertex(x, y, z, WEST, west);
 }
 
 vec3 Chunk::getPosition()
@@ -138,10 +136,10 @@ void Chunk::sendFacesToDisplay()
 	}
 }
 
-void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID, int u, int v)
+void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
 {
-	(void)u;
-	(void)v;
+	(void)textureID;
+	(void)direction;
 	if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || direction >= 6)
 		return ;
 		
@@ -151,8 +149,6 @@ void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID, 
 	newVertex |= (z & 0x3F) << 12;  // Use 6 bits for z
 	newVertex |= (direction & 0x07) << 18;
 	newVertex |= (textureID & 0x7F) << 21;
-	newVertex |= (u & 0x01) << 28;  // Store U in bit 28
-	newVertex |= (v & 0x01) << 29;  // Store V in bit 29
 
 	_vertexData.push_back(newVertex);
 	//_vertexData.push_back(x);
@@ -164,42 +160,35 @@ void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID, 
 	//_vertexData.push_back(v);
 }
 
-GLint vertices[] = {
+GLfloat vertices[] = {
     // Positions      // UVs
-    0, 0, 0, 0, 0, // Bottom-left
-    1, 0, 0, 1, 0, // Bottom-left
-    0, 1, 0, 0, 1, // Bottom-left
-    1, 1, 0, 1, 1, // Bottom-left
+    0, 0, 0, // Bottom-left
+    1, 0, 0, // Bottom-left
+    0, 1, 0, // Bottom-left
+    1, 1, 0, // Bottom-left
 };
 
-void Chunk::setupBuffers()
-{
+void Chunk::setupBuffers() {
     if (_vertexData.empty()) return;
 
     glBindVertexArray(_vao);
 
+    // Vertex data (positions and UVs)
     glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, _vertexData.size() * sizeof(int), _vertexData.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    // Assuming that 'vertex' stores all the data packed into a single integer
-    glVertexAttribIPointer(0, 1, GL_INT, sizeof(int), (void*)0);  // Attribute 0 for vertex data
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0); // Positions
     glEnableVertexAttribArray(0);
 
-	// Attribute 0: X, Y, Z (3 ints)
-	//glVertexAttribIPointer(0, 3, GL_INT, 7 * sizeof(int), (void*)0);  // Start at offset 0
-	//glEnableVertexAttribArray(0);
+    // Instance data (instancePositions)
+    GLuint _instanceVBO;
+    glGenBuffers(1, &_instanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
 
-	//// Attribute 1: Direction (1 int)
-	//glVertexAttribIPointer(1, 1, GL_INT, 7 * sizeof(int), (void*)(3 * sizeof(int)));  // Offset = 3 * sizeof(int)
-	//glEnableVertexAttribArray(1);
-
-	//// Attribute 2: TextureID (1 int)
-	//glVertexAttribIPointer(2, 1, GL_INT, 7 * sizeof(int), (void*)(4 * sizeof(int)));  // Offset = 4 * sizeof(int)
-	//glEnableVertexAttribArray(2);
-
-	//// Attribute 3: U and V (2 ints)
-	//glVertexAttribIPointer(3, 2, GL_INT, 7 * sizeof(int), (void*)(5 * sizeof(int)));  // Offset = 5 * sizeof(int)
-	//glEnableVertexAttribArray(3);
+    glVertexAttribIPointer(1, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+    glEnableVertexAttribArray(1);
+    glVertexAttribDivisor(1, 1); // Update once per instance
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -207,18 +196,15 @@ void Chunk::setupBuffers()
 
 int Chunk::display(void)
 {
-	//if (_vertexData.size() % 7 != 0)
-	//{
-	//	std::cout << "Error, size(" << _vertexData.size() << ") is not 7." << std::endl;
-	//	return 0;
-	//}
     setupBuffers();
+	
 
     glBindVertexArray(_vao);
-	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, 8);
+	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
+	glBindVertexArray(0);
+	//glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, 8);
 	//glDrawArraysInstanced(GL_TRIANGLE_STRIP, 4, 4, 4);
-    glBindVertexArray(0);
     // Draw triangles (each triangle has 3 vertices, so we need to divide by 3)
     //glDrawArrays(GL_TRIANGLES, 0, _vertexData.size());  // Adjust based on number of vertices
-    return (_vertexData.size() / 2);
+    return (_vertexData.size());
 }

@@ -30,7 +30,7 @@ int frameCount = 0;
 double lastFrameTime = 0.0;
 double currentFrameTime = 0.0;
 double fps = 0.0;
-double triangleDrown = 0.0;
+double verticies = 0.0;
 
 //World gen
 NoiseGenerator noise_gen(42);
@@ -218,11 +218,11 @@ void display(GLFWwindow* window)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	// glEnable(GL_CULL_FACE);
-	// glCullFace(GL_BACK);      // Cull back faces
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	triangleDrown = _world->display(cam);
+	verticies = _world->display(cam);
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
@@ -389,7 +389,7 @@ int main(int argc, char **argv)
 	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
 
-	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
+	shaderProgram = createShaderProgram("shaders/test.vert", "shaders/test.frag");
 	glfwSwapInterval(0);
 	//// Set the active shader program
 	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
@@ -404,7 +404,7 @@ int main(int argc, char **argv)
 	debugBox = &debugBoxObject;
 	debugBoxObject.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBoxObject.addLine("FPS: ", Textbox::DOUBLE, &fps);
-	debugBoxObject.addLine("Triangles: ", Textbox::DOUBLE, &triangleDrown);
+	debugBoxObject.addLine("Vertices: ", Textbox::DOUBLE, &verticies);
 	debugBoxObject.addLine("x: ", Textbox::FLOAT, &cam.position.x);
 	debugBoxObject.addLine("y: ", Textbox::FLOAT, &cam.position.y);
 	debugBoxObject.addLine("z: ", Textbox::FLOAT, &cam.position.z);
