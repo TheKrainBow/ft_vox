@@ -32,6 +32,7 @@ double currentFrameTime = 0.0;
 double fps = 0.0;
 double verticies = 0.0;
 
+
 //World gen
 NoiseGenerator noise_gen(42);
 
@@ -77,6 +78,7 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+	
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 }
 
@@ -275,7 +277,10 @@ void update(GLFWwindow* window)
 	lastTime = currentTime;
 
 	// Apply delta
-	float moveSpeed = 1.0f * deltaTime;
+	float moveSpeed;
+	if (keyStates[GLFW_KEY_LEFT_CONTROL]) moveSpeed = (cam.movementspeed * 2.0) * deltaTime;
+	else moveSpeed = cam.movementspeed * deltaTime;
+	if (!isWSL()) cam.rotationspeed = 1.5;
 	float rotationSpeed = cam.rotationspeed * deltaTime;
 
 	start = std::chrono::high_resolution_clock::now(); 
