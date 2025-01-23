@@ -2,7 +2,7 @@
 #include "Camera.hpp"
 
 
-Camera::Camera() : position{3.8, -8, 3.8}, center{0.0f, 0.0f, 10.0f} { xangle = 225; yangle = -26;};
+Camera::Camera() : position{3.8, -120, 3.8}, center{0.0f, 0.0f, 10.0f} { xangle = 225; yangle = -26;};
 /*
 	Moving the camera around (first person view)
 */

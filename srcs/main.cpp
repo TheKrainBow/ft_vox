@@ -389,7 +389,7 @@ int main(int argc, char **argv)
 	reshape(_window, windowWidth, windowHeight);
 	glEnable(GL_DEPTH_TEST);
 
-	shaderProgram = createShaderProgram("shaders/test.vert", "shaders/test.frag");
+	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	glfwSwapInterval(0);
 	//// Set the active shader program
 	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
