@@ -175,19 +175,13 @@ void Chunk::setupBuffers() {
     glEnableVertexAttribArray(2);
     glVertexAttribDivisor(2, 1); // Update once per instance
 
-    glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 int Chunk::display(void)
 {
     setupBuffers();
-    glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);
-	//glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, 8);
-	//glDrawArraysInstanced(GL_TRIANGLE_STRIP, 4, 4, 4);
-    // Draw triangles (each triangle has 3 vertices, so we need to divide by 3)
-    //glDrawArrays(GL_TRIANGLES, 0, _vertexData.size());  // Adjust based on number of vertices
     return (_vertexData.size());
 }
