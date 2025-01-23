@@ -9,11 +9,12 @@ class World;
 class Chunk
 {
 	private:
-		vec3	_position;
+		vec3				_position;
 		std::vector<char>	_blocks;
-		double	_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
-		World	&_world;
-		bool	loaded = false;
+		double				_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
+		World				&_world;
+		bool				_loaded = false;
+		bool				_hasSentFaces = false;
 		GLuint				_vao;
 		GLuint				_vbo;
 		GLuint				_instanceVBO;

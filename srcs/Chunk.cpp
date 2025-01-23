@@ -35,8 +35,8 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 
 void Chunk::loadHeight()
 {
-	if (loaded) return ;
-	loaded = true;
+	if (_loaded) return ;
+	_loaded = true;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
 		for (int x = 0; x < CHUNK_SIZE ; x++)
@@ -82,7 +82,7 @@ void Chunk::loadBiome()
 
 Chunk::~Chunk()
 {
-	loaded = false;
+	_loaded = false;
 }
 
 char Chunk::getBlock(int x, int y, int z)
@@ -119,7 +119,8 @@ vec3 Chunk::getPosition()
 
 void Chunk::sendFacesToDisplay()
 {
-	_vertexData.clear();
+	if (_hasSentFaces == true)
+		return ;
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)
@@ -143,8 +144,8 @@ void Chunk::sendFacesToDisplay()
 			}
 		}
 	}
-    setupBuffers();
-
+	setupBuffers();
+	_hasSentFaces = true;
 }
 
 void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
@@ -162,7 +163,6 @@ void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
 	newVertex |= (textureID & 0x7F) << 18;
 	_vertexData.push_back(newVertex);
 }
-
 
 void Chunk::setupBuffers() {
 
@@ -184,8 +184,10 @@ void Chunk::setupBuffers() {
 
 int Chunk::display(void)
 {
+	if (_vertexData.empty())
+		return 0;
     glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);
-    return (_vertexData.size());
+    return (_vertexData.size() * 2);
 }

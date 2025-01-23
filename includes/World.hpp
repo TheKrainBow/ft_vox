@@ -21,7 +21,7 @@ class World
 private:
 	NoiseGenerator                                              _perlinGenerator;
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _loadedChunks;
-	//std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _cachedChunks;
+	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _cachedChunks;
 	Camera                                                      _player;
 public:
 	World(int seed);
@@ -30,6 +30,8 @@ public:
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(int x, int y, int z);
+	int	getLoadedChunksNumber();
+	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
 	Chunk* getChunk(int chunkX, int chunkY, int chunkZ);
 	int display(Camera &cam);

@@ -27,11 +27,11 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
 		tempChunks[currentTuple] = std::move(it->second);
 		_loadedChunks.erase(it);
 	}
-	// else if (auto it = _cachedChunks.find(currentTuple); it != _cachedChunks.end())
-	// {
-	// 	tempChunks[currentTuple] = std::move(it->second);
-	// 	_cachedChunks.erase(it);
-	// }
+	else if (auto it = _cachedChunks.find(currentTuple); it != _cachedChunks.end())
+	{
+		tempChunks[currentTuple] = std::move(it->second);
+		_cachedChunks.erase(it);
+	}
 	else
 	{
 		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this);
@@ -83,8 +83,7 @@ void World::loadChunk(vec3 camPosition)
 	 		}
 	 	}
 	 }
-
-	//_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
+	_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
 	_loadedChunks = std::move(tempChunks);
 }
 
@@ -107,9 +106,9 @@ Chunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
     auto it = _loadedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
     if (it != _loadedChunks.end())
         return it->second.get();
-    // auto itt = _cachedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
-    // if (itt != _cachedChunks.end())
-    //     return itt->second.get();
+     auto itt = _cachedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
+     if (itt != _cachedChunks.end())
+         return itt->second.get();
     return nullptr;
 }
 
@@ -129,4 +128,15 @@ int World::display(Camera &cam)
 	for (auto &chunk : _loadedChunks)
 		triangleDrown += chunk.second->display();
 	return (triangleDrown);
+}
+
+
+int	World::getLoadedChunksNumber()
+{
+	return _loadedChunks.size();
+}
+
+int	World::getCachedChunksNumber()
+{
+	return _cachedChunks.size();
 }

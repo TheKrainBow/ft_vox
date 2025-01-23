@@ -245,22 +245,23 @@ struct pair_hash {
 
 void updateChunks()
 {
-	// chronoHelper.startChrono(0, "Update chunks");
-	// chronoHelper.startChrono(1, "Perlin Generation");
-	_world->loadPerlinMap(cam.getWorldPosition());	
-	// chronoHelper.stopChrono(1);
-	// chronoHelper.startChrono(2, "Load chunks");
-	_world->loadChunk(cam.getWorldPosition());	
-	// chronoHelper.stopChrono(2);
+	 chronoHelper.startChrono(0, "Update chunks");
+	 chronoHelper.startChrono(1, "Perlin Generation");
+	_world->loadPerlinMap(cam.getWorldPosition());
+	 chronoHelper.stopChrono(1);
+	 chronoHelper.startChrono(2, "Load chunks");
+	_world->loadChunk(cam.getWorldPosition());
+	 chronoHelper.stopChrono(2);
 	// textManager.resetTextureVertex();
-	// chronoHelper.startChrono(3, "Send Faces to display");
+	 chronoHelper.startChrono(3, "Send Faces to display");
 	_world->sendFacesToDisplay();
-	// chronoHelper.stopChrono(3);
+	 chronoHelper.stopChrono(3);
 	// chronoHelper.startChrono(4, "Process Vertex");
 	// textManager.processTextureVertex();
 	// chronoHelper.stopChrono(4);
-	// chronoHelper.stopChrono(0);
-	// chronoHelper.printChronos();
+	 chronoHelper.stopChrono(0);
+	 std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	 chronoHelper.printChronos();
 }
 
 void update(GLFWwindow* window)
