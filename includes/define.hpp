@@ -1,6 +1,6 @@
 #pragma once
 # define SHOW_TRIANGLES false
-# define ENABLE_WORLD_GENERATION true
+# define ENABLE_WORLD_GENERATION false
 # define SHOW_DEBUG true
 # define SHOW_LOADCHUNK_TIME true
 

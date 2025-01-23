@@ -8,6 +8,25 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
+	glGenBuffers(1, &_instanceVBO);
+
+
+    GLfloat vertices[] = {
+        0, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
+        1, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
+        0, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
+        1, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
+    };
+
+    glBindVertexArray(_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+
 	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
 	bzero(_blocks.data(), _blocks.size());
 	loadHeight();
@@ -146,29 +165,9 @@ void Chunk::setupBuffers() {
 
     if (_vertexData.empty()) return;
 
-	GLfloat vertices[] = {
-		0, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,// Bottom-left
-		1, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,// Bottom-left
-		0, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,// Bottom-left
-		1, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,// Bottom-left
-	};
-
     glBindVertexArray(_vao);
 
-	//std::cout << _position.x * CHUNK_SIZE << " == " << vertices[3] << std::endl;
-    // Vertex data (positions and UVs)
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
-    glEnableVertexAttribArray(0);
-	
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Positions
-    glEnableVertexAttribArray(1);
-
     // Instance data (instancePositions)
-    GLuint _instanceVBO;
-    glGenBuffers(1, &_instanceVBO);
     glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
 
@@ -183,8 +182,6 @@ void Chunk::setupBuffers() {
 int Chunk::display(void)
 {
     setupBuffers();
-	
-
     glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);

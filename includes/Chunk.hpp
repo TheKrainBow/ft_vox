@@ -16,6 +16,7 @@ class Chunk
 		bool	loaded = false;
 		GLuint				_vao;
 		GLuint				_vbo;
+		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
 	public:
 		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world);
