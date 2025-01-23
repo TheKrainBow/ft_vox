@@ -119,6 +119,7 @@ vec3 Chunk::getPosition()
 
 void Chunk::sendFacesToDisplay()
 {
+	_vertexData.clear();
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)
@@ -142,6 +143,8 @@ void Chunk::sendFacesToDisplay()
 			}
 		}
 	}
+    setupBuffers();
+
 }
 
 void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
@@ -176,11 +179,12 @@ void Chunk::setupBuffers() {
     glVertexAttribDivisor(2, 1); // Update once per instance
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
 int Chunk::display(void)
 {
-    setupBuffers();
+    glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);
     return (_vertexData.size());
