@@ -1,9 +1,9 @@
 #version 330 core
 
 layout(location = 0) in vec3 aPos;      // Vertex position
-layout(location = 1) in vec3 worldPos;      // Vertex position
+//layout(location = 1) in vec3 worldPos;      // Vertex position
 
-layout(location = 2) in int instanceData;   // Local position (integer)
+layout(location = 1) in int instanceData;   // Local position (integer)
 
 uniform mat4 model;      // Model matrix
 uniform mat4 view;       // View matrix
@@ -42,7 +42,7 @@ void main()
 		basePos.z = -basePos.z + 1;
 	if (direction == 5)
 		basePos.y++;
-    vec3 worldPosition = worldPos + basePos + instancePos;
+    vec3 worldPosition = /*worldPos + */basePos + instancePos;
     finalUV.y = finalUV.y / 5 + (float(textureID) / 5);
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;

@@ -39,7 +39,26 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
 	}
 }
 
-World::World(int seed) : _perlinGenerator(seed) {}
+World::World(int seed) : _perlinGenerator(seed) {
+	glGenVertexArrays(1, &_vao);
+	glGenBuffers(1, &_vbo);
+	glGenBuffers(1, &_instanceVBO);
+	glGenBuffers(1, &_indirectBuffer);
+	
+    GLfloat vertices[] = {
+        0, 0, 0,
+        1, 0, 0,
+        0, 1, 0,
+        1, 1, 0,
+    };
+
+    glBindVertexArray(_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0); // Positions
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+}
 
 NoiseGenerator &World::getNoiseGenerator(void)
 {
@@ -114,22 +133,22 @@ Chunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
 
 void World::sendFacesToDisplay()
 {
+	_indirectCmds.clear();
     for (auto& chunk : _loadedChunks)
 	{
         if (chunk.second)
+		{
+			DrawArraysIndirectCommand cmd = {};
             chunk.second->sendFacesToDisplay();
+			cmd.count = 4;
+			cmd.instanceCount = chunk.second->getBufferLenght();
+			cmd.baseInstance = chunk.second->getStartIndex();
+			cmd.first = 0;
+			_indirectCmds.push_back(cmd);
+		}
     }
+	setupBuffers();
 }
-
-int World::display(Camera &cam)
-{
-	(void)cam;
-	int triangleDrown = 0;
-	for (auto &chunk : _loadedChunks)
-		triangleDrown += chunk.second->display();
-	return (triangleDrown);
-}
-
 
 int	World::getLoadedChunksNumber()
 {
@@ -140,3 +159,59 @@ int	World::getLoadedChunksNumber()
 //{
 //	return _cachedChunks.size();
 //}
+
+void World::setupBuffers() {
+
+    if (_vertexData.empty()) return;
+
+    glBindVertexArray(_vao);
+
+    // Instance data (instancePositions)
+    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+
+    glVertexAttribIPointer(1, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+    glEnableVertexAttribArray(1);
+    glVertexAttribDivisor(1, 1); // Update once per instance
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	// Create the Indirect Command Buffer
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+	glBufferData(GL_DRAW_INDIRECT_BUFFER, _indirectCmds.size() * sizeof(DrawArraysIndirectCommand), _indirectCmds.data(), GL_STATIC_DRAW);
+
+
+	glBindVertexArray(0);
+}
+
+int World::display(void)
+{
+	if (_vertexData.empty())
+		return 0;
+	glBindVertexArray(_vao);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, (void*)0, _indirectCmds.size(), 0);
+
+	//for (auto &chunk: _loadedChunks)
+	//{
+	//	if (chunk.second)
+	//		glDrawArraysInstancedBaseInstance(GL_TRIANGLE_STRIP, 0, 4, chunk.second->getStartIndex(), chunk.second->getBufferLenght());
+	//}
+
+	//for (auto &cmd: _indirectCmds)
+	//{
+	//	glDrawArraysInstancedBaseInstance(GL_TRIANGLE_STRIP, 0, 4, cmd.baseInstance, cmd.instanceCount);
+	//}
+
+	glBindVertexArray(0);
+	return (_vertexSize * 2);
+}
+
+void World::addVertex(int vertexData)
+{
+	_vertexData.push_back(vertexData);
+	_vertexSize++;
+}
+
+int World::getVertexSize(void)
+{
+	return _vertexSize;
+}

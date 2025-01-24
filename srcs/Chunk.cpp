@@ -6,27 +6,6 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 {
 	_position = vec3(x, y, z);
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-	glGenVertexArrays(1, &_vao);
-	glGenBuffers(1, &_vbo);
-	glGenBuffers(1, &_instanceVBO);
-
-
-    GLfloat vertices[] = {
-        0, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-        1, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-        0, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-        1, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-    };
-
-    glBindVertexArray(_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
-    glEnableVertexAttribArray(1);
-    glBindVertexArray(0);
-
 	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
 	bzero(_blocks.data(), _blocks.size());
 	loadHeight();
@@ -99,7 +78,7 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 	int z = _position.z * CHUNK_SIZE + blockZ;
 
 	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 0) || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, y, z, DOWN, down);
+		addTextureVertex(blockX, blockY, blockZ, DOWN, down);
 	if ((blockY == (CHUNK_SIZE - 1) && _world.getBlock(x, y + 1, z) == 0) || ((blockY != (CHUNK_SIZE - 1) && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
 		addTextureVertex(blockX, blockY, blockZ, UP, up);
 	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 0) || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
@@ -121,6 +100,7 @@ void Chunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
 		return ;
+	_bufferStartIndex = _world.getVertexSize();
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)
@@ -144,14 +124,11 @@ void Chunk::sendFacesToDisplay()
 			}
 		}
 	}
-	setupBuffers();
 	_hasSentFaces = true;
 }
 
 void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
 {
-	(void)textureID;
-	(void)direction;
 	if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || direction >= 6)
 		return ;
 		
@@ -161,33 +138,16 @@ void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
 	newVertex |= (z & 0x1F) << 10;
 	newVertex |= (direction & 0x07) << 15;
 	newVertex |= (textureID & 0x7F) << 18;
-	_vertexData.push_back(newVertex);
+	_world.addVertex(newVertex);
+	_bufferLenght++;
 }
 
-void Chunk::setupBuffers() {
-
-    if (_vertexData.empty()) return;
-
-    glBindVertexArray(_vao);
-
-    // Instance data (instancePositions)
-    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
-
-    glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-    glEnableVertexAttribArray(2);
-    glVertexAttribDivisor(2, 1); // Update once per instance
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-}
-
-int Chunk::display(void)
+int Chunk::getStartIndex(void)
 {
-	if (_vertexData.empty())
-		return 0;
-    glBindVertexArray(_vao);
-	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
-	glBindVertexArray(0);
-    return (_vertexData.size() * 2);
+	return (_bufferStartIndex);
+}
+
+int Chunk::getBufferLenght(void)
+{
+	return (_bufferLenght);
 }

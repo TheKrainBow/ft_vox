@@ -224,7 +224,7 @@ void display(GLFWwindow* window)
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	verticies = _world->display(cam);
+	verticies = _world->display();
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)

@@ -15,10 +15,8 @@ class Chunk
 		World				&_world;
 		bool				_loaded = false;
 		bool				_hasSentFaces = false;
-		GLuint				_vao;
-		GLuint				_vbo;
-		GLuint				_instanceVBO;
-		std::vector<int>	_vertexData;
+		int					_bufferStartIndex = 0;
+		int					_bufferLenght = 0;
 	public:
 		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world);
 		~Chunk();
@@ -27,9 +25,9 @@ class Chunk
 		void loadBiome(void);
 		vec3 getPosition(void);
 		char getBlock(int x, int y, int z);
-		void setupBuffers();
-		int display(void);
 		void addTextureVertex(int x, int y, int z, int direction, int textureID);
+		int getStartIndex();
+		int getBufferLenght();
 		// void renderBoundaries() const;
 	private:
 		void addBlock(int x, int y, int z, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
