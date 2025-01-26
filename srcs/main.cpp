@@ -22,6 +22,7 @@ bool ignoreMouseEvent = false;
 bool updateChunk = ENABLE_WORLD_GENERATION;
 bool showDebugInfo = SHOW_DEBUG;
 bool showTriangleMesh = SHOW_TRIANGLES;
+bool mouseCaptureToggle = CAPTURE_MOUSE;
 
 int windowHeight = W_HEIGHT;
 int windowWidth = W_WIDTH;
@@ -38,9 +39,9 @@ double triangleDrown = 0.0;
 NoiseGenerator noise_gen(42);
 BiomeGenerator biomeGenerator(42);
 
-//Game time
-std::chrono::_V2::system_clock::time_point start;
-std::chrono::_V2::system_clock::time_point end;
+//Game time globals
+std::chrono::steady_clock::time_point start;
+std::chrono::steady_clock::time_point end;
 std::chrono::milliseconds delta;
 
 Textbox *debugBox;
@@ -75,13 +76,14 @@ void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 	(void)scancode;
 	(void)mods;
 
-	if (action == GLFW_PRESS) keyStates[key] = true;
-	else if (action == GLFW_RELEASE) keyStates[key] = false;
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
-	
+	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
+		mouseCaptureToggle = !mouseCaptureToggle;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
+	if (action == GLFW_PRESS) keyStates[key] = true;
+	else if (action == GLFW_RELEASE) keyStates[key] = false;
 }
 
 GLuint compileShader(const char* filePath, GLenum shaderType)
@@ -137,8 +139,14 @@ GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentSha
 void mouseCallback(GLFWwindow* window, double x, double y)
 {
 	(void)window;
+	if (!mouseCaptureToggle)
+	{
+		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		return ;
+	}
 	static bool firstMouse = true;
 	static double lastX = 0, lastY = 0;
+
 
 	// Get the current window size dynamically
 	int windowWidth, windowHeight;
@@ -259,10 +267,10 @@ void update(GLFWwindow* window)
 {
 	(void)window;
 	// Calculate delta time
-	static auto lastTime = std::chrono::high_resolution_clock::now();
-	auto currentTime = std::chrono::high_resolution_clock::now();
+	static auto lastTime = std::chrono::steady_clock::now();
+	auto currentTime = std::chrono::steady_clock::now();
 	std::chrono::duration<float> elapsedTime = currentTime - lastTime;
-	float deltaTime = elapsedTime.count();
+	float deltaTime = std::min(elapsedTime.count(), 0.1f);
 	lastTime = currentTime;
 
 	// Apply delta
@@ -272,7 +280,7 @@ void update(GLFWwindow* window)
 	if (!isWSL()) cam.rotationspeed = 1.5;
 	float rotationSpeed = cam.rotationspeed * deltaTime;
 
-	start = std::chrono::high_resolution_clock::now(); 
+	start = std::chrono::steady_clock::now(); 
 	vec3 oldCamChunk(cam.getWorldPosition().x / CHUNK_SIZE, cam.getWorldPosition().y / CHUNK_SIZE, cam.getWorldPosition().z / CHUNK_SIZE);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
@@ -304,7 +312,7 @@ void update(GLFWwindow* window)
 		cam.xangle -= 360;
 
 	display(_window);
-	end = std::chrono::high_resolution_clock::now(); 
+	end = std::chrono::steady_clock::now(); 
 	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
 }
 

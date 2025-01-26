@@ -4,9 +4,10 @@
 # define SHOW_DEBUG true
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
+# define CAPTURE_MOUSE true
 
-# define W_WIDTH 1920
-# define W_HEIGHT 1080
+# define W_WIDTH 1000
+# define W_HEIGHT 800
 # define RENDER_DISTANCE 10
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define Y_RENDER_DISTANCE 4
