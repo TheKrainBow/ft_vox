@@ -301,10 +301,20 @@ void update(GLFWwindow* window)
 	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks();
 
-	if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += rotationSpeed * 150.0;
-	if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= rotationSpeed * 150.0;
-	if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= rotationSpeed * 150.0;
-	if (keyStates[GLFW_KEY_LEFT]) cam.xangle += rotationSpeed * 150.0;
+	if (!isWSL())
+	{
+		if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_LEFT]) cam.xangle += rotationSpeed * 150.0;
+	}
+	else
+	{
+		if (keyStates[GLFW_KEY_UP] && cam.yangle < 90.0) cam.yangle += rotationSpeed;
+		if (keyStates[GLFW_KEY_DOWN] && cam.yangle > -90.0) cam.yangle -= rotationSpeed;
+		if (keyStates[GLFW_KEY_RIGHT]) cam.xangle -= rotationSpeed;
+		if (keyStates[GLFW_KEY_LEFT]) cam.xangle += rotationSpeed;
+	}
 
 	while (cam.xangle < 0)
 		cam.xangle += 360;
