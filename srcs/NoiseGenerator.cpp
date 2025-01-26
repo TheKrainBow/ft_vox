@@ -49,7 +49,7 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		1.0, // amplitude
-		0.005, // frequency
+		0.004, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
 		4 // nb_octaves
