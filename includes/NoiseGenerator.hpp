@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/02 22:49:04 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/21 18:01:01 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/01/26 17:03:45 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,6 +22,11 @@ struct NoiseData {
 	double persistance = 0.5;
 	double lacunarity = 2.0;
 	size_t nb_octaves = 4;
+};
+
+struct SplineData {
+	SplineInterpolator continentalSpline;
+	SplineInterpolator erosionSpline;
 };
 
 class NoiseGenerator {
@@ -50,7 +55,7 @@ class NoiseGenerator {
 		double lerp(double a, double b, double t) const;
 		double grad(int hash, double x, double y) const;
 		double getContinentalNoise(vec2 pos);
-		double getPeaksAndValleysNoise(vec2 pos);
+		double getErosionNoise(vec2 pos);
 		int getHeight(vec2 pos);
 		vec2 getBorderWarping(double x, double z) const;
 
@@ -58,5 +63,5 @@ class NoiseGenerator {
 		NoiseData _data;
 		std::vector<int> _permutation;
 		std::vector<PerlinMap *> _perlinMaps;
-		SplineInterpolator spline;
+		SplineData spline;
 };
