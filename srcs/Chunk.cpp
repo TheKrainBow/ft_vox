@@ -96,6 +96,16 @@ vec3 Chunk::getPosition()
 	return _position;
 }
 
+
+vec3 Chunk::getWorldPosition()
+{
+	vec3 worldPos;
+	worldPos.x = _position.x * CHUNK_SIZE;
+	worldPos.y = _position.y * CHUNK_SIZE;
+	worldPos.z = _position.z * CHUNK_SIZE;
+	return worldPos;
+}
+
 void Chunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
@@ -138,7 +148,7 @@ void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
 	newVertex |= (z & 0x1F) << 10;
 	newVertex |= (direction & 0x07) << 15;
 	newVertex |= (textureID & 0x7F) << 18;
-	_world.addVertex(newVertex);
+	_world.addVertex(newVertex, getWorldPosition());
 	_bufferLenght++;
 }
 

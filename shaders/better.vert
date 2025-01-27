@@ -1,4 +1,10 @@
-#version 330 core
+//#version 330 core
+#version 430 core
+#extension GL_ARB_shader_draw_parameters : enable
+
+layout(std430, binding = 0) buffer ChunkPositions {
+    vec4 chunkPositions[];  // Array of chunk positions
+};
 
 layout(location = 0) in vec3 aPos;      // Vertex position
 //layout(location = 1) in vec3 worldPos;      // Vertex position
@@ -42,7 +48,14 @@ void main()
 		basePos.z = -basePos.z + 1;
 	if (direction == 5)
 		basePos.y++;
-    vec3 worldPosition = /*worldPos + */basePos + instancePos;
+	vec3 chunkPos = chunkPositions[gl_BaseInstance + gl_InstanceID].xyz;
+    vec3 worldPosition = chunkPos + basePos + instancePos;
+    //vec3 worldPosition = basePos + instancePos;
+    //vec3 worldPosition = basePos;
+	//worldPosition.x += gl_InstanceID;
+	//vec3 worldPosition = basePos + vec3(gl_InstanceID, 0.0, 0.0);
+    //vec3 worldPosition = basePos + instancePos;
+	//worldPosition.x += chunkPositions[gl_InstanceID].x;
     finalUV.y = finalUV.y / 5 + (float(textureID) / 5);
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;

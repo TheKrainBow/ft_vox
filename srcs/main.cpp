@@ -247,6 +247,8 @@ struct pair_hash {
 
 void updateChunks()
 {
+	//const GLubyte* version = glGetString(GL_VERSION);
+	//std::cout << "OpenGL Version: " << version << std::endl;
 	 chronoHelper.startChrono(0, "Update chunks");
 	 chronoHelper.startChrono(1, "Perlin Generation");
 	_world->loadPerlinMap(cam.getWorldPosition());
@@ -332,6 +334,12 @@ void reshape(GLFWwindow* window, int width, int height)
 
 int initGLFW()
 {
+	//glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	//glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{
@@ -375,6 +383,8 @@ int main(int argc, char **argv)
 	if (!initGLFW())
 		return 1;
 
+	const GLubyte* version = glGetString(GL_VERSION);
+	std::cout << "OpenGL Version: " << version << std::endl;
 	initGLEW();
 	glEnable(GL_TEXTURE_2D);
 	textManager.loadTextures({
@@ -384,7 +394,7 @@ int main(int argc, char **argv)
 		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
 		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
 	});
-	textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
+	//textManager.loadTexture(T_DIRT, "textures/dirt.ppm");
 
 	World overworld(42);
 
@@ -418,6 +428,12 @@ int main(int argc, char **argv)
 	debugBoxObject.addLine("yangle: ", Textbox::FLOAT, &cam.yangle);
 	glClearColor(0.63f, 0.91f, 0.92f, 1.0f); // Soft sky blue
 	// Main loop
+	if (glewIsSupported("GL_ARB_shader_draw_parameters")) {
+		std::cout << "GL_ARB_shader_draw_parameters is supported" << std::endl;
+	} else {
+		std::cerr << "GL_ARB_shader_draw_parameters is not supported" << std::endl;
+	}
+
 	while (!glfwWindowShouldClose(_window))
 	{
 		//glClear(GL_COLOR_BUFFER_BIT);

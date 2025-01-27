@@ -24,6 +24,7 @@ class Chunk
 		void loadHeight(void);
 		void loadBiome(void);
 		vec3 getPosition(void);
+		vec3 getWorldPosition(void);
 		char getBlock(int x, int y, int z);
 		void addTextureVertex(int x, int y, int z, int direction, int textureID);
 		int getStartIndex();

@@ -44,7 +44,8 @@ World::World(int seed) : _perlinGenerator(seed) {
 	glGenBuffers(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
 	glGenBuffers(1, &_indirectBuffer);
-	
+	glGenBuffers(1, &_ssbo);
+
     GLfloat vertices[] = {
         0, 0, 0,
         1, 0, 0,
@@ -134,6 +135,7 @@ Chunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
 void World::sendFacesToDisplay()
 {
 	_indirectCmds.clear();
+	//int i = 0;
     for (auto& chunk : _loadedChunks)
 	{
         if (chunk.second)
@@ -148,6 +150,7 @@ void World::sendFacesToDisplay()
 		}
     }
 	setupBuffers();
+	updateSSBO();
 }
 
 int	World::getLoadedChunksNumber()
@@ -179,7 +182,10 @@ void World::setupBuffers() {
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
 	glBufferData(GL_DRAW_INDIRECT_BUFFER, _indirectCmds.size() * sizeof(DrawArraysIndirectCommand), _indirectCmds.data(), GL_STATIC_DRAW);
 
-
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, _ssbo);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec4) * _chunkPositions.size(), _chunkPositions.data(), GL_DYNAMIC_DRAW);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _ssbo);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	glBindVertexArray(0);
 }
 
@@ -196,22 +202,66 @@ int World::display(void)
 	//		glDrawArraysInstancedBaseInstance(GL_TRIANGLE_STRIP, 0, 4, chunk.second->getStartIndex(), chunk.second->getBufferLenght());
 	//}
 
-	//for (auto &cmd: _indirectCmds)
-	//{
-	//	glDrawArraysInstancedBaseInstance(GL_TRIANGLE_STRIP, 0, 4, cmd.baseInstance, cmd.instanceCount);
-	//}
+	int test = 0;
+	for (auto &cmd: _indirectCmds)
+	{
+		test += cmd.instanceCount;
+		//glDrawArraysInstancedBaseInstance(GL_TRIANGLE_STRIP, 0, 4, cmd.baseInstance, cmd.instanceCount);
+	}
 
+	//std::cout << _vertexData.size() << ", " << _chunkPositions.size() << ", " << _vertexSize << ", " << test << std::endl;
 	glBindVertexArray(0);
 	return (_vertexSize * 2);
 }
 
-void World::addVertex(int vertexData)
+void World::addVertex(int vertexData, vec3 chunkPosition)
 {
+	(void)chunkPosition;
 	_vertexData.push_back(vertexData);
+	//_chunkPositions.push_back(chunkPosition);
+	_chunkPositions.push_back(vec4(chunkPosition.x, chunkPosition.y, chunkPosition.z, 400));
 	_vertexSize++;
 }
 
 int World::getVertexSize(void)
 {
 	return _vertexSize;
+}
+
+void World::resizeSSBO(size_t newChunkCount)
+{
+    // Get the current size of the buffer
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _ssbo);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::vec3) * newChunkCount, nullptr, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void World::updateSSBO()
+{
+    // Resize the SSBO to match the new chunk count
+    //resizeSSBO(1024);
+
+	// Update the UBO with the new chunk positions
+	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, _ssbo);
+	//glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::vec3) * _chunkPositions.size(), _chunkPositions.data(), GL_DYNAMIC_DRAW);
+	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    // Map the SSBO to a pointer and update the chunk positions
+    //glBindBuffer(GL_SHADER_STORAGE_BUFFER, _ssbo);
+    //glm::vec3* ptr = (glm::vec3*)glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec3) * 1024,
+    //                                              GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+    //if (ptr) {
+    //    size_t i = 0;
+    //    for (auto& chunk : _loadedChunks) {
+    //        ptr[i++] = chunk.second->getWorldPosition();  // Get the chunk's position and store it in the SSBO
+    //    }
+    //    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);  // Make sure to unmap after writing
+    //}
+	//size_t i = 0;
+	//for (auto& chunk : _loadedChunks) {
+	//	(void)chunk;
+	//	std::cout << "ptr[" << i << "] (" << ptr[i].x << ", " << ptr[i].y << ", " << ptr[i].z << ")" << std::endl;  // Get the chunk's position and store it in the SSBO
+	//	i++;
+	//}
+    //glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }

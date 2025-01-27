@@ -37,6 +37,7 @@ private:
 	GLuint																	_ssbo;
 	std::vector<DrawArraysIndirectCommand>									_indirectCmds;
 	std::vector<int>														_vertexData;
+	std::vector<vec4>														_chunkPositions;
 	int																		_vertexSize = 0;
 public:
 	World(int seed);
@@ -52,7 +53,9 @@ public:
 	void setupBuffers();
 	int display(void);
 	int getVertexSize();
-	void addVertex(int vertexData);
+	void addVertex(int vertexData, vec3 chunkPosition);
+	void resizeSSBO(size_t newChunkCount);
+	void updateSSBO();
 private:
 	vec3 calculateBlockPos(int x, int y, int z) const;
 	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks);
