@@ -10,7 +10,8 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	_permutation.resize(512);
 	for (int i = 0; i < 512; i++) _permutation[i] = p[i % 256];
 
-	std::vector<Point> continentalPoints = {{-1.0, 0.0}, {-0.2, 50.0}, {0.2, 100.0}, {0.6, 150.0}, {1.0, 150.0}};
+	//std::vector<Point> continentalPoints = {{-1.0, 0.0}, {-0.2, 50.0}, {0.2, 100.0}, {0.6, 150.0}, {1.0, 150.0}};
+	std::vector<Point> continentalPoints = {{-1.0, -10.0}, {-0.4, -10.0}, {-0.3, 50.0}, {-0.1, 50.0}, {-0.05, 100.0}, {0, 100.0}, {0.1, 115}, {0.3, 125.0}, {1.0, 145.0}};
 	spline.continentalSpline.setPoints(continentalPoints);
 	std::vector<Point> erosionPoints = {{-1.0, 150.0}, {-0.8, 100.0}, {-0.5, 75.0}, {0.0, 25.0}, {0.3, 22.5}, {0.4, 20.0}, {0.5, 50.0}, {0.6, 50.0}, {0.7, 20.0}, {1.0, 10.0}};
 	spline.erosionSpline.setPoints(erosionPoints);
@@ -50,8 +51,8 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
-		1.0, // amplitude
-		0.004, // frequency
+		4.0, // amplitude
+		0.001, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
 		4 // nb_octaves
@@ -85,21 +86,21 @@ vec2 NoiseGenerator::getBorderWarping(double x, double z) const
 	double noiseX = noise(x, z);
 	double noiseY = noise(z, x);
 	vec2 offset;
-	offset.x = noiseX * 16.0;
-	offset.y = noiseY * 16.0;
+	offset.x = x + (noiseX * CHUNK_SIZE);
+	offset.y = z + (noiseY * CHUNK_SIZE);
 	return offset;
 }
 
 int NoiseGenerator::getHeight(vec2 pos)
 {
-	//pos = getBorderWarping(pos.x, pos.y);
+	pos = getBorderWarping(pos.x, pos.y);
 	double continentalNoise = getContinentalNoise(pos);
 	double erosionNoise = getErosionNoise(pos);
 	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
 	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
 
-	//double erosionMask = (erosionNoise + 1.0) * 0.5;
-	int height = surfaceHeight * (1.0 - erosionNoise) + erosionHeight * erosionNoise;
+	double erosionMask = (erosionNoise + 1.0) * 0.5;
+	int height = surfaceHeight * (1.0 - erosionMask) + erosionHeight * erosionMask;
 	height = static_cast<size_t>(100.0 + surfaceHeight);
 	height = std::clamp(height, 0, 255);
 	return height;
