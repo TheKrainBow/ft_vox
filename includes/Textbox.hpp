@@ -34,10 +34,11 @@ private:
     void initializeFont(const std::string& fontPath, float fontSize);
 
 public:
-    Textbox(GLFWwindow* window, int x, int y, int width, int height);
+    Textbox();
     void loadFont(const std::string& fontPath, float fontSize);
     void addLine(const std::string& label, e_type type, void* value);
     void render();
+	void initData(GLFWwindow* window, int x, int y, int width, int height);
     ~Textbox();
 };
 

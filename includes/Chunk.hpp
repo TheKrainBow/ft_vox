@@ -17,9 +17,10 @@ class Chunk
 		std::vector<char>	_blocks;
 		double	_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
 		World	&_world;
+		TextureManager &_textManager;
 		bool	loaded = false;
 	public:
-		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world);
+		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager);
 		~Chunk();
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);

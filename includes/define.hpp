@@ -5,6 +5,8 @@
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
 # define CAPTURE_MOUSE true
+# define IGNORE_MOUSE false
+# define KEY_INIT false
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800

@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world) : _world(world)
+Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
 {
 	_position = vec3(x, y, z);
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
@@ -115,17 +115,17 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 	int z = _position.z * CHUNK_SIZE + blockZ;
 
 	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 'A') || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
-		textManager.addTextureVertex(down, DOWN, x, y, z);
+		_textManager.addTextureVertex(down, DOWN, x, y, z);
 	if ((blockY == 15 && _world.getBlock(x, y + 1, z) == 'A') || ((blockY != 15 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
-		textManager.addTextureVertex(up, UP, x, y, z);
+		_textManager.addTextureVertex(up, UP, x, y, z);
 	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 'A') || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
-		textManager.addTextureVertex(north, NORTH, x, y, z);
+		_textManager.addTextureVertex(north, NORTH, x, y, z);
 	if ((blockZ == 15 && _world.getBlock(x, y, z + 1) == 'A') || ((blockZ != 15 && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
-		textManager.addTextureVertex(south, SOUTH, x, y, z);
+		_textManager.addTextureVertex(south, SOUTH, x, y, z);
 	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 'A') || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
-		textManager.addTextureVertex(east, EAST, x, y, z);
+		_textManager.addTextureVertex(east, EAST, x, y, z);
 	if ((blockX == 15 && _world.getBlock(x + 1, y, z) == 'A') || ((blockX != 15 && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 'A')))
-		textManager.addTextureVertex(west, WEST, x, y, z);
+		_textManager.addTextureVertex(west, WEST, x, y, z);
 }
 
 vec3 Chunk::getPosition()

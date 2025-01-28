@@ -1,0 +1,404 @@
+#include "StoneEngine.hpp"
+
+StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)
+{
+	initData();
+	initGLFW();
+	initGLEW();
+	initTextures();
+	// chunks.push_back(Chunk(camera.position.x / CHUNK_SIZE - 1, camera.position.z / CHUNK_SIZE - 1, noise_gen));
+	initShaders();
+	initDebugTextBox();
+	updateChunks();
+	reshape(_window, windowWidth, windowHeight);
+}
+
+StoneEngine::~StoneEngine()
+{
+    glDeleteProgram(shaderProgram);
+	glfwDestroyWindow(_window);
+	glfwTerminate();
+}
+
+void StoneEngine::run()
+{
+	// Main loop
+	while (!glfwWindowShouldClose(_window))
+	{
+		glClear(GL_COLOR_BUFFER_BIT);
+		update(_window);
+		glfwPollEvents();
+	}
+}
+
+void StoneEngine::initData()
+{
+	// Keys states and runtime booleans
+	bzero(keyStates, sizeof(keyStates));
+	ignoreMouseEvent	= IGNORE_MOUSE;
+	updateChunk		= ENABLE_WORLD_GENERATION;
+	showDebugInfo		= SHOW_DEBUG;
+	showTriangleMesh	= SHOW_TRIANGLES;
+	mouseCaptureToggle	= CAPTURE_MOUSE;
+
+	// Window size
+	windowHeight	= W_HEIGHT;
+	windowWidth		= W_WIDTH;
+
+	// FPS counter
+	frameCount			= 0;
+	lastFrameTime	= 0.0;
+	currentFrameTime	= 0.0;
+	fps				= 0.0;
+
+	// Debug data
+	drawnTriangles	= 0.0;
+
+	// Player data
+	moveSpeed		= 0.0;
+	rotationSpeed	= 0.0;
+
+}
+
+void StoneEngine::initTextures()
+{
+	glEnable(GL_TEXTURE_2D);
+	textureManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
+	textureManager.loadTexture(T_DIRT, "textures/dirt.ppm");
+	textureManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
+	textureManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
+	textureManager.loadTexture(T_STONE, "textures/stone.ppm");
+	textureManager.loadTexture(T_SAND, "textures/sand.ppm");
+}
+
+void StoneEngine::initShaders()
+{
+	shaderProgram = createShaderProgram("shaders/basic.vert", "shaders/basic.frag");
+	//// Set the active shader program
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
+
+	glUseProgram(shaderProgram);
+	glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);  // Use texture unit 0
+	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glEnable(GL_DEPTH_TEST);
+}
+
+void StoneEngine::initDebugTextBox()
+{
+	debugBox.initData(_window, 0, 0, 200, 200);
+	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
+	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
+	debugBox.addLine("Triangles: ", Textbox::DOUBLE, &drawnTriangles);
+	debugBox.addLine("x: ", Textbox::FLOAT, &camera.position.x);
+	debugBox.addLine("y: ", Textbox::FLOAT, &camera.position.y);
+	debugBox.addLine("z: ", Textbox::FLOAT, &camera.position.z);
+	debugBox.addLine("xangle: ", Textbox::FLOAT, &camera.xangle);
+	debugBox.addLine("yangle: ", Textbox::FLOAT, &camera.yangle);
+	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
+}
+
+void StoneEngine::calculateFps()
+{
+	frameCount++;
+	currentFrameTime = glfwGetTime();
+
+	double timeInterval = currentFrameTime - lastFrameTime;
+
+	if (timeInterval > 1)
+	{
+		fps = frameCount / timeInterval;
+
+		lastFrameTime = currentFrameTime;
+		frameCount = 0;
+
+		std::stringstream title;
+		title << "Not ft_minecraft | FPS: " << fps;
+		glfwSetWindowTitle(_window, title.str().c_str());
+	}
+}
+
+void StoneEngine::display(GLFWwindow* window)
+{
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	(void)window;
+
+	glm::mat4 viewMatrix = glm::lookAt(
+		camera.position,         // camera position
+		camera.center,           // Look-at point
+		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
+	);
+	glm::mat4 modelMatrix = glm::mat4(1.0f);
+
+
+	float radY, radX;
+	radX = camera.xangle * (M_PI / 180.0);
+	radY = camera.yangle * (M_PI / 180.0);
+
+	viewMatrix = glm::mat4(1.0f);
+	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.position.x, camera.position.y, camera.position.z));
+
+	glUseProgram(shaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	
+	if (showTriangleMesh)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	else
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);      // Cull back faces
+	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
+
+	drawnTriangles = textureManager.displayAllTexture(camera);
+
+	glDisable(GL_CULL_FACE);
+	if (showTriangleMesh)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	if (showDebugInfo)
+		debugBox.render();
+
+	calculateFps();
+	glfwSwapBuffers(_window);
+}
+
+void StoneEngine::updateChunks()
+{
+	chronoHelper.startChrono(0, "Update chunks");
+	chronoHelper.startChrono(1, "Perlin Generation");
+	_world->loadPerlinMap(camera.getWorldPosition());	
+	chronoHelper.stopChrono(1);
+	chronoHelper.startChrono(2, "Load chunks");
+	_world->loadChunk(camera.getWorldPosition(), textureManager);	
+	chronoHelper.stopChrono(2);
+	textureManager.resetTextureVertex();
+	chronoHelper.startChrono(3, "Send Faces to display");
+	_world->sendFacesToDisplay();
+	chronoHelper.stopChrono(3);
+	chronoHelper.startChrono(4, "Process Vertex");
+	textureManager.processTextureVertex();
+	chronoHelper.stopChrono(4);
+	chronoHelper.stopChrono(0);
+	chronoHelper.printChronos();
+}
+
+void StoneEngine::findMoveRotationSpeed()
+{
+	// Calculate delta time
+	static auto lastTime = std::chrono::steady_clock::now();
+	auto currentTime = std::chrono::steady_clock::now();
+	std::chrono::duration<float> elapsedTime = currentTime - lastTime;
+	float deltaTime = std::min(elapsedTime.count(), 0.1f);
+	lastTime = currentTime;
+
+	// Apply delta to rotation and movespeed
+	if (keyStates[GLFW_KEY_LEFT_CONTROL]) moveSpeed = (camera.movementspeed * 2.0) * deltaTime;
+	else moveSpeed = camera.movementspeed * deltaTime;
+	if (!isWSL()) camera.rotationspeed = 1.5;
+	rotationSpeed = camera.rotationspeed * deltaTime;
+
+	start = std::chrono::steady_clock::now();
+}
+
+void StoneEngine::updateMovement()
+{
+	// Camera movement
+	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
+	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
+
+	// Camera rotation
+	if (!isWSL())
+	{
+		if (keyStates[GLFW_KEY_UP] && camera.yangle < 90.0) camera.yangle += rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_DOWN] && camera.yangle > -90.0) camera.yangle -= rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_RIGHT]) camera.xangle -= rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_LEFT]) camera.xangle += rotationSpeed * 150.0;
+	}
+	else
+	{
+		if (keyStates[GLFW_KEY_UP] && camera.yangle < 90.0) camera.yangle += rotationSpeed;
+		if (keyStates[GLFW_KEY_DOWN] && camera.yangle > -90.0) camera.yangle -= rotationSpeed;
+		if (keyStates[GLFW_KEY_RIGHT]) camera.xangle -= rotationSpeed;
+		if (keyStates[GLFW_KEY_LEFT]) camera.xangle += rotationSpeed;
+	}
+	// Clamp angle from 0 to 360
+	while (camera.xangle < 0)
+		camera.xangle += 360;
+	while (camera.xangle > 360)
+		camera.xangle -= 360;
+}
+
+void StoneEngine::update(GLFWwindow* window)
+{
+	(void)window;
+	// Check for delta and apply to move and rotation speeds
+	findMoveRotationSpeed();
+
+	// Save old chunk position
+	vec3 oldCamChunk(camera.getWorldPosition().x / CHUNK_SIZE, camera.getWorldPosition().y / CHUNK_SIZE, camera.getWorldPosition().z / CHUNK_SIZE);
+	if (oldCamChunk.x < 0) oldCamChunk.x--;
+	if (oldCamChunk.y < 0) oldCamChunk.y--;
+	if (oldCamChunk.z < 0) oldCamChunk.z--;
+
+	// Update player position and orientation
+	updateMovement();
+
+	// Check new chunk position for necessary updates to chunks
+	vec3 camChunk(camera.getWorldPosition().x / CHUNK_SIZE, camera.getWorldPosition().y / CHUNK_SIZE, camera.getWorldPosition().z / CHUNK_SIZE);
+	if (camera.getWorldPosition().x < 0) camChunk.x--;
+	if (camera.getWorldPosition().y < 0) camChunk.y--;
+	if (camera.getWorldPosition().z < 0) camChunk.z--;
+	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
+		updateChunks();
+
+	// Call display for window image
+	display(_window);
+
+	// Register end of frame for the next delta
+	end = std::chrono::steady_clock::now(); 
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
+}
+
+
+void StoneEngine::reshapeAction(int width, int height)
+{
+	glViewport(0, 0, width, height);
+	glMatrixMode(GL_PROJECTION);
+
+	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 1000.0f);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
+}
+
+void StoneEngine::reshape(GLFWwindow* window, int width, int height)
+{
+	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+
+	if (engine)
+		engine->reshapeAction(width, height);
+}
+
+void StoneEngine::keyAction(int key, int scancode, int action, int mods)
+{
+	(void)scancode;
+	(void)mods;
+
+	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
+		mouseCaptureToggle = !mouseCaptureToggle;
+	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
+	if (action == GLFW_PRESS) keyStates[key] = true;
+	else if (action == GLFW_RELEASE) keyStates[key] = false;
+}
+
+void StoneEngine::keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+
+	if (engine)
+		engine->keyAction(key, scancode, action, mods);
+}
+
+void StoneEngine::mouseAction(double x, double y)
+{
+	if (!mouseCaptureToggle)
+	{
+		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		return ;
+	}
+	static bool firstMouse = true;
+	static double lastX = 0, lastY = 0;
+
+
+	// Get the current window size dynamically
+	int windowWidth, windowHeight;
+	glfwGetWindowSize(_window, &windowWidth, &windowHeight);
+	glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	camera.updateMousePos(x, y);
+
+	int windowCenterX = windowWidth / 2;
+	int windowCenterY = windowHeight / 2;
+
+	if (firstMouse || ignoreMouseEvent)
+	{
+		lastX = windowCenterX;
+		lastY = windowCenterY;
+		firstMouse = false;
+		ignoreMouseEvent = false;
+		return;
+	}
+
+	float xOffset = lastX - x;
+	float yOffset = lastY - y;
+
+	lastX = x;
+	lastY = y;
+
+	float sensitivity = 0.05f;
+	xOffset *= sensitivity;
+	yOffset *= sensitivity;
+
+	camera.xangle += xOffset * camera.rotationspeed;
+	camera.yangle += yOffset * camera.rotationspeed;
+
+	if (camera.yangle > 90.0f) camera.yangle = 90.0f;
+	if (camera.yangle < -90.0f) camera.yangle = -90.0f;
+
+	while (camera.xangle < 0)
+		camera.xangle += 360;
+	while (camera.xangle >= 360)
+		camera.xangle -= 360;
+
+	ignoreMouseEvent = true;
+
+	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
+}
+
+void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
+{
+	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+
+	if (engine)
+		engine->mouseAction(x, y);
+}
+
+int StoneEngine::initGLFW()
+{
+	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
+	if (!_window)
+	{
+		std::cerr << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return 0;
+	}
+
+	glfwSetWindowUserPointer(_window, this);
+	glfwSetFramebufferSizeCallback(_window, reshape);
+	glfwSetKeyCallback(_window, keyPress);
+	glfwMakeContextCurrent(_window);
+	if (!isWSL())
+		glfwSetCursorPosCallback(_window, mouseCallback);
+	return 1;
+}
+
+void StoneEngine::initGLEW()
+{
+	GLenum err = glewInit();
+	if (err != GLEW_OK)
+	{
+		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
+		return ;
+	}
+}

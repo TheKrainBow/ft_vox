@@ -14,17 +14,18 @@ SRC_PATH	=	srcs/
 INCLUDES	=	-Iincludes -Iglm
 SRC_NAME	=	stb_truetype.cpp		\
 				main.cpp				\
+				StoneEngine.cpp			\
 				Camera.cpp				\
 				TextureManager.cpp		\
 				Texture.cpp				\
-				globals.cpp				\
 				Chunk.cpp				\
 				NoiseGenerator.cpp		\
 				Textbox.cpp				\
 				BiomeGenerator.cpp		\
 				SplineInterpolator.cpp	\
 				World.cpp				\
-				Chrono.cpp
+				Chrono.cpp				\
+				Shader.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))
