@@ -4,7 +4,6 @@
 #include "ft_vox.hpp"
 #include "TextureManager.hpp"
 #include "define.hpp"
-#include "globals.hpp"
 #include "World.hpp"
 
 class BiomeGenerator;
