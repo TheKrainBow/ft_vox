@@ -1,10 +1,8 @@
-#include "Texture.hpp"
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <iostream>
-#include <vector>
+#include "Chunk.hpp"
 
-bool compareUpFaces(const Texture::Face& a, const Texture::Face& b) {
+bool compareUpFaces(const Chunk::Face& a, const Chunk::Face& b) {
+    if (a.texture != b.texture)
+        return (a.texture < b.texture);
     if (a.position.y != b.position.y)
         return a.position.y < b.position.y;
     if (a.position.x != b.position.x)
@@ -12,7 +10,9 @@ bool compareUpFaces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.z < b.position.z;
 }
 
-bool compareUpStep2Faces(const Texture::Face& a, const Texture::Face& b) {
+bool compareUpStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
+    if (a.texture != b.texture)
+        return (a.texture < b.texture);
     if (a.position.y != b.position.y)
         return a.position.y < b.position.y;
     if (a.position.z != b.position.z)
@@ -20,7 +20,9 @@ bool compareUpStep2Faces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.x < b.position.x;
 }
 
-bool compareNorthFaces(const Texture::Face& a, const Texture::Face& b) {
+bool compareNorthFaces(const Chunk::Face& a, const Chunk::Face& b) {
+    if (a.texture != b.texture)
+        return (a.texture < b.texture);
     if (a.position.z != b.position.z)
         return a.position.z < b.position.z;
     if (a.position.y != b.position.y)
@@ -28,7 +30,9 @@ bool compareNorthFaces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.x < b.position.x;
 }
 
-bool compareNorthStep2Faces(const Texture::Face& a, const Texture::Face& b) {
+bool compareNorthStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
+    if (a.texture != b.texture)
+        return (a.texture < b.texture);
     if (a.position.z != b.position.z)
         return a.position.z < b.position.z;
     if (a.position.x != b.position.x)
@@ -36,7 +40,9 @@ bool compareNorthStep2Faces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.y < b.position.y;
 }
 
-bool compareEastFaces(const Texture::Face& a, const Texture::Face& b) {
+bool compareEastFaces(const Chunk::Face& a, const Chunk::Face& b) {
+    if (a.texture != b.texture)
+        return (a.texture < b.texture);
     if (a.position.x != b.position.x)
         return a.position.x < b.position.x;
     if (a.position.z != b.position.z)
@@ -44,7 +50,9 @@ bool compareEastFaces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.y < b.position.y;
 }
 
-bool compareEastStep2Faces(const Texture::Face& a, const Texture::Face& b) {
+bool compareEastStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
+    if (a.texture != b.texture)
+        return (a.texture < b.texture);
     if (a.position.x != b.position.x)
         return a.position.x < b.position.x;
     if (a.position.y != b.position.y)
@@ -52,67 +60,8 @@ bool compareEastStep2Faces(const Texture::Face& a, const Texture::Face& b) {
     return a.position.z < b.position.z;
 }
 
-Texture::Texture(GLuint texture) : _texture(texture) {
-    // Initialize VAO and VBO
-    for (int i = 0; i < 6; i++)
-    {
-        glGenVertexArrays(1, &_vao[i]);
-        glGenBuffers(1, &_vbo[i]);
-    }
-}
 
-Texture::~Texture() {
-    resetVertex();
-    for (int i = 0; i < 6; i++)
-    {
-        if (_vao[i])
-            glDeleteVertexArrays(1, &_vao[i]);
-        if (_vbo[i])
-            glDeleteBuffers(1, &_vbo[i]);
-    }
-    if (_texture)
-        glDeleteTextures(1, &_texture);
-}
-
-void Texture::processVertex(Direction dir)
-{
-    if (_faces[dir].size() == 0)
-        return ;
-    switch (dir)
-    {
-    case UP:
-        this->processUpVertex();
-        break;
-    case DOWN:
-        this->processDownVertex();
-        break;
-    case NORTH:
-        this->processNorthVertex();
-        break;
-    case SOUTH:
-        this->processSouthVertex();
-        break;
-    case EAST:
-        this->processEastVertex();
-        break;
-    case WEST:
-        this->processWestVertex();
-        break;
-    default:
-        break;
-    }
-}
-
-void Texture::addVAOVertex(Direction dir, int x, int y, int z, int u, int v)
-{
-    _vertexData[dir].push_back(x);
-    _vertexData[dir].push_back(y);
-    _vertexData[dir].push_back(z);
-    _vertexData[dir].push_back(u);
-    _vertexData[dir].push_back(v);
-}
-
-void Texture::processUpVertex()
+void Chunk::processUpVertex()
 {
     std::sort(_faces[UP].begin(), _faces[UP].end(), compareUpFaces);
     std::vector<Face> mergedFacesZ;
@@ -135,7 +84,6 @@ void Texture::processUpVertex()
     }
     mergedFacesZ.push_back(newFace);
 
-
     std::sort(mergedFacesZ.begin(), mergedFacesZ.end(), compareUpStep2Faces);
     isFirst = true;
     for (Face face : mergedFacesZ)
@@ -153,17 +101,11 @@ void Texture::processUpVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addVAOVertex(UP, face.position.x                , face.position.y + 1, face.position.z + face.size.y, 0, face.size.y);
-        addVAOVertex(UP, face.position.x + face.size.x  , face.position.y + 1, face.position.z + face.size.y, face.size.x, face.size.y);
-        addVAOVertex(UP, face.position.x                , face.position.y + 1, face.position.z              , 0, 0);
-
-        addVAOVertex(UP, face.position.x + face.size.x  , face.position.y + 1, face.position.z + face.size.y, face.size.x, face.size.y);
-        addVAOVertex(UP, face.position.x + face.size.x  , face.position.y + 1, face.position.z              , face.size.x, 0);
-        addVAOVertex(UP, face.position.x                , face.position.y + 1, face.position.z              , 0, 0);
+        addTextureVertex(face);
     }
 }
 
-void Texture::processDownVertex()
+void Chunk::processDownVertex()
 {
     std::sort(_faces[DOWN].begin(), _faces[DOWN].end(), compareUpFaces);
     std::vector<Face> mergedFacesZ;
@@ -203,17 +145,11 @@ void Texture::processDownVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addVAOVertex(DOWN, face.position.x                , face.position.y, face.position.z              , 0, 0);
-        addVAOVertex(DOWN, face.position.x + face.size.x  , face.position.y, face.position.z + face.size.y, face.size.x, face.size.y);
-        addVAOVertex(DOWN, face.position.x                , face.position.y, face.position.z + face.size.y, 0, face.size.y);
-
-        addVAOVertex(DOWN, face.position.x                , face.position.y, face.position.z              , 0, 0);
-        addVAOVertex(DOWN, face.position.x + face.size.x  , face.position.y, face.position.z              , face.size.x, 0);
-        addVAOVertex(DOWN, face.position.x + face.size.x  , face.position.y, face.position.z + face.size.y, face.size.x, face.size.y);
+        addTextureVertex(face);
     }
 }
 
-void Texture::processNorthVertex()
+void Chunk::processNorthVertex()
 {
     std::sort(_faces[NORTH].begin(), _faces[NORTH].end(), compareNorthFaces);
     std::vector<Face> mergedFacesZ;
@@ -253,17 +189,11 @@ void Texture::processNorthVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addVAOVertex(NORTH, face.position.x + face.size.x   , face.position.y + face.size.y , face.position.z, face.size.x, face.size.y);
-        addVAOVertex(NORTH, face.position.x + face.size.x   , face.position.y               , face.position.z, face.size.x, 0.0f);
-        addVAOVertex(NORTH, face.position.x                 , face.position.y               , face.position.z, 0.0f, 0.0f);
-
-        addVAOVertex(NORTH, face.position.x                 , face.position.y + face.size.y , face.position.z, 0.0f, face.size.y);
-        addVAOVertex(NORTH, face.position.x + face.size.x   , face.position.y + face.size.y , face.position.z, face.size.x, face.size.y);
-        addVAOVertex(NORTH, face.position.x                 , face.position.y               , face.position.z, 0.0f, 0.0f);
+        addTextureVertex(face);
     }
 }
 
-void Texture::processSouthVertex()
+void Chunk::processSouthVertex()
 {
     std::sort(_faces[SOUTH].begin(), _faces[SOUTH].end(), compareNorthFaces);
     std::vector<Face> mergedFacesZ;
@@ -303,17 +233,11 @@ void Texture::processSouthVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addVAOVertex(SOUTH, face.position.x                 , face.position.y               , face.position.z + 1, 0.0f, 0.0f);
-        addVAOVertex(SOUTH, face.position.x + face.size.x   , face.position.y               , face.position.z + 1, face.size.x, 0.0f);
-        addVAOVertex(SOUTH, face.position.x + face.size.x   , face.position.y + face.size.y , face.position.z + 1, face.size.x, face.size.y);
-
-        addVAOVertex(SOUTH, face.position.x                 , face.position.y               , face.position.z + 1, 0.0f, 0.0f);
-        addVAOVertex(SOUTH, face.position.x + face.size.x   , face.position.y + face.size.y , face.position.z + 1, face.size.x, face.size.y);
-        addVAOVertex(SOUTH, face.position.x                 , face.position.y + face.size.y , face.position.z + 1, 0.0f, face.size.y);
+        addTextureVertex(face);
     }
 }
 
-void Texture::processEastVertex()
+void Chunk::processEastVertex()
 {
     std::sort(_faces[EAST].begin(), _faces[EAST].end(), compareEastFaces);
     std::vector<Face> mergedFacesZ;
@@ -352,17 +276,11 @@ void Texture::processEastVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addVAOVertex(EAST, face.position.x, face.position.y, face.position.z, 0, 0);
-        addVAOVertex(EAST, face.position.x, face.position.y, face.position.z + face.size.y, face.size.y, 0);
-        addVAOVertex(EAST, face.position.x, face.position.y + face.size.x, face.position.z + face.size.y, face.size.y, face.size.x);
-
-        addVAOVertex(EAST, face.position.x, face.position.y, face.position.z, 0, 0);
-        addVAOVertex(EAST, face.position.x, face.position.y + face.size.x, face.position.z + face.size.y, face.size.y, face.size.x);
-        addVAOVertex(EAST, face.position.x, face.position.y + face.size.x, face.position.z, 0, face.size.x);
+        addTextureVertex(face);
     }
 }
 
-void Texture::processWestVertex()
+void Chunk::processWestVertex()
 {
     std::sort(_faces[WEST].begin(), _faces[WEST].end(), compareEastFaces);
     std::vector<Face> mergedFacesZ;
@@ -401,65 +319,16 @@ void Texture::processWestVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addVAOVertex(WEST, face.position.x + 1, face.position.y + face.size.x, face.position.z + face.size.y, face.size.y, face.size.x);
-        addVAOVertex(WEST, face.position.x + 1, face.position.y, face.position.z + face.size.y, face.size.y, 0);
-        addVAOVertex(WEST, face.position.x + 1, face.position.y, face.position.z, 0, 0);
-
-        addVAOVertex(WEST, face.position.x + 1, face.position.y + face.size.x, face.position.z, 0, face.size.x);
-        addVAOVertex(WEST, face.position.x + 1, face.position.y + face.size.x, face.position.z + face.size.y, face.size.y, face.size.x);
-        addVAOVertex(WEST, face.position.x + 1, face.position.y, face.position.z, 0, 0);
+        addTextureVertex(face);
     }
 }
 
-void Texture::addVertex(Direction dir, int x, int y, int z) {
+
+void Chunk::addFace(int x, int y, int z, Direction dir, TextureType texture) {
     Face newFace;
     newFace.position = vec3(x, y, z);
     newFace.size = vec2(0, 0);
+    newFace.direction = dir;
+    newFace.texture = texture;
     _faces[dir].push_back(newFace);
-}
-
-void Texture::resetVertex() {
-    for (int i = 0; i < 6; i++)
-    {
-        _vertexData[i].clear();
-        _faces[i].clear();
-    }
-}
-
-void Texture::setupBuffers(Direction dir) {
-    if (_vertexData[dir].empty()) return;
-
-    glBindVertexArray(_vao[dir]);
-
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo[dir]);
-    glBufferData(GL_ARRAY_BUFFER, _vertexData[dir].size() * sizeof(float), _vertexData[dir].data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0); // Positions
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))); // Texture coords
-    glEnableVertexAttribArray(1);
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
-int Texture::display(Direction dir) {
-    if (_vertexData[dir].size() % 5 != 0) {
-        std::cerr << "Couldn't display because array is not divisible by 5. Found " << _vertexData[dir].size() << std::endl;
-        return 0;
-    }
-    setupBuffers(dir);
-    glBindTexture(GL_TEXTURE_2D, _texture);
-
-    glBindVertexArray(_vao[dir]);
-    glDrawArrays(GL_TRIANGLES, 0, _vertexData[dir].size() / 5); // 5 floats per vertex
-    glBindVertexArray(0);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-	return ((_vertexData[dir].size() / 15));
-}
-
-GLuint Texture::getTexture() {
-    return _texture;
 }

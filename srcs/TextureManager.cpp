@@ -184,7 +184,7 @@ TextureManager::~TextureManager() {
 		delete _textures[i];
 }
 
-void TextureManager::addTextureVertex(TextureType type, e_direction dir, int x, int y, int z)
+void TextureManager::addTextureVertex(TextureType type, Direction dir, int x, int y, int z)
 {
 	_textures[type]->addVertex(dir, x, y, z);
 }

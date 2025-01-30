@@ -44,6 +44,7 @@ void Chunk::loadHeight()
 			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
 				double height = _perlinMap[z * CHUNK_SIZE + x];
+				// height = 100;
 				size_t maxHeight = (size_t)(height);
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
@@ -99,17 +100,17 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 	int z = _position.z * CHUNK_SIZE + blockZ;
 
 	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 0) || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, y, z, DOWN, down);
+		addFace(blockX, blockY, blockZ, DOWN, down);
 	if ((blockY == (CHUNK_SIZE - 1) && _world.getBlock(x, y + 1, z) == 0) || ((blockY != (CHUNK_SIZE - 1) && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, blockY, blockZ, UP, up);
+		addFace(blockX, blockY, blockZ, UP, up);
 	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 0) || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, blockY, blockZ, NORTH, north);
+		addFace(blockX, blockY, blockZ, NORTH, north);
 	if ((blockZ == (CHUNK_SIZE - 1) && _world.getBlock(x, y, z + 1) == 0) || ((blockZ != (CHUNK_SIZE - 1) && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, blockY, blockZ, SOUTH, south);
+		addFace(blockX, blockY, blockZ, SOUTH, south);
 	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 0) || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, blockY, blockZ, WEST, west);
+		addFace(blockX, blockY, blockZ, WEST, west);
 	if ((blockX == (CHUNK_SIZE - 1) && _world.getBlock(x + 1, y, z) == 0) || ((blockX != (CHUNK_SIZE - 1) && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addTextureVertex(blockX, blockY, blockZ, EAST, east);
+		addFace(blockX, blockY, blockZ, EAST, east);
 }
 
 vec3 Chunk::getPosition()
@@ -144,23 +145,37 @@ void Chunk::sendFacesToDisplay()
 			}
 		}
 	}
+	processFaces();
 	setupBuffers();
 	_hasSentFaces = true;
 }
 
-void Chunk::addTextureVertex(int x, int y, int z, int direction, int textureID)
+void Chunk::addTextureVertex(Face face)
 {
-	(void)textureID;
-	(void)direction;
+	int x = face.position.x;
+	int y = face.position.y;
+	int z = face.position.z;
+	int textureID = face.texture;
+	int direction = face.direction;
 	if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || direction >= 6)
 		return ;
-		
 	int newVertex = 0;
-	newVertex |= (x & 0x1F) << 0;
-	newVertex |= (y & 0x1F) << 5;
-	newVertex |= (z & 0x1F) << 10;
-	newVertex |= (direction & 0x07) << 15;
-	newVertex |= (textureID & 0x7F) << 18;
+	int lengthX = face.size.x;
+	int lengthY = face.size.y;
+	if (face.direction == EAST || face.direction == WEST)
+	{
+		lengthX = face.size.y;
+		lengthY = face.size.x;
+	}
+	// std::cout << lengthX << ", " << lengthY << std::endl;
+	
+	newVertex |= (x & 0x1F) << 0;   // 5 bits for x
+	newVertex |= (y & 0x1F) << 5;   // 5 bits for y
+	newVertex |= (z & 0x1F) << 10;  // 5 bits for z
+	newVertex |= (direction & 0x07) << 15;  // 3 bits for direction
+	newVertex |= (lengthX & 0x1F) << 18; // 5 bits for lengthX
+	newVertex |= (lengthY & 0x1F) << 23; // 5 bits for lengthY
+	newVertex |= (textureID & 0x0F) << 28; // 4 bits for textureID
 	_vertexData.push_back(newVertex);
 }
 
@@ -190,4 +205,14 @@ int Chunk::display(void)
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);
     return (_vertexData.size() * 2);
+}
+
+void Chunk::processFaces()
+{
+	processUpVertex();
+	processDownVertex();
+	processNorthVertex();
+	processSouthVertex();
+	processEastVertex();
+	processWestVertex();
 }

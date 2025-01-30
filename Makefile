@@ -19,6 +19,7 @@ SRC_NAME	=	stb_truetype.cpp	\
 				Texture.cpp			\
 				globals.cpp			\
 				Chunk.cpp			\
+				Chunk_faces.cpp		\
 				Textbox.cpp			\
 				World.cpp			\
 				Chrono.cpp			\

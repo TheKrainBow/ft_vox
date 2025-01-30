@@ -23,14 +23,14 @@ private:
 public:
     Texture(GLuint texture);
     ~Texture();
-    void addVertex(e_direction dir, int x, int y, int z);
-    void processVertex(e_direction dir);
+    void addVertex(Direction dir, int x, int y, int z);
+    void processVertex(Direction dir);
     void resetVertex();
-    void setupBuffers(e_direction dir);
-    int display(e_direction dir);
+    void setupBuffers(Direction dir);
+    int display(Direction dir);
     GLuint getTexture(void);
 private:
-    void addVAOVertex(e_direction dir, int x, int y, int z, int u, int v);
+    void addVAOVertex(Direction dir, int x, int y, int z, int u, int v);
     void processUpVertex();
     void processDownVertex();
     void processNorthVertex();

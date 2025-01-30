@@ -28,7 +28,7 @@
 
 using namespace glm;
 
-enum e_direction {
+enum Direction {
 	NORTH,
 	SOUTH,
 	WEST,
