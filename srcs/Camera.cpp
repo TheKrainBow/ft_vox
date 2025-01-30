@@ -1,14 +1,15 @@
 #include "Camera.hpp"
 
 
-Camera::Camera() : position{-1060, -110, -900}, center{0.0f, 0.0f, 10.0f} { xangle = 0; yangle = 0;};
+Camera::Camera() : position{-100, -110, -50}, center{0.0f, 0.0f, 10.0f} { angle.x = 0; angle.y = 0;};
 /*
 	Moving the camera around (first person view)
 */
 void Camera::move(float  forward, float  strafe, float up)
 {
+	//std::lock_guard<std::mutex> lock(positionMutex);
 	// Calculate the direction based on the current angles
-	float radiansX = xangle * (M_PI / 180.0);
+	float radiansX = angle.x * (M_PI / 180.0);
 
 	//float scaleForward = forward * cos(radiansY);
 
@@ -35,15 +36,53 @@ void Camera::move(float  forward, float  strafe, float up)
 void Camera::reset()
 {
 	position = vec3(0.0, 0.0, 0.0);
-	xangle = 0.0;
-	yangle = 0.0;
+	angle.x = 0.0;
+	angle.y = 0.0;
 	rotationspeed = 100.0f;
 	movementspeed = 50.0f;
 }
 
 vec3 Camera::getWorldPosition(void)
 {
+	//std::lock_guard<std::mutex> lock(positionMutex);
 	return (vec3(-position.x, -position.y, -position.z));
+}
+
+vec3 Camera::getPosition()
+{
+	return position;
+}
+
+vec3 Camera::getCenter()
+{
+	return center;
+}
+
+vec2 Camera::getAngles()
+{
+	return angle;
+}
+
+vec3 *Camera::getPositionPtr()
+{
+	return &position;
+}
+
+vec2 *Camera::getAnglesPtr()
+{
+	return &angle;
+}
+
+void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
+{
+	//std::lock_guard<std::mutex> lock(angleMutex);
+	angle.x += xAngle * rotationSpeed;
+	angle.y += yAngle * rotationSpeed;
+	angle.y = std::clamp(angle.y, -90.0f, 90.0f);
+	if (angle.x < 0)
+		angle.x = 360;
+	else if (angle.x > 360)
+		angle.x = 0;
 }
 
 void Camera::updateMousePos(int x, int y)

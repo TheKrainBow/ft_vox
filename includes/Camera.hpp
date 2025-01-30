@@ -11,14 +11,22 @@ class Camera {
 		void move(float forward, float strafe, float up);
 		void reset();
 		void updateMousePos(int x, int y);
-		vec3 getWorldPosition(void);
+		vec3 getWorldPosition();
+		vec3 getCenter();
+		vec3 getPosition();
+		vec2 getAngles();
+		vec3 *getPositionPtr();
+		vec2 *getAnglesPtr();
+		void rotate(float xAngle, float yAngle, double rotationSpeed);
 
+	private:
 		vec3 position;
 		vec3 center;
-		float xangle = 0.0f;
-		float yangle = 0.0f;
+		vec2 angle;
 		float rotationspeed = 125.0f;
 		float movementspeed = 10.0f;
 		bool mouseRotation = false;
 		vec2 mousePos;
+		// std::mutex positionMutex;
+		// std::mutex angleMutex;
 };

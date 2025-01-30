@@ -16,9 +16,11 @@ class StoneEngine {
 		GLFWwindow* _window;
 		GLuint shaderProgram;
 		World *_world;
-
+		int windowHeight;
+		int windowWidth;
+		Camera camera;
 		mat4 projectionMatrix;
-		mat4 viewMatrix;
+		TextureManager textureManager;
 
 		// Keys states and runtime booleans
 		bool keyStates[348];
@@ -28,9 +30,7 @@ class StoneEngine {
 		bool mouseCaptureToggle;
 		bool showDebugInfo;
 
-		int windowHeight;
-		int windowWidth;
-
+		// Player speed
 		float moveSpeed;
 		float rotationSpeed;
 
@@ -40,21 +40,28 @@ class StoneEngine {
 		double currentFrameTime;
 		double fps;
 
-		// Debug data
+		// Debug
 		Chrono chronoHelper;
 		double drawnTriangles;
+		Textbox debugBox;
 	
-		//World gen
+		// World gen
 		NoiseGenerator noise_gen;
+	
+		// Multi-Threads data
+		// std::mutex chunksMutex;
+		// std::mutex printMutex;
 
-		//Game time globals
+		// std::thread chunkUpdateThread;
+		// std::thread displayThread;
+		// std::atomic<bool> updateChunkFlag;
+		// std::atomic<bool> running;
+		// std::condition_variable chunkCondition;
+
+		// Game time
 		std::chrono::steady_clock::time_point start;
 		std::chrono::steady_clock::time_point end;
 		std::chrono::milliseconds delta;
-
-		Textbox debugBox;
-		TextureManager textureManager;
-		Camera camera;
 	public:
 		StoneEngine(World *world);
 		~StoneEngine();
@@ -80,8 +87,11 @@ class StoneEngine {
 
 		// Runtime methods
 		void calculateFps();
-		void display(GLFWwindow* window);
+		void display();
 		void updateChunks();
+
+		// Multi thread methods
+		//void chunkUpdateWorker();
 
 		// Movement methods
 		void findMoveRotationSpeed();

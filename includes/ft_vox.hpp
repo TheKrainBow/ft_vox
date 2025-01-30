@@ -25,6 +25,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <stdexcept>
+#include <unistd.h>
 
 using namespace glm;
 

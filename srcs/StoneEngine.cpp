@@ -1,6 +1,6 @@
 #include "StoneEngine.hpp"
 
-StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)
+StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)//, updateChunkFlag(false), running(true)
 {
 	initData();
 	initGLFW();
@@ -15,7 +15,7 @@ StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)
 
 StoneEngine::~StoneEngine()
 {
-    glDeleteProgram(shaderProgram);
+	glDeleteProgram(shaderProgram);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 }
@@ -23,12 +23,18 @@ StoneEngine::~StoneEngine()
 void StoneEngine::run()
 {
 	// Main loop
+	// chunkUpdateThread = std::thread(&StoneEngine::chunkUpdateWorker, this);
+	// updateChunkFlag.store(true);
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
 		update(_window);
 		glfwPollEvents();
 	}
+	// Terminate chunk thread
+	//running.store(false);
+	// displayThread.join();
+	// chunkUpdateThread.join();
 }
 
 void StoneEngine::initData()
@@ -36,7 +42,7 @@ void StoneEngine::initData()
 	// Keys states and runtime booleans
 	bzero(keyStates, sizeof(keyStates));
 	ignoreMouseEvent	= IGNORE_MOUSE;
-	updateChunk		= ENABLE_WORLD_GENERATION;
+	updateChunk			= ENABLE_WORLD_GENERATION;
 	showDebugInfo		= SHOW_DEBUG;
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
@@ -47,9 +53,9 @@ void StoneEngine::initData()
 
 	// FPS counter
 	frameCount			= 0;
-	lastFrameTime	= 0.0;
+	lastFrameTime		= 0.0;
 	currentFrameTime	= 0.0;
-	fps				= 0.0;
+	fps					= 0.0;
 
 	// Debug data
 	drawnTriangles	= 0.0;
@@ -86,15 +92,18 @@ void StoneEngine::initShaders()
 
 void StoneEngine::initDebugTextBox()
 {
+	vec3 *camPos = camera.getPositionPtr();
+	vec2 *camAngle = camera.getAnglesPtr();
+
 	debugBox.initData(_window, 0, 0, 200, 200);
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::DOUBLE, &drawnTriangles);
-	debugBox.addLine("x: ", Textbox::FLOAT, &camera.position.x);
-	debugBox.addLine("y: ", Textbox::FLOAT, &camera.position.y);
-	debugBox.addLine("z: ", Textbox::FLOAT, &camera.position.z);
-	debugBox.addLine("xangle: ", Textbox::FLOAT, &camera.xangle);
-	debugBox.addLine("yangle: ", Textbox::FLOAT, &camera.yangle);
+	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
+	debugBox.addLine("y: ", Textbox::FLOAT, &camPos->y);
+	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
+	debugBox.addLine("xangle: ", Textbox::FLOAT, &camAngle->x);
+	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
 }
 
@@ -118,28 +127,28 @@ void StoneEngine::calculateFps()
 	}
 }
 
-void StoneEngine::display(GLFWwindow* window)
+void StoneEngine::display()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
-	(void)window;
 
+	vec3 camPos = camera.getPosition();
 	glm::mat4 viewMatrix = glm::lookAt(
-		camera.position,         // camera position
-		camera.center,           // Look-at point
-		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
+		camPos,						// camera position
+		camera.getCenter(),			// Look-at point
+		glm::vec3(0.0f, 1.0f, 0.0f)	// Up direction
 	);
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
 
-
 	float radY, radX;
-	radX = camera.xangle * (M_PI / 180.0);
-	radY = camera.yangle * (M_PI / 180.0);
+	vec2 camAngles = camera.getAngles();
+	radX = camAngles.x * (M_PI / 180.0);
+	radY = camAngles.y * (M_PI / 180.0);
 
 	viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.position.x, camera.position.y, camera.position.z));
+	viewMatrix = glm::translate(viewMatrix, glm::vec3(camPos.x, camPos.y, camPos.z));
 
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
@@ -171,10 +180,11 @@ void StoneEngine::updateChunks()
 {
 	chronoHelper.startChrono(0, "Update chunks");
 	chronoHelper.startChrono(1, "Perlin Generation");
-	_world->loadPerlinMap(camera.getWorldPosition());	
+	vec3 worldPos = camera.getWorldPosition();
+	_world->loadPerlinMap(worldPos);
 	chronoHelper.stopChrono(1);
 	chronoHelper.startChrono(2, "Load chunks");
-	_world->loadChunk(camera.getWorldPosition(), textureManager);	
+	_world->loadChunk(worldPos, textureManager);
 	chronoHelper.stopChrono(2);
 	textureManager.resetTextureVertex();
 	chronoHelper.startChrono(3, "Send Faces to display");
@@ -196,11 +206,17 @@ void StoneEngine::findMoveRotationSpeed()
 	float deltaTime = std::min(elapsedTime.count(), 0.1f);
 	lastTime = currentTime;
 
+
 	// Apply delta to rotation and movespeed
-	if (keyStates[GLFW_KEY_LEFT_CONTROL]) moveSpeed = (camera.movementspeed * 2.0) * deltaTime;
-	else moveSpeed = camera.movementspeed * deltaTime;
-	if (!isWSL()) camera.rotationspeed = 1.5;
-	rotationSpeed = camera.rotationspeed * deltaTime;
+	if (keyStates[GLFW_KEY_LEFT_CONTROL])
+		moveSpeed = (MOVEMENT_SPEED * 2.0) * deltaTime;
+	else
+		moveSpeed = MOVEMENT_SPEED * deltaTime;
+
+	if (!isWSL())
+		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
+	else
+		rotationSpeed = ROTATION_SPEED * deltaTime;
 
 	start = std::chrono::steady_clock::now();
 }
@@ -208,8 +224,8 @@ void StoneEngine::findMoveRotationSpeed()
 void StoneEngine::updateMovement()
 {
 	// Camera movement
-	if (keyStates[GLFW_KEY_Z] || keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_Q] || keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
+	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
+	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
@@ -218,24 +234,34 @@ void StoneEngine::updateMovement()
 	// Camera rotation
 	if (!isWSL())
 	{
-		if (keyStates[GLFW_KEY_UP] && camera.yangle < 90.0) camera.yangle += rotationSpeed * 150.0;
-		if (keyStates[GLFW_KEY_DOWN] && camera.yangle > -90.0) camera.yangle -= rotationSpeed * 150.0;
-		if (keyStates[GLFW_KEY_RIGHT]) camera.xangle -= rotationSpeed * 150.0;
-		if (keyStates[GLFW_KEY_LEFT]) camera.xangle += rotationSpeed * 150.0;
+		if (keyStates[GLFW_KEY_UP]) camera.rotate(0.0f, 1.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_DOWN]) camera.rotate(0.0f, -1.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_RIGHT]) camera.rotate(-1.0f, 0.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_LEFT]) camera.rotate(1.0f, 0.0f, rotationSpeed * 150.0f);
 	}
 	else
 	{
-		if (keyStates[GLFW_KEY_UP] && camera.yangle < 90.0) camera.yangle += rotationSpeed;
-		if (keyStates[GLFW_KEY_DOWN] && camera.yangle > -90.0) camera.yangle -= rotationSpeed;
-		if (keyStates[GLFW_KEY_RIGHT]) camera.xangle -= rotationSpeed;
-		if (keyStates[GLFW_KEY_LEFT]) camera.xangle += rotationSpeed;
+		if (keyStates[GLFW_KEY_UP]) camera.rotate(0.0f, 1.0f, rotationSpeed);
+		if (keyStates[GLFW_KEY_DOWN]) camera.rotate(0.0f, -1.0f, rotationSpeed);
+		if (keyStates[GLFW_KEY_RIGHT]) camera.rotate(-1.0f, 0.0f, rotationSpeed);
+		if (keyStates[GLFW_KEY_LEFT]) camera.rotate(1.0f, 0.0f, rotationSpeed);
 	}
-	// Clamp angle from 0 to 360
-	while (camera.xangle < 0)
-		camera.xangle += 360;
-	while (camera.xangle > 360)
-		camera.xangle -= 360;
 }
+
+// void StoneEngine::chunkUpdateWorker()
+// {
+// 	while (running.load())
+// 	{
+// 		std::unique_lock<std::mutex> lock(chunksMutex);
+// 		chunkCondition.wait(lock, [this] {return updateChunkFlag.load() || !running.load();});
+// 		if (!running.load()) break ;
+
+// 		updateChunkFlag.store(false);
+// 		lock.unlock();
+// 		updateChunks();
+// 		usleep(2000);
+// 	}
+// }
 
 void StoneEngine::update(GLFWwindow* window)
 {
@@ -244,7 +270,8 @@ void StoneEngine::update(GLFWwindow* window)
 	findMoveRotationSpeed();
 
 	// Save old chunk position
-	vec3 oldCamChunk(camera.getWorldPosition().x / CHUNK_SIZE, camera.getWorldPosition().y / CHUNK_SIZE, camera.getWorldPosition().z / CHUNK_SIZE);
+	vec3 worldPos = camera.getWorldPosition();
+	vec3 oldCamChunk(worldPos.x / CHUNK_SIZE, worldPos.y / CHUNK_SIZE, worldPos.z / CHUNK_SIZE);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
@@ -252,16 +279,23 @@ void StoneEngine::update(GLFWwindow* window)
 	// Update player position and orientation
 	updateMovement();
 
+	worldPos = camera.getWorldPosition();
 	// Check new chunk position for necessary updates to chunks
-	vec3 camChunk(camera.getWorldPosition().x / CHUNK_SIZE, camera.getWorldPosition().y / CHUNK_SIZE, camera.getWorldPosition().z / CHUNK_SIZE);
-	if (camera.getWorldPosition().x < 0) camChunk.x--;
-	if (camera.getWorldPosition().y < 0) camChunk.y--;
-	if (camera.getWorldPosition().z < 0) camChunk.z--;
+	vec3 camChunk(worldPos.x / CHUNK_SIZE, worldPos.y / CHUNK_SIZE, worldPos.z / CHUNK_SIZE);
+	if (worldPos.x < 0) camChunk.x--;
+	if (worldPos.y < 0) camChunk.y--;
+	if (worldPos.z < 0) camChunk.z--;
 	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
 		updateChunks();
+	// {
+	// 	// {
+	// 	// 	std::lock_guard<std::mutex> lock(chunksMutex);
+	// 	// 	updateChunkFlag = true;
+	// 	// }
+	// 	// chunkCondition.notify_one();
+	// }
 
-	// Call display for window image
-	display(_window);
+	display();
 
 	// Register end of frame for the next delta
 	end = std::chrono::steady_clock::now(); 
@@ -283,8 +317,7 @@ void StoneEngine::reshape(GLFWwindow* window, int width, int height)
 {
 	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
 
-	if (engine)
-		engine->reshapeAction(width, height);
+	if (engine) engine->reshapeAction(width, height);
 }
 
 void StoneEngine::keyAction(int key, int scancode, int action, int mods)
@@ -306,8 +339,7 @@ void StoneEngine::keyPress(GLFWwindow* window, int key, int scancode, int action
 {
 	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
 
-	if (engine)
-		engine->keyAction(key, scancode, action, mods);
+	if (engine) engine->keyAction(key, scancode, action, mods);
 }
 
 void StoneEngine::mouseAction(double x, double y)
@@ -319,7 +351,6 @@ void StoneEngine::mouseAction(double x, double y)
 	}
 	static bool firstMouse = true;
 	static double lastX = 0, lastY = 0;
-
 
 	// Get the current window size dynamically
 	int windowWidth, windowHeight;
@@ -350,19 +381,9 @@ void StoneEngine::mouseAction(double x, double y)
 	xOffset *= sensitivity;
 	yOffset *= sensitivity;
 
-	camera.xangle += xOffset * camera.rotationspeed;
-	camera.yangle += yOffset * camera.rotationspeed;
-
-	if (camera.yangle > 90.0f) camera.yangle = 90.0f;
-	if (camera.yangle < -90.0f) camera.yangle = -90.0f;
-
-	while (camera.xangle < 0)
-		camera.xangle += 360;
-	while (camera.xangle >= 360)
-		camera.xangle -= 360;
-
+	camera.rotate(1.0f, 0.0f, xOffset * ROTATION_SPEED);
+	camera.rotate(0.0f, 1.0f, yOffset * ROTATION_SPEED);
 	ignoreMouseEvent = true;
-
 	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
 }
 
@@ -370,8 +391,7 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 {
 	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
 
-	if (engine)
-		engine->mouseAction(x, y);
+	if (engine) engine->mouseAction(x, y);
 }
 
 int StoneEngine::initGLFW()
@@ -388,6 +408,7 @@ int StoneEngine::initGLFW()
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
 	glfwMakeContextCurrent(_window);
+	glfwSwapInterval(1);
 	if (!isWSL())
 		glfwSetCursorPosCallback(_window, mouseCallback);
 	return 1;
