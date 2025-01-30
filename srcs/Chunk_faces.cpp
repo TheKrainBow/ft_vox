@@ -63,6 +63,8 @@ bool compareEastStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
 
 void Chunk::processUpVertex()
 {
+    if (_faces[UP].empty())
+        return ;
     std::sort(_faces[UP].begin(), _faces[UP].end(), compareUpFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
@@ -72,7 +74,7 @@ void Chunk::processUpVertex()
     Face newFace;
     for (Face face : _faces[UP])
     {
-        if (isFirst || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
+        if (isFirst || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
@@ -88,7 +90,7 @@ void Chunk::processUpVertex()
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1 || newFace.size.y != face.size.y)
+        if (isFirst || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1 || newFace.size.y != face.size.y)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
@@ -107,6 +109,8 @@ void Chunk::processUpVertex()
 
 void Chunk::processDownVertex()
 {
+    if (_faces[DOWN].empty())
+        return ;
     std::sort(_faces[DOWN].begin(), _faces[DOWN].end(), compareUpFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
@@ -116,7 +120,7 @@ void Chunk::processDownVertex()
     Face newFace;
     for (Face face : _faces[DOWN])
     {
-        if (isFirst || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
+        if (isFirst || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
@@ -132,7 +136,7 @@ void Chunk::processDownVertex()
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1 || newFace.size.y != face.size.y)
+        if (isFirst || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1 || newFace.size.y != face.size.y)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
@@ -151,6 +155,8 @@ void Chunk::processDownVertex()
 
 void Chunk::processNorthVertex()
 {
+    if (_faces[NORTH].empty())
+        return ;
     std::sort(_faces[NORTH].begin(), _faces[NORTH].end(), compareNorthFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
@@ -160,7 +166,7 @@ void Chunk::processNorthVertex()
     Face newFace;
     for (Face face : _faces[NORTH])
     {
-        if (isFirst || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
+        if (isFirst || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
@@ -176,7 +182,7 @@ void Chunk::processNorthVertex()
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - 1 || newFace.size.x != face.size.x)
+        if (isFirst || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - 1 || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
@@ -195,6 +201,8 @@ void Chunk::processNorthVertex()
 
 void Chunk::processSouthVertex()
 {
+    if (_faces[SOUTH].empty())
+        return ;
     std::sort(_faces[SOUTH].begin(), _faces[SOUTH].end(), compareNorthFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
@@ -204,7 +212,7 @@ void Chunk::processSouthVertex()
     Face newFace;
     for (Face face : _faces[SOUTH])
     {
-        if (isFirst || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
+        if (isFirst || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
@@ -220,7 +228,7 @@ void Chunk::processSouthVertex()
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - 1 || newFace.size.x != face.size.x)
+        if (isFirst || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - 1 || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
@@ -239,6 +247,8 @@ void Chunk::processSouthVertex()
 
 void Chunk::processEastVertex()
 {
+    if (_faces[EAST].empty())
+        return ;
     std::sort(_faces[EAST].begin(), _faces[EAST].end(), compareEastFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
@@ -248,7 +258,7 @@ void Chunk::processEastVertex()
     Face newFace;
     for (Face face : _faces[EAST])
     {
-        if (isFirst || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
+        if (isFirst || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
@@ -263,7 +273,7 @@ void Chunk::processEastVertex()
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1 || newFace.size.x != face.size.x)
+        if (isFirst || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1 || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
@@ -282,6 +292,8 @@ void Chunk::processEastVertex()
 
 void Chunk::processWestVertex()
 {
+    if (_faces[WEST].empty())
+        return ;
     std::sort(_faces[WEST].begin(), _faces[WEST].end(), compareEastFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
@@ -291,7 +303,7 @@ void Chunk::processWestVertex()
     Face newFace;
     for (Face face : _faces[WEST])
     {
-        if (isFirst || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
+        if (isFirst || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
@@ -306,7 +318,7 @@ void Chunk::processWestVertex()
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1 || newFace.size.x != face.size.x)
+        if (isFirst || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1 || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);

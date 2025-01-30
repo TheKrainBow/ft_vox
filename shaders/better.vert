@@ -43,13 +43,28 @@ void main()
 	if (direction == 3)
 		basePos.x += 1;
 	if (direction == 4)
-		basePos.z = -basePos.z + 1;
+		basePos.z = -basePos.z + lengthY;
 	if (direction == 5)
 		basePos.y++;
 
 	// finalUV.x *= lengthX;
 	// finalUV.y *= lengthY;
     vec3 worldPosition = worldPos + basePos + instancePos;
+	// finalUV.x *= lengthX;
+	// finalUV.y *= lengthY;
+	if (direction == 0)
+	{
+		finalUV.x *= lengthX;
+		finalUV.y *= lengthY;
+		// finalUV.y = float(mod(finalUV.y * float(lengthY), 1.0)) * 0.2;
+	}
+	// if (direction == 1)
+	// 	finalUV.y *= lengthY;
+	// if (direction == 5)
+	// {
+	// 	finalUV.x *= lengthX;
+	// 	finalUV.y *= lengthY;
+	// }
     // finalUV.y = (finalUV.y * lengthY) / 5 + (float(textureID) / 5);
     finalUV.y = finalUV.y / 5 + (float(textureID) / 5);
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);

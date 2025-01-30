@@ -36,7 +36,6 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 void Chunk::loadHeight()
 {
 	if (_loaded) return ;
-	_loaded = true;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
 		for (int x = 0; x < CHUNK_SIZE ; x++)
@@ -51,6 +50,19 @@ void Chunk::loadHeight()
 			}
 		}
 	}
+
+	// for (int y = 0; y < 3 ; y++)
+	// {
+	// 	for (int x = 0; x < 4 ; x++)
+	// 	{
+	// 		for (int z = 0; z < 3 ; z++)
+	// 		{
+	// 			_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
+	// 		}
+	// 	}
+	// }
+	
+	_loaded = true;
 }
 
 void Chunk::loadBiome()
