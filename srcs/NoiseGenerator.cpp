@@ -119,8 +119,10 @@ NoiseGenerator::PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, 
 		for (int z = 0; z < size; z += resolution)
 		{
 			newMap->map[z * size + x] = getHeight({(startX * size) + x, (startZ * size) + z});
-			if (newMap->heighest == std::numeric_limits<double>::min() || newMap->map[z * size + x] > newMap->heighest)
+			if (newMap->map[z * size + x] > newMap->heighest)
 				newMap->heighest = newMap->map[z * size + x];
+			if (newMap->map[z * size + x] < newMap->lowest)
+				newMap->lowest = newMap->map[z * size + x];
 		}
 	_perlinMaps.push_back(newMap);
 	return (newMap);

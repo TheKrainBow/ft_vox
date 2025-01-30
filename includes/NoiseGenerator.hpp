@@ -35,6 +35,7 @@ class NoiseGenerator {
 			double *map = nullptr;
 			vec2	position;
 			double	heighest = std::numeric_limits<double>::min();
+			double	lowest = std::numeric_limits<double>::max();
 			double	resolution = 1;
 			double	size = CHUNK_SIZE;
 			~PerlinMap() {if (map) delete [] map;};

@@ -40,5 +40,5 @@ public:
 	int display(Camera &cam);
 private:
 	vec3 calculateBlockPos(int x, int y, int z) const;
-	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager);
+	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap);
 };

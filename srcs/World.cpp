@@ -12,14 +12,8 @@ vec3 World::calculateBlockPos(int x, int y, int z) const {
 	return { mod(x), mod(y), mod(z) };
 }
 
-void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager)
+void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap)
 {
-    NoiseGenerator::PerlinMap *perlinMap = nullptr;
-    perlinMap = _perlinGenerator.getPerlinMap(position.x, position.z);
-    if (!perlinMap)
-        return ;
-    if (perlinMap->heighest < (position.y - 1) * CHUNK_SIZE)
-        return ;
     auto currentTuple = std::make_tuple((int)position.x, (int)position.y, (int)position.z);
 	auto it = _loadedChunks.find(currentTuple);
 	if (it != _loadedChunks.end())
@@ -70,14 +64,18 @@ void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 	vec3 position;
 	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
 	{
-		for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
+		for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
 		{
-			for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+			position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
+			position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
+			NoiseGenerator::PerlinMap *perlinMap = nullptr;
+			perlinMap = _perlinGenerator.getPerlinMap(position.x, position.z);
+			if (!perlinMap)
+				return ;
+			for (int y = perlinMap->lowest ; y < perlinMap->heighest; y += CHUNK_SIZE)
 			{
-				position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-				position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
-				position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
-				findOrLoadChunk(position, tempChunks, textManager);
+				position.y = y / CHUNK_SIZE;
+				findOrLoadChunk(position, tempChunks, textManager, perlinMap);
 			}
 		}
 	}
