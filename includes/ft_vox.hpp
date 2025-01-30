@@ -25,6 +25,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <stdexcept>
+#include <unistd.h>
 
 using namespace glm;
 
@@ -46,3 +47,19 @@ enum BlockType {
 };
 
 bool isWSL();
+GLuint compileShader(const char* filePath, GLenum shaderType);
+GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath);
+void mouseCallback(GLFWwindow* window, double x, double y);
+void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
+void reshape(GLFWwindow* window, int width, int height);
+
+
+
+struct pair_hash {
+	template <class T1, class T2>
+	std::size_t operator () (const std::pair<T1, T2>& pair) const {
+		auto h1 = std::hash<T1>{}(pair.first);
+		auto h2 = std::hash<T2>{}(pair.second);
+		return h1 ^ (h2 << 1);
+	}
+};

@@ -1,8 +1,6 @@
 #include "Chunk.hpp"
-#include "World.hpp"
-#include "globals.hpp"
 
-Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world) : _world(world)
+Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
 {
 	_position = vec3(x, y, z);
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
@@ -63,6 +61,43 @@ void Chunk::loadHeight()
 	// }
 	
 	_loaded = true;
+}
+
+vec2 Chunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
+{
+	double noiseX = noise_gen.noise(x, z);
+	double noiseY = noise_gen.noise(z, x);
+	vec2 offset;
+	offset.x = noiseX * 15.0;
+	offset.y = noiseY * 15.0;
+	return offset;
+}
+
+double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
+{
+	double noise = 0.0;
+	NoiseData nData = {
+		1.0, // amplitude
+		0.001, // frequency
+		0.8, // persistance
+		4.0, // lacunarity
+		4 // nb_octaves
+	};
+
+	noise_gen.setNoiseData(nData);
+	noise = noise_gen.noise(pos.x, pos.y);
+	noise_gen.setNoiseData(NoiseData());
+	return noise;
+}
+
+double Chunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
+{
+	std::vector<Point> splinePoints = {{-1.0, 50.0}, {0.3, 100.0}, {0.4, 150.0}, {1.0, 150.0}};
+	double continentalNoise = getContinentalNoise(pos, noise_gen);
+	SplineInterpolator spline(splinePoints);
+
+	double splineResult = spline.interpolate(continentalNoise);
+	return splineResult;
 }
 
 void Chunk::loadBiome()

@@ -3,7 +3,7 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
-CFLAGS	=	-Wall -Wextra -Werror -O3 -g3 -std=c++17
+CFLAGS	=	-Wall -Wextra -Werror -O3 -g3 -std=c++17 -fsanitize=address
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
 
 OBJ_PATH		=	obj/
@@ -12,18 +12,22 @@ DEBUG_OBJ_PATH		=	debug_obj/
 CC			=	g++
 SRC_PATH	=	srcs/
 INCLUDES	=	-Iincludes -Iglm
-SRC_NAME	=	stb_truetype.cpp	\
-				main.cpp			\
-				Camera.cpp			\
-				TextureManager.cpp	\
-				Texture.cpp			\
-				globals.cpp			\
-				Chunk.cpp			\
-				Chunk_faces.cpp		\
-				Textbox.cpp			\
-				World.cpp			\
-				Chrono.cpp			\
-				NoiseGenerator.cpp
+	
+SRC_NAME	=	stb_truetype.cpp		\
+				main.cpp				\
+				StoneEngine.cpp			\
+				Camera.cpp				\
+				TextureManager.cpp		\
+				Texture.cpp				\
+				Chunk.cpp				\
+				Chunk_faces.cpp			\
+				NoiseGenerator.cpp		\
+				Textbox.cpp				\
+				BiomeGenerator.cpp		\
+				SplineInterpolator.cpp	\
+				World.cpp				\
+				Chrono.cpp				\
+				Shader.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

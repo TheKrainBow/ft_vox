@@ -12,7 +12,7 @@ vec3 World::calculateBlockPos(int x, int y, int z) const {
 	return { mod(x), mod(y), mod(z) };
 }
 
-void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks)
+void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager)
 {
     NoiseGenerator::PerlinMap *perlinMap = nullptr;
     perlinMap = _perlinGenerator.getPerlinMap(position.x, position.z);
@@ -34,7 +34,7 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
 	}
 	else
 	{
-		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this);
+		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this, textManager);
 		tempChunks[currentTuple] = std::move(newChunk);
 	}
 }
@@ -63,26 +63,25 @@ void World::loadPerlinMap(vec3 camPosition)
 	}
 }
 
-void World::loadChunk(vec3 camPosition)
+void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 {
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
 
-	(void)camPosition;
-	//findOrLoadChunk(vec3(0, 0, 0), tempChunks);
-	 vec3 position;
-	 for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
-	 {
-	 	for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
-	 	{
-	 		for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
-	 		{
-	 			position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-	 			position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
-	 			position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
-	 			findOrLoadChunk(position, tempChunks);
-	 		}
-	 	}
-	 }
+	vec3 position;
+	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
+	{
+		for (int y = -Y_RENDER_DISTANCE; y < Y_RENDER_DISTANCE; y++)
+		{
+			for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+			{
+				position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
+				position.y = trunc(camPosition.y / CHUNK_SIZE) + y;
+				position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
+				findOrLoadChunk(position, tempChunks, textManager);
+			}
+		}
+	}
+
 	_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
 	_loadedChunks = std::move(tempChunks);
 }

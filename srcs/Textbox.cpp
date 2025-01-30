@@ -5,8 +5,15 @@
 #include <iomanip>
 
 
-Textbox::Textbox(GLFWwindow* window, int x, int y, int width, int height)
-	: window(window), positionX(x), positionY(y), width(width), height(height), fontLoaded(false) {}
+Textbox::Textbox() {}
+
+void Textbox::initData(GLFWwindow* window, int x, int y, int width, int height) {
+	this->window = window;
+	positionX = x;
+	positionY = y;
+	this->width = width;
+	this->height = height;
+}
 
 void Textbox::initializeFont(const std::string& fontPath, float fontSize) {
 	FILE* file = fopen(fontPath.c_str(), "rb");

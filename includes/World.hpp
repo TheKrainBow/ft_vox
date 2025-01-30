@@ -1,3 +1,4 @@
+#pragma once
 #include "ft_vox.hpp"
 #include "NoiseGenerator.hpp"
 #include "Chunk.hpp"
@@ -16,6 +17,8 @@ namespace std {
     };
 }
 
+class Chunk;
+
 class World
 {
 private:
@@ -26,7 +29,7 @@ private:
 public:
 	World(int seed);
 	~World();
-	void loadChunk(vec3 position);
+	void loadChunk(vec3 camPosition, TextureManager &textManager);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(int x, int y, int z);
@@ -37,5 +40,5 @@ public:
 	int display(Camera &cam);
 private:
 	vec3 calculateBlockPos(int x, int y, int z) const;
-	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks);
+	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager);
 };

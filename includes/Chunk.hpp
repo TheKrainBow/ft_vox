@@ -3,7 +3,10 @@
 #include "NoiseGenerator.hpp"
 #include "ft_vox.hpp"
 #include "TextureManager.hpp"
+#include "define.hpp"
+#include "World.hpp"
 
+class BiomeGenerator;
 class World;
 
 class Chunk
@@ -28,18 +31,22 @@ class Chunk
 		GLuint				_vbo;
 		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
+		TextureManager &_textManager;
 	public:
-		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world);
+		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager);
 		~Chunk();
-		void sendFacesToDisplay(void);
-		void loadHeight(void);
-		void loadBiome(void);
-		vec3 getPosition(void);
-		char getBlock(int x, int y, int z);
 		void setupBuffers();
 		int display(void);
 		void addTextureVertex(Face face);
 		void addFace(int x, int y, int z, Direction dir, TextureType texture);
+		void loadHeight();
+		void loadBiome();
+		vec3 getPosition(void);
+	    char getBlock(int x, int y, int z);
+		void sendFacesToDisplay();
+		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
+		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
+		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		// void renderBoundaries() const;
 	private:
 		void addBlock(int x, int y, int z, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
