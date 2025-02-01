@@ -48,18 +48,20 @@ void Chunk::loadHeight()
 			}
 		}
 	}
-
-	// for (int y = 0; y < 3 ; y++)
+	// for (int y = 1; y < 3 ; y++)
 	// {
-	// 	for (int x = 0; x < 4 ; x++)
+	// 	for (int x = 1; x < 4 ; x++)
 	// 	{
-	// 		for (int z = 0; z < 3 ; z++)
+	// 		for (int z = 1; z < 5 ; z++)
 	// 		{
+	// 			// double height = _perlinMap[z * CHUNK_SIZE + x];
+	// 			// height = 100;
+	// 			// size_t maxHeight = (size_t)(height);
+	// 			// if (y + _position.y * CHUNK_SIZE <= maxHeight)
 	// 			_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
 	// 		}
 	// 	}
 	// }
-	
 	_loaded = true;
 }
 
@@ -136,7 +138,7 @@ Chunk::~Chunk()
 char Chunk::getBlock(int x, int y, int z)
 {
 	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
-		return 'D';
+		return 0;
 	return _blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)];
 }
 
@@ -163,6 +165,13 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 vec3 Chunk::getPosition()
 {
 	return _position;
+}
+
+void Chunk::clearFaces() {
+	for (int i = 0; i < 6; i++)
+	{
+		_faces[i].clear();
+	}
 }
 
 void Chunk::sendFacesToDisplay()
@@ -209,12 +218,16 @@ void Chunk::addTextureVertex(Face face)
 	int newVertex = 0;
 	int lengthX = face.size.x;
 	int lengthY = face.size.y;
+	if (lengthX == 0)
+		lengthX++;
+	if (lengthY == 0)
+		lengthY++;
+
 	if (face.direction == EAST || face.direction == WEST)
 	{
 		lengthX = face.size.y;
 		lengthY = face.size.x;
 	}
-	// std::cout << lengthX << ", " << lengthY << std::endl;
 	
 	newVertex |= (x & 0x1F) << 0;   // 5 bits for x
 	newVertex |= (y & 0x1F) << 5;   // 5 bits for y

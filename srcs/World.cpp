@@ -70,9 +70,7 @@ void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 			position.z = trunc(camPosition.z / CHUNK_SIZE) + z;
 			NoiseGenerator::PerlinMap *perlinMap = nullptr;
 			perlinMap = _perlinGenerator.getPerlinMap(position.x, position.z);
-			if (!perlinMap)
-				return ;
-			for (int y = perlinMap->lowest ; y < perlinMap->heighest; y += CHUNK_SIZE)
+			for (int y = (perlinMap->lowest) ; y <= (perlinMap->heighest + (CHUNK_SIZE)); y += CHUNK_SIZE)
 			{
 				position.y = y / CHUNK_SIZE;
 				findOrLoadChunk(position, tempChunks, textManager, perlinMap);
@@ -92,7 +90,7 @@ char World::getBlock(int x, int y, int z)
     chunkPos.z -= (z < 0 && abs(z) % CHUNK_SIZE != 0);
 
     Chunk* chunk = getChunk((int)chunkPos.x, (int)chunkPos.y, (int)chunkPos.z);
-    if (!chunk) return 'D';
+    if (!chunk) return 0;
 
     vec3 blockPos = calculateBlockPos(x, y, z);
     return chunk->getBlock((int)blockPos.x, (int)blockPos.y, (int)blockPos.z);

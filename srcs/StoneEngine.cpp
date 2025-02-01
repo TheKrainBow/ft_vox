@@ -69,13 +69,6 @@ void StoneEngine::initData()
 void StoneEngine::initTextures()
 {
 	glEnable(GL_TEXTURE_2D);
-	textureManager.loadTextures({
-		{ T_DIRT, "textures/dirt.ppm" },
-		{ T_COBBLE, "textures/cobble.ppm" },
-		{ T_STONE, "textures/stone.ppm" },
-		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
-		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
-	});
 	textureManager.loadTexturesArray({
 		{ T_DIRT, "textures/dirt.ppm" },
 		{ T_COBBLE, "textures/cobble.ppm" },
@@ -83,22 +76,14 @@ void StoneEngine::initTextures()
 		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
 		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
 	});
-	// textureManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
-	// textureManager.loadTexture(T_DIRT, "textures/dirt.ppm");
-	// textureManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
-	// textureManager.loadTexture(T_GRASS_SIDE, "textures/grass_block_side.ppm");
-	// textureManager.loadTexture(T_STONE, "textures/stone.ppm");
-	// textureManager.loadTexture(T_SAND, "textures/sand.ppm");
 }
 
 void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	//// Set the active shader program
 	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
 
 	glUseProgram(shaderProgram);
-	// glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);  // Use texture unit 0
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
@@ -181,7 +166,7 @@ void StoneEngine::display()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	// glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
@@ -197,43 +182,15 @@ void StoneEngine::display()
 	glfwSwapBuffers(_window);
 }
 
-// void StoneEngine::updateChunks()
-// {
-// 	chronoHelper.startChrono(0, "Update chunks");
-// 	chronoHelper.startChrono(1, "Perlin Generation");
-// 	vec3 worldPos = camera.getWorldPosition();
-// 	_world->loadPerlinMap(worldPos);
-// 	chronoHelper.stopChrono(1);
-// 	chronoHelper.startChrono(2, "Load chunks");
-// 	_world->loadChunk(worldPos, textureManager);
-// 	chronoHelper.stopChrono(2);
-// 	textureManager.resetTextureVertex();
-// 	chronoHelper.startChrono(3, "Send Faces to display");
-// 	_world->sendFacesToDisplay();
-// 	chronoHelper.stopChrono(3);
-// 	chronoHelper.startChrono(4, "Process Vertex");
-// 	textureManager.processTextureVertex();
-// 	chronoHelper.stopChrono(4);
-// 	chronoHelper.stopChrono(0);
-// 	chronoHelper.printChronos();
-// }
-
 void StoneEngine::updateChunks()
 {
 	 chronoHelper.startChrono(0, "Update chunks");
-	 chronoHelper.startChrono(1, "Perlin Generation");
-	_world->loadPerlinMap(camera.getWorldPosition());
-	 chronoHelper.stopChrono(1);
-	 chronoHelper.startChrono(2, "Load chunks");
+	 chronoHelper.startChrono(1, "Load chunks");
 	_world->loadChunk(camera.getWorldPosition(), textureManager);
-	 chronoHelper.stopChrono(2);
-	// textManager.resetTextureVertex();
+	 chronoHelper.stopChrono(1);
 	 chronoHelper.startChrono(3, "Send Faces to display");
 	_world->sendFacesToDisplay();
 	 chronoHelper.stopChrono(3);
-	// chronoHelper.startChrono(4, "Process Vertex");
-	// textManager.processTextureVertex();
-	// chronoHelper.stopChrono(4);
 	 chronoHelper.stopChrono(0);
 	 std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
 	 chronoHelper.printChronos();
@@ -276,10 +233,10 @@ void StoneEngine::updateMovement()
 	// Camera rotation
 	if (!isWSL())
 	{
-		if (keyStates[GLFW_KEY_UP]) camera.rotate(0.0f, 1.0f, rotationSpeed * 150.0f);
-		if (keyStates[GLFW_KEY_DOWN]) camera.rotate(0.0f, -1.0f, rotationSpeed * 150.0f);
-		if (keyStates[GLFW_KEY_RIGHT]) camera.rotate(-1.0f, 0.0f, rotationSpeed * 150.0f);
-		if (keyStates[GLFW_KEY_LEFT]) camera.rotate(1.0f, 0.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_UP]) camera.rotate(0.0f, -1.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_DOWN]) camera.rotate(0.0f, 1.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_RIGHT]) camera.rotate(1.0f, 0.0f, rotationSpeed * 150.0f);
+		if (keyStates[GLFW_KEY_LEFT]) camera.rotate(-1.0f, 0.0f, rotationSpeed * 150.0f);
 	}
 	else
 	{

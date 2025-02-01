@@ -135,7 +135,7 @@ NoiseGenerator::PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
 		if (map->position.x == x && map->position.y == y)
 			return (map);
 	}
-	return nullptr;
+	return addPerlinMap(x, y, CHUNK_SIZE, 1);
 }
 
 // Layered perlin noise samples by octaves number

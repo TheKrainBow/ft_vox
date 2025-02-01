@@ -57,6 +57,7 @@ class Chunk
 		void processSouthVertex();
 		void processEastVertex();
 		void processWestVertex();
+		void clearFaces();
 };
 
 bool compareUpFaces(const Chunk::Face& a, const Chunk::Face& b);
