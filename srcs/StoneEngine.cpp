@@ -76,6 +76,13 @@ void StoneEngine::initTextures()
 		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
 		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
 	});
+	textureManager.loadTexturesArray({
+		{ T_DIRT, "textures/dirt.ppm" },
+		{ T_COBBLE, "textures/cobble.ppm" },
+		{ T_STONE, "textures/stone.ppm" },
+		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
+		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
+	});
 	// textureManager.loadTexture(T_COBBLE, "textures/cobble.ppm");
 	// textureManager.loadTexture(T_DIRT, "textures/dirt.ppm");
 	// textureManager.loadTexture(T_GRASS_TOP, "textures/grass_block_top_colored.ppm");
@@ -95,7 +102,7 @@ void StoneEngine::initShaders()
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-	glBindTexture(GL_TEXTURE_2D, textureManager.getMergedText());  // Bind the texture
+	glBindTexture(GL_TEXTURE_2D, textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
 }
 
@@ -163,9 +170,12 @@ void StoneEngine::display()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	
-	glBindTexture(GL_TEXTURE_2D, textureManager.getMergedText());  // Bind the texture
-	//glBindTexture(GL_TEXTURE_2D, textManager.getTexture(T_DIRT));  // Bind the texture
-	glUniform1i(glGetUniformLocation(shaderProgram, "textureAtlas"), 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, textureManager.getTextureArray());
+	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
+	// glBindTexture(GL_TEXTURE_2D, textureManager.getMergedText());  // Bind the texture
+	// glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 	
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);

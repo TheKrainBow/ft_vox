@@ -4,10 +4,8 @@
 #include "Texture.hpp"
 #include "Camera.hpp"
 
-#define NB_TEXTURES 2
-
-struct t_rgb {
-	uint8_t r, g, b;
+struct t_rgba {
+	uint8_t r, g, b, a;
 };
 
 enum TextureType {
@@ -20,18 +18,22 @@ enum TextureType {
 };
 
 # define N_TEXTURES 5
+# define TEXTURE_SIZE 16
 
 class TextureManager {
 	private:
 		Texture *_textures[N_TEXTURES];
-		GLuint mergedTextureId = 0;
+		GLuint _mergedTextureID = 0;
+		GLuint _textureArrayID = 0;
 	public:
 		TextureManager(); // Constructor declaration
 		~TextureManager(); // Destructor declaration
 
 		void loadTexture(TextureType type, std::string path);
 		void loadTextures(std::vector<std::pair<TextureType, std::string>> data);
+		void loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data);
 		GLuint getMergedText() const;
+		GLuint getTextureArray() const;
 		GLuint getTexture(TextureType text);
 		void addTextureVertex(TextureType type, Direction dir, int x, int y, int );
 		void resetTextureVertex();
@@ -39,5 +41,5 @@ class TextureManager {
 		void processTextureVertex();
 	private:
 		// Declaring external functions that are not part of the class
-		t_rgb *loadPPM(const std::string &path, int &width, int &height);
+		t_rgba *loadPPM(const std::string &path, int &width, int &height);
 };

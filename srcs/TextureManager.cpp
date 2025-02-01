@@ -1,177 +1,211 @@
 #include "TextureManager.hpp"
 
 // Load the PPM texture file
-t_rgb *TextureManager::loadPPM(const std::string &path, int &width, int &height) {
-	std::ifstream file(path, std::ios::binary);
-	if (!file.is_open()) {
-		std::cerr << "Error: Couldn't open texture file " << path << std::endl;
-		return nullptr;
-	}
-	std::string magicNumber;
-	file >> magicNumber;
-	if (magicNumber != "P6") {
-		std::cerr << "Error: Unsupported PPM format " << magicNumber << std::endl;
-		return nullptr;
-	}
+unsigned char* loadTexturePPM(const std::string& filename, int& width, int& height) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Failed to open PPM file: " << filename << std::endl;
+        return nullptr;
+    }
 
-	file >> width >> height;
-	int maxColor;
-	file >> maxColor;
-	file.get();  // Eat the newline character after maxColor
+    std::string header;
+    int maxColor;
+    file >> header >> width >> height >> maxColor;
+    file.ignore(1); // Skip the single whitespace
 
-	// Check if the color depth is 8 bits per channel
-	if (maxColor != 255) {
-		std::cerr << "Error: Unsupported max color value " << maxColor << std::endl;
-		return nullptr;
+    if (header != "P6" || maxColor != 255) {
+        std::cerr << "Invalid PPM format (Only P6 with 255 max color supported)." << std::endl;
+        return nullptr;
+    }
+
+    size_t imageSize = (width) * (height) * 3;
+    unsigned char* data = new unsigned char[imageSize];
+    file.read(reinterpret_cast<char*>(data), imageSize);
+    file.close();
+
+	size_t rgbaSize = width * height * 4;  // RGBA has 4 channels
+    unsigned char* rgbaData = new unsigned char[rgbaSize];
+
+    for (size_t i = 0, j = 0; i < imageSize; i += 3, j += 4) {
+        rgbaData[j] = data[i];       // Red
+        rgbaData[j + 1] = data[i + 1]; // Green
+        rgbaData[j + 2] = data[i + 2]; // Blue
+        rgbaData[j + 3] = 255;           // Alpha (fully opaque)
+    }
+
+    delete[] data;
+
+    return rgbaData;  // Don't forget to delete[] after usage!
+}
+
+void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::string>> textureList) {
+	glGenTextures(1, &_textureArrayID);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureArrayID);
+
+	// Set texture parameters
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	int width = TEXTURE_SIZE, height = TEXTURE_SIZE;
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, TEXTURE_SIZE, TEXTURE_SIZE, N_TEXTURES, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+	// Load and upload textures
+	for (int i = 0; i < N_TEXTURES; i++) {
+		unsigned char *data = loadTexturePPM(textureList[i].second, width, height);
+		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		delete []data;
 	}
+	glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
 
-	// Allocate memory for the Color data (one Color struct per pixel)
-	t_rgb* data = new t_rgb[width * height];
-		
-	if (!data) {
-		std::cerr << "Couldn't allocate memory for texture parsing" << std::endl;
-		return nullptr;
+	unsigned char* debugData = new unsigned char[TEXTURE_SIZE * TEXTURE_SIZE * 5];
+	glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, GL_UNSIGNED_BYTE, debugData);
+	if (debugData[0] == 0 && debugData[1] == 0 && debugData[2] == 0) {
+		std::cout << "Texture data is empty!" << std::endl;
 	}
-	// Read the pixel data into the array of Color structs
-	file.read(reinterpret_cast<char*>(data), 3 * width * height);  // 3 bytes per pixel (Color)
-
-	if (!file) {
-		std::cerr << "Error: Couldn't read texture data from " << path << std::endl;
-		delete[] data;
-		return nullptr;
-	}
-
-	return data;
+	for (int i = 0; i < TEXTURE_SIZE * TEXTURE_SIZE * 5; i++)
+		std::cout << (char)debugData[i] << std::endl;
+	delete[] debugData;
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
 
 void TextureManager::loadTextures(std::vector<std::pair<TextureType, std::string>> textureList)
 {
-	if (textureList.empty())
-		return ;
-	int totalWidth = 0;
-	int totalHeight = 0;
-	std::deque<t_rgb *> textureData;
-	std::deque<int> widths;
-	std::deque<int> heights;
+	(void)textureList;
+	// if (textureList.empty())
+	// 	return ;
+	// int totalWidth = 0;
+	// int totalHeight = 0;
+	// std::deque<t_rgba *> textureData;
+	// std::deque<int> widths;
+	// std::deque<int> heights;
 
-	for (auto &pair : textureList)
-	{
-		int width;
-		int height;
-		t_rgb* rgb_data = loadPPM(pair.second, width, height);
-		if (!rgb_data) {
-			std::cerr << "Error: Skipping texture" << pair.second << std::endl;
-			continue ;
-		}
-		textureData.push_front(rgb_data);
-		widths.push_front(width);
-		heights.push_front(height);
-		totalWidth = std::max(totalWidth, width);
-		totalHeight += height;
-	}
+	// for (auto &pair : textureList)
+	// {
+	// 	int width;
+	// 	int height;
+	// 	t_rgba* rgb_data = loadPPM(pair.second, width, height);
+	// 	if (!rgb_data) {
+	// 		std::cerr << "Error: Skipping texture" << pair.second << std::endl;
+	// 		continue ;
+	// 	}
+	// 	textureData.push_front(rgb_data);
+	// 	widths.push_front(width);
+	// 	heights.push_front(height);
+	// 	totalWidth = std::max(totalWidth, width);
+	// 	totalHeight += height;
+	// }
 
-	if (textureData.empty())
-	{
-		std::cerr << "Error no valid textures loaded" << std::endl;
-		return ;
-	}
+	// if (textureData.empty())
+	// {
+	// 	std::cerr << "Error no valid textures loaded" << std::endl;
+	// 	return ;
+	// }
 
 
-	// Allocate memory for the combined texture
-	t_rgb* combinedData = new t_rgb[totalWidth * totalHeight];
+	// // Allocate memory for the combined texture
+	// t_rgba* combinedData = new t_rgba[totalWidth * totalHeight];
 
-	// Initialize to black
-	std::fill(combinedData, combinedData + (totalWidth * totalHeight), t_rgb{0, 0, 0});
+	// // Initialize to black
+	// std::fill(combinedData, combinedData + (totalWidth * totalHeight), t_rgba{0, 0, 0, 1});
 
-	// Combine textures vertically
-	int currentOffset = 0;
-	for (size_t i = 0; i < textureData.size(); ++i)
-	{
-		for (int y = 0; y < heights[i]; ++y)
-		{
-			for (int x = 0; x < widths[i]; ++x)
-			{
-				combinedData[(currentOffset + y) * totalWidth + x] = textureData[i][y * widths[i] + x];
-			}
-		}
-		currentOffset += heights[i];
-		// Free the original texture data
-		delete[] textureData[i];
-	}
+	// // Combine textures vertically
+	// int currentOffset = 0;
+	// for (size_t i = 0; i < textureData.size(); ++i)
+	// {
+	// 	for (int y = 0; y < heights[i]; ++y)
+	// 	{
+	// 		for (int x = 0; x < widths[i]; ++x)
+	// 		{
+	// 			combinedData[(currentOffset + y) * totalWidth + x] = textureData[i][y * widths[i] + x];
+	// 		}
+	// 	}
+	// 	currentOffset += heights[i];
+	// 	// Free the original texture data
+	// 	delete[] textureData[i];
+	// }
 
-	std::vector<t_rgb> rgb_data(combinedData, combinedData + (totalWidth * totalHeight));
-	std::reverse(rgb_data.begin(), rgb_data.end());
-	glGenTextures(1, &mergedTextureId);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, mergedTextureId);
+	// std::vector<t_rgba> rgb_data(combinedData, combinedData + (totalWidth * totalHeight));
+	// std::reverse(rgb_data.begin(), rgb_data.end());
+	// glGenTextures(1, &_mergedTextureID);
+	// glActiveTexture(GL_TEXTURE0);
+	// glBindTexture(GL_TEXTURE_2D, _mergedTextureID);
 
-	//std::reverse(rgb_data.begin(), rgb_data.end());
-	// Upload the pixel data to the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, totalWidth, totalHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
+	// //std::reverse(rgb_data.begin(), rgb_data.end());
+	// // Upload the pixel data to the texture
+	// glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, totalWidth, totalHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
 
-	// Set texture parameters
-	if (isWSL())
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	else
-	{
-		glGenerateMipmap(GL_TEXTURE_2D);
-		GLfloat maxAniso = 0.0f;
-		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
-		glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-	}
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// // Set texture parameters
+	// if (isWSL())
+	// 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	// else
+	// {
+	// 	glGenerateMipmap(GL_TEXTURE_2D);
+	// 	GLfloat maxAniso = 0.0f;
+	// 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+	// 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+	// 	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -25.0f);
+	// 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+	// }
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    // Clean up combined data
-    delete[] combinedData;
+    // // Clean up combined data
+    // delete[] combinedData;
 }
 
 GLuint TextureManager::getMergedText() const
 {
-	return mergedTextureId;
+	return _mergedTextureID;
+}
+
+GLuint TextureManager::getTextureArray() const
+{
+	return _textureArrayID;
 }
 
 // Add a texture to the manager
 void TextureManager::loadTexture(TextureType type, std::string path) {
-	GLuint newTextureID;
-	int width, height;
-	t_rgb* data = loadPPM(path, width, height);
-	if (!data) {
-		std::cerr << "Error: Couldn't load texture from " << path << std::endl;
-		return ;
-	}
+	(void)type;
+	(void)path;
+	// GLuint newTextureID;
+	// int width, height;
+	// t_rgba* data = loadPPM(path, width, height);
+	// if (!data) {
+	// 	std::cerr << "Error: Couldn't load texture from " << path << std::endl;
+	// 	return ;
+	// }
 
-	glGenTextures(1, &newTextureID);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, newTextureID);
+	// glGenTextures(1, &newTextureID);
+	// glActiveTexture(GL_TEXTURE0);
+	// glBindTexture(GL_TEXTURE_2D, newTextureID);
 
-	std::vector<t_rgb> rgb_data(data, data + (width * height));
-	std::reverse(rgb_data.begin(), rgb_data.end());
-	// Upload the pixel data to the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
+	// std::vector<t_rgba> rgb_data(data, data + (width * height));
+	// std::reverse(rgb_data.begin(), rgb_data.end());
+	// // Upload the pixel data to the texture
+	// glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb_data.data());
 
-	// Set texture parameters
-	if (isWSL())
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	else
-	{
-		glGenerateMipmap(GL_TEXTURE_2D);
-		GLfloat maxAniso = 0.0f;
-		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
-		glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -0.5f);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-	}
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// // Set texture parameters
+	// if (isWSL())
+	// 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	// else
+	// {
+	// 	glGenerateMipmap(GL_TEXTURE_2D);
+	// 	GLfloat maxAniso = 0.0f;
+	// 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+	// 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+	// 	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -0.5f);
+	// 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+	// }
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-	// Free the RGB data after uploading
-	delete[] data;
-	_textures[type] = new Texture(newTextureID);
+	// // Free the RGB data after uploading
+	// delete[] data;
+	// _textures[type] = new Texture(newTextureID);
 }
 
 // Constructor definition (no specific code yet)

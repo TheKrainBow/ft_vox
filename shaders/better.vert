@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 layout(location = 0) in vec3 aPos;      // Vertex position
 layout(location = 1) in vec3 worldPos;      // Vertex position
@@ -10,6 +10,7 @@ uniform mat4 view;       // View matrix
 uniform mat4 projection; // Projection matrix
 
 out vec2 TexCoord;
+flat out int TextureID;
 
 void main()
 {
@@ -24,6 +25,7 @@ void main()
 	vec3 instancePos = vec3(float(x), float(y), float(z));
 	vec3 basePos = aPos;
     vec2 finalUV = aPos.xy;
+	finalUV.y = 1.0 - finalUV.y;
 	basePos.x *= lengthX;
 	basePos.y *= lengthY;
 	if (direction == 2 || direction == 3)
@@ -46,27 +48,14 @@ void main()
 		basePos.z = -basePos.z + lengthY;
 	if (direction == 5)
 		basePos.y++;
-
-	// finalUV.x *= lengthX;
-	// finalUV.y *= lengthY;
     vec3 worldPosition = worldPos + basePos + instancePos;
-	// finalUV.x *= lengthX;
-	// finalUV.y *= lengthY;
-	if (direction == 0)
-	{
-		finalUV.x *= lengthX;
-		finalUV.y *= lengthY;
-		// finalUV.y = float(mod(finalUV.y * float(lengthY), 1.0)) * 0.2;
-	}
-	// if (direction == 1)
-	// 	finalUV.y *= lengthY;
-	// if (direction == 5)
-	// {
-	// 	finalUV.x *= lengthX;
-	// 	finalUV.y *= lengthY;
-	// }
-    // finalUV.y = (finalUV.y * lengthY) / 5 + (float(textureID) / 5);
-    finalUV.y = finalUV.y / 5 + (float(textureID) / 5);
+
+	finalUV.x *= lengthX;
+	finalUV.y *= lengthY;
+
+    // finalUV.y = finalUV.y / 5 + (float(textureID) / 5);
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
+
     TexCoord = finalUV;
+	TextureID = textureID;
 }

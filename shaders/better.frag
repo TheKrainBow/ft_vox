@@ -1,16 +1,13 @@
-#version 330 core
+#version 430 core
 
-// Inputs from the vertex shader
-// in vec2 finalUV;					// The final UV coordinates calculated in the vertex shader
+uniform sampler2DArray textureArray;
 in vec2 TexCoord;							// The final UV coordinates calculated in the vertex shader
-//in vec4 color;						// The final UV coordinates calculated in the vertex shader
+flat in int TextureID;
 
 // Output color
 out vec4 FragColor;       // The output color of the fragment
 
-// Uniforms
-uniform sampler2D textureAtlas;  // The texture atlas
-
 void main() {
-    FragColor = texture(textureAtlas, TexCoord);
+    // FragColor = vec4(0, TexCoord.x / 5, 0, 1);
+    FragColor = texture(textureArray, vec3(TexCoord, TextureID));
 }
