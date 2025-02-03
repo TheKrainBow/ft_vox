@@ -15,6 +15,7 @@ vec3 World::calculateBlockPos(int x, int y, int z) const {
 void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap)
 {
     auto currentTuple = std::make_tuple((int)position.x, (int)position.y, (int)position.z);
+	_loadedMutex.lock();
 	auto it = _loadedChunks.find(currentTuple);
 	if (it != _loadedChunks.end())
 	{
@@ -31,6 +32,7 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
 		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this, textManager);
 		tempChunks[currentTuple] = std::move(newChunk);
 	}
+	_loadedMutex.unlock();
 }
 
 World::World(int seed) : _perlinGenerator(seed) {}
@@ -60,7 +62,6 @@ void World::loadPerlinMap(vec3 camPosition)
 void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 {
 	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
-
 	vec3 position;
 	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
 	{
@@ -78,8 +79,11 @@ void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 		}
 	}
 
+	_loadedMutex.lock();
 	_cachedChunks.insert(std::make_move_iterator(_loadedChunks.begin()), std::make_move_iterator(_loadedChunks.end()));
 	_loadedChunks = std::move(tempChunks);
+	_isLoadedModified = true;
+	_loadedMutex.unlock();
 }
 
 char World::getBlock(int x, int y, int z)
@@ -109,6 +113,7 @@ Chunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
 
 void World::sendFacesToDisplay()
 {
+	std::lock_guard<std::mutex> lock(_loadedMutex);
     for (auto& chunk : _loadedChunks)
 	{
         if (chunk.second)
@@ -116,12 +121,36 @@ void World::sendFacesToDisplay()
     }
 }
 
+void World::loadVertexArrays()
+{
+	std::lock_guard<std::mutex> lock(_loadedMutex);
+    for (auto& chunk : _loadedChunks)
+	{
+        if (chunk.second)
+            chunk.second->loadVertexArrays();
+    }
+}
+
 int World::display(Camera &cam)
 {
 	(void)cam;
 	int triangleDrown = 0;
-	for (auto &chunk : _loadedChunks)
-		triangleDrown += chunk.second->display();
+	size_t size = _loadedChunks.size();
+	for (auto it = _loadedChunks.begin() ; it != _loadedChunks.end(); it++)
+	{
+		{
+			_loadedMutex.lock();
+			if (size != _loadedChunks.size() || _isLoadedModified == true)
+			{
+				//std::cout << "Been modified!" << std::endl;
+				_isLoadedModified = false;
+				_loadedMutex.unlock();
+				break ;
+			}
+			_loadedMutex.unlock();
+			triangleDrown += it->second->display();
+		}
+	}
 	return (triangleDrown);
 }
 

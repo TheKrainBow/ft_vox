@@ -26,6 +26,7 @@ class Chunk
 
     	std::vector<Face>	_faces[6];
 		bool				_loaded = false;
+		bool				_hasGeneratedFaces = false;
 		bool				_hasSentFaces = false;
 		GLuint				_vao;
 		GLuint				_vbo;
@@ -36,6 +37,7 @@ class Chunk
 		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager);
 		~Chunk();
 		void setupBuffers();
+		void loadVertexArrays();
 		int display(void);
 		void addTextureVertex(Face face);
 		void addFace(int x, int y, int z, Direction dir, TextureType texture);

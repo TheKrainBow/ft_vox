@@ -49,14 +49,11 @@ class StoneEngine {
 		NoiseGenerator noise_gen;
 	
 		// Multi-Threads data
-		// std::mutex chunksMutex;
-		// std::mutex printMutex;
-
-		// std::thread chunkUpdateThread;
-		// std::thread displayThread;
-		// std::atomic<bool> updateChunkFlag;
-		// std::atomic<bool> running;
-		// std::condition_variable chunkCondition;
+		std::mutex chunksMutex;
+		std::thread chunkUpdateThread;
+		std::atomic<bool> updateChunkFlag;
+		std::atomic<bool> running;
+		std::condition_variable chunkCondition;
 
 		// Game time
 		std::chrono::steady_clock::time_point start;
@@ -91,7 +88,7 @@ class StoneEngine {
 		void updateChunks();
 
 		// Multi thread methods
-		//void chunkUpdateWorker();
+		void chunkUpdateWorker();
 
 		// Movement methods
 		void findMoveRotationSpeed();

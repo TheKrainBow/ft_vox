@@ -1,6 +1,6 @@
 #include "StoneEngine.hpp"
 
-StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)//, updateChunkFlag(false), running(true)
+StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42), updateChunkFlag(false), running(true)
 {
 	initData();
 	initGLFW();
@@ -9,7 +9,7 @@ StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)//, updateCh
 	// chunks.push_back(Chunk(camera.position.x / CHUNK_SIZE - 1, camera.position.z / CHUNK_SIZE - 1, noise_gen));
 	initShaders();
 	initDebugTextBox();
-	updateChunks();
+	//updateChunks();
 	reshape(_window, windowWidth, windowHeight);
 }
 
@@ -23,8 +23,8 @@ StoneEngine::~StoneEngine()
 void StoneEngine::run()
 {
 	// Main loop
-	// chunkUpdateThread = std::thread(&StoneEngine::chunkUpdateWorker, this);
-	// updateChunkFlag.store(true);
+	chunkUpdateThread = std::thread(&StoneEngine::chunkUpdateWorker, this);
+	updateChunkFlag.store(true);
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -32,9 +32,10 @@ void StoneEngine::run()
 		glfwPollEvents();
 	}
 	// Terminate chunk thread
-	//running.store(false);
-	// displayThread.join();
-	// chunkUpdateThread.join();
+	running.store(false);
+	chunkCondition.notify_one();
+	std::cout << "Joining thread" << std::endl;
+	chunkUpdateThread.join();
 }
 
 void StoneEngine::initData()
@@ -154,14 +155,13 @@ void StoneEngine::display()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-	
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 	// glBindTexture(GL_TEXTURE_2D, textureManager.getMergedText());  // Bind the texture
 	// glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	
+
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
@@ -184,16 +184,12 @@ void StoneEngine::display()
 
 void StoneEngine::updateChunks()
 {
-	 chronoHelper.startChrono(0, "Update chunks");
-	 chronoHelper.startChrono(1, "Load chunks");
+	std::cout << "Update chunks" << std::endl;
+	chronoHelper.startChrono(0, "Update chunks");
 	_world->loadChunk(camera.getWorldPosition(), textureManager);
-	 chronoHelper.stopChrono(1);
-	 chronoHelper.startChrono(3, "Send Faces to display");
-	_world->sendFacesToDisplay();
-	 chronoHelper.stopChrono(3);
-	 chronoHelper.stopChrono(0);
-	 std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
-	 chronoHelper.printChronos();
+	chronoHelper.stopChrono(0);
+	std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	chronoHelper.printChronos();
 }
 
 void StoneEngine::findMoveRotationSpeed()
@@ -247,20 +243,20 @@ void StoneEngine::updateMovement()
 	}
 }
 
-// void StoneEngine::chunkUpdateWorker()
-// {
-// 	while (running.load())
-// 	{
-// 		std::unique_lock<std::mutex> lock(chunksMutex);
-// 		chunkCondition.wait(lock, [this] {return updateChunkFlag.load() || !running.load();});
-// 		if (!running.load()) break ;
+void StoneEngine::chunkUpdateWorker()
+{
+	while (running.load())
+	{
+		std::unique_lock<std::mutex> lock(chunksMutex);
+		std::cout << "Wait" << std::endl;
+		chunkCondition.wait(lock, [this] {return updateChunkFlag.load() || !running.load();});
+		if (!running.load()) break ;
 
-// 		updateChunkFlag.store(false);
-// 		lock.unlock();
-// 		updateChunks();
-// 		usleep(2000);
-// 	}
-// }
+		updateChunkFlag.store(false);
+		updateChunks();
+		if (!running.load()) break ;
+	}
+}
 
 void StoneEngine::update(GLFWwindow* window)
 {
@@ -285,14 +281,13 @@ void StoneEngine::update(GLFWwindow* window)
 	if (worldPos.y < 0) camChunk.y--;
 	if (worldPos.z < 0) camChunk.z--;
 	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
-		updateChunks();
-	// {
-	// 	// {
-	// 	// 	std::lock_guard<std::mutex> lock(chunksMutex);
-	// 	// 	updateChunkFlag = true;
-	// 	// }
-	// 	// chunkCondition.notify_one();
-	// }
+	{
+		{
+			std::lock_guard<std::mutex> lock(chunksMutex);
+			updateChunkFlag = true;
+		}
+		chunkCondition.notify_one();
+	}
 
 	display();
 

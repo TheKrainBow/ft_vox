@@ -6,7 +6,7 @@ Camera::Camera() : position{-226, -235, 128}, center{0.0f, 0.0f, 10.0f} { angle.
 */
 void Camera::move(float  forward, float  strafe, float up)
 {
-	//std::lock_guard<std::mutex> lock(positionMutex);
+	std::lock_guard<std::mutex> lock(positionMutex);
 	// Calculate the direction based on the current angles
 	float radiansX = angle.x * (M_PI / 180.0);
 
@@ -43,7 +43,7 @@ void Camera::reset()
 
 vec3 Camera::getWorldPosition(void)
 {
-	//std::lock_guard<std::mutex> lock(positionMutex);
+	std::lock_guard<std::mutex> lock(positionMutex);
 	return (vec3(-position.x, -position.y, -position.z));
 }
 
@@ -74,7 +74,7 @@ vec2 *Camera::getAnglesPtr()
 
 void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 {
-	//std::lock_guard<std::mutex> lock(angleMutex);
+	std::lock_guard<std::mutex> lock(angleMutex);
 	angle.x += xAngle * rotationSpeed;
 	angle.y += yAngle * rotationSpeed;
 	angle.y = clamp(angle.y, -90.0f, 90.0f);

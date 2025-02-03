@@ -4,6 +4,18 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 {
 	_position = vec3(x, y, z);
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+
+	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
+	bzero(_blocks.data(), _blocks.size());
+	loadHeight();
+	loadBiome();
+	sendFacesToDisplay();
+}
+
+void Chunk::loadVertexArrays()
+{
+	if (_hasGeneratedFaces == false || _vertexData.empty() == true || _hasSentFaces == true)
+		return ;
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
@@ -23,12 +35,17 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
     glEnableVertexAttribArray(1);
-    glBindVertexArray(0);
 
-	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
-	bzero(_blocks.data(), _blocks.size());
-	loadHeight();
-	loadBiome();
+    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+
+    glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+    glEnableVertexAttribArray(2);
+    glVertexAttribDivisor(2, 1); // Update once per instance
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+	_hasSentFaces = true;
 }
 
 void Chunk::loadHeight()
@@ -176,7 +193,7 @@ void Chunk::clearFaces() {
 
 void Chunk::sendFacesToDisplay()
 {
-	if (_hasSentFaces == true)
+	if (_hasGeneratedFaces == true)
 		return ;
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
@@ -202,8 +219,7 @@ void Chunk::sendFacesToDisplay()
 		}
 	}
 	processFaces();
-	setupBuffers();
-	_hasSentFaces = true;
+	_hasGeneratedFaces = true;
 }
 
 void Chunk::addTextureVertex(Face face)
@@ -240,9 +256,6 @@ void Chunk::addTextureVertex(Face face)
 }
 
 void Chunk::setupBuffers() {
-
-    if (_vertexData.empty()) return;
-
     glBindVertexArray(_vao);
 
     // Instance data (instancePositions)
@@ -259,8 +272,8 @@ void Chunk::setupBuffers() {
 
 int Chunk::display(void)
 {
-	if (_vertexData.empty())
-		return 0;
+	if (_hasSentFaces == false)
+		loadVertexArrays();
     glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);
