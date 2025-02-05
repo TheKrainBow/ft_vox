@@ -112,15 +112,6 @@ SubChunk* World::getChunk(vec3 position)
     return nullptr;
 }
 
-void World::sendFacesToDisplay()
-{
-    for (auto& chunk : _loadedChunks)
-	{
-        if (chunk.second)
-            chunk.second->sendFacesToDisplay();
-    }
-}
-
 int World::display(Camera &cam, GLFWwindow* win)
 {
 	(void)cam;

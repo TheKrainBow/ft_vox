@@ -4,10 +4,21 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureMan
 {
 	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
+	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
+	bzero(_blocks.data(), _blocks.size());
+	loadHeight();
+	loadBiome();
+}
+
+void SubChunk::initGLBuffer()
+{
+	if (_hasSentFaces == false)
+		sendFacesToDisplay();
+	if (_hasBufferInitialized == true)
+		return ;
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
-
 
     GLfloat vertices[] = {
         0, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
@@ -23,12 +34,18 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureMan
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
     glEnableVertexAttribArray(1);
-    glBindVertexArray(0);
 
-	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
-	bzero(_blocks.data(), _blocks.size());
-	loadHeight();
-	loadBiome();
+    // Instance data (instancePositions)
+    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+
+    glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+    glEnableVertexAttribArray(2);
+    glVertexAttribDivisor(2, 1); // Update once per instance
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+	_hasBufferInitialized = true;
 }
 
 void SubChunk::loadHeight()
@@ -206,7 +223,6 @@ void SubChunk::sendFacesToDisplay()
 		}
 	}
 	processFaces();
-	setupBuffers();
 	_hasSentFaces = true;
 }
 
@@ -243,28 +259,10 @@ void SubChunk::addTextureVertex(Face face)
 	_vertexData.push_back(newVertex);
 }
 
-void SubChunk::setupBuffers() {
-
-    if (_vertexData.empty()) return;
-
-    glBindVertexArray(_vao);
-
-    // Instance data (instancePositions)
-    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
-
-    glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-    glEnableVertexAttribArray(2);
-    glVertexAttribDivisor(2, 1); // Update once per instance
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-}
-
 int SubChunk::display(void)
 {
-	if (_vertexData.empty())
-		return 0;
+	if (_hasBufferInitialized == false)
+		initGLBuffer();
     glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);

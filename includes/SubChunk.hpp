@@ -27,6 +27,7 @@ class SubChunk
     	std::vector<Face>	_faces[6];
 		bool				_loaded = false;
 		bool				_hasSentFaces = false;
+		bool				_hasBufferInitialized = false;
 		GLuint				_vao;
 		GLuint				_vbo;
 		GLuint				_instanceVBO;
@@ -58,6 +59,7 @@ class SubChunk
 		void processEastVertex();
 		void processWestVertex();
 		void clearFaces();
+		void initGLBuffer();
 };
 
 bool compareUpFaces(const SubChunk::Face& a, const SubChunk::Face& b);

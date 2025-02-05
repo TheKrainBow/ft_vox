@@ -166,7 +166,7 @@ void StoneEngine::display()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	// glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
@@ -184,16 +184,13 @@ void StoneEngine::display()
 
 void StoneEngine::updateChunks()
 {
-	 chronoHelper.startChrono(0, "Update chunks");
-	 chronoHelper.startChrono(1, "Load chunks");
+	chronoHelper.startChrono(0, "Update chunks");
+	chronoHelper.startChrono(1, "Load chunks");
 	_world->loadChunk(camera.getWorldPosition(), textureManager);
-	 chronoHelper.stopChrono(1);
-	 chronoHelper.startChrono(3, "Send Faces to display");
-	_world->sendFacesToDisplay();
-	 chronoHelper.stopChrono(3);
-	 chronoHelper.stopChrono(0);
-	 std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
-	 chronoHelper.printChronos();
+	chronoHelper.stopChrono(1);
+	chronoHelper.stopChrono(0);
+	std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	chronoHelper.printChronos();
 }
 
 void StoneEngine::findMoveRotationSpeed()
