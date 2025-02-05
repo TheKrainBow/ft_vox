@@ -2,8 +2,11 @@
 #include "ft_vox.hpp"
 #include "NoiseGenerator.hpp"
 #include "SubChunk.hpp"
+#include "Chunk.hpp"
 #include "Camera.hpp"
-#include <unordered_map>
+#include <map>
+
+class Chunk;
 
 namespace std {
     template <>
@@ -22,23 +25,27 @@ class SubChunk;
 class World
 {
 private:
-	NoiseGenerator                                              _perlinGenerator;
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>    _loadedChunks;
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>    _cachedChunks;
-	Camera                                                      _player;
+	// World related informations
+		NoiseGenerator                                              _perlinGenerator;
+		std::map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>    _loadedChunks;
+		std::map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>    _cachedChunks;
+		Chunk														**_chunks;
+	// Player related informations
+		Camera														_player;
+		int															_renderDistance;
 public:
 	World(int seed);
 	~World();
 	void loadChunk(vec3 camPosition, TextureManager &textManager);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
-	char getBlock(int x, int y, int z);
+	char getBlock(vec3 position);
 	int	getLoadedChunksNumber();
 	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
-	SubChunk* getChunk(int chunkX, int chunkY, int chunkZ);
+	SubChunk* getChunk(vec3 position);
 	int display(Camera &cam, GLFWwindow *win);
 private:
-	vec3 calculateBlockPos(int x, int y, int z) const;
-	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap);
+	vec3 calculateBlockPos(vec3 position) const;
+	void findOrLoadChunk(vec3 position, std::map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>& tempChunks, TextureManager &textManager, PerlinMap *perlinMap);
 };

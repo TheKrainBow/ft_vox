@@ -18,7 +18,7 @@ SRC_NAME	=	stb_truetype.cpp		\
 				StoneEngine.cpp			\
 				Camera.cpp				\
 				TextureManager.cpp		\
-				Texture.cpp				\
+				Chunk.cpp				\
 				SubChunk.cpp			\
 				SubChunk_faces.cpp		\
 				NoiseGenerator.cpp		\

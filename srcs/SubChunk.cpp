@@ -1,8 +1,8 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
+SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
 {
-	_position = vec3(x, y, z);
+	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
@@ -135,31 +135,35 @@ SubChunk::~SubChunk()
 	_loaded = false;
 }
 
-char SubChunk::getBlock(int x, int y, int z)
+char SubChunk::getBlock(vec3 position)
 {
+	int x = position.x;
+	int y = position.y;
+	int z = position.z;
+
 	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
 		return 0;
 	return _blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)];
 }
 
-void SubChunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
+void SubChunk::addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
 {
-	int x = _position.x * CHUNK_SIZE + blockX;
-	int y = _position.y * CHUNK_SIZE + blockY;
-	int z = _position.z * CHUNK_SIZE + blockZ;
+	int x = _position.x * CHUNK_SIZE + position.x;
+	int y = _position.y * CHUNK_SIZE + position.y;
+	int z = _position.z * CHUNK_SIZE + position.z;
 
-	if ((blockY == 0 && _world.getBlock(x, y - 1, z) == 0) || ((blockY != 0 && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addFace(blockX, blockY, blockZ, DOWN, down);
-	if ((blockY == (CHUNK_SIZE - 1) && _world.getBlock(x, y + 1, z) == 0) || ((blockY != (CHUNK_SIZE - 1) && _blocks[blockX + (blockZ * CHUNK_SIZE) + ((blockY + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addFace(blockX, blockY, blockZ, UP, up);
-	if ((blockZ == 0 && _world.getBlock(x, y, z - 1) == 0) || ((blockZ != 0 && _blocks[blockX + ((blockZ - 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addFace(blockX, blockY, blockZ, NORTH, north);
-	if ((blockZ == (CHUNK_SIZE - 1) && _world.getBlock(x, y, z + 1) == 0) || ((blockZ != (CHUNK_SIZE - 1) && _blocks[blockX + ((blockZ + 1) * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addFace(blockX, blockY, blockZ, SOUTH, south);
-	if ((blockX == 0 && _world.getBlock(x - 1, y, z) == 0) || ((blockX != 0 && _blocks[(blockX - 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addFace(blockX, blockY, blockZ, WEST, west);
-	if ((blockX == (CHUNK_SIZE - 1) && _world.getBlock(x + 1, y, z) == 0) || ((blockX != (CHUNK_SIZE - 1) && _blocks[(blockX + 1) + (blockZ * CHUNK_SIZE) + (blockY * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
-		addFace(blockX, blockY, blockZ, EAST, east);
+	if ((position.y == 0 && _world.getBlock(vec3(x, y - 1, z)) == 0) || ((position.y != 0 && _blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addFace(position, DOWN, down);
+	if ((position.y == (CHUNK_SIZE - 1) && _world.getBlock(vec3(x, y + 1, z)) == 0) || ((position.y != (CHUNK_SIZE - 1) && _blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addFace(position, UP, up);
+	if ((position.z == 0 && _world.getBlock(vec3(x, y, z - 1)) == 0) || ((position.z != 0 && _blocks[position.x + ((position.z - 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addFace(position, NORTH, north);
+	if ((position.z == (CHUNK_SIZE - 1) && _world.getBlock(vec3(x, y, z + 1)) == 0) || ((position.z != (CHUNK_SIZE - 1) && _blocks[position.x + ((position.z + 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addFace(position, SOUTH, south);
+	if ((position.x == 0 && _world.getBlock(vec3(x - 1, y, z)) == 0) || ((position.x != 0 && _blocks[(position.x - 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addFace(position, WEST, west);
+	if ((position.x == (CHUNK_SIZE - 1) && _world.getBlock(vec3(x + 1, y, z)) == 0) || ((position.x != (CHUNK_SIZE - 1) && _blocks[(position.x + 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+		addFace(position, EAST, east);
 }
 
 vec3 SubChunk::getPosition()
@@ -187,13 +191,13 @@ void SubChunk::sendFacesToDisplay()
 				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
 				{
 					case 'D':
-						addBlock(x, y, z, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
+						addBlock(vec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
 						break;
 					case 'S':
-						addBlock(x, y, z, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
+						addBlock(vec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
 						break;
 					case 'G':
-						addBlock(x, y, z, T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
+						addBlock(vec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
 						break;
 					default :
 						break;

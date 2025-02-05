@@ -335,9 +335,9 @@ void SubChunk::processWestVertex()
 }
 
 
-void SubChunk::addFace(int x, int y, int z, Direction dir, TextureType texture) {
+void SubChunk::addFace(vec3 position, Direction dir, TextureType texture) {
     Face newFace;
-    newFace.position = vec3(x, y, z);
+    newFace.position = position;
     newFace.size = vec2(0, 0);
     newFace.direction = dir;
     newFace.texture = texture;

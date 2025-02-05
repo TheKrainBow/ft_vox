@@ -33,23 +33,23 @@ class SubChunk
 		std::vector<int>	_vertexData;
 		TextureManager &_textManager;
 	public:
-		SubChunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager);
+		SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureManager &textManager);
 		~SubChunk();
 		void setupBuffers();
 		int display(void);
 		void addTextureVertex(Face face);
-		void addFace(int x, int y, int z, Direction dir, TextureType texture);
+		void addFace(vec3 position, Direction dir, TextureType texture);
 		void loadHeight();
 		void loadBiome();
 		vec3 getPosition(void);
-	    char getBlock(int x, int y, int z);
+	    char getBlock(vec3 position);
 		void sendFacesToDisplay();
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		// void renderBoundaries() const;
 	private:
-		void addBlock(int x, int y, int z, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
+		void addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
 		void processFaces();
 		void processUpVertex();
 		void processDownVertex();

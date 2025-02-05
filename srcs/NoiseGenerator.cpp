@@ -107,9 +107,9 @@ int NoiseGenerator::getHeight(vec2 pos)
 }
 
 
-NoiseGenerator::PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
+PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
 {
-	NoiseGenerator::PerlinMap *newMap = new NoiseGenerator::PerlinMap();
+	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
 	newMap->map = new double[size * size];
 	newMap->resolution = resolution;
@@ -128,7 +128,7 @@ NoiseGenerator::PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, 
 	return (newMap);
 }
 
-NoiseGenerator::PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
+PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
 {
 	for (auto &map : _perlinMaps)
 	{

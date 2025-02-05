@@ -1,15 +1,3 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   NoiseGenerator.hpp                                 :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/01/02 22:49:04 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/28 22:04:54 by tmoragli         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #pragma once
 
 #include "ft_vox.hpp"
@@ -44,7 +32,7 @@ class NoiseGenerator {
 		NoiseGenerator(size_t seed);
 		~NoiseGenerator();
 		double noise(double x, double y) const;
-		NoiseGenerator::PerlinMap *addPerlinMap(int x, int y, int size, int resolution);
+		PerlinMap *addPerlinMap(int x, int y, int size, int resolution);
 		PerlinMap *getPerlinMap(int x, int y);
 		void clearPerlinMaps(void);
 		void setSeed(size_t seed);
@@ -66,3 +54,5 @@ class NoiseGenerator {
 		std::vector<PerlinMap *> _perlinMaps;
 		SplineData spline;
 };
+
+typedef NoiseGenerator::PerlinMap PerlinMap;

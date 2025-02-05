@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ft_vox.hpp"
-#include "Texture.hpp"
 #include "Camera.hpp"
 
 struct t_rgba {
@@ -22,17 +21,10 @@ enum TextureType {
 
 class TextureManager {
 	private:
-		Texture *_textures[N_TEXTURES];
-		GLuint _mergedTextureID = 0;
 		GLuint _textureArrayID = 0;
 	public:
-		TextureManager(); // Constructor declaration
-		~TextureManager(); // Destructor declaration
+		TextureManager();
+		~TextureManager();
 		void loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data);
 		GLuint getTextureArray() const;
-		GLuint getTexture(TextureType text);
-		void addTextureVertex(TextureType type, Direction dir, int x, int y, int );
-		void resetTextureVertex();
-		int displayAllTexture(Camera &cam);
-		void processTextureVertex();
 };
