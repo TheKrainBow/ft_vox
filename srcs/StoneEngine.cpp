@@ -105,7 +105,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
 	debugBox.addLine("xangle: ", Textbox::FLOAT, &camAngle->x);
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
-	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
+	// glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
 }
 
 void StoneEngine::calculateFps()

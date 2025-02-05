@@ -25,6 +25,8 @@ void main()
 	vec3 instancePos = vec3(float(x), float(y), float(z));
 	vec3 basePos = aPos;
     vec2 finalUV = aPos.xy;
+	lengthX++;
+	lengthY++;
 	finalUV.y = 1.0 - finalUV.y;
 	basePos.x *= lengthX;
 	basePos.y *= lengthY;
@@ -48,12 +50,10 @@ void main()
 		basePos.z = -basePos.z + lengthY;
 	if (direction == 5)
 		basePos.y++;
-    vec3 worldPosition = worldPos + basePos + instancePos;
 
+    vec3 worldPosition = worldPos + basePos + instancePos;
 	finalUV.x *= lengthX;
 	finalUV.y *= lengthY;
-
-    // finalUV.y = finalUV.y / 5 + (float(textureID) / 5);
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
 
     TexCoord = finalUV;

@@ -216,17 +216,17 @@ void Chunk::addTextureVertex(Face face)
 	if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || direction >= 6)
 		return ;
 	int newVertex = 0;
-	int lengthX = face.size.x;
-	int lengthY = face.size.y;
-	if (lengthX == 0)
-		lengthX++;
-	if (lengthY == 0)
-		lengthY++;
+	int lengthX = face.size.x - 1;
+	int lengthY = face.size.y - 1;
+	// if (lengthX == 0)
+	// 	lengthX++;
+	// if (lengthY == 0)
+	// 	lengthY++;
 
 	if (face.direction == EAST || face.direction == WEST)
 	{
-		lengthX = face.size.y;
-		lengthY = face.size.x;
+		lengthX = face.size.y - 1;
+		lengthY = face.size.x - 1;
 	}
 	
 	newVertex |= (x & 0x1F) << 0;   // 5 bits for x
