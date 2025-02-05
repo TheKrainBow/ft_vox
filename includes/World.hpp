@@ -1,7 +1,7 @@
 #pragma once
 #include "ft_vox.hpp"
 #include "NoiseGenerator.hpp"
-#include "Chunk.hpp"
+#include "SubChunk.hpp"
 #include "Camera.hpp"
 #include <unordered_map>
 
@@ -17,14 +17,14 @@ namespace std {
     };
 }
 
-class Chunk;
+class SubChunk;
 
 class World
 {
 private:
 	NoiseGenerator                                              _perlinGenerator;
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _loadedChunks;
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>    _cachedChunks;
+	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>    _loadedChunks;
+	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>    _cachedChunks;
 	Camera                                                      _player;
 public:
 	World(int seed);
@@ -36,9 +36,9 @@ public:
 	int	getLoadedChunksNumber();
 	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
-	Chunk* getChunk(int chunkX, int chunkY, int chunkZ);
-	int display(Camera &cam);
+	SubChunk* getChunk(int chunkX, int chunkY, int chunkZ);
+	int display(Camera &cam, GLFWwindow *win);
 private:
 	vec3 calculateBlockPos(int x, int y, int z) const;
-	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap);
+	void findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap);
 };

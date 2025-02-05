@@ -12,7 +12,7 @@ vec3 World::calculateBlockPos(int x, int y, int z) const {
 	return { mod(x), mod(y), mod(z) };
 }
 
-void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap)
+void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>>& tempChunks, TextureManager &textManager, NoiseGenerator::PerlinMap *perlinMap)
 {
     auto currentTuple = std::make_tuple((int)position.x, (int)position.y, (int)position.z);
 	auto it = _loadedChunks.find(currentTuple);
@@ -28,7 +28,7 @@ void World::findOrLoadChunk(vec3 position, std::unordered_map<std::tuple<int, in
 	}
 	else
 	{
-		auto newChunk = std::make_unique<Chunk>(position.x, position.y, position.z, perlinMap, *this, textManager);
+		auto newChunk = std::make_unique<SubChunk>(position.x, position.y, position.z, perlinMap, *this, textManager);
 		tempChunks[currentTuple] = std::move(newChunk);
 	}
 }
@@ -59,7 +59,7 @@ void World::loadPerlinMap(vec3 camPosition)
 
 void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 {
-	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> tempChunks;
+	std::unordered_map<std::tuple<int, int, int>, std::unique_ptr<SubChunk>> tempChunks;
 
 	vec3 position;
 	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
@@ -89,14 +89,14 @@ char World::getBlock(int x, int y, int z)
     chunkPos.y -= (y < 0 && abs(y) % CHUNK_SIZE != 0);
     chunkPos.z -= (z < 0 && abs(z) % CHUNK_SIZE != 0);
 
-    Chunk* chunk = getChunk((int)chunkPos.x, (int)chunkPos.y, (int)chunkPos.z);
+    SubChunk* chunk = getChunk((int)chunkPos.x, (int)chunkPos.y, (int)chunkPos.z);
     if (!chunk) return 0;
 
     vec3 blockPos = calculateBlockPos(x, y, z);
     return chunk->getBlock((int)blockPos.x, (int)blockPos.y, (int)blockPos.z);
 }
 
-Chunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
+SubChunk* World::getChunk(int chunkX, int chunkY, int chunkZ)
 {
     auto it = _loadedChunks.find(std::make_tuple(chunkX, chunkY, chunkZ));
     if (it != _loadedChunks.end())
@@ -116,12 +116,15 @@ void World::sendFacesToDisplay()
     }
 }
 
-int World::display(Camera &cam)
+int World::display(Camera &cam, GLFWwindow* win)
 {
 	(void)cam;
+	(void)win;
 	int triangleDrown = 0;
 	for (auto &chunk : _loadedChunks)
+	{
 		triangleDrown += chunk.second->display();
+	}
 	return (triangleDrown);
 }
 

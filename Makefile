@@ -19,8 +19,8 @@ SRC_NAME	=	stb_truetype.cpp		\
 				Camera.cpp				\
 				TextureManager.cpp		\
 				Texture.cpp				\
-				Chunk.cpp				\
-				Chunk_faces.cpp			\
+				SubChunk.cpp			\
+				SubChunk_faces.cpp		\
 				NoiseGenerator.cpp		\
 				Textbox.cpp				\
 				BiomeGenerator.cpp		\

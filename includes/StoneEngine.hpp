@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Chunk.hpp"
+#include "SubChunk.hpp"
 #include "World.hpp"
 #include "Camera.hpp"
 #include "NoiseGenerator.hpp"

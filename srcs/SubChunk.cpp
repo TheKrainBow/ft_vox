@@ -1,6 +1,6 @@
-#include "Chunk.hpp"
+#include "SubChunk.hpp"
 
-Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
+SubChunk::SubChunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
 {
 	_position = vec3(x, y, z);
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
@@ -31,7 +31,7 @@ Chunk::Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &w
 	loadBiome();
 }
 
-void Chunk::loadHeight()
+void SubChunk::loadHeight()
 {
 	if (_loaded) return ;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
@@ -65,7 +65,7 @@ void Chunk::loadHeight()
 	_loaded = true;
 }
 
-vec2 Chunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
+vec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
 {
 	double noiseX = noise_gen.noise(x, z);
 	double noiseY = noise_gen.noise(z, x);
@@ -75,7 +75,7 @@ vec2 Chunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) cons
 	return offset;
 }
 
-double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
+double SubChunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
 {
 	double noise = 0.0;
 	NoiseData nData = {
@@ -92,7 +92,7 @@ double Chunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
 	return noise;
 }
 
-double Chunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
+double SubChunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
 {
 	std::vector<Point> splinePoints = {{-1.0, 50.0}, {0.3, 100.0}, {0.4, 150.0}, {1.0, 150.0}};
 	double continentalNoise = getContinentalNoise(pos, noise_gen);
@@ -102,7 +102,7 @@ double Chunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
 	return splineResult;
 }
 
-void Chunk::loadBiome()
+void SubChunk::loadBiome()
 {
 	for (int x = 0; x < CHUNK_SIZE ; x++)
 	{
@@ -130,19 +130,19 @@ void Chunk::loadBiome()
 	}
 }
 
-Chunk::~Chunk()
+SubChunk::~SubChunk()
 {
 	_loaded = false;
 }
 
-char Chunk::getBlock(int x, int y, int z)
+char SubChunk::getBlock(int x, int y, int z)
 {
 	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
 		return 0;
 	return _blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)];
 }
 
-void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
+void SubChunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
 {
 	int x = _position.x * CHUNK_SIZE + blockX;
 	int y = _position.y * CHUNK_SIZE + blockY;
@@ -162,19 +162,19 @@ void Chunk::addBlock(int blockX, int blockY, int blockZ, TextureType down, Textu
 		addFace(blockX, blockY, blockZ, EAST, east);
 }
 
-vec3 Chunk::getPosition()
+vec3 SubChunk::getPosition()
 {
 	return _position;
 }
 
-void Chunk::clearFaces() {
+void SubChunk::clearFaces() {
 	for (int i = 0; i < 6; i++)
 	{
 		_faces[i].clear();
 	}
 }
 
-void Chunk::sendFacesToDisplay()
+void SubChunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
 		return ;
@@ -206,7 +206,7 @@ void Chunk::sendFacesToDisplay()
 	_hasSentFaces = true;
 }
 
-void Chunk::addTextureVertex(Face face)
+void SubChunk::addTextureVertex(Face face)
 {
 	int x = face.position.x;
 	int y = face.position.y;
@@ -239,7 +239,7 @@ void Chunk::addTextureVertex(Face face)
 	_vertexData.push_back(newVertex);
 }
 
-void Chunk::setupBuffers() {
+void SubChunk::setupBuffers() {
 
     if (_vertexData.empty()) return;
 
@@ -257,7 +257,7 @@ void Chunk::setupBuffers() {
 	glBindVertexArray(0);
 }
 
-int Chunk::display(void)
+int SubChunk::display(void)
 {
 	if (_vertexData.empty())
 		return 0;
@@ -267,7 +267,7 @@ int Chunk::display(void)
     return (_vertexData.size() * 2);
 }
 
-void Chunk::processFaces()
+void SubChunk::processFaces()
 {
 	processUpVertex();
 	processDownVertex();

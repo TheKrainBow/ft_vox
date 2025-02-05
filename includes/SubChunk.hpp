@@ -9,7 +9,7 @@
 class BiomeGenerator;
 class World;
 
-class Chunk
+class SubChunk
 {
 	public:
 		typedef struct s_Face {
@@ -33,8 +33,8 @@ class Chunk
 		std::vector<int>	_vertexData;
 		TextureManager &_textManager;
 	public:
-		Chunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager);
-		~Chunk();
+		SubChunk(int x, int y, int z, NoiseGenerator::PerlinMap *perlinMap, World &world, TextureManager &textManager);
+		~SubChunk();
 		void setupBuffers();
 		int display(void);
 		void addTextureVertex(Face face);
@@ -60,9 +60,9 @@ class Chunk
 		void clearFaces();
 };
 
-bool compareUpFaces(const Chunk::Face& a, const Chunk::Face& b);
-bool compareUpStep2Faces(const Chunk::Face& a, const Chunk::Face& b);
-bool compareNorthFaces(const Chunk::Face& a, const Chunk::Face& b);
-bool compareNorthStep2Faces(const Chunk::Face& a, const Chunk::Face& b);
-bool compareEastFaces(const Chunk::Face& a, const Chunk::Face& b);
-bool compareEastStep2Faces(const Chunk::Face& a, const Chunk::Face& b);
+bool compareUpFaces(const SubChunk::Face& a, const SubChunk::Face& b);
+bool compareUpStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b);
+bool compareNorthFaces(const SubChunk::Face& a, const SubChunk::Face& b);
+bool compareNorthStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b);
+bool compareEastFaces(const SubChunk::Face& a, const SubChunk::Face& b);
+bool compareEastStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b);

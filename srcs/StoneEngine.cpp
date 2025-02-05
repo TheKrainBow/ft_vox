@@ -170,7 +170,7 @@ void StoneEngine::display()
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	drawnTriangles = _world->display(camera);
+	drawnTriangles = _world->display(camera, _window);
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)

@@ -3,17 +3,17 @@
 /*                                                        :::      ::::::::   */
 /*   BiomeGenerator.hpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
+/*   By: maagosti <maagosti@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:34:45 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/09 21:53:40 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/02/05 01:44:54 by maagosti         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #pragma once
 
 #include "NoiseGenerator.hpp"
-#include "Chunk.hpp"
+#include "SubChunk.hpp"
 
 #define BIOME_SIZE 500.0
 #define OFFSET_METRIC 1000.0

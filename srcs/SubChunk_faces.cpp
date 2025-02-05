@@ -1,6 +1,6 @@
-#include "Chunk.hpp"
+#include "SubChunk.hpp"
 
-bool compareUpFaces(const Chunk::Face& a, const Chunk::Face& b) {
+bool compareUpFaces(const SubChunk::Face& a, const SubChunk::Face& b) {
     if (a.texture != b.texture)
         return (a.texture > b.texture);
     if (a.position.y != b.position.y)
@@ -10,7 +10,7 @@ bool compareUpFaces(const Chunk::Face& a, const Chunk::Face& b) {
     return a.position.z < b.position.z;
 }
 
-bool compareUpStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
+bool compareUpStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b) {
     if (a.texture != b.texture)
         return (a.texture < b.texture);
     if (a.position.y != b.position.y)
@@ -20,7 +20,7 @@ bool compareUpStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
     return a.position.x < b.position.x;
 }
 
-bool compareNorthFaces(const Chunk::Face& a, const Chunk::Face& b) {
+bool compareNorthFaces(const SubChunk::Face& a, const SubChunk::Face& b) {
     if (a.texture != b.texture)
         return (a.texture < b.texture);
     if (a.position.z != b.position.z)
@@ -30,7 +30,7 @@ bool compareNorthFaces(const Chunk::Face& a, const Chunk::Face& b) {
     return a.position.x < b.position.x;
 }
 
-bool compareNorthStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
+bool compareNorthStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b) {
     if (a.texture != b.texture)
         return (a.texture < b.texture);
     if (a.position.z != b.position.z)
@@ -40,7 +40,7 @@ bool compareNorthStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
     return a.position.y < b.position.y;
 }
 
-bool compareEastFaces(const Chunk::Face& a, const Chunk::Face& b) {
+bool compareEastFaces(const SubChunk::Face& a, const SubChunk::Face& b) {
     if (a.texture != b.texture)
         return (a.texture < b.texture);
     if (a.position.x != b.position.x)
@@ -50,7 +50,7 @@ bool compareEastFaces(const Chunk::Face& a, const Chunk::Face& b) {
     return a.position.y < b.position.y;
 }
 
-bool compareEastStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
+bool compareEastStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b) {
     if (a.texture != b.texture)
         return (a.texture < b.texture);
     if (a.position.x != b.position.x)
@@ -61,7 +61,7 @@ bool compareEastStep2Faces(const Chunk::Face& a, const Chunk::Face& b) {
 }
 
 
-void Chunk::processUpVertex()
+void SubChunk::processUpVertex()
 {
     if (_faces[UP].empty())
         return ;
@@ -106,7 +106,7 @@ void Chunk::processUpVertex()
     }
 }
 
-void Chunk::processDownVertex()
+void SubChunk::processDownVertex()
 {
     if (_faces[DOWN].empty())
         return ;
@@ -152,7 +152,7 @@ void Chunk::processDownVertex()
     }
 }
 
-void Chunk::processNorthVertex()
+void SubChunk::processNorthVertex()
 {
     if (_faces[NORTH].empty())
         return ;
@@ -198,7 +198,7 @@ void Chunk::processNorthVertex()
     }
 }
 
-void Chunk::processSouthVertex()
+void SubChunk::processSouthVertex()
 {
     if (_faces[SOUTH].empty())
         return ;
@@ -244,7 +244,7 @@ void Chunk::processSouthVertex()
     }
 }
 
-void Chunk::processEastVertex()
+void SubChunk::processEastVertex()
 {
     if (_faces[EAST].empty())
         return ;
@@ -289,7 +289,7 @@ void Chunk::processEastVertex()
     }
 }
 
-void Chunk::processWestVertex()
+void SubChunk::processWestVertex()
 {
     if (_faces[WEST].empty())
         return ;
@@ -335,7 +335,7 @@ void Chunk::processWestVertex()
 }
 
 
-void Chunk::addFace(int x, int y, int z, Direction dir, TextureType texture) {
+void SubChunk::addFace(int x, int y, int z, Direction dir, TextureType texture) {
     Face newFace;
     newFace.position = vec3(x, y, z);
     newFace.size = vec2(0, 0);
