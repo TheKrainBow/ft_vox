@@ -33,27 +33,32 @@ void World::findOrLoadChunk(vec3 position, std::map<std::tuple<int, int, int>, s
 	}
 }
 
-World::World(int seed) : _perlinGenerator(seed) {}
+World::World(int seed) : _perlinGenerator(seed) {
+	_chunks = new Chunk*[_maxRender * _maxRender];
+}
+
+World::~World() {
+	delete [] _chunks;
+};
 
 NoiseGenerator &World::getNoiseGenerator(void)
 {
-    return (_perlinGenerator);
+	return (_perlinGenerator);
 }
 
-World::~World() = default;
 
 void World::loadPerlinMap(vec3 camPosition)
 {
-    _perlinGenerator.clearPerlinMaps();
+	_perlinGenerator.clearPerlinMaps();
 	vec2 position;
 	for (int x = -XZ_RENDER_DISTANCE; x < XZ_RENDER_DISTANCE; x++)
 	{
-        for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
-        {
-            position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-            position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
-            _perlinGenerator.addPerlinMap(position.x, position.y, CHUNK_SIZE, 1);
-        }
+		for (int z = -XZ_RENDER_DISTANCE; z < XZ_RENDER_DISTANCE; z++)
+		{
+			position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
+			position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
+			_perlinGenerator.addPerlinMap(position.x, position.y, CHUNK_SIZE, 1);
+		}
 	}
 }
 

@@ -33,6 +33,7 @@ private:
 	// Player related informations
 		Camera														_player;
 		int															_renderDistance;
+		int															_maxRender = 64;
 public:
 	World(int seed);
 	~World();
