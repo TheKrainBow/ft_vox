@@ -46,6 +46,7 @@ public:
 	int display(Camera &cam, GLFWwindow *win);
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
+	int *getRenderDistancePtr();
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 };

@@ -100,6 +100,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::DOUBLE, &drawnTriangles);
+	debugBox.addLine("RenderDistance: ", Textbox::INT, _world->getRenderDistancePtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
 	debugBox.addLine("y: ", Textbox::FLOAT, &camPos->y);
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);

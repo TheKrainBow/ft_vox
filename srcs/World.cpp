@@ -48,12 +48,18 @@ void World::loadPerlinMap(vec3 camPosition)
 // {
 // }
 
+int *World::getRenderDistancePtr()
+{
+	return &_renderDistance;
+}
+
 void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 {
 	for (int x = 0; x < _renderDistance; x++)
 	{
 		for (int z = 0; z < _renderDistance; z++)
 		{
+
 			Chunk *chunk;
 			std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - _renderDistance / 2 + x, camPosition.z / CHUNK_SIZE - _renderDistance / 2 + z);
 			auto it = _chunks.find(pair);
