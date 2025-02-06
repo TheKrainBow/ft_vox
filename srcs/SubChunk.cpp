@@ -8,12 +8,11 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureMan
 	bzero(_blocks.data(), _blocks.size());
 	loadHeight();
 	loadBiome();
+	sendFacesToDisplay();
 }
 
 void SubChunk::initGLBuffer()
 {
-	if (_hasSentFaces == false)
-		sendFacesToDisplay();
 	if (_hasBufferInitialized == true)
 		return ;
 	glGenVertexArrays(1, &_vao);

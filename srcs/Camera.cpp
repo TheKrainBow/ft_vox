@@ -43,12 +43,13 @@ void Camera::reset()
 
 vec3 Camera::getWorldPosition(void)
 {
-	//std::lock_guard<std::mutex> lock(positionMutex);
+	std::lock_guard<std::mutex> lock(_positionMutex);
 	return (vec3(-position.x, -position.y, -position.z));
 }
 
 vec3 Camera::getPosition()
 {
+	std::lock_guard<std::mutex> lock(_positionMutex);
 	return position;
 }
 

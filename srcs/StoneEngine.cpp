@@ -9,7 +9,7 @@ StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)//, updateCh
 	// chunks.push_back(Chunk(camera.position.x / CHUNK_SIZE - 1, camera.position.z / CHUNK_SIZE - 1, noise_gen));
 	initShaders();
 	initDebugTextBox();
-	updateChunks();
+	// updateChunks();
 	reshape(_window, windowWidth, windowHeight);
 }
 
@@ -23,14 +23,19 @@ StoneEngine::~StoneEngine()
 void StoneEngine::run()
 {
 	// Main loop
-	// chunkUpdateThread = std::thread(&StoneEngine::chunkUpdateWorker, this);
+	// std::thread chunkUpdateThread = std::thread(&StoneEngine::updateChunkWorker, this);
 	// updateChunkFlag.store(true);
+
+	std::thread t1(&StoneEngine::updateChunkWorker, this);
+	_isRunning = true;
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
 		update(_window);
 		glfwPollEvents();
 	}
+	_isRunning = false;
+	t1.join();
 	// Terminate chunk thread
 	//running.store(false);
 	// displayThread.join();
@@ -171,7 +176,7 @@ void StoneEngine::display()
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	drawnTriangles = _world->display(camera, _window);
+	drawnTriangles = _world->display();
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
@@ -264,6 +269,39 @@ void StoneEngine::updateMovement()
 // 	}
 // }
 
+void StoneEngine::updateChunkWorker()
+{
+	bool firstIteration = true;
+	vec3 oldPos = camera.getWorldPosition();
+
+	vec3 oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
+	if (oldCamChunk.x < 0) oldCamChunk.x--;
+	if (oldCamChunk.y < 0) oldCamChunk.y--;
+	if (oldCamChunk.z < 0) oldCamChunk.z--;
+	while (_isRunning)
+	{
+		vec3 cameraPos = camera.getWorldPosition();
+		if (oldPos.x != cameraPos.x || oldPos.y != cameraPos.y || oldPos.z != cameraPos.z || firstIteration)
+		{
+			// Check new chunk position for necessary updates to chunks
+			vec3 camChunk(cameraPos.x / CHUNK_SIZE, cameraPos.y / CHUNK_SIZE, cameraPos.z / CHUNK_SIZE);
+			if (cameraPos.x < 0) camChunk.x--;
+			if (cameraPos.y < 0) camChunk.y--;
+			if (cameraPos.z < 0) camChunk.z--;
+			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
+				updateChunks();
+			firstIteration = false;
+
+			oldPos = cameraPos;
+			oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
+			if (oldCamChunk.x < 0) oldCamChunk.x--;
+			if (oldCamChunk.y < 0) oldCamChunk.y--;
+			if (oldCamChunk.z < 0) oldCamChunk.z--;
+		}
+		// usleep(200);
+	}
+}
+
 void StoneEngine::update(GLFWwindow* window)
 {
 	(void)window;
@@ -271,23 +309,10 @@ void StoneEngine::update(GLFWwindow* window)
 	findMoveRotationSpeed();
 
 	// Save old chunk position
-	vec3 worldPos = camera.getWorldPosition();
-	vec3 oldCamChunk(worldPos.x / CHUNK_SIZE, worldPos.y / CHUNK_SIZE, worldPos.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.y < 0) oldCamChunk.y--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
 
 	// Update player position and orientation
 	updateMovement();
 
-	worldPos = camera.getWorldPosition();
-	// Check new chunk position for necessary updates to chunks
-	vec3 camChunk(worldPos.x / CHUNK_SIZE, worldPos.y / CHUNK_SIZE, worldPos.z / CHUNK_SIZE);
-	if (worldPos.x < 0) camChunk.x--;
-	if (worldPos.y < 0) camChunk.y--;
-	if (worldPos.z < 0) camChunk.z--;
-	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
-		updateChunks();
 	// {
 	// 	// {
 	// 	// 	std::lock_guard<std::mutex> lock(chunksMutex);

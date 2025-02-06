@@ -27,6 +27,7 @@ private:
 	// World related informations
 		NoiseGenerator												_perlinGenerator;
 		std::map<std::pair<int, int>, Chunk*>						_chunks;
+		std::mutex													_displayMutex;
 		Chunk														**_displayedChunk;
 	// Player related informations
 		Camera														_player;
@@ -43,7 +44,7 @@ public:
 	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
 	SubChunk* getChunk(vec3 position);
-	int display(Camera &cam, GLFWwindow *win);
+	int display();
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();

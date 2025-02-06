@@ -27,6 +27,6 @@ class Camera {
 		float movementspeed = 10.0f;
 		bool mouseRotation = false;
 		vec2 mousePos;
-		// std::mutex positionMutex;
+		std::mutex _positionMutex;
 		// std::mutex angleMutex;
 };

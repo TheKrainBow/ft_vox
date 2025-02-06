@@ -22,6 +22,8 @@ class StoneEngine {
 		mat4 projectionMatrix;
 		TextureManager textureManager;
 
+		bool _isRunning = false;
+
 		// Keys states and runtime booleans
 		bool keyStates[348];
 		bool ignoreMouseEvent;
@@ -97,4 +99,6 @@ class StoneEngine {
 		void findMoveRotationSpeed();
 		void update(GLFWwindow* window);
 		void updateMovement();
+
+		void updateChunkWorker();
 };

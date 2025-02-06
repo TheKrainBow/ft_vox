@@ -14,6 +14,7 @@ vec3 World::calculateBlockPos(vec3 position) const {
 
 World::World(int seed) : _perlinGenerator(seed) {
 	_displayedChunk = new Chunk*[_maxRender * _maxRender];
+	bzero(_displayedChunk, _maxRender * _maxRender);
 	_renderDistance = RENDER_DISTANCE;
 }
 
@@ -55,13 +56,14 @@ int *World::getRenderDistancePtr()
 
 void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 {
-	for (int x = 0; x < _renderDistance; x++)
+	int renderDistance = _renderDistance;
+	for (int x = 0; x < renderDistance; x++)
 	{
-		for (int z = 0; z < _renderDistance; z++)
+		for (int z = 0; z < renderDistance; z++)
 		{
 
 			Chunk *chunk;
-			std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - _renderDistance / 2 + x, camPosition.z / CHUNK_SIZE - _renderDistance / 2 + z);
+			std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - renderDistance / 2 + x, camPosition.z / CHUNK_SIZE - renderDistance / 2 + z);
 			auto it = _chunks.find(pair);
 			if (it != _chunks.end())
 				chunk = it->second;
@@ -70,46 +72,49 @@ void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 				chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, textManager);
 				_chunks[pair] = chunk;
 			}
-			_displayedChunk[x + z * _renderDistance] = chunk;
+			_displayMutex.lock();
+			_displayedChunk[x + z * renderDistance] = chunk;
+			_displayMutex.unlock();
 		}
 	}
 }
 
 char World::getBlock(vec3 position)
 {
-    vec3 chunkPos(position);
+	vec3 chunkPos(position);
 	chunkPos /= CHUNK_SIZE;
-    chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
-    chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
-    chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
+	chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
+	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
+	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
 
-    SubChunk* chunk = getChunk(chunkPos);
-    if (!chunk)
+	SubChunk* chunk = getChunk(chunkPos);
+	if (!chunk)
 	{
 		// std::cout << "didn't found chunk" << std::endl;
 		return 0;
 	}
-    return chunk->getBlock(calculateBlockPos(position));
+	return chunk->getBlock(calculateBlockPos(position));
 }
 
 SubChunk* World::getChunk(vec3 position)
 {
-    auto it = _chunks.find(std::make_pair(position.x, position.z));
-    if (it != _chunks.end())
-        return it->second->getSubChunk(position.y);
-    return nullptr;
+	auto it = _chunks.find(std::make_pair(position.x, position.z));
+	if (it != _chunks.end())
+		return it->second->getSubChunk(position.y);
+	return nullptr;
 }
 
-int World::display(Camera &cam, GLFWwindow* win)
+int World::display()
 {
-	(void)cam;
-	(void)win;
 	int triangleDrawn = 0;
 	for (int x = 0; x < _renderDistance; x++)
 	{
 		for (int z = 0; z < _renderDistance; z++)
 		{
-			triangleDrawn += _displayedChunk[x + z * _renderDistance]->display();
+			_displayMutex.lock();
+			if (_displayedChunk[x + z * _renderDistance])
+				triangleDrawn += _displayedChunk[x + z * _renderDistance]->display();
+			_displayMutex.unlock();
 		}
 	}
 	return (triangleDrawn);
