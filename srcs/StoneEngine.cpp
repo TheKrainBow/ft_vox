@@ -189,7 +189,7 @@ void StoneEngine::updateChunks()
 	_world->loadChunk(camera.getWorldPosition(), textureManager);
 	chronoHelper.stopChrono(1);
 	chronoHelper.stopChrono(0);
-	std::cout << "Loaded Chunks: " << _world->getLoadedChunksNumber() << ", Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	std::cout << "Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
 	chronoHelper.printChronos();
 }
 

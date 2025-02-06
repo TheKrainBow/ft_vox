@@ -50,7 +50,6 @@ void main()
 		basePos.z = -basePos.z + lengthY;
 	if (direction == 5)
 		basePos.y++;
-
     vec3 worldPosition = worldPos + basePos + instancePos;
 	finalUV.x *= lengthX;
 	finalUV.y *= lengthY;

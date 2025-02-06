@@ -5,12 +5,31 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	_perlinMap = perlinMap;
 	for (int y = (perlinMap->lowest - CHUNK_SIZE) ; y <= (perlinMap->heighest + (CHUNK_SIZE)); y += CHUNK_SIZE)
 	{
-		_subChunks.push_back(SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, world, textureManager));
+		_subChunks.push_back(new SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, world, textureManager));
 		// findOrLoadChunk(position, tempChunks, textManager, _perlinMap);
 	}
 }
 
 Chunk::~Chunk()
 {
+	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
+		delete *it;
 	_subChunks.clear();
+}
+
+
+void Chunk::display()
+{
+	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
+		(*it)->display();
+}
+
+SubChunk *Chunk::getSubChunk(int y)
+{
+	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
+	{
+		if ((*it)->getPosition().y == y)
+			return (*it);
+	}
+	return nullptr;
 }
