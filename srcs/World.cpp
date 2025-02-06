@@ -103,7 +103,7 @@ int World::display(Camera &cam, GLFWwindow* win)
 	{
 		for (int z = 0; z < _renderDistance; z++)
 		{
-			_displayedChunk[x + z * _renderDistance]->display();
+			triangleDrawn += _displayedChunk[x + z * _renderDistance]->display();
 		}
 	}
 	return (triangleDrawn);
@@ -112,4 +112,18 @@ int World::display(Camera &cam, GLFWwindow* win)
 int	World::getCachedChunksNumber()
 {
 	return _chunks.size();
+}
+
+void World::increaseRenderDistance()
+{
+	_renderDistance += 2;
+	if (_renderDistance > _maxRender)
+		_renderDistance = _maxRender;
+}
+
+void World::decreaseRenderDistance()
+{
+	_renderDistance -= 2;
+	if (_renderDistance < 1)
+		_renderDistance = 1;
 }

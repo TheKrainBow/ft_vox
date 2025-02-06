@@ -18,10 +18,12 @@ Chunk::~Chunk()
 }
 
 
-void Chunk::display()
+int Chunk::display()
 {
+	int triangleDrawn = 0;
 	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
-		(*it)->display();
+		triangleDrawn += (*it)->display();
+	return triangleDrawn;
 }
 
 SubChunk *Chunk::getSubChunk(int y)

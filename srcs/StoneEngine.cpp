@@ -208,6 +208,10 @@ void StoneEngine::findMoveRotationSpeed()
 		moveSpeed = (MOVEMENT_SPEED * 2.0) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
+	
+
+	if (keyStates[GLFW_KEY_KP_ADD]) {_world->increaseRenderDistance(); _world->loadChunk(camera.getWorldPosition(), textureManager);}
+	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world->decreaseRenderDistance(); _world->loadChunk(camera.getWorldPosition(), textureManager);}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
@@ -298,7 +302,6 @@ void StoneEngine::update(GLFWwindow* window)
 	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
 }
 
-
 void StoneEngine::reshapeAction(int width, int height)
 {
 	glViewport(0, 0, width, height);
@@ -327,6 +330,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
+
 	if (action == GLFW_PRESS) keyStates[key] = true;
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
 }

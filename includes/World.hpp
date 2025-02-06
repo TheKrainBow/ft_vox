@@ -31,7 +31,7 @@ private:
 	// Player related informations
 		Camera														_player;
 		int															_renderDistance;
-		int															_maxRender = 64;
+		int															_maxRender = 1000;
 public:
 	World(int seed);
 	~World();
@@ -44,6 +44,8 @@ public:
 	void sendFacesToDisplay();
 	SubChunk* getChunk(vec3 position);
 	int display(Camera &cam, GLFWwindow *win);
+	void increaseRenderDistance();
+	void decreaseRenderDistance();
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 };
