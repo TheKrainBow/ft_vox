@@ -77,24 +77,24 @@ void World::loadChunks(vec3 camPosition)
 	int renderDistance = _renderDistance;
 	for (int render = 1; render < renderDistance; render += 2)
 	{
-		for (int x = 0; x < render; x++)
+		for (int x = 1; x < render; x++)
 		{
 			int z = 0;
-			loadChunk(x, z, renderDistance, render, camPosition);
-		}
-		for (int x = 0; x < render; x++)
-		{
-			int z = render - 1;
-			loadChunk(x, z, renderDistance, render, camPosition);
-		}
-		for (int z = 1; z < render - 1; z++)
-		{
-			int x = 0;
 			loadChunk(x, z, renderDistance, render, camPosition);
 		}
 		for (int z = 1; z < render - 1; z++)
 		{
 			int x = render - 1;
+			loadChunk(x, z, renderDistance, render, camPosition);
+		}
+		for (int x = render - 1; x >= 0; x--)
+		{
+			int z = render - 1;
+			loadChunk(x, z, renderDistance, render, camPosition);
+		}
+		for (int z = render - 2; z >= 0; z--)
+		{
+			int x = 0;
 			loadChunk(x, z, renderDistance, render, camPosition);
 		}
 	}
