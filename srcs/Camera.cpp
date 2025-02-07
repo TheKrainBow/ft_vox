@@ -21,12 +21,14 @@ void Camera::move(float  forward, float  strafe, float up)
 	float strafeZ = sin(radiansX + M_PI / 2) * strafe;
 
 	// Update theCcamera position
+	_positionMutex.lock();
 	position.z += (forwardX + strafeX) * movementspeed;
 	position.x += (forwardZ + strafeZ) * movementspeed;
 	center.x = position.x;
 	center.z = position.z -10.0f;
 	position.y += movementspeed * up;
 	center.y = position.y;
+	_positionMutex.unlock();
 }
 
 /*
@@ -34,7 +36,9 @@ void Camera::move(float  forward, float  strafe, float up)
 */
 void Camera::reset()
 {
+	_positionMutex.lock();
 	position = vec3(0.0, 0.0, 0.0);
+	_positionMutex.unlock();
 	angle.x = 0.0;
 	angle.y = 0.0;
 	rotationspeed = 100.0f;
@@ -65,6 +69,7 @@ vec2 Camera::getAngles()
 
 vec3 *Camera::getPositionPtr()
 {
+	std::lock_guard<std::mutex> lock(_positionMutex);
 	return &position;
 }
 

@@ -70,7 +70,9 @@ void World::loadChunk(vec3 camPosition, TextureManager &textManager)
 			else
 			{
 				chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, textManager);
+				_displayMutex.lock();
 				_chunks[pair] = chunk;
+				_displayMutex.unlock();
 			}
 			_displayMutex.lock();
 			_displayedChunk[x + z * renderDistance] = chunk;

@@ -23,23 +23,19 @@ StoneEngine::~StoneEngine()
 void StoneEngine::run()
 {
 	// Main loop
-	// std::thread chunkUpdateThread = std::thread(&StoneEngine::updateChunkWorker, this);
-	// updateChunkFlag.store(true);
-
-	std::thread t1(&StoneEngine::updateChunkWorker, this);
 	_isRunning = true;
+	std::thread t1(&StoneEngine::updateChunkWorker, this);
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
 		update(_window);
 		glfwPollEvents();
 	}
+	_isRunningMutex.lock();
 	_isRunning = false;
-	t1.join();
+	_isRunningMutex.unlock();
 	// Terminate chunk thread
-	//running.store(false);
-	// displayThread.join();
-	// chunkUpdateThread.join();
+	t1.join();
 }
 
 void StoneEngine::initData()
@@ -278,7 +274,7 @@ void StoneEngine::updateChunkWorker()
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
-	while (_isRunning)
+	while (getIsRunning())
 	{
 		vec3 cameraPos = camera.getWorldPosition();
 		if (oldPos.x != cameraPos.x || oldPos.y != cameraPos.y || oldPos.z != cameraPos.z || firstIteration)
@@ -448,4 +444,10 @@ void StoneEngine::initGLEW()
 		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
 		return ;
 	}
+}
+
+bool StoneEngine::getIsRunning()
+{
+	std::lock_guard<std::mutex> lockGuard(_isRunningMutex);
+	return _isRunning;
 }

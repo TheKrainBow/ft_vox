@@ -3,7 +3,7 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
-CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 -fsanitize=address -g3
+CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 -g #-fsanitize=thread
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
 
 OBJ_PATH		=	obj/
@@ -42,8 +42,6 @@ PURPLE		=	\033[1;35m
 CYAN		=	\033[1;36m
 WHITE		=	\033[1;37m
 EOC			=	\033[0;0m
-
-
 
 all: $(NAME)
 

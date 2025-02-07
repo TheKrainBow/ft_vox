@@ -22,7 +22,8 @@ class StoneEngine {
 		mat4 projectionMatrix;
 		TextureManager textureManager;
 
-		bool _isRunning = false;
+		std::mutex		_isRunningMutex;
+		bool			_isRunning = false;
 
 		// Keys states and runtime booleans
 		bool keyStates[348];
@@ -101,4 +102,6 @@ class StoneEngine {
 		void updateMovement();
 
 		void updateChunkWorker();
+
+		bool getIsRunning();
 };
