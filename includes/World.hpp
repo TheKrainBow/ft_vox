@@ -29,14 +29,16 @@ private:
 		std::map<std::pair<int, int>, Chunk*>						_chunks;
 		std::mutex													_displayMutex;
 		Chunk														**_displayedChunk;
+		TextureManager												&_textureManager;
 	// Player related informations
 		Camera														_player;
 		int															_renderDistance;
 		int															_maxRender = 1000;
 public:
-	World(int seed);
+	World(int seed, TextureManager &textureManager);
 	~World();
-	void loadChunk(vec3 camPosition, TextureManager &textManager);
+	void loadChunks(vec3 camPosition);
+	void loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);

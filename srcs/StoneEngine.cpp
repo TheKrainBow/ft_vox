@@ -1,15 +1,14 @@
 #include "StoneEngine.hpp"
 
-StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)//, updateChunkFlag(false), running(true)
+StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager), noise_gen(seed)//, updateChunkFlag(false), running(true)
 {
+
 	initData();
 	initGLFW();
 	initGLEW();
 	initTextures();
-	// chunks.push_back(Chunk(camera.position.x / CHUNK_SIZE - 1, camera.position.z / CHUNK_SIZE - 1, noise_gen));
 	initShaders();
 	initDebugTextBox();
-	// updateChunks();
 	reshape(_window, windowWidth, windowHeight);
 }
 
@@ -70,7 +69,7 @@ void StoneEngine::initData()
 void StoneEngine::initTextures()
 {
 	glEnable(GL_TEXTURE_2D);
-	textureManager.loadTexturesArray({
+	_textureManager.loadTexturesArray({
 		{ T_DIRT, "textures/dirt.ppm" },
 		{ T_COBBLE, "textures/cobble.ppm" },
 		{ T_STONE, "textures/stone.ppm" },
@@ -88,7 +87,7 @@ void StoneEngine::initShaders()
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-	glBindTexture(GL_TEXTURE_2D, textureManager.getTextureArray());  // Bind the texture
+	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
 }
 
@@ -101,7 +100,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::DOUBLE, &drawnTriangles);
-	debugBox.addLine("RenderDistance: ", Textbox::INT, _world->getRenderDistancePtr());
+	debugBox.addLine("RenderDistance: ", Textbox::INT, _world.getRenderDistancePtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
 	debugBox.addLine("y: ", Textbox::FLOAT, &camPos->y);
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
@@ -159,9 +158,9 @@ void StoneEngine::display()
 	
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, textureManager.getTextureArray());
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	// glBindTexture(GL_TEXTURE_2D, textureManager.getMergedText());  // Bind the texture
+	// glBindTexture(GL_TEXTURE_2D, _textureManager.getMergedText());  // Bind the texture
 	// glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 	
 	if (showTriangleMesh)
@@ -172,7 +171,7 @@ void StoneEngine::display()
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	drawnTriangles = _world->display();
+	drawnTriangles = _world.display();
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
@@ -188,10 +187,10 @@ void StoneEngine::updateChunks()
 {
 	chronoHelper.startChrono(0, "Update chunks");
 	chronoHelper.startChrono(1, "Load chunks");
-	_world->loadChunk(camera.getWorldPosition(), textureManager);
+	_world.loadChunks(camera.getWorldPosition());
 	chronoHelper.stopChrono(1);
 	chronoHelper.stopChrono(0);
-	std::cout << "Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	std::cout << "Cached Chunks: " << _world.getCachedChunksNumber() << std::endl;
 	chronoHelper.printChronos();
 }
 
@@ -212,8 +211,8 @@ void StoneEngine::findMoveRotationSpeed()
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	
 
-	if (keyStates[GLFW_KEY_KP_ADD]) {_world->increaseRenderDistance(); _world->loadChunk(camera.getWorldPosition(), textureManager);}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world->decreaseRenderDistance(); _world->loadChunk(camera.getWorldPosition(), textureManager);}
+	if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
+	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
