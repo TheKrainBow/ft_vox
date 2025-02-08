@@ -27,7 +27,7 @@ void StoneEngine::run()
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
-		update(_window);
+		update();
 		glfwPollEvents();
 	}
 	_isRunningMutex.lock();
@@ -297,25 +297,13 @@ void StoneEngine::updateChunkWorker()
 	}
 }
 
-void StoneEngine::update(GLFWwindow* window)
+void StoneEngine::update()
 {
-	(void)window;
 	// Check for delta and apply to move and rotation speeds
 	findMoveRotationSpeed();
 
-	// Save old chunk position
-
 	// Update player position and orientation
 	updateMovement();
-
-	// {
-	// 	// {
-	// 	// 	std::lock_guard<std::mutex> lock(chunksMutex);
-	// 	// 	updateChunkFlag = true;
-	// 	// }
-	// 	// chunkCondition.notify_one();
-	// }
-
 	display();
 
 	// Register end of frame for the next delta

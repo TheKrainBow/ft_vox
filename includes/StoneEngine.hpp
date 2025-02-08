@@ -98,7 +98,7 @@ class StoneEngine {
 
 		// Movement methods
 		void findMoveRotationSpeed();
-		void update(GLFWwindow* window);
+		void update();
 		void updateMovement();
 
 		void updateChunkWorker();
