@@ -50,6 +50,10 @@ public:
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
+	int loadTopChunks(int renderDistance, int render, vec3 camPosition);
+	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
+	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
+	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 };

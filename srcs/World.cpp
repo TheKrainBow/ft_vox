@@ -19,6 +19,7 @@ World::World(int seed, TextureManager &textureManager) : _perlinGenerator(seed),
 }
 
 World::~World() {
+	std::lock_guard<std::mutex> lock(_displayMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 		delete it->second;
 	delete [] _displayedChunk;
@@ -72,31 +73,76 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	_displayMutex.unlock();
 }
 
+
+#include <iostream>
+#include <future>
+#include <thread>
+
+int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
+{
+	for (int x = 1; x < render; x++)
+	{
+		int z = 0;
+		loadChunk(x, z, renderDistance, render, camPosition);
+	}
+	return 1;
+}
+
+int World::loadBotChunks(int renderDistance, int render, vec3 camPosition)
+{
+	for (int x = render - 1; x >= 0; x--)
+	{
+		int z = render - 1;
+		loadChunk(x, z, renderDistance, render, camPosition);
+	}
+	return 1;
+}
+
+int World::loadRightChunks(int renderDistance, int render, vec3 camPosition)
+{
+	for (int z = 1; z < render - 1; z++)
+	{
+		int x = render - 1;
+		loadChunk(x, z, renderDistance, render, camPosition);
+	}
+	return 1;
+}
+
+int World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
+{
+	for (int z = render - 2; z >= 0; z--)
+	{
+		int x = 0;
+		loadChunk(x, z, renderDistance, render, camPosition);
+	}
+	return 1;
+}
+
 void World::loadChunks(vec3 camPosition)
 {
 	int renderDistance = _renderDistance;
+
+	std::future<int> retTop;
+	std::future<int> retBot;
+	std::future<int> retLeft;
+	std::future<int> retRight;
 	for (int render = 1; render < renderDistance; render += 2)
 	{
-		for (int x = 1; x < render; x++)
-		{
-			int z = 0;
-			loadChunk(x, z, renderDistance, render, camPosition);
-		}
-		for (int z = 1; z < render - 1; z++)
-		{
-			int x = render - 1;
-			loadChunk(x, z, renderDistance, render, camPosition);
-		}
-		for (int x = render - 1; x >= 0; x--)
-		{
-			int z = render - 1;
-			loadChunk(x, z, renderDistance, render, camPosition);
-		}
-		for (int z = render - 2; z >= 0; z--)
-		{
-			int x = 0;
-			loadChunk(x, z, renderDistance, render, camPosition);
-		}
+		retTop = std::async(std::launch::async, 
+			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
+
+		retRight = std::async(std::launch::async, 
+			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
+
+		 retBot = std::async(std::launch::async, 
+		 	std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
+		
+		retLeft = std::async(std::launch::async, 
+			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
+		retTop.get();
+		retBot.get();
+		retLeft.get();
+		retRight.get();
 	}
 }
 
@@ -119,6 +165,7 @@ char World::getBlock(vec3 position)
 
 SubChunk* World::getChunk(vec3 position)
 {
+	std::lock_guard<std::mutex> lock(_displayMutex);
 	auto it = _chunks.find(std::make_pair(position.x, position.z));
 	if (it != _chunks.end())
 		return it->second->getSubChunk(position.y);
