@@ -5,6 +5,9 @@
 #include <memory>
 #include <map>
 #include <tuple>
+#include <iostream>
+#include <future>
+#include <thread>
 
 // Helper function to calculate block position within a chunk
 vec3 World::calculateBlockPos(vec3 position) const {
@@ -51,15 +54,19 @@ int *World::getRenderDistancePtr()
 	return &_renderDistance;
 }
 
-
 void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition)
 {
 	Chunk *chunk;
 	int correctX = (renderMax / 2) - (currentRender / 2) + x;
 	int correctZ = (renderMax / 2) - (currentRender / 2) + z;
-	std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - currentRender / 2 + x, camPosition.z / CHUNK_SIZE - currentRender / 2 + z);
+	
+	std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - currentRender / 2 + x ,camPosition.z / CHUNK_SIZE - currentRender / 2 + z);
+	
+	_displayMutex.lock();
 	auto it = _chunks.find(pair);
-	if (it != _chunks.end())
+	auto itend = _chunks.end();
+	_displayMutex.unlock();
+	if (it != itend)
 		chunk = it->second;
 	else
 	{
@@ -72,11 +79,6 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	_displayedChunk[correctX + correctZ * renderMax] = chunk;
 	_displayMutex.unlock();
 }
-
-
-#include <iostream>
-#include <future>
-#include <thread>
 
 int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
 {
@@ -134,15 +136,15 @@ void World::loadChunks(vec3 camPosition)
 		retRight = std::async(std::launch::async, 
 			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
 
-		 retBot = std::async(std::launch::async, 
-		 	std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
+		retBot = std::async(std::launch::async, 
+			std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
 		
 		retLeft = std::async(std::launch::async, 
 			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
 		retTop.get();
-		retBot.get();
-		retLeft.get();
 		retRight.get();
+		retLeft.get();
+		retBot.get();
 	}
 }
 
@@ -151,8 +153,8 @@ char World::getBlock(vec3 position)
 	vec3 chunkPos(position);
 	chunkPos /= CHUNK_SIZE;
 	chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
-	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
 	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
+	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
 
 	SubChunk* chunk = getChunk(chunkPos);
 	if (!chunk)
