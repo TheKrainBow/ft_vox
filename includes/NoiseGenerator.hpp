@@ -15,6 +15,7 @@ struct NoiseData {
 struct SplineData {
 	SplineInterpolator continentalSpline;
 	SplineInterpolator erosionSpline;
+	SplineInterpolator peaksValleysSpline;
 };
 
 class NoiseGenerator {
@@ -47,6 +48,7 @@ class NoiseGenerator {
 		double getErosionNoise(vec2 pos);
 		int getHeight(vec2 pos);
 		vec2 getBorderWarping(double x, double z) const;
+		double getPeaksValleysNoise(vec2 pos);
 
 		size_t _seed;
 		NoiseData _data;
