@@ -43,8 +43,6 @@ CYAN		=	\033[1;36m
 WHITE		=	\033[1;37m
 EOC			=	\033[0;0m
 
-
-
 all: $(NAME)
 
 $(NAME): $(OBJ)

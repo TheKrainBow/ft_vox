@@ -14,6 +14,8 @@ class Chunk
 	private:
 		vec2					_position;
 		std::vector<SubChunk *>	_subChunks;
+		std::mutex				_subChunksMutex;
+		bool					_isInit = false;
 		World					&_world;
 		TextureManager			&_textureManager;
 		PerlinMap				*_perlinMap;

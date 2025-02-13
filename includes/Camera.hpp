@@ -7,7 +7,7 @@ class Camera {
 	public:
 		Camera();
 		// Camera() : position{0.0, -30.0, 0.0}, center{0.0f, 0.0f, 10.0f} {};
-		~Camera() {};
+		~Camera();
 		void move(float forward, float strafe, float up);
 		void reset();
 		void updateMousePos(int x, int y);
@@ -27,6 +27,6 @@ class Camera {
 		float movementspeed = 10.0f;
 		bool mouseRotation = false;
 		vec2 mousePos;
-		// std::mutex positionMutex;
+		std::mutex _positionMutex;
 		// std::mutex angleMutex;
 };

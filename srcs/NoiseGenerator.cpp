@@ -39,11 +39,15 @@ void NoiseGenerator::clearPerlinMaps(void)
 	for (auto &map : _perlinMaps)
 	{
 		if (map && map->map)
+		{
 			delete [] map->map;
-		map->map = nullptr;
+			map->map = nullptr;
+		}
 		if (map)
+		{
 			delete map;
-		map = nullptr;
+			map = nullptr;
+		}
 	}
 	_perlinMaps.clear();
 }
@@ -156,6 +160,7 @@ PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int re
 
 PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
 {
+	std::lock_guard<std::mutex> lock(_perlinMutex);
 	for (auto &map : _perlinMaps)
 	{
 		if (map->position.x == x && map->position.y == y)

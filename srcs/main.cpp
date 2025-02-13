@@ -18,9 +18,7 @@ int main(int argc, char **argv)
 		std::cerr << "Failed to initialize GLFW" << std::endl;
 		return -1;
 	}
-	World overworld(seed);
-	StoneEngine stone(&overworld);
-
+	StoneEngine stone(seed);
 	stone.run();
 	return 0;
 }

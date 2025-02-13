@@ -15,12 +15,15 @@ class StoneEngine {
 		// Display
 		GLFWwindow* _window;
 		GLuint shaderProgram;
-		World *_world;
+		World _world;
 		int windowHeight;
 		int windowWidth;
 		Camera camera;
 		mat4 projectionMatrix;
-		TextureManager textureManager;
+		TextureManager _textureManager;
+
+		std::mutex		_isRunningMutex;
+		bool			_isRunning = false;
 
 		// Keys states and runtime booleans
 		bool keyStates[348];
@@ -63,7 +66,7 @@ class StoneEngine {
 		std::chrono::steady_clock::time_point end;
 		std::chrono::milliseconds delta;
 	public:
-		StoneEngine(World *world);
+		StoneEngine(int seed);
 		~StoneEngine();
 		void run();
 	private:
@@ -95,6 +98,10 @@ class StoneEngine {
 
 		// Movement methods
 		void findMoveRotationSpeed();
-		void update(GLFWwindow* window);
+		void update();
 		void updateMovement();
+
+		void updateChunkWorker();
+
+		bool getIsRunning();
 };

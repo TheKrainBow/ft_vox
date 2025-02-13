@@ -1,15 +1,13 @@
 #include "StoneEngine.hpp"
 
-StoneEngine::StoneEngine(World *world): _world(world), noise_gen(42)//, updateChunkFlag(false), running(true)
+StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)//, updateChunkFlag(false), running(true)
 {
 	initData();
 	initGLFW();
 	initGLEW();
 	initTextures();
-	// chunks.push_back(Chunk(camera.position.x / CHUNK_SIZE - 1, camera.position.z / CHUNK_SIZE - 1, noise_gen));
 	initShaders();
 	initDebugTextBox();
-	updateChunks();
 	reshape(_window, windowWidth, windowHeight);
 }
 
@@ -23,18 +21,19 @@ StoneEngine::~StoneEngine()
 void StoneEngine::run()
 {
 	// Main loop
-	// chunkUpdateThread = std::thread(&StoneEngine::chunkUpdateWorker, this);
-	// updateChunkFlag.store(true);
+	_isRunning = true;
+	std::thread t1(&StoneEngine::updateChunkWorker, this);
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
-		update(_window);
+		update();
 		glfwPollEvents();
 	}
+	_isRunningMutex.lock();
+	_isRunning = false;
+	_isRunningMutex.unlock();
 	// Terminate chunk thread
-	//running.store(false);
-	// displayThread.join();
-	// chunkUpdateThread.join();
+	t1.join();
 }
 
 void StoneEngine::initData()
@@ -69,7 +68,7 @@ void StoneEngine::initData()
 void StoneEngine::initTextures()
 {
 	glEnable(GL_TEXTURE_2D);
-	textureManager.loadTexturesArray({
+	_textureManager.loadTexturesArray({
 		{ T_DIRT, "textures/dirt.ppm" },
 		{ T_COBBLE, "textures/cobble.ppm" },
 		{ T_STONE, "textures/stone.ppm" },
@@ -87,7 +86,7 @@ void StoneEngine::initShaders()
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-	glBindTexture(GL_TEXTURE_2D, textureManager.getTextureArray());  // Bind the texture
+	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
 }
 
@@ -100,7 +99,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::DOUBLE, &drawnTriangles);
-	debugBox.addLine("RenderDistance: ", Textbox::INT, _world->getRenderDistancePtr());
+	debugBox.addLine("RenderDistance: ", Textbox::INT, _world.getRenderDistancePtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
 	debugBox.addLine("y: ", Textbox::FLOAT, &camPos->y);
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
@@ -158,9 +157,9 @@ void StoneEngine::display()
 	
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, textureManager.getTextureArray());
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	// glBindTexture(GL_TEXTURE_2D, textureManager.getMergedText());  // Bind the texture
+	// glBindTexture(GL_TEXTURE_2D, _textureManager.getMergedText());  // Bind the texture
 	// glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 	
 	if (showTriangleMesh)
@@ -171,7 +170,7 @@ void StoneEngine::display()
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
-	drawnTriangles = _world->display(camera, _window);
+	drawnTriangles = _world.display();
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
@@ -186,11 +185,9 @@ void StoneEngine::display()
 void StoneEngine::updateChunks()
 {
 	chronoHelper.startChrono(0, "Update chunks");
-	chronoHelper.startChrono(1, "Load chunks");
-	_world->loadChunk(camera.getWorldPosition(), textureManager);
-	chronoHelper.stopChrono(1);
+	_world.loadChunks(camera.getWorldPosition());
 	chronoHelper.stopChrono(0);
-	std::cout << "Cached Chunks: " << _world->getCachedChunksNumber() << std::endl;
+	// std::cout << "Cached Chunks: " << _world.getCachedChunksNumber() << std::endl;
 	chronoHelper.printChronos();
 }
 
@@ -211,8 +208,8 @@ void StoneEngine::findMoveRotationSpeed()
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	
 
-	if (keyStates[GLFW_KEY_KP_ADD]) {_world->increaseRenderDistance(); _world->loadChunk(camera.getWorldPosition(), textureManager);}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world->decreaseRenderDistance(); _world->loadChunk(camera.getWorldPosition(), textureManager);}
+	if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
+	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
@@ -264,38 +261,46 @@ void StoneEngine::updateMovement()
 // 	}
 // }
 
-void StoneEngine::update(GLFWwindow* window)
+void StoneEngine::updateChunkWorker()
 {
-	(void)window;
-	// Check for delta and apply to move and rotation speeds
-	findMoveRotationSpeed();
+	bool firstIteration = true;
+	vec3 oldPos = camera.getWorldPosition();
 
-	// Save old chunk position
-	vec3 worldPos = camera.getWorldPosition();
-	vec3 oldCamChunk(worldPos.x / CHUNK_SIZE, worldPos.y / CHUNK_SIZE, worldPos.z / CHUNK_SIZE);
+	vec3 oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
+	while (getIsRunning())
+	{
+		vec3 cameraPos = camera.getWorldPosition();
+		if (oldPos.x != cameraPos.x || oldPos.y != cameraPos.y || oldPos.z != cameraPos.z || firstIteration)
+		{
+			// Check new chunk position for necessary updates to chunks
+			vec3 camChunk(cameraPos.x / CHUNK_SIZE, cameraPos.y / CHUNK_SIZE, cameraPos.z / CHUNK_SIZE);
+			if (cameraPos.x < 0) camChunk.x--;
+			if (cameraPos.y < 0) camChunk.y--;
+			if (cameraPos.z < 0) camChunk.z--;
+			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
+				updateChunks();
+			firstIteration = false;
+
+			oldPos = cameraPos;
+			oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
+			if (oldCamChunk.x < 0) oldCamChunk.x--;
+			if (oldCamChunk.y < 0) oldCamChunk.y--;
+			if (oldCamChunk.z < 0) oldCamChunk.z--;
+		}
+		// usleep(200);
+	}
+}
+
+void StoneEngine::update()
+{
+	// Check for delta and apply to move and rotation speeds
+	findMoveRotationSpeed();
 
 	// Update player position and orientation
 	updateMovement();
-
-	worldPos = camera.getWorldPosition();
-	// Check new chunk position for necessary updates to chunks
-	vec3 camChunk(worldPos.x / CHUNK_SIZE, worldPos.y / CHUNK_SIZE, worldPos.z / CHUNK_SIZE);
-	if (worldPos.x < 0) camChunk.x--;
-	if (worldPos.y < 0) camChunk.y--;
-	if (worldPos.z < 0) camChunk.z--;
-	if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
-		updateChunks();
-	// {
-	// 	// {
-	// 	// 	std::lock_guard<std::mutex> lock(chunksMutex);
-	// 	// 	updateChunkFlag = true;
-	// 	// }
-	// 	// chunkCondition.notify_one();
-	// }
-
 	display();
 
 	// Register end of frame for the next delta
@@ -423,4 +428,10 @@ void StoneEngine::initGLEW()
 		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
 		return ;
 	}
+}
+
+bool StoneEngine::getIsRunning()
+{
+	std::lock_guard<std::mutex> lockGuard(_isRunningMutex);
+	return _isRunning;
 }

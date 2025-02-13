@@ -27,15 +27,19 @@ private:
 	// World related informations
 		NoiseGenerator												_perlinGenerator;
 		std::map<std::pair<int, int>, Chunk*>						_chunks;
+		std::mutex													_displayMutex;
 		Chunk														**_displayedChunk;
+		bool														_skipLoad;
+		TextureManager												&_textureManager;
 	// Player related informations
-		Camera														_player;
+		Camera														*_camera;
 		int															_renderDistance;
 		int															_maxRender = 1000;
 public:
-	World(int seed);
+	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
-	void loadChunk(vec3 camPosition, TextureManager &textManager);
+	void loadChunks(vec3 camPosition);
+	void loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);
@@ -43,10 +47,14 @@ public:
 	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
 	SubChunk* getChunk(vec3 position);
-	int display(Camera &cam, GLFWwindow *win);
+	int display();
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
+	int loadTopChunks(int renderDistance, int render, vec3 camPosition);
+	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
+	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
+	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 };

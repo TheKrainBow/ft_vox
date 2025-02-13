@@ -1,9 +1,12 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{-226, -235, 128}, center{0.0f, 0.0f, 10.0f} { angle.x = 0; angle.y = -90;};
+Camera::Camera() : position{-100, -1500, 0}, center{0.0f, 0.0f, 10.0f} { angle.x = 0; angle.y = -90;};
 /*
 	Moving the camera around (first person view)
 */
+
+Camera::~Camera() {};
+
 void Camera::move(float  forward, float  strafe, float up)
 {
 	//std::lock_guard<std::mutex> lock(positionMutex);
@@ -21,12 +24,14 @@ void Camera::move(float  forward, float  strafe, float up)
 	float strafeZ = sin(radiansX + M_PI / 2) * strafe;
 
 	// Update theCcamera position
+	_positionMutex.lock();
 	position.z += (forwardX + strafeX) * movementspeed;
 	position.x += (forwardZ + strafeZ) * movementspeed;
 	center.x = position.x;
 	center.z = position.z -10.0f;
 	position.y += movementspeed * up;
 	center.y = position.y;
+	_positionMutex.unlock();
 }
 
 /*
@@ -34,7 +39,9 @@ void Camera::move(float  forward, float  strafe, float up)
 */
 void Camera::reset()
 {
+	_positionMutex.lock();
 	position = vec3(0.0, 0.0, 0.0);
+	_positionMutex.unlock();
 	angle.x = 0.0;
 	angle.y = 0.0;
 	rotationspeed = 100.0f;
@@ -43,12 +50,13 @@ void Camera::reset()
 
 vec3 Camera::getWorldPosition(void)
 {
-	//std::lock_guard<std::mutex> lock(positionMutex);
+	std::lock_guard<std::mutex> lock(_positionMutex);
 	return (vec3(-position.x, -position.y, -position.z));
 }
 
 vec3 Camera::getPosition()
 {
+	std::lock_guard<std::mutex> lock(_positionMutex);
 	return position;
 }
 
@@ -64,6 +72,7 @@ vec2 Camera::getAngles()
 
 vec3 *Camera::getPositionPtr()
 {
+	std::lock_guard<std::mutex> lock(_positionMutex);
 	return &position;
 }
 

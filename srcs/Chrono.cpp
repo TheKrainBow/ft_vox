@@ -20,7 +20,6 @@ void Chrono::stopChrono(int index)
 
 void Chrono::printChronos(void)
 {
-    std::cout << std::endl;
     for (auto &chrono : _chronos)
     {        
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(chrono.second.end - chrono.second.start);

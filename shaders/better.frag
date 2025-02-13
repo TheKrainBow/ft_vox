@@ -11,4 +11,5 @@ void main() {
     // FragColor = vec4(0, TexCoord.x / 5, 0, 1);
     // FragColor = vec4(TexCoord, 0, 1);
     FragColor = texture(textureArray, vec3(TexCoord, TextureID));
+    // FragColor = vec4(0, 0, 0, 1);
 }

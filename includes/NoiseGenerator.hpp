@@ -54,6 +54,7 @@ class NoiseGenerator {
 		NoiseData _data;
 		std::vector<int> _permutation;
 		std::vector<PerlinMap *> _perlinMaps;
+		std::mutex				_perlinMutex;
 		SplineData spline;
 };
 
