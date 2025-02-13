@@ -25,16 +25,18 @@ class World
 {
 private:
 	// World related informations
-		NoiseGenerator												_perlinGenerator;
-		std::map<std::pair<int, int>, Chunk*>						_chunks;
-		std::mutex													_displayMutex;
-		Chunk														**_displayedChunk;
-		bool														_skipLoad;
-		TextureManager												&_textureManager;
+		NoiseGenerator								_perlinGenerator;
+		std::map<std::pair<int, int>, Chunk*>		_chunks;
+		std::mutex									_displayMutex;
+		Chunk										**_displayedChunk;
+		bool										_skipLoad;
+		TextureManager								&_textureManager;
 	// Player related informations
-		Camera														*_camera;
-		int															_renderDistance;
-		int															_maxRender = 1000;
+		Camera										*_camera;
+		int											_renderDistance;
+		int											_maxRender = 1000;
+		bool										*_isRunning;
+		std::mutex									*_runningMutex;
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
@@ -55,6 +57,8 @@ public:
 	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
 	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
 	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
+	void setRunning(std::mutex *runningMutex, bool *isRunning);
 private:
 	vec3 calculateBlockPos(vec3 position) const;
+	bool getIsRunning();
 };
