@@ -48,7 +48,7 @@ void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::s
 	// glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 	// glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
 	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -1.0f);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -64,10 +64,6 @@ void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::s
 		delete []data;
 	}
 	glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-
-	unsigned char* debugData = new unsigned char[TEXTURE_SIZE * TEXTURE_SIZE * 5];
-	glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, GL_UNSIGNED_BYTE, debugData);
-	delete[] debugData;
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
 

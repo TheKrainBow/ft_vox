@@ -80,7 +80,7 @@ void StoneEngine::initTextures()
 void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
@@ -88,6 +88,7 @@ void StoneEngine::initShaders()
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
 }
 
 void StoneEngine::initDebugTextBox()
@@ -280,7 +281,7 @@ void StoneEngine::updateChunkWorker()
 			if (cameraPos.x < 0) camChunk.x--;
 			if (cameraPos.y < 0) camChunk.y--;
 			if (cameraPos.z < 0) camChunk.z--;
-			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
+			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
 				updateChunks();
 			firstIteration = false;
 
@@ -313,7 +314,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)width / (float)height, 0.1f, 10000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
@@ -401,7 +402,8 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 }
 
 int StoneEngine::initGLFW()
-{
+{	
+	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{

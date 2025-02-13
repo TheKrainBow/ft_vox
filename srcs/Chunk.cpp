@@ -4,7 +4,7 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 {
 	_perlinMap = perlinMap;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
-	for (int y = (perlinMap->lowest - CHUNK_SIZE) ; y <= (perlinMap->heighest + (CHUNK_SIZE)); y += CHUNK_SIZE)
+	for (int y = (perlinMap->lowest) - 1 ; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
 	{
 		_subChunks.push_back(new SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, world, textureManager));
 		// findOrLoadChunk(position, tempChunks, textManager, _perlinMap);

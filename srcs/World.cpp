@@ -165,7 +165,7 @@ void World::loadChunks(vec3 camPosition)
 		if (newPos.y < 0) camChunk.y--;
 		if (newPos.z < 0) camChunk.z--;
 
-		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
+		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
 			_skipLoad = true;	
 	}
 }
