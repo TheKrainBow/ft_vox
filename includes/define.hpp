@@ -8,8 +8,8 @@
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
-# define W_WIDTH 1400
-# define W_HEIGHT 1000
+# define W_WIDTH 1000
+# define W_HEIGHT 800
 # define RENDER_DISTANCE 31
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
