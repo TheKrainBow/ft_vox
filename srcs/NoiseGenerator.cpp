@@ -78,10 +78,10 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
-		1.0, // amplitude
+		0.9, // amplitude
 		0.002, // frequency
 		0.2, // persistance
-		2.0, // lacunarity
+		2.5, // lacunarity
 		4 // nb_octaves
 	};
 
@@ -122,7 +122,7 @@ int NoiseGenerator::getHeight(vec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
 	double continentalNoise = getContinentalNoise(pos);
-	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
+	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise) * 2.5;
 	double erosionNoise = getErosionNoise(pos);
 	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
 	double erosionMask = (erosionNoise + 1.0) * 0.5;

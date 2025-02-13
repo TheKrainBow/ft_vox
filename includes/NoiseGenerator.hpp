@@ -6,7 +6,7 @@
 
 struct NoiseData {
 	double amplitude = 1.0;
-	double frequency = 0.01;
+	double frequency = 0.001;
 	double persistance = 0.5;
 	double lacunarity = 2.0;
 	size_t nb_octaves = 4;
