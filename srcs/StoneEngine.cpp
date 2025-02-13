@@ -1,8 +1,7 @@
 #include "StoneEngine.hpp"
 
-StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager), noise_gen(seed)//, updateChunkFlag(false), running(true)
+StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)//, updateChunkFlag(false), running(true)
 {
-
 	initData();
 	initGLFW();
 	initGLEW();
@@ -186,11 +185,9 @@ void StoneEngine::display()
 void StoneEngine::updateChunks()
 {
 	chronoHelper.startChrono(0, "Update chunks");
-	chronoHelper.startChrono(1, "Load chunks");
 	_world.loadChunks(camera.getWorldPosition());
-	chronoHelper.stopChrono(1);
 	chronoHelper.stopChrono(0);
-	std::cout << "Cached Chunks: " << _world.getCachedChunksNumber() << std::endl;
+	// std::cout << "Cached Chunks: " << _world.getCachedChunksNumber() << std::endl;
 	chronoHelper.printChronos();
 }
 

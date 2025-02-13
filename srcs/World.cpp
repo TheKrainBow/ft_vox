@@ -15,7 +15,7 @@ vec3 World::calculateBlockPos(vec3 position) const {
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager) : _perlinGenerator(seed), _textureManager(textureManager) {
+World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera) {
 	_displayedChunk = new Chunk*[_maxRender * _maxRender];
 	bzero(_displayedChunk, _maxRender * _maxRender);
 	_renderDistance = RENDER_DISTANCE;
@@ -92,7 +92,7 @@ int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
 
 int World::loadBotChunks(int renderDistance, int render, vec3 camPosition)
 {
-	for (int x = render - 1; x >= 0; x--)
+	for (int x = render - 2; x >= 0; x--)
 	{
 		int z = render - 1;
 		loadChunk(x, z, renderDistance, render, camPosition);
@@ -102,7 +102,7 @@ int World::loadBotChunks(int renderDistance, int render, vec3 camPosition)
 
 int World::loadRightChunks(int renderDistance, int render, vec3 camPosition)
 {
-	for (int z = 1; z < render - 1; z++)
+	for (int z = 1; z < render; z++)
 	{
 		int x = render - 1;
 		loadChunk(x, z, renderDistance, render, camPosition);
@@ -123,11 +123,17 @@ int World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
 void World::loadChunks(vec3 camPosition)
 {
 	int renderDistance = _renderDistance;
-
 	std::future<int> retTop;
 	std::future<int> retBot;
 	std::future<int> retLeft;
 	std::future<int> retRight;
+
+	vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
+	if (oldCamChunk.x < 0) oldCamChunk.x--;
+	if (oldCamChunk.y < 0) oldCamChunk.y--;
+	if (oldCamChunk.z < 0) oldCamChunk.z--;
+
+	loadChunk(0, 0, renderDistance, 1, camPosition);
 	for (int render = 1; render < renderDistance; render += 2)
 	{
 		retTop = std::async(std::launch::async, 
@@ -145,6 +151,14 @@ void World::loadChunks(vec3 camPosition)
 		retRight.get();
 		retLeft.get();
 		retBot.get();
+		vec3 newPos = _camera->getWorldPosition();
+		vec3 camChunk(newPos.x / CHUNK_SIZE, newPos.y / CHUNK_SIZE, newPos.z / CHUNK_SIZE);
+		if (newPos.x < 0) camChunk.x--;
+		if (newPos.y < 0) camChunk.y--;
+		if (newPos.z < 0) camChunk.z--;
+
+		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
+			break ;		
 	}
 }
 

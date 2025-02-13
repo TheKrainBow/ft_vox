@@ -31,11 +31,11 @@ private:
 		Chunk														**_displayedChunk;
 		TextureManager												&_textureManager;
 	// Player related informations
-		Camera														_player;
+		Camera														*_camera;
 		int															_renderDistance;
 		int															_maxRender = 1000;
 public:
-	World(int seed, TextureManager &textureManager);
+	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
 	void loadChunks(vec3 camPosition);
 	void loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition);
