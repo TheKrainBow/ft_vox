@@ -60,6 +60,13 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	int correctX = (renderMax / 2) - (currentRender / 2) + x;
 	int correctZ = (renderMax / 2) - (currentRender / 2) + z;
 	
+	if (_skipLoad == true)
+	{
+		_displayMutex.lock();
+		_displayedChunk[correctX + correctZ * renderMax] = nullptr;
+		_displayMutex.unlock();
+		return ;
+	}
 	std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - currentRender / 2 + x ,camPosition.z / CHUNK_SIZE - currentRender / 2 + z);
 	
 	_displayMutex.lock();
@@ -133,6 +140,7 @@ void World::loadChunks(vec3 camPosition)
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
 
+	_skipLoad = false;
 	loadChunk(0, 0, renderDistance, 1, camPosition);
 	for (int render = 1; render < renderDistance; render += 2)
 	{
@@ -158,7 +166,7 @@ void World::loadChunks(vec3 camPosition)
 		if (newPos.z < 0) camChunk.z--;
 
 		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
-			break ;		
+			_skipLoad = true;	
 	}
 }
 

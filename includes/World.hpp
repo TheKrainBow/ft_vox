@@ -29,6 +29,7 @@ private:
 		std::map<std::pair<int, int>, Chunk*>						_chunks;
 		std::mutex													_displayMutex;
 		Chunk														**_displayedChunk;
+		bool														_skipLoad;
 		TextureManager												&_textureManager;
 	// Player related informations
 		Camera														*_camera;
