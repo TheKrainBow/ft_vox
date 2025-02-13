@@ -127,6 +127,18 @@ int World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
 	return 1;
 }
 
+void World::setRunning(std::mutex *runningMutex, bool *isRunning)
+{
+	_isRunning = isRunning;
+	_runningMutex = runningMutex;
+}
+
+bool World::getIsRunning()
+{
+	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
+	return *_isRunning;
+}
+
 void World::loadChunks(vec3 camPosition)
 {
 	int renderDistance = _renderDistance;
@@ -166,7 +178,9 @@ void World::loadChunks(vec3 camPosition)
 		if (newPos.z < 0) camChunk.z--;
 
 		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
-			_skipLoad = true;	
+			_skipLoad = true;
+		if (!getIsRunning())
+			break ;
 	}
 }
 
