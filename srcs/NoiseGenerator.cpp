@@ -16,7 +16,7 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	// Peaks: High height values for mountains and peaks generation
 	std::vector<Point> continentalPoints = {{-1.0, -10.0}, {-0.4, -10.0}, {-0.3, 50.0}, {-0.1, 50.0}, {-0.05, 100.0}, {0, 100.0}, {0.1, 115}, {0.3, 125.0}, {1.0, 145.0}};
 	std::vector<Point> erosionPoints = {{-1.0, 150.0}, {-0.8, 100.0}, {-0.5, 75.0}, {0.0, 25.0}, {0.3, 22.5}, {0.4, 20.0}, {0.5, 50.0}, {0.6, 50.0}, {0.7, 20.0}, {1.0, 10.0}};
-	std::vector<Point> peaksPoints = {{-1.0, -15.0}, {-0.8, 15.0}, {-0.4, 45.0}, {0.0, 50.0}, {0.4, 125.0}, {1.0, 200.0}};
+	std::vector<Point> peaksPoints = {{-1.0, -15.0}, {-0.8, 25.0}, {-0.4, 75.0}, {0.0, 125.0}, {0.4, 225.0}, {1.0, 350.0}};
 
 	spline.continentalSpline.setPoints(continentalPoints);
 	spline.erosionSpline.setPoints(erosionPoints);
@@ -122,12 +122,12 @@ int NoiseGenerator::getHeight(vec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
 	double continentalNoise = getContinentalNoise(pos);
-	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise) * 2.5;
+	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
 	double erosionNoise = getErosionNoise(pos);
 	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
 	double erosionMask = (erosionNoise + 1.0) * 0.5;
 	double peaksNoise = getPeaksValleysNoise(pos);
-	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 4.5;
+	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
 	double peaksMask = (peaksNoise + 1.0) * 0.5;
 
 	int height;

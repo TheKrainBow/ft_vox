@@ -9,7 +9,7 @@ struct NoiseData {
 	double frequency = 0.001;
 	double persistance = 0.5;
 	double lacunarity = 2.0;
-	size_t nb_octaves = 4;
+	size_t nb_octaves = 5;
 };
 
 struct SplineData {
