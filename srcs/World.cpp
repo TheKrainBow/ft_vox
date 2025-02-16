@@ -61,18 +61,18 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	int correctZ = (renderMax / 2) - (currentRender / 2) + z;
 	std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - currentRender / 2 + x ,camPosition.z / CHUNK_SIZE - currentRender / 2 + z);
 	
-	_displayMutex.lock();
+	_chunksMutex.lock();
 	auto it = _chunks.find(pair);
 	auto itend = _chunks.end();
-	_displayMutex.unlock();
+	_chunksMutex.unlock();
 	if (it != itend)
 		chunk = it->second;
 	else if (_skipLoad == false)
 	{
 		chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager);
-		_displayMutex.lock();
+		_chunksMutex.lock();
 		_chunks[pair] = chunk;
-		_displayMutex.unlock();
+		_chunksMutex.unlock();
 	}
 	_displayMutex.lock();
 	_displayedChunk[correctX + correctZ * renderMax] = chunk;

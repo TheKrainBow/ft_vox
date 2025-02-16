@@ -27,6 +27,7 @@ private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
 		std::map<std::pair<int, int>, Chunk*>		_chunks;
+		std::mutex									_chunksMutex;
 		std::mutex									_displayMutex;
 		Chunk										**_displayedChunk;
 		bool										_skipLoad;
