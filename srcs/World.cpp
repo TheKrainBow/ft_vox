@@ -56,17 +56,9 @@ int *World::getRenderDistancePtr()
 
 void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition)
 {
-	Chunk *chunk;
+	Chunk *chunk = nullptr;
 	int correctX = (renderMax / 2) - (currentRender / 2) + x;
 	int correctZ = (renderMax / 2) - (currentRender / 2) + z;
-	
-	if (_skipLoad == true)
-	{
-		_displayMutex.lock();
-		_displayedChunk[correctX + correctZ * renderMax] = nullptr;
-		_displayMutex.unlock();
-		return ;
-	}
 	std::pair<int, int> pair(camPosition.x / CHUNK_SIZE - currentRender / 2 + x ,camPosition.z / CHUNK_SIZE - currentRender / 2 + z);
 	
 	_displayMutex.lock();
@@ -75,7 +67,7 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	_displayMutex.unlock();
 	if (it != itend)
 		chunk = it->second;
-	else
+	else if (_skipLoad == false)
 	{
 		chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager);
 		_displayMutex.lock();
@@ -127,6 +119,18 @@ int World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
 	return 1;
 }
 
+void World::setRunning(std::mutex *runningMutex, bool *isRunning)
+{
+	_isRunning = isRunning;
+	_runningMutex = runningMutex;
+}
+
+bool World::getIsRunning()
+{
+	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
+	return *_isRunning;
+}
+
 void World::loadChunks(vec3 camPosition)
 {
 	int renderDistance = _renderDistance;
@@ -142,7 +146,7 @@ void World::loadChunks(vec3 camPosition)
 
 	_skipLoad = false;
 	loadChunk(0, 0, renderDistance, 1, camPosition);
-	for (int render = 1; render < renderDistance; render += 2)
+	for (int render = 1; getIsRunning() && render < renderDistance; render += 2)
 	{
 		retTop = std::async(std::launch::async, 
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));

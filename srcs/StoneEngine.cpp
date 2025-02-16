@@ -9,6 +9,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initShaders();
 	initDebugTextBox();
 	reshape(_window, windowWidth, windowHeight);
+	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 
 StoneEngine::~StoneEngine()
@@ -282,8 +283,10 @@ void StoneEngine::updateChunkWorker()
 			if (cameraPos.y < 0) camChunk.y--;
 			if (cameraPos.z < 0) camChunk.z--;
 			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
+			{
 				updateChunks();
-			firstIteration = false;
+				firstIteration = false;
+			}
 
 			oldPos = cameraPos;
 			oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
