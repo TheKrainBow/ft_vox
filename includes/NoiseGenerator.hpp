@@ -46,7 +46,7 @@ class NoiseGenerator {
 		double grad(int hash, double x, double y) const;
 		double getContinentalNoise(vec2 pos);
 		double getErosionNoise(vec2 pos);
-		int getHeight(vec2 pos);
+		double getHeight(vec2 pos);
 		vec2 getBorderWarping(double x, double z) const;
 		double getPeaksValleysNoise(vec2 pos);
 

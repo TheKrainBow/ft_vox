@@ -79,9 +79,9 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.002, // frequency
+		0.001, // frequency
 		0.2, // persistance
-		2.5, // lacunarity
+		2.0, // lacunarity
 		4 // nb_octaves
 	};
 
@@ -98,8 +98,8 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 		0.7, // amplitude
 		0.001, // frequency
 		0.5, // persistance
-		2.5, // lacunarity
-		3 // nb_octaves
+		2.0, // lacunarity
+		4 // nb_octaves
 	};
 
 	_data = nData;
@@ -118,7 +118,7 @@ vec2 NoiseGenerator::getBorderWarping(double x, double z) const
 	return offset;
 }
 
-int NoiseGenerator::getHeight(vec2 pos)
+double NoiseGenerator::getHeight(vec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
 	double continentalNoise = getContinentalNoise(pos);
@@ -130,12 +130,30 @@ int NoiseGenerator::getHeight(vec2 pos)
 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
 	double peaksMask = (peaksNoise + 1.0) * 0.5;
 
-	int height;
-	height = surfaceHeight * (1.0 - erosionMask) + erosionHeight * erosionMask;
+	double height = 100.0;
+	height += surfaceHeight * (1.0 - erosionMask) + erosionHeight * erosionMask;
 	height = height * (1.0 - peaksMask) + peaksHeight * peaksMask;
-	//height = clamp(height, -255, 500);
 	return height;
 }
+
+// double NoiseGenerator::getHeight(vec2 pos)
+// {
+// 	pos = getBorderWarping(pos.x, pos.y);
+
+// 	double continentalNoise = getContinentalNoise(pos);
+// 	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
+
+// 	double erosionNoise = getErosionNoise(pos);
+// 	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
+
+// 	double peaksNoise = getPeaksValleysNoise(pos);
+// 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise);
+
+// 	// Blend the values
+// 	double finalHeight = 255.0 + (surfaceHeight + (peaksHeight - erosionHeight) * 0.6);
+// 	return (finalHeight);
+// }
+
 
 PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
 {
