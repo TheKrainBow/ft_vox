@@ -65,7 +65,7 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 		0.002, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
-		4 // nb_octaves
+		6 // nb_octaves
 	};
 
 	setNoiseData(nData);
@@ -82,7 +82,7 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 		0.001, // frequency
 		0.2, // persistance
 		2.0, // lacunarity
-		4 // nb_octaves
+		6 // nb_octaves
 	};
 
 	_data = nData;
@@ -99,7 +99,7 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 		0.001, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
-		4 // nb_octaves
+		6 // nb_octaves
 	};
 
 	_data = nData;
