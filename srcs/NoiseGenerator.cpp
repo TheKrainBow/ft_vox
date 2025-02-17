@@ -62,7 +62,7 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.002, // frequency
+		0.001, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
 		6 // nb_octaves
@@ -79,7 +79,7 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.001, // frequency
+		0.0009, // frequency
 		0.2, // persistance
 		2.0, // lacunarity
 		6 // nb_octaves
@@ -96,7 +96,7 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.7, // amplitude
-		0.001, // frequency
+		0.0009, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
 		6 // nb_octaves
@@ -118,6 +118,13 @@ vec2 NoiseGenerator::getBorderWarping(double x, double z) const
 	return offset;
 }
 
+double smoothBlend(double a, double b, double blendFactor)
+{
+	// Smoothstep
+	blendFactor = blendFactor * blendFactor * (3.0 - 2.0 * blendFactor);
+	return a * (1.0 - blendFactor) + b * blendFactor;
+}
+
 double NoiseGenerator::getHeight(vec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
@@ -131,8 +138,10 @@ double NoiseGenerator::getHeight(vec2 pos)
 	double peaksMask = (peaksNoise + 1.0) * 0.5;
 
 	double height = 100.0;
-	height += surfaceHeight * (1.0 - erosionMask) + erosionHeight * erosionMask;
-	height = height * (1.0 - peaksMask) + peaksHeight * peaksMask;
+	height += smoothBlend(surfaceHeight, erosionHeight, erosionMask);
+	height = smoothBlend(height, peaksHeight, peaksMask);
+	height = pow(height, 1.05); // Slightly bias towards higher values
+
 	return height;
 }
 
