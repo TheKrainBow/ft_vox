@@ -65,7 +65,7 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 		0.001, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
-		6 // nb_octaves
+		7 // nb_octaves
 	};
 
 	setNoiseData(nData);
@@ -82,7 +82,7 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 		0.0009, // frequency
 		0.2, // persistance
 		2.0, // lacunarity
-		6 // nb_octaves
+		7 // nb_octaves
 	};
 
 	_data = nData;
@@ -99,7 +99,7 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 		0.0009, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
-		6 // nb_octaves
+		7 // nb_octaves
 	};
 
 	_data = nData;
@@ -108,10 +108,37 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 	return _noise;
 }
 
-vec2 NoiseGenerator::getBorderWarping(double x, double z) const
+double NoiseGenerator::getOceanNoise(vec2 pos)
 {
+	double _noise = 0.0;
+	NoiseData nData = {
+		1.0,  // amplitude
+		0.0008, // frequency
+		0.6,  // persistence
+		1.8,  // lacunarity
+		5     // nb_octaves
+	};
+
+	setNoiseData(nData);
+	_noise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return _noise;
+}
+
+vec2 NoiseGenerator::getBorderWarping(double x, double z)
+{
+	NoiseData nData = {
+		1.0,  // amplitude
+		0.0005, // frequency
+		0.6,  // persistence
+		2.5,  // lacunarity
+		5     // nb_octaves
+	};
+
+	setNoiseData(nData);
 	double noiseX = noise(x, z);
 	double noiseY = noise(z, x);
+	setNoiseData(NoiseData());
 	vec2 offset;
 	offset.x = x + (noiseX * CHUNK_SIZE);
 	offset.y = z + (noiseY * CHUNK_SIZE);
@@ -137,32 +164,48 @@ double NoiseGenerator::getHeight(vec2 pos)
 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
 	double peaksMask = (peaksNoise + 1.0) * 0.5;
 
+	// Calculate ocean noise and mask
+	double oceanNoise = 0.2 * getOceanNoise(pos);
+	double oceanMask = (oceanNoise + 1.0) * 0.5; // Normalize to 0-1
+	double oceanThreshold = 0.48;  // Controls ocean frequency (lower = more oceans)
+
+	// Base terrain height
 	double height = 100.0;
 	height += smoothBlend(surfaceHeight, erosionHeight, erosionMask);
 	height = smoothBlend(height, peaksHeight, peaksMask);
-	height = pow(height, 1.05); // Slightly bias towards higher values
 
+	// Apply ocean mask
+	if (oceanMask < oceanThreshold)
+	{
+		//std::cout << "Ocean" << std::endl;
+		double blendFactor = (oceanThreshold - oceanMask) / oceanThreshold; // Blend smoothly
+		blendFactor = glm::clamp(blendFactor, 0.0, 1.0);
+		height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
+	}
+
+	//height = pow(height, 1.05); // Slightly bias towards higher values
 	return height;
 }
 
 // double NoiseGenerator::getHeight(vec2 pos)
 // {
 // 	pos = getBorderWarping(pos.x, pos.y);
-
 // 	double continentalNoise = getContinentalNoise(pos);
 // 	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
-
 // 	double erosionNoise = getErosionNoise(pos);
 // 	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
-
+// 	double erosionMask = (erosionNoise + 1.0) * 0.5;
 // 	double peaksNoise = getPeaksValleysNoise(pos);
-// 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise);
+// 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
+// 	double peaksMask = (peaksNoise + 1.0) * 0.5;
 
-// 	// Blend the values
-// 	double finalHeight = 255.0 + (surfaceHeight + (peaksHeight - erosionHeight) * 0.6);
-// 	return (finalHeight);
+// 	double height = 100.0;
+// 	height += smoothBlend(surfaceHeight, erosionHeight, erosionMask);
+// 	height = smoothBlend(height, peaksHeight, peaksMask);
+// 	height = pow(height, 1.05); // Slightly bias towards higher values
+
+// 	return height;
 // }
-
 
 PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
 {
