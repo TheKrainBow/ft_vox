@@ -62,10 +62,10 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.001, // frequency
+		0.002, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
-		7 // nb_octaves
+		6 // nb_octaves
 	};
 
 	setNoiseData(nData);
@@ -79,10 +79,10 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.0009, // frequency
+		0.00095, // frequency
 		0.2, // persistance
 		2.0, // lacunarity
-		7 // nb_octaves
+		4 // nb_octaves
 	};
 
 	_data = nData;
@@ -96,10 +96,10 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.7, // amplitude
-		0.0009, // frequency
+		0.00099, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
-		7 // nb_octaves
+		5 // nb_octaves
 	};
 
 	_data = nData;
@@ -165,23 +165,23 @@ double NoiseGenerator::getHeight(vec2 pos)
 	double peaksMask = (peaksNoise + 1.0) * 0.5;
 
 	// Calculate ocean noise and mask
-	double oceanNoise = 0.2 * getOceanNoise(pos);
-	double oceanMask = (oceanNoise + 1.0) * 0.5; // Normalize to 0-1
-	double oceanThreshold = 0.48;  // Controls ocean frequency (lower = more oceans)
+	// double oceanNoise = 0.2 * getOceanNoise(pos);
+	// double oceanMask = (oceanNoise + 1.0) * 0.5; // Normalize to 0-1
+	// double oceanThreshold = 0.48;  // Controls ocean frequency (lower = more oceans)
 
 	// Base terrain height
 	double height = 100.0;
 	height += smoothBlend(surfaceHeight, erosionHeight, erosionMask);
 	height = smoothBlend(height, peaksHeight, peaksMask);
 
-	// Apply ocean mask
-	if (oceanMask < oceanThreshold)
-	{
-		//std::cout << "Ocean" << std::endl;
-		double blendFactor = (oceanThreshold - oceanMask) / oceanThreshold; // Blend smoothly
-		blendFactor = glm::clamp(blendFactor, 0.0, 1.0);
-		height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
-	}
+	// // Apply ocean mask
+	// if (oceanMask < oceanThreshold)
+	// {
+	// 	//std::cout << "Ocean" << std::endl;
+	// 	double blendFactor = (oceanThreshold - oceanMask) / oceanThreshold; // Blend smoothly
+	// 	blendFactor = glm::clamp(blendFactor, 0.0, 1.0);
+	// 	height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
+	// }
 
 	//height = pow(height, 1.05); // Slightly bias towards higher values
 	return height;
