@@ -154,7 +154,7 @@ void World::loadChunks(vec3 camPosition)
 
 	_skipLoad = false;
 	loadChunk(0, 0, renderDistance, 1, camPosition);
-	for (int render = 1; render < renderDistance; render += 2)
+	for (int render = 1; getIsRunning() && render < renderDistance; render += 2)
 	{
 		retTop = std::async(std::launch::async, 
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
@@ -179,8 +179,6 @@ void World::loadChunks(vec3 camPosition)
 
 		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z))))
 			_skipLoad = true;
-		if (!getIsRunning())
-			break ;
 	}
 }
 
