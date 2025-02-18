@@ -70,11 +70,12 @@ void StoneEngine::initTextures()
 {
 	glEnable(GL_TEXTURE_2D);
 	_textureManager.loadTexturesArray({
-		{ T_DIRT, "textures/dirt.ppm" },
-		{ T_COBBLE, "textures/cobble.ppm" },
-		{ T_STONE, "textures/stone.ppm" },
-		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
-		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
+		{ T_DIRT,		"textures/dirt.ppm" },
+		{ T_COBBLE,		"textures/cobble.ppm" },
+		{ T_STONE,		"textures/stone.ppm" },
+		{ T_GRASS_SIDE,	"textures/grass_block_side.ppm" },
+		{ T_GRASS_TOP,	"textures/grass_block_top_colored.ppm" },
+		{ T_WATER,		"textures/water.ppm" }
 	});
 }
 

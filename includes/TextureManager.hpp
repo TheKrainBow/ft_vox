@@ -13,7 +13,8 @@ enum TextureType {
 	T_STONE,
 	T_GRASS_SIDE,
 	T_GRASS_TOP,
-	T_SAND
+	T_SAND,
+	T_WATER
 };
 
 # define N_TEXTURES 5
