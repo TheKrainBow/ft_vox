@@ -54,12 +54,13 @@ public:
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
-	int loadTopChunks(int renderDistance, int render, vec3 camPosition);
-	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
-	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
-	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 	bool getIsRunning();
+	int loadTopChunks(int renderDistance, int render, vec3 camPosition);
+	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
+	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
+	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
+	void updateNeighbours(std::pair<int, int> pair);
 };

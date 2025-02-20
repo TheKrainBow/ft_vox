@@ -23,5 +23,6 @@ class Chunk
 		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager);
 		~Chunk();
 		SubChunk *getSubChunk(int y);
+		void sendFacesToDisplay();
 		int display();
 };

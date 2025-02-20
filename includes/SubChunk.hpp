@@ -27,12 +27,13 @@ class SubChunk
     	std::vector<Face>	_faces[6];
 		bool				_loaded = false;
 		bool				_hasSentFaces = false;
+		bool				_isFullyLoaded = true;
 		bool				_hasBufferInitialized = false;
 		GLuint				_vao;
 		GLuint				_vbo;
 		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
-		TextureManager &_textManager;
+		TextureManager		&_textManager;
 	public:
 		SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureManager &textManager);
 		~SubChunk();
@@ -51,6 +52,13 @@ class SubChunk
 		// void renderBoundaries() const;
 	private:
 		void addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
+		void addUpFace(vec3 position, TextureType texture);
+		void addDownFace(vec3 position, TextureType texture);
+		void addNorthFace(vec3 position, TextureType texture);
+		void addSouthFace(vec3 position, TextureType texture);
+		void addEastFace(vec3 position, TextureType texture);
+		void addWestFace(vec3 position, TextureType texture);
+	
 		void processFaces();
 		void processUpVertex();
 		void processDownVertex();

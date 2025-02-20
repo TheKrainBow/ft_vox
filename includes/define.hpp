@@ -15,3 +15,4 @@
 # define CHUNK_SIZE 32
 # define ROTATION_SPEED 1.0f
 # define MOVEMENT_SPEED 10.0f
+# define NOT_FOUND -1
