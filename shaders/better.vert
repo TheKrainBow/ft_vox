@@ -50,6 +50,8 @@ void main()
 		basePos.z = -basePos.z + lengthY;
 	if (direction == 5)
 		basePos.y++;
+	if (textureID == 6)
+		basePos.y -= 0.1;
     vec3 worldPosition = worldPos + basePos + instancePos;
 	finalUV.x *= lengthX;
 	finalUV.y *= lengthY;

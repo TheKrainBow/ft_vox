@@ -1,5 +1,10 @@
 #include "StoneEngine.hpp"
 
+bool isTransparentBlock(char c)
+{
+	return (c == WATER || c == AIR);
+}
+
 StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)//, updateChunkFlag(false), running(true)
 {
 	initData();

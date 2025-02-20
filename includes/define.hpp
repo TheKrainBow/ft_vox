@@ -17,6 +17,7 @@
 # define MOVEMENT_SPEED 20.0f
 # define OCEAN_HEIGHT 180
 
+# define AIR 0
 # define STONE 'S'
 # define DIRT 'D'
 # define GRASS 'G'

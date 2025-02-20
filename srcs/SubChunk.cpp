@@ -183,17 +183,17 @@ void SubChunk::addBlock(vec3 position, TextureType down, TextureType up, Texture
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	if ((position.y == 0 && _world.getBlock(vec3(x, y - 1, z)) == 0) || ((position.y != 0 && _blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y - 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	if ((position.y == 0 && isTransparentBlock(_world.getBlock(vec3(x, y - 1, z)))) || ((position.y != 0 && isTransparentBlock(_blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y - 1) * CHUNK_SIZE * CHUNK_SIZE)]))))
 		addFace(position, DOWN, down);
-	if ((position.y == (CHUNK_SIZE - 1) && _world.getBlock(vec3(x, y + 1, z)) == 0) || ((position.y != (CHUNK_SIZE - 1) && _blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y + 1) * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	if ((position.y == (CHUNK_SIZE - 1) && isTransparentBlock(_world.getBlock(vec3(x, y + 1, z)))) || ((position.y != (CHUNK_SIZE - 1) && isTransparentBlock(_blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y + 1) * CHUNK_SIZE * CHUNK_SIZE)]))))
 		addFace(position, UP, up);
-	if ((position.z == 0 && _world.getBlock(vec3(x, y, z - 1)) == 0) || ((position.z != 0 && _blocks[position.x + ((position.z - 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	if ((position.z == 0 && isTransparentBlock(_world.getBlock(vec3(x, y, z - 1)))) || ((position.z != 0 && isTransparentBlock(_blocks[position.x + ((position.z - 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)]))))
 		addFace(position, NORTH, north);
-	if ((position.z == (CHUNK_SIZE - 1) && _world.getBlock(vec3(x, y, z + 1)) == 0) || ((position.z != (CHUNK_SIZE - 1) && _blocks[position.x + ((position.z + 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	if ((position.z == (CHUNK_SIZE - 1) && isTransparentBlock(_world.getBlock(vec3(x, y, z + 1)))) || ((position.z != (CHUNK_SIZE - 1) && isTransparentBlock(_blocks[position.x + ((position.z + 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)]))))
 		addFace(position, SOUTH, south);
-	if ((position.x == 0 && _world.getBlock(vec3(x - 1, y, z)) == 0) || ((position.x != 0 && _blocks[(position.x - 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	if ((position.x == 0 && isTransparentBlock(_world.getBlock(vec3(x - 1, y, z)))) || ((position.x != 0 && isTransparentBlock(_blocks[(position.x - 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)]))))
 		addFace(position, WEST, west);
-	if ((position.x == (CHUNK_SIZE - 1) && _world.getBlock(vec3(x + 1, y, z)) == 0) || ((position.x != (CHUNK_SIZE - 1) && _blocks[(position.x + 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)] == 0)))
+	if ((position.x == (CHUNK_SIZE - 1) && isTransparentBlock(_world.getBlock(vec3(x + 1, y, z)))) || ((position.x != (CHUNK_SIZE - 1) && isTransparentBlock(_blocks[(position.x + 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)]))))
 		addFace(position, EAST, east);
 }
 

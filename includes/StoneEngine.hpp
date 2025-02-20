@@ -9,7 +9,6 @@
 #include "define.hpp"
 #include "Chrono.hpp"
 
-
 class StoneEngine {
 	private:
 		// Display
