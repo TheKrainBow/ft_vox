@@ -122,7 +122,7 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 {
 	int y;
 	for (y = OCEAN_HEIGHT; y > (int)ground; y--)
-		setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
+		setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
 	setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
 	for (int i = -1; i > -5; i--)
 		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);

@@ -10,12 +10,12 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 121
+# define RENDER_DISTANCE 31
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define ROTATION_SPEED 1.0f
 # define MOVEMENT_SPEED 20.0f
-# define OCEAN_HEIGHT 140
+# define OCEAN_HEIGHT 180
 
 # define STONE 'S'
 # define DIRT 'D'

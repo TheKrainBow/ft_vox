@@ -44,6 +44,7 @@ enum BlockType {
 	COBBLE,
 	STONE,
 	GRASS,
+	WATER
 };
 
 bool isWSL();
