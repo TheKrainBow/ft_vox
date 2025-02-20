@@ -124,7 +124,10 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 	for (y = OCEAN_HEIGHT; y > (int)ground; y--)
 		setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
 	setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
-	for (int i = -1; i > -5; i--)
+	int i;
+	for (i = -1; i > -4; i--)
+		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
+	for (; i > -8; i--)
 		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
@@ -142,10 +145,10 @@ void SubChunk::loadBiome()
 		for (int z = 0; z < CHUNK_SIZE ; z++)
 		{
 			size_t ground = _perlinMap[z * CHUNK_SIZE + x];
-			if (ground > OCEAN_HEIGHT)
-				loadPlaine(x, z, ground);
-			else
+			if (ground <= OCEAN_HEIGHT)
 				loadOcean(x, z, ground);
+			else if (ground)
+				loadPlaine(x, z, ground);
 		}
 	}
 }
