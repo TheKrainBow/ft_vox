@@ -42,8 +42,11 @@ class SubChunk
 		void addFace(vec3 position, Direction dir, TextureType texture);
 		void loadHeight();
 		void loadBiome();
+		void loadOcean(int x, int z, size_t ground);
+		void loadPlaine(int x, int z, size_t ground);
 		vec3 getPosition(void);
-	    char getBlock(vec3 position);
+		char getBlock(vec3 position);
+		void setBlock(vec3 position, char block);
 		void sendFacesToDisplay();
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);

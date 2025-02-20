@@ -75,6 +75,8 @@ void StoneEngine::initTextures()
 		{ T_STONE, "textures/stone.ppm" },
 		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
 		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
+		{ T_SAND, "textures/sand.ppm" },
+		{ T_WATER, "textures/water.ppm" },
 	});
 }
 

@@ -15,3 +15,10 @@
 # define CHUNK_SIZE 32
 # define ROTATION_SPEED 1.0f
 # define MOVEMENT_SPEED 20.0f
+# define OCEAN_HEIGHT 140
+
+# define STONE 'S'
+# define DIRT 'D'
+# define GRASS 'G'
+# define SAND 's'
+# define WATER 'W'
