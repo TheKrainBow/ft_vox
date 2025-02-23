@@ -79,7 +79,7 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.00095, // frequency
+		0.00005, // frequency
 		0.2, // persistance
 		2.0, // lacunarity
 		4 // nb_octaves

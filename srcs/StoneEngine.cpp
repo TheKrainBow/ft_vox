@@ -1,8 +1,15 @@
 #include "StoneEngine.hpp"
 
-bool isTransparentBlock(char c)
+bool isTransparent(char block)
 {
-	return (c == WATER || c == AIR);
+	return block == AIR || block == WATER;
+}
+
+bool faceDisplayCondition(char blockToDisplay, char neighbourBlock)
+{
+	if (blockToDisplay != WATER)
+		return false;
+	return (((blockToDisplay != WATER) && isTransparent(neighbourBlock)) || (blockToDisplay == WATER && neighbourBlock == AIR));
 }
 
 StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)//, updateChunkFlag(false), running(true)
@@ -302,7 +309,6 @@ void StoneEngine::updateChunkWorker()
 			if (oldCamChunk.y < 0) oldCamChunk.y--;
 			if (oldCamChunk.z < 0) oldCamChunk.z--;
 		}
-		// usleep(200);
 	}
 }
 

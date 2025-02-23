@@ -50,8 +50,7 @@ enum BlockType {
 bool isWSL();
 GLuint compileShader(const char* filePath, GLenum shaderType);
 GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath);
-
-bool isTransparentBlock(char c);
+bool faceDisplayCondition(char blockToDisplay, char neighbourBlock);
 
 struct pair_hash {
 	template <class T1, class T2>
