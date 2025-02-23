@@ -8,6 +8,7 @@
 
 class BiomeGenerator;
 class World;
+class Chunk;
 
 class SubChunk
 {
@@ -23,6 +24,7 @@ class SubChunk
 		std::vector<char>	_blocks;
 		double				_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
 		World				&_world;
+		Chunk				&_chunk;
 
     	std::vector<Face>	_faces[6];
 		bool				_loaded = false;
@@ -35,7 +37,7 @@ class SubChunk
 		std::vector<int>	_vertexData;
 		TextureManager		&_textManager;
 	public:
-		SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureManager &textManager);
+		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
 		void setupBuffers();
 		int display(void);

@@ -49,7 +49,8 @@ public:
 	int	getLoadedChunksNumber();
 	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
-	SubChunk* getChunk(vec3 position);
+	Chunk* getChunk(vec2 position);
+	SubChunk* getSubChunk(vec3 position);
 	int display();
 	void increaseRenderDistance();
 	void decreaseRenderDistance();

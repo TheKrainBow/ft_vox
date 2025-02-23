@@ -106,11 +106,6 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	_displayMutex.lock();
 	_displayedChunk[correctX + correctZ * renderMax] = chunk;
 	_displayMutex.unlock();
-	if (chunk)
-	{
-		chunk->sendFacesToDisplay();
-		// updateNeighbours(pair);
-	}
 }
 
 int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
@@ -214,13 +209,13 @@ char World::getBlock(vec3 position)
 	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
 	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
 
-	SubChunk *chunk = getChunk(chunkPos);
+	SubChunk *chunk = getSubChunk(chunkPos);
 	if (!chunk)
 		return NOT_FOUND;
 	return chunk->getBlock(calculateBlockPos(position));
 }
 
-SubChunk* World::getChunk(vec3 position)
+SubChunk *World::getSubChunk(vec3 position)
 {
 	_chunksMutex.lock();
 	auto it = _chunks.find(std::make_pair(position.x, position.z));
@@ -228,6 +223,19 @@ SubChunk* World::getChunk(vec3 position)
 	_chunksMutex.unlock();
 	if (it != itend)
 		return it->second->getSubChunk(position.y);
+	return nullptr;
+}
+
+Chunk *World::getChunk(vec2 position)
+{
+	_chunksMutex.lock();
+	auto it = _chunks.find(std::make_pair(position.x, position.y));
+	auto itend = _chunks.end();
+	_chunksMutex.unlock();
+	if (it != itend)
+	{
+		return it->second;
+	}
 	return nullptr;
 }
 

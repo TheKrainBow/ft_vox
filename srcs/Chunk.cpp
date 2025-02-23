@@ -6,9 +6,11 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (int y = (perlinMap->lowest) - 1 ; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
 	{
-		SubChunk *newChunk = new SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, world, textureManager);
+		SubChunk *newChunk = new SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, *this, world, textureManager);
 		_subChunks.push_back(newChunk);
 	}
+	_position = position;
+	getNeighbors();
 	_isInit = true;
 }
 
@@ -19,16 +21,45 @@ Chunk::~Chunk()
 	_subChunks.clear();
 }
 
+void Chunk::getNeighbors()
+{
+	if (!_north)
+	{
+		_north = _world.getChunk(vec2((int)_position.x + 1, _position.y));
+		if (_north)
+			_north->setSouthChunk(this);
+	}
+	if (!_south)
+	{
+		_south = _world.getChunk(vec2((int)_position.x - 1, _position.y));
+		if (_south)
+			_south->setNorthChunk(this);
+	}
+	if (!_east)
+	{
+		_east = _world.getChunk(vec2(_position.x, (int)_position.y + 1));
+		if (_east)
+			_east->setWestChunk(this);
+	}
+	if (!_west)
+	{
+		_west = _world.getChunk(vec2(_position.x, (int)_position.y - 1));
+		if (_west)
+			_west->setEastChunk(this);
+	}
+	_isFullyLoaded = (_north && _south && _west && _east);
+}
 
 int Chunk::display()
 {
+	if (!_isFullyLoaded)
+		return (0);
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	int triangleDrawn = 0;
 	vec3 chunkPos;
 	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
 	{
 		chunkPos = (*it)->getPosition();
-		// std::cout << chunkPos.x << ", " << chunkPos.y << ", " << chunkPos.z << std::endl;
 		triangleDrawn += (*it)->display();
 	}
 	return triangleDrawn;
@@ -50,7 +81,61 @@ SubChunk *Chunk::getSubChunk(int y)
 
 void Chunk::sendFacesToDisplay()
 {
+	if (!_isFullyLoaded)
+		return ;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (auto subChunk : _subChunks)
 		subChunk->sendFacesToDisplay();
+}
+
+Chunk *Chunk::getNorthChunk()
+{
+	return _north;
+}
+
+Chunk *Chunk::getSouthChunk()
+{
+	return _south;
+}
+
+Chunk *Chunk::getEastChunk()
+{
+	return _east;
+}
+
+Chunk *Chunk::getWestChunk()
+{
+	return _west;
+}
+
+void Chunk::setNorthChunk(Chunk *chunk)
+{
+	_north = chunk;
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
+}
+
+void Chunk::setSouthChunk(Chunk *chunk)
+{
+	_south = chunk;
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
+}
+
+void Chunk::setEastChunk(Chunk *chunk)
+{
+	_east = chunk;
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
+}
+
+void Chunk::setWestChunk(Chunk *chunk)
+{
+	_west = chunk;
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
 }

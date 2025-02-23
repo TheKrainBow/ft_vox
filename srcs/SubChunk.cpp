@@ -1,6 +1,6 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureManager &textManager) : _world(world), _textManager(textManager)
+SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager) : _world(world), _chunk(chunk), _textManager(textManager)
 {
 	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
@@ -89,33 +89,6 @@ vec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) c
 	return offset;
 }
 
-double SubChunk::getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen)
-{
-	double noise = 0.0;
-	NoiseData nData = {
-		1.0, // amplitude
-		0.001, // frequency
-		0.8, // persistance
-		4.0, // lacunarity
-		4 // nb_octaves
-	};
-
-	noise_gen.setNoiseData(nData);
-	noise = noise_gen.noise(pos.x, pos.y);
-	noise_gen.setNoiseData(NoiseData());
-	return noise;
-}
-
-double SubChunk::getMinHeight(vec2 pos, NoiseGenerator &noise_gen)
-{
-	std::vector<Point> splinePoints = {{-1.0, 50.0}, {0.3, 100.0}, {0.4, 150.0}, {1.0, 150.0}};
-	double continentalNoise = getContinentalNoise(pos, noise_gen);
-	SplineInterpolator spline(splinePoints);
-
-	double splineResult = spline.interpolate(continentalNoise);
-	return splineResult;
-}
-
 void SubChunk::loadBiome()
 {
 	for (int x = 0; x < CHUNK_SIZE ; x++)
@@ -173,7 +146,7 @@ void SubChunk::addDownFace(vec3 position, TextureType texture)
 		block = _world.getBlock(vec3(x, y - 1, z));
 	if (block == -1)
 		_isFullyLoaded = false;
-	else if (block == 0)
+	if (block <= 0)
 		addFace(position, DOWN, texture);
 }
 
@@ -287,14 +260,7 @@ void SubChunk::clearFaces() {
 void SubChunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
-	// if (_hasSentFaces == true && _isFullyLoaded == true)
 		return ;
-	if (_isFullyLoaded == false)
-	{
-		_vertexData.clear();
-		clearFaces();
-		_isFullyLoaded = true;
-	}
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)
@@ -334,10 +300,6 @@ void SubChunk::addTextureVertex(Face face)
 	int newVertex = 0;
 	int lengthX = face.size.x - 1;
 	int lengthY = face.size.y - 1;
-	// if (lengthX == 0)
-	// 	lengthX++;
-	// if (lengthY == 0)
-	// 	lengthY++;
 
 	if (face.direction == EAST || face.direction == WEST)
 	{
