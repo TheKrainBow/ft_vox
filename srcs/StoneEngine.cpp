@@ -7,9 +7,7 @@ bool isTransparent(char block)
 
 bool faceDisplayCondition(char blockToDisplay, char neighbourBlock)
 {
-	if (blockToDisplay != WATER)
-		return false;
-	return (((blockToDisplay != WATER) && isTransparent(neighbourBlock)) || (blockToDisplay == WATER && neighbourBlock == AIR));
+	return isTransparent(neighbourBlock) && blockToDisplay != neighbourBlock;
 }
 
 StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)//, updateChunkFlag(false), running(true)
