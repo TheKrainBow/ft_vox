@@ -11,6 +11,11 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	}
 	_position = position;
 	getNeighbors();
+	// Border display because no neighbor but apparently it still works ?
+	// if (floor(position.x) == (RENDER_DISTANCE / 2) - 1 || floor(position.y) == (RENDER_DISTANCE / 2) - 1)
+	// 	sendFacesToDisplay();
+	// else if (floor(position.x) == -(RENDER_DISTANCE / 2) + 1 || floor(position.y) == -(RENDER_DISTANCE / 2) + 1)
+	// 	sendFacesToDisplay();
 	_isInit = true;
 }
 

@@ -179,16 +179,16 @@ void World::loadChunks(vec3 camPosition)
 	{
 		retTop = std::async(std::launch::async, 
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
-		retRight = std::async(std::launch::async, 
-			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
+		retTop.get();
 		retBot = std::async(std::launch::async, 
 			std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
+		retBot.get();
+		retRight = std::async(std::launch::async, 
+			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
+		retRight.get();
 		retLeft = std::async(std::launch::async, 
 			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
-		retTop.get();
-		retRight.get();
 		retLeft.get();
-		retBot.get();
 		vec3 newPos = _camera->getWorldPosition();
 		vec3 camChunk(newPos.x / CHUNK_SIZE, newPos.y / CHUNK_SIZE, newPos.z / CHUNK_SIZE);
 		if (newPos.x < 0) camChunk.x--;
@@ -196,7 +196,7 @@ void World::loadChunks(vec3 camPosition)
 		if (newPos.z < 0) camChunk.z--;
 
 		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
-			_skipLoad = true;
+			break ;
 	}
 }
 

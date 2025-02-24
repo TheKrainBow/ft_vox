@@ -107,7 +107,7 @@ int NoiseGenerator::getHeight(vec2 pos)
 	int height = surfaceHeight * (1.0 - erosionMask) + erosionHeight * erosionMask;
 	height = static_cast<size_t>(100.0 + surfaceHeight);
 	height = clamp(height, 0, 255);
-	return height;
+	return 100.0;
 }
 
 
