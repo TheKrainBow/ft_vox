@@ -83,11 +83,17 @@ void StoneEngine::initShaders()
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+	glm::vec3 lightPos= {250.0f, 350.0f, 150.0f}; // Example position
+	glm::vec3 viewPos = camera.getPosition(); // Get from your camera system
+	
+	
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(lightPos));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
@@ -225,12 +231,16 @@ void StoneEngine::findMoveRotationSpeed()
 void StoneEngine::updateMovement()
 {
 	// Camera movement
+	glm::vec3 oldPos = camera.getPosition(); // Old pos
 	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
+	glm::vec3 viewPos = camera.getPosition(); // New position
+	if (viewPos != oldPos)
+		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 
 	// Camera rotation
 	if (!isWSL())

@@ -1,19 +1,32 @@
 #version 430 core
 
-uniform sampler2DArray textureArray;
 uniform vec3 lightColor;
-in vec2 TexCoord;							// The final UV coordinates calculated in the vertex shader
-flat in int TextureID;
+uniform vec3 lightPos;
+uniform vec3 viewPos;
+uniform sampler2DArray textureArray;
 
-// Output color
-out vec4 FragColor;       // The output color of the fragment
+in vec2 TexCoord;
+flat in int TextureID;
+in vec3 Normal;
+in vec3 FragPos; // Store world position
+
+out vec4 FragColor;
 
 void main() {
-	float ambientStrength = 0.3;
-	vec3 ambient = ambientStrength * lightColor;
+    vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
 
-	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
-	vec3 result = ambient * texColor.rgb;
+    // Ambient Lighting
+    float ambientStrength = 0.5;
+    vec3 ambient = ambientStrength * lightColor;
 
-	FragColor = vec4(result, texColor.a);
+    // Diffuse Lighting
+    vec3 norm = normalize(Normal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * lightColor;
+
+    // Combine lighting
+    vec3 result = (ambient + diffuse) * texColor.rgb;
+
+    FragColor = vec4(result, texColor.a);
 }
