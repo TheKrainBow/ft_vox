@@ -64,6 +64,8 @@ void StoneEngine::initData()
 	moveSpeed		= 0.0;
 	rotationSpeed	= 0.0;
 
+	// Game data
+	sunPosition = {0.0f, 0.0f, 0.0f};
 }
 
 void StoneEngine::initTextures()
@@ -83,16 +85,14 @@ void StoneEngine::initShaders()
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
-	glm::vec3 lightPos= {250.0f, 350.0f, 150.0f}; // Example position
-	glm::vec3 viewPos = camera.getPosition(); // Get from your camera system
-	
-	
+	sunPosition = {250, 185.0f, 200};
+	glm::vec3 viewPos = camera.getPosition();
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(lightPos));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(sunPosition));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
@@ -142,7 +142,7 @@ void StoneEngine::display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
-	glm::mat4 viewMatrix = glm::lookAt(
+	viewMatrix = glm::lookAt(
 		camera.getPosition(),         // cam position
 		camera.getCenter(),           // Look-at point
 		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
@@ -259,21 +259,6 @@ void StoneEngine::updateMovement()
 	}
 }
 
-// void StoneEngine::chunkUpdateWorker()
-// {
-// 	while (running.load())
-// 	{
-// 		std::unique_lock<std::mutex> lock(chunksMutex);
-// 		chunkCondition.wait(lock, [this] {return updateChunkFlag.load() || !running.load();});
-// 		if (!running.load()) break ;
-
-// 		updateChunkFlag.store(false);
-// 		lock.unlock();
-// 		updateChunks();
-// 		usleep(2000);
-// 	}
-// }
-
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
@@ -311,19 +296,42 @@ void StoneEngine::updateChunkWorker()
 	}
 }
 
+void StoneEngine::updateGameTick()
+{
+	static int timeValue = 0;
+	timeValue++; // Increment time value per game tick
+	//std::cout << "timeValue: " << timeValue << std::endl;
+
+	glUseProgram(shaderProgram);
+	glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
+	if (timeValue >= 360 * 5)
+		timeValue = 0;
+	//std::cout << "Updating gameTICK" << std::endl;
+}
+
 void StoneEngine::update()
 {
-	// Check for delta and apply to move and rotation speeds
-	findMoveRotationSpeed();
+    // Check for delta and apply to move and rotation speeds
+    findMoveRotationSpeed();
 
-	// Update player position and orientation
-	updateMovement();
-	display();
+    // Get current time
+    end = std::chrono::steady_clock::now();
+    delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    start = end; // Reset start time for next frame
 
-	// Register end of frame for the next delta
-	end = std::chrono::steady_clock::now(); 
-	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
+    // Check if it's time to update the game tick (20 times per second)
+    static auto lastGameTick = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= 50)
+    {
+        updateGameTick();
+        lastGameTick = end; // Reset game tick timer
+    }
+
+    // Update player position and orientation
+    updateMovement();
+    display();
 }
+
 
 void StoneEngine::reshapeAction(int width, int height)
 {

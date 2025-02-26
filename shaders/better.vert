@@ -33,18 +33,16 @@ void main()
     basePos.x *= lengthX;
     basePos.y *= lengthY;
 
-    // Default normal (facing +Z)
-    vec3 normal = vec3(0.0, 0.0, 1.0);
+    // Default normal
+    vec3 normal = vec3(0.0, 0.0, 0.0);
 
     if (direction == 2 || direction == 3)
     {
         basePos.xyz = basePos.zyx;
-        normal = vec3(0.0, 1.0, 0.0); // Facing up
     }
     if (direction == 4 || direction == 5)
     {
         basePos.zy = basePos.yz;
-        normal = vec3(1.0, 0.0, 0.0); // Facing left/right
     }
 
     if (direction == 1) // -X
