@@ -13,8 +13,8 @@ in vec3 FragPos; // Store world position
 out vec4 FragColor;
 
 vec3 computeSunPosition(int time) {
-    float radius = 100.0;
-    float angle = radians(float(time)) * 0.5;
+    float radius = 150.0;
+    float angle = radians(float(time));
     return vec3(100.0, radius * sin(angle), radius * cos(angle));
 }
 
@@ -28,12 +28,19 @@ void main() {
     // Diffuse Lighting
     vec3 norm = normalize(Normal);
     vec3 sunPos = computeSunPosition(timeValue);
-    vec3 lightDir = normalize(sunPos - FragPos);
+    vec3 lightDir = normalize(FragPos - sunPos);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * lightColor;
 
+    // Specular Lighting
+    float specularStrength = 0.4;
+    vec3 viewDir = normalize(FragPos - viewPos);
+    vec3 reflectDir = reflect(-lightDir, norm);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 256);
+    vec3 specular = specularStrength * spec * lightColor;
+
     // Combine lighting
-    vec3 result = (ambient + diffuse) * texColor.rgb;
+    vec3 result = (ambient + diffuse + specular) * texColor.rgb;
 
     FragColor = vec4(result, texColor.a);
 }

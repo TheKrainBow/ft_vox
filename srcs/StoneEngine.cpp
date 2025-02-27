@@ -83,16 +83,14 @@ void StoneEngine::initTextures()
 void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
-	sunPosition = {250, 185.0f, 200};
 	glm::vec3 viewPos = camera.getPosition();
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(sunPosition));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
@@ -142,11 +140,11 @@ void StoneEngine::display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
-	viewMatrix = glm::lookAt(
-		camera.getPosition(),         // cam position
-		camera.getCenter(),           // Look-at point
-		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
-	);
+	// viewMatrix = glm::lookAt(
+	// 	camera.getPosition(),         // cam position
+	// 	camera.getCenter(),          // Look-at point
+	// 	glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
+	// );
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
 
 
@@ -163,7 +161,7 @@ void StoneEngine::display()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-	
+
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -239,8 +237,13 @@ void StoneEngine::updateMovement()
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
 	glm::vec3 viewPos = camera.getPosition(); // New position
+
 	if (viewPos != oldPos)
+	{
+		viewPos.y *= -1;
+		glUseProgram(shaderProgram);
 		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+	}
 
 	// Camera rotation
 	if (!isWSL())
