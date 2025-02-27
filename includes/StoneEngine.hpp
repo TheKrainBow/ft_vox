@@ -15,6 +15,7 @@ class StoneEngine {
 		// Display
 		GLFWwindow* _window;
 		GLuint shaderProgram;
+		GLuint sunProgram;
 		World _world;
 		int windowHeight;
 		int windowWidth;
@@ -59,6 +60,7 @@ class StoneEngine {
 
 		// Game data
 		glm::vec3 sunPosition;
+		int timeValue;
 	public:
 		StoneEngine(int seed);
 		~StoneEngine();

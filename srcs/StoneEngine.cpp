@@ -66,6 +66,7 @@ void StoneEngine::initData()
 
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
+	timeValue = 39800;
 }
 
 void StoneEngine::initTextures()
@@ -83,9 +84,12 @@ void StoneEngine::initTextures()
 void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
 	glm::vec3 viewPos = camera.getPosition();
+	sunPosition = {0.0f, 0.0f, 0.0f};
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
@@ -112,6 +116,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
 	debugBox.addLine("xangle: ", Textbox::FLOAT, &camAngle->x);
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
+	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
 }
 
@@ -301,14 +306,13 @@ void StoneEngine::updateChunkWorker()
 
 void StoneEngine::updateGameTick()
 {
-	static int timeValue = 0;
-	timeValue++; // Increment time value per game tick
+	timeValue += 6; // Increment time value per game tick
 	//std::cout << "timeValue: " << timeValue << std::endl;
 
+	if (timeValue >= 86400)
+		timeValue = 0;
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
-	if (timeValue >= 360 * 5)
-		timeValue = 0;
 	//std::cout << "Updating gameTICK" << std::endl;
 }
 
@@ -324,7 +328,7 @@ void StoneEngine::update()
 
     // Check if it's time to update the game tick (20 times per second)
     static auto lastGameTick = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= 50)
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
     {
         updateGameTick();
         lastGameTick = end; // Reset game tick timer

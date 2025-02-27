@@ -45,6 +45,10 @@ void main()
         basePos.zy = basePos.yz;
     }
 
+	if (direction == 0)
+	{
+        normal = vec3(0.0, 0.0, 1.0);
+	}
     if (direction == 1) // -X
     {
         basePos.x = -basePos.x + lengthX;
