@@ -34,6 +34,7 @@ class StoneEngine {
 		bool showTriangleMesh;
 		bool mouseCaptureToggle;
 		bool showDebugInfo;
+		bool showLight;
 
 		// Player speed
 		float moveSpeed;

@@ -46,6 +46,7 @@ void StoneEngine::initData()
 	showDebugInfo		= SHOW_DEBUG;
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
+	showLight			= SHOW_LIGHTING;
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -311,8 +312,17 @@ void StoneEngine::updateGameTick()
 
 	if (timeValue >= 86400)
 		timeValue = 0;
-	glUseProgram(shaderProgram);
-	glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
+	if (showLight)
+	{
+		glUseProgram(shaderProgram);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
+	}
+	else
+	{
+		// Always daytime
+		glUseProgram(shaderProgram);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 64000);
+	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }
 
@@ -365,6 +375,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
