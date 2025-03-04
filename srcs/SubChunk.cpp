@@ -62,20 +62,6 @@ void SubChunk::loadHeight()
 			}
 		}
 	}
-	// for (int y = 1; y < 3 ; y++)
-	// {
-	// 	for (int x = 1; x < 4 ; x++)
-	// 	{
-	// 		for (int z = 1; z < 5 ; z++)
-	// 		{
-	// 			// double height = _perlinMap[z * CHUNK_SIZE + x];
-	// 			// height = 100;
-	// 			// size_t maxHeight = (size_t)(height);
-	// 			// if (y + _position.y * CHUNK_SIZE <= maxHeight)
-	// 			_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
-	// 		}
-	// 	}
-	// }
 	_loaded = true;
 }
 
@@ -130,7 +116,7 @@ char SubChunk::getBlock(vec3 position)
 
 	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
 		return 0;
-	return _blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)];
+	return _blocks[x + (z * CHUNK_SIZE) + y * CHUNK_SIZE * CHUNK_SIZE];
 }
 
 void SubChunk::addDownFace(vec3 position, TextureType texture)
@@ -139,14 +125,12 @@ void SubChunk::addDownFace(vec3 position, TextureType texture)
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	char block;
+	char block = 0;
 	if (position.y > 0)
-		block = _blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y - 1) * CHUNK_SIZE * CHUNK_SIZE)];
+		block = getBlock({position.x, position.y - 1, position.z});
 	else
 		block = _world.getBlock(vec3(x, y - 1, z));
-	if (block == -1)
-		_isFullyLoaded = false;
-	if (block <= 0)
+	if (block == 0)
 		addFace(position, DOWN, texture);
 }
 
@@ -156,14 +140,12 @@ void SubChunk::addUpFace(vec3 position, TextureType texture)
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	char block = -1;
+	char block = 0;
 	if (position.y != (CHUNK_SIZE - 1))
-		block = _blocks[position.x + (position.z * CHUNK_SIZE) + ((position.y + 1) * CHUNK_SIZE * CHUNK_SIZE)];
+		block = getBlock({position.x, position.y + 1, position.z});
 	else
 		block = _world.getBlock(vec3(x, y + 1, z));
-	if (block == -1)
-		_isFullyLoaded = false;
-	if (block <= 0)
+	if (block == 0)
 		addFace(position, UP, texture);
 }
 
@@ -173,14 +155,12 @@ void SubChunk::addNorthFace(vec3 position, TextureType texture)
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	char block = -1;
+	char block = 0;
 	if (position.z != 0)
-		block = _blocks[position.x + ((position.z - 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)];
+		block = getBlock({position.x, position.y, position.z - 1});
 	else
 		block = _world.getBlock(vec3(x, y, z - 1));
-	if (block == -1)
-		_isFullyLoaded = false;
-	if (block <= 0)
+	if (block == 0)
 		addFace(position, NORTH, texture);
 }
 
@@ -190,14 +170,12 @@ void SubChunk::addSouthFace(vec3 position, TextureType texture)
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	char block = -1;
+	char block = 0;
 	if (position.z != CHUNK_SIZE - 1)
-		block = _blocks[position.x + ((position.z + 1) * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)];
+		block = getBlock({position.x, position.y, position.z + 1});
 	else
 		block = _world.getBlock(vec3(x, y, z + 1));
-	if (block == -1)
-		_isFullyLoaded = false;
-	if (block <= 0)
+	if (block == 0)
 		addFace(position, SOUTH, texture);
 }
 
@@ -207,14 +185,12 @@ void SubChunk::addWestFace(vec3 position, TextureType texture)
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	char block = -1;
+	char block = 0;
 	if (position.x != 0)
-		block = _blocks[(position.x - 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)];
+		block = getBlock({position.x - 1, position.y, position.z});
 	else
 		block = _world.getBlock(vec3(x - 1, y, z));
-	if (block == -1)
-		_isFullyLoaded = false;
-	if (block <= 0)
+	if (block == 0)
 		addFace(position, WEST, texture);
 }
 
@@ -224,14 +200,12 @@ void SubChunk::addEastFace(vec3 position, TextureType texture)
 	int y = _position.y * CHUNK_SIZE + position.y;
 	int z = _position.z * CHUNK_SIZE + position.z;
 
-	char block = -1;
+	char block = 0;
 	if (position.x != CHUNK_SIZE - 1)
-		block = _blocks[(position.x + 1) + (position.z * CHUNK_SIZE) + (position.y * CHUNK_SIZE * CHUNK_SIZE)];
+		block = getBlock({position.x + 1, position.y, position.z});
 	else
 		block = _world.getBlock(vec3(x + 1, y, z));
-	if (block == -1)
-		_isFullyLoaded = false;
-	if (block <= 0)
+	if (block == 0)
 		addFace(position, EAST, texture);
 }
 

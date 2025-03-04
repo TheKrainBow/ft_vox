@@ -135,11 +135,11 @@ void StoneEngine::display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
-	glm::mat4 viewMatrix = glm::lookAt(
-		camera.getPosition(),         // cam position
-		camera.getCenter(),           // Look-at point
-		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
-	);
+	// glm::mat4 viewMatrix = glm::lookAt(
+	// 	camera.getPosition(),         // cam position
+	// 	camera.getCenter(),           // Look-at point
+	// 	glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
+	// );
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
 
 
@@ -147,7 +147,7 @@ void StoneEngine::display()
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	viewMatrix = glm::mat4(1.0f);
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.getPosition()));
@@ -156,7 +156,6 @@ void StoneEngine::display()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-	
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -263,6 +262,7 @@ void StoneEngine::updateMovement()
 // 	}
 // }
 
+
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
@@ -294,7 +294,6 @@ void StoneEngine::updateChunkWorker()
 			if (oldCamChunk.y < 0) oldCamChunk.y--;
 			if (oldCamChunk.z < 0) oldCamChunk.z--;
 		}
-		// usleep(200);
 	}
 }
 
@@ -305,6 +304,8 @@ void StoneEngine::update()
 
 	// Update player position and orientation
 	updateMovement();
+
+	// Update display
 	display();
 
 	// Register end of frame for the next delta

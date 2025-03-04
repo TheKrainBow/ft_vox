@@ -39,4 +39,5 @@ class Chunk
 		void setSouthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);
 		void setWestChunk(Chunk *chunk);
+		vec2 getPosition();
 };

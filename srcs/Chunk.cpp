@@ -2,6 +2,7 @@
 
 Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
 {
+	_isInit = false;
 	_perlinMap = perlinMap;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (int y = (perlinMap->lowest) - 1 ; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
@@ -10,12 +11,9 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 		_subChunks.push_back(newChunk);
 	}
 	_position = position;
+	_north = _south = _east = _west = nullptr;
+	_isFullyLoaded = false;
 	getNeighbors();
-	// Border display because no neighbor but apparently it still works ?
-	// if (floor(position.x) == (RENDER_DISTANCE / 2) - 1 || floor(position.y) == (RENDER_DISTANCE / 2) - 1)
-	// 	sendFacesToDisplay();
-	// else if (floor(position.x) == -(RENDER_DISTANCE / 2) + 1 || floor(position.y) == -(RENDER_DISTANCE / 2) + 1)
-	// 	sendFacesToDisplay();
 	_isInit = true;
 }
 
@@ -28,31 +26,39 @@ Chunk::~Chunk()
 
 void Chunk::getNeighbors()
 {
+	if (_isFullyLoaded)
+		return ;
 	if (!_north)
 	{
-		_north = _world.getChunk(vec2((int)_position.x + 1, _position.y));
+		_north = _world.getChunk(vec2((int)_position.x + 1, (int)_position.y));
 		if (_north)
 			_north->setSouthChunk(this);
 	}
 	if (!_south)
 	{
-		_south = _world.getChunk(vec2((int)_position.x - 1, _position.y));
+		_south = _world.getChunk(vec2((int)_position.x - 1, (int)_position.y));
 		if (_south)
 			_south->setNorthChunk(this);
 	}
 	if (!_east)
 	{
-		_east = _world.getChunk(vec2(_position.x, (int)_position.y + 1));
+		_east = _world.getChunk(vec2((int)_position.x, (int)_position.y + 1));
 		if (_east)
 			_east->setWestChunk(this);
 	}
 	if (!_west)
 	{
-		_west = _world.getChunk(vec2(_position.x, (int)_position.y - 1));
+		_west = _world.getChunk(vec2((int)_position.x, (int)_position.y - 1));
 		if (_west)
 			_west->setEastChunk(this);
 	}
 	_isFullyLoaded = (_north && _south && _west && _east);
+	sendFacesToDisplay();
+}
+
+vec2 Chunk::getPosition()
+{
+	return _position;
 }
 
 int Chunk::display()
