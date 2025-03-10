@@ -4,12 +4,13 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
-	std::lock_guard<std::mutex> lock(_subChunksMutex);
+	_subChunksMutex.lock();
 	for (int y = (perlinMap->lowest) - 1 ; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
 	{
 		SubChunk *newChunk = new SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, *this, world, textureManager);
 		_subChunks.push_back(newChunk);
 	}
+	_subChunksMutex.unlock();
 	_position = position;
 	_north = _south = _east = _west = nullptr;
 	_isFullyLoaded = false;
@@ -92,8 +93,6 @@ SubChunk *Chunk::getSubChunk(int y)
 
 void Chunk::sendFacesToDisplay()
 {
-	if (!_isFullyLoaded)
-		return ;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (auto subChunk : _subChunks)
 		subChunk->sendFacesToDisplay();

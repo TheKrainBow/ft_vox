@@ -178,15 +178,14 @@ void World::loadChunks(vec3 camPosition)
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
 		retBot = std::async(std::launch::async, 
 			std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
-		usleep(500);
+		retTop.get();
+		retBot.get();
 		retRight = std::async(std::launch::async, 
 			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
 		retLeft = std::async(std::launch::async, 
 			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
 		retRight.get();
 		retLeft.get();
-		retBot.get();
-		retTop.get();
 		vec3 newPos = _camera->getWorldPosition();
 		vec3 camChunk(newPos.x / CHUNK_SIZE, newPos.y / CHUNK_SIZE, newPos.z / CHUNK_SIZE);
 		if (newPos.x < 0) camChunk.x--;
@@ -243,25 +242,36 @@ Chunk *World::getChunk(vec2 position)
 	}
 	return nullptr;
 }
-
 int World::display()
 {
-	int triangleDrawn = 0;
-	Chunk *chunkToDisplay = nullptr;
-	for (int x = 0; x < _renderDistance; x++)
-	{
-		for (int z = 0; z < _renderDistance; z++)
-		{
-			_displayMutex.lock();
-			chunkToDisplay = _displayedChunk[x + z * _renderDistance];
-			_displayMutex.unlock();
-			if (chunkToDisplay)
-			{
-				triangleDrawn += chunkToDisplay->display();
-			}
-		}
-	}
-	return (triangleDrawn);
+    int triangleDrawn = 0;
+    int centerX = _renderDistance / 2;
+    int centerZ = _renderDistance / 2;
+    
+    for (int layer = 0; layer < _renderDistance; layer += 2)
+    {
+        for (int dx = -layer; dx <= layer; ++dx)
+        {
+            for (int dz = -layer; dz <= layer; ++dz)
+            {
+                int x = centerX + dx;
+                int z = centerZ + dz;
+
+                if (x < 0 || x >= _renderDistance || z < 0 || z >= _renderDistance)
+                    continue;
+
+				_displayMutex.lock();
+                Chunk* chunkToDisplay = _displayedChunk[x + z * _renderDistance];
+                
+                if (chunkToDisplay)
+                {
+					triangleDrawn += chunkToDisplay->display();
+                }
+				_displayMutex.unlock();
+            }
+        }
+    }
+    return triangleDrawn;
 }
 
 int	World::getCachedChunksNumber()
