@@ -69,7 +69,7 @@ int Chunk::display()
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	int triangleDrawn = 0;
 	vec3 chunkPos;
-	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
+	for (auto it = _subChunks.rbegin() ; it != _subChunks.rend() ; it++)
 	{
 		chunkPos = (*it)->getPosition();
 		triangleDrawn += (*it)->display();
@@ -82,11 +82,12 @@ SubChunk *Chunk::getSubChunk(int y)
 	if (_isInit == false)
 		return nullptr;
 	vec3 chunkPos;
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
 	{
 		chunkPos = (*it)->getPosition();
 		if (chunkPos.y == y)
-			return (*it);
+		return (*it);
 	}
 	return nullptr;
 }
