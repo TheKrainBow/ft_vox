@@ -172,7 +172,7 @@ void World::loadChunks(vec3 camPosition)
 
 	_skipLoad = false;
 	loadChunk(0, 0, renderDistance, 1, camPosition);
-	for (int render = 1; getIsRunning() && render < renderDistance; render += 2)
+	for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
 		retTop = std::async(std::launch::async, 
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
@@ -242,6 +242,7 @@ Chunk *World::getChunk(vec2 position)
 	}
 	return nullptr;
 }
+
 int World::display()
 {
     int triangleDrawn = 0;
