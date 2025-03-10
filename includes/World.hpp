@@ -19,6 +19,12 @@ namespace std {
     };
 }
 
+struct ChunkSlot
+{
+	Chunk *chunk;
+	std::mutex mutex;
+};
+
 class SubChunk;
 
 class World
@@ -28,8 +34,7 @@ private:
 		NoiseGenerator								_perlinGenerator;
 		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_chunks;
 		std::mutex									_chunksMutex;
-		std::mutex									_displayMutex;
-		Chunk										**_displayedChunk;
+		ChunkSlot									*_displayedChunk;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
 	// Player related informations

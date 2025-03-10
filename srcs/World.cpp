@@ -18,8 +18,8 @@ vec3 World::calculateBlockPos(vec3 position) const
 
 World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera)
 {
-	_displayedChunk = new Chunk*[_maxRender * _maxRender];
-	bzero(_displayedChunk, sizeof(_displayedChunk));
+	_displayedChunk = new ChunkSlot[_maxRender * _maxRender];
+	bzero(_displayedChunk, sizeof(ChunkSlot) * _maxRender * _maxRender);
 	_renderDistance = RENDER_DISTANCE;
 }
 
@@ -100,9 +100,9 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 		_chunks[pair] = chunk;
 		_chunksMutex.unlock();
 	}
-	_displayMutex.lock();
-	_displayedChunk[correctX + correctZ * renderMax] = chunk;
-	_displayMutex.unlock();
+	_displayedChunk[x + z * _renderDistance].mutex.lock();
+	_displayedChunk[correctX + correctZ * renderMax].chunk = chunk;
+	_displayedChunk[x + z * _renderDistance].mutex.unlock();
 }
 
 int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
@@ -260,14 +260,14 @@ int World::display()
                 if (x < 0 || x >= _renderDistance || z < 0 || z >= _renderDistance)
                     continue;
 
-				_displayMutex.lock();
-                Chunk* chunkToDisplay = _displayedChunk[x + z * _renderDistance];
+				_displayedChunk[x + z * _renderDistance].mutex.lock();
+                Chunk* chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
                 
                 if (chunkToDisplay)
                 {
 					triangleDrawn += chunkToDisplay->display();
                 }
-				_displayMutex.unlock();
+				_displayedChunk[x + z * _renderDistance].mutex.unlock();
             }
         }
     }
