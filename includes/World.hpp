@@ -26,7 +26,7 @@ class World
 private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
-		std::map<std::pair<int, int>, Chunk*>		_chunks;
+		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_chunks;
 		std::mutex									_chunksMutex;
 		std::mutex									_displayMutex;
 		Chunk										**_displayedChunk;
