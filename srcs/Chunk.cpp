@@ -82,7 +82,6 @@ SubChunk *Chunk::getSubChunk(int y)
 	if (_isInit == false)
 		return nullptr;
 	vec3 chunkPos;
-	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (auto it = _subChunks.begin() ; it != _subChunks.end() ; it++)
 	{
 		chunkPos = (*it)->getPosition();
@@ -94,6 +93,8 @@ SubChunk *Chunk::getSubChunk(int y)
 
 void Chunk::sendFacesToDisplay()
 {
+	if (!_isFullyLoaded)
+		return ;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (auto subChunk : _subChunks)
 		subChunk->sendFacesToDisplay();

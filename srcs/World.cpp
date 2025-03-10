@@ -96,6 +96,8 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	{
 		_chunksMutex.unlock();
 		chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager);
+
+		// TODO: Remove oldest chunk after _chunks exceeds cache size limit (#define CACHE_SIZE ?)
 		_chunksMutex.lock();
 		_chunks[pair] = chunk;
 		_chunksMutex.unlock();
@@ -159,7 +161,7 @@ bool World::getIsRunning()
 
 void World::loadChunks(vec3 camPosition)
 {
-	int renderDistance = _renderDistance;
+	int renderDistance = _renderDistance + 1;
 	std::future<int> retTop;
 	std::future<int> retBot;
 	std::future<int> retLeft;
@@ -192,8 +194,8 @@ void World::loadChunks(vec3 camPosition)
 		if (newPos.y < 0) camChunk.y--;
 		if (newPos.z < 0) camChunk.z--;
 
-		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
-			break ;
+		// if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
+		// 	break ;
 	}
 }
 
