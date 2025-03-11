@@ -25,9 +25,9 @@ class Chunk
 		Chunk					*_west = nullptr;
 		bool					_isFullyLoaded;
 	public:
-		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager);
+		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager, bool isBorder);
 		~Chunk();
-		void getNeighbors();
+		void getNeighbors(bool isBorder);
 		SubChunk *getSubChunk(int y);
 		void sendFacesToDisplay();
 		int display();

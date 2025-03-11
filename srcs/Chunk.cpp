@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &textureManager, bool isBorder) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
@@ -14,7 +14,7 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	_position = position;
 	_north = _south = _east = _west = nullptr;
 	_isFullyLoaded = false;
-	getNeighbors();
+	getNeighbors(isBorder);
 	_isInit = true;
 }
 
@@ -25,7 +25,7 @@ Chunk::~Chunk()
 	_subChunks.clear();
 }
 
-void Chunk::getNeighbors()
+void Chunk::getNeighbors(bool isBorder)
 {
 	if (_isFullyLoaded)
 		return ;
@@ -53,7 +53,7 @@ void Chunk::getNeighbors()
 		if (_west)
 			_west->setEastChunk(this);
 	}
-	_isFullyLoaded = (_north && _south && _west && _east);
+	_isFullyLoaded = isBorder || (_north && _south && _west && _east);
 	sendFacesToDisplay();
 }
 

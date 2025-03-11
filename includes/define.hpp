@@ -16,3 +16,4 @@
 # define ROTATION_SPEED 1.0f
 # define MOVEMENT_SPEED 10.0f
 # define NOT_FOUND 0
+# define CACHE_SIZE 2500

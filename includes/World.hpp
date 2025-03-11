@@ -33,7 +33,9 @@ private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
 		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_chunks;
+		std::list<Chunk *>							_chunkList;
 		std::mutex									_chunksMutex;
+		std::mutex									_chunksListMutex;
 		ChunkSlot									*_displayedChunk;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
@@ -69,4 +71,5 @@ private:
 	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
 	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 	void updateNeighbours(std::pair<int, int> pair);
+	void unloadChunk();
 };

@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <stdexcept>
 #include <unistd.h>
+#include <list>
 
 using namespace glm;
 

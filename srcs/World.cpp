@@ -77,12 +77,61 @@ void World::updateNeighbours(std::pair<int, int> pair)
 		it->second->sendFacesToDisplay();
 }
 
-void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition)
+
+void World::setRunning(std::mutex *runningMutex, bool *isRunning)
+{
+	_isRunning = isRunning;
+	_runningMutex = runningMutex;
+}
+
+bool World::getIsRunning()
+{
+	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
+	return *_isRunning;
+}
+
+void World::unloadChunk()
+{
+	_chunksListMutex.lock();
+	size_t listSize = _chunkList.size();
+	_chunksListMutex.unlock();
+
+	Chunk *tempChunk = nullptr;
+	if (listSize >= CACHE_SIZE)
+	{
+		_chunksListMutex.lock();
+		auto listIt = _chunkList.begin();
+		auto listItend = _chunkList.end();
+		if (listIt != listItend)
+			tempChunk = (*listIt);
+		_chunksListMutex.unlock();
+		if (!tempChunk)
+			return ;
+		vec2 pos = tempChunk->getPosition();
+		std::pair<int, int> chunkPair(pos.x, pos.y);
+
+		_chunksMutex.lock();
+		auto chunksIt = _chunks.find(chunkPair);
+		auto chunksItend = _chunks.end();
+
+		if (chunksIt == chunksItend)
+			return _chunksMutex.unlock();
+		_chunks.erase(chunksIt);
+		_chunksMutex.unlock();
+
+		_chunksListMutex.lock();
+		_chunkList.erase(listIt);
+		_chunksListMutex.unlock();
+		delete tempChunk;
+	}
+}
+
+void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosition)
 {
 	Chunk *chunk = nullptr;
-	int correctX = (renderMax / 2) - (currentRender / 2) + x;
-	int correctZ = (renderMax / 2) - (currentRender / 2) + z;
-	std::pair<int, int> pair(int(camPosition.x) / CHUNK_SIZE - currentRender / 2 + x , int(camPosition.z) / CHUNK_SIZE - currentRender / 2 + z);
+	int correctX = (renderDistance / 2) - (render / 2) + x;
+	int correctZ = (renderDistance / 2) - (render / 2) + z;
+	std::pair<int, int> pair(int(camPosition.x) / CHUNK_SIZE - render / 2 + x , int(camPosition.z) / CHUNK_SIZE - render / 2 + z);
 
 	_chunksMutex.lock();
 	auto it = _chunks.find(pair);
@@ -95,16 +144,23 @@ void World::loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPo
 	else if (_skipLoad == false)
 	{
 		_chunksMutex.unlock();
-		chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager);
+		if (render == renderDistance - 1)
+			chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager, true);
+		else
+			chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager, false);
+		
+		_chunksListMutex.lock();
+		_chunkList.emplace_back(chunk);
+		_chunksListMutex.unlock();
 
-		// TODO: Remove oldest chunk after _chunks exceeds cache size limit (#define CACHE_SIZE ?)
 		_chunksMutex.lock();
 		_chunks[pair] = chunk;
 		_chunksMutex.unlock();
 	}
 	_displayedChunk[x + z * _renderDistance].mutex.lock();
-	_displayedChunk[correctX + correctZ * renderMax].chunk = chunk;
+	_displayedChunk[correctX + correctZ * renderDistance].chunk = chunk;
 	_displayedChunk[x + z * _renderDistance].mutex.unlock();
+	unloadChunk();
 }
 
 int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
@@ -147,21 +203,9 @@ int World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
 	return 1;
 }
 
-void World::setRunning(std::mutex *runningMutex, bool *isRunning)
-{
-	_isRunning = isRunning;
-	_runningMutex = runningMutex;
-}
-
-bool World::getIsRunning()
-{
-	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
-	return *_isRunning;
-}
-
 void World::loadChunks(vec3 camPosition)
 {
-	int renderDistance = _renderDistance + 1;
+	int renderDistance = _renderDistance;
 	std::future<int> retTop;
 	std::future<int> retBot;
 	std::future<int> retLeft;
@@ -174,7 +218,7 @@ void World::loadChunks(vec3 camPosition)
 
 	_skipLoad = false;
 	loadChunk(0, 0, renderDistance, 1, camPosition);
-	for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
+	for (int render = 2; getIsRunning() && render <= renderDistance; render += 2)
 	{
 		retTop = std::async(std::launch::async, 
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
@@ -194,8 +238,8 @@ void World::loadChunks(vec3 camPosition)
 		if (newPos.y < 0) camChunk.y--;
 		if (newPos.z < 0) camChunk.z--;
 
-		// if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
-		// 	break ;
+		if (((floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
+			break ;
 	}
 }
 
@@ -251,7 +295,7 @@ int World::display()
     int centerX = _renderDistance / 2;
     int centerZ = _renderDistance / 2;
     
-    for (int layer = 0; layer < _renderDistance; layer += 2)
+    for (int layer = 0; layer < _renderDistance; layer += 1)
     {
         for (int dx = -layer; dx <= layer; ++dx)
         {
