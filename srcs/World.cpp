@@ -21,6 +21,7 @@ World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlin
 	_displayedChunk = new ChunkSlot[_maxRender * _maxRender];
 	bzero(_displayedChunk, sizeof(ChunkSlot) * _maxRender * _maxRender);
 	_renderDistance = RENDER_DISTANCE;
+	generateSpiralOrder();
 }
 
 World::~World()
@@ -288,40 +289,133 @@ Chunk *World::getChunk(vec2 position)
 	}
 	return nullptr;
 }
+void World::generateSpiralOrder()
+{
+    int centerX = _renderDistance / 2;
+    int centerZ = _renderDistance / 2;
+
+    _spiralOrder.clear();
+    _spiralOrder.reserve(_renderDistance * _renderDistance);
+
+    int x = centerX;
+    int z = centerZ;
+
+    _spiralOrder.emplace_back(x, z);
+
+    int dx = 1; // Start by going right
+    int dz = 0;
+
+    int steps = 1;
+    int stepCount = 0;
+    int directionChanges = 0;
+
+    while (_spiralOrder.size() < _renderDistance * _renderDistance)
+    {
+        // Move to the next position
+        x += dx;
+        z += dz;
+
+        // If within bounds, add to the spiral order
+        if (x >= 0 && x < _renderDistance && z >= 0 && z < _renderDistance)
+        {
+            _spiralOrder.emplace_back(x, z);
+        }
+
+        stepCount++;
+
+        // If we've completed the current segment length, change direction
+        if (stepCount == steps)
+        {
+            stepCount = 0;
+            directionChanges++;
+
+            // Change direction (Right → Down → Left → Up)
+            if (dx == 1 && dz == 0) { dx = 0; dz = 1; }   // Right → Down
+            else if (dx == 0 && dz == 1) { dx = -1; dz = 0; }  // Down → Left
+            else if (dx == -1 && dz == 0) { dx = 0; dz = -1; }  // Left → Up
+            else if (dx == 0 && dz == -1) { dx = 1; dz = 0; } // Up → Right
+
+            // Increase segment length every two turns
+            if (directionChanges % 2 == 0)
+            {
+                steps++;
+            }
+        }
+    }
+	std::cout << _spiralOrder.size() << std::endl;
+}
+
 int World::display()
 {
-	int triangleDrawn = 0;
-	int centerX = _renderDistance / 2;
-	int centerZ = _renderDistance / 2;
+    int triangleDrawn = 0;
 
-	for (int layer = 0; layer < _renderDistance; ++layer)
-	{
-		for (int dx = -layer; dx <= layer; ++dx)
-		{
-			int x = centerX + dx;
-			if (x < 0 || x >= _renderDistance) continue;
+    for (auto [x, z] : _spiralOrder)
+    {
+        Chunk* chunkToDisplay = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
+            chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
+        }
 
-			for (int dz = -layer; dz <= layer; ++dz)
-			{
-				int z = centerZ + dz;
-				if (z < 0 || z >= _renderDistance) continue;
+        if (chunkToDisplay)
+        {
+            triangleDrawn += chunkToDisplay->display();
+        }
+    }
 
-				Chunk* chunkToDisplay = nullptr;
-				{
-					std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
-					chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-				}
-
-				if (chunkToDisplay)
-				{
-					triangleDrawn += chunkToDisplay->display();
-				}
-			}
-		}
-	}
-
-	return triangleDrawn;
+    return triangleDrawn;
 }
+
+// int World::display()
+// {
+// 	int triangleDrawn = 0;
+// 	for (int x = 0; x < _renderDistance; x++)
+// 	{
+// 		for (int z = 0; z < _renderDistance; z++)
+// 		{
+// 			_displayedChunk[x + z * _renderDistance].mutex.lock();
+// 			if (_displayedChunk[x + z * _renderDistance].chunk)
+// 				triangleDrawn += _displayedChunk[x + z * _renderDistance].chunk->display();
+// 			_displayedChunk[x + z * _renderDistance].mutex.unlock();
+// 		}
+// 	}
+// 	return (triangleDrawn);
+// }
+
+// int World::display()
+// {
+// 	int triangleDrawn = 0;
+// 	int centerX = _renderDistance / 2;
+// 	int centerZ = _renderDistance / 2;
+
+// 	for (int layer = 0; layer < _renderDistance; ++layer)
+// 	{
+// 		for (int dx = -layer; dx <= layer; ++dx)
+// 		{
+// 			int x = centerX + dx;
+// 			if (x < 0 || x >= _renderDistance) continue;
+
+// 			for (int dz = -layer; dz <= layer; ++dz)
+// 			{
+// 				int z = centerZ + dz;
+// 				if (z < 0 || z >= _renderDistance) continue;
+
+// 				Chunk* chunkToDisplay = nullptr;
+// 				{
+// 					std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
+// 					chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
+// 				}
+
+// 				if (chunkToDisplay)
+// 				{
+// 					triangleDrawn += chunkToDisplay->display();
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	return triangleDrawn;
+// }
 
 int	World::getCachedChunksNumber()
 {

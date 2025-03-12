@@ -172,6 +172,7 @@ void StoneEngine::display()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
 	drawnTriangles = _world.display();
+	drawnTriangles = _world.display();
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
@@ -336,7 +337,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	(void)mods;
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
-	if (action == GLFW_PRESS && key == GLFW_KEY_KP_0) showTriangleMesh = !showTriangleMesh;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);

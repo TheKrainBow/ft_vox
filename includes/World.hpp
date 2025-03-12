@@ -39,6 +39,7 @@ private:
 		ChunkSlot									*_displayedChunk;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
+		std::vector<std::pair<int, int>>			_spiralOrder;
 	// Player related informations
 		Camera										*_camera;
 		int											_renderDistance;
@@ -72,4 +73,5 @@ private:
 	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 	void updateNeighbours(std::pair<int, int> pair);
 	void unloadChunk();
+	void generateSpiralOrder();
 };
