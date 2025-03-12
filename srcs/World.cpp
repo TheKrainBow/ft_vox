@@ -288,37 +288,39 @@ Chunk *World::getChunk(vec2 position)
 	}
 	return nullptr;
 }
-
 int World::display()
 {
-    int triangleDrawn = 0;
-    int centerX = _renderDistance / 2;
-    int centerZ = _renderDistance / 2;
-    
-    for (int layer = 0; layer < _renderDistance; layer += 1)
-    {
-        for (int dx = -layer; dx <= layer; ++dx)
-        {
-            for (int dz = -layer; dz <= layer; ++dz)
-            {
-                int x = centerX + dx;
-                int z = centerZ + dz;
+	int triangleDrawn = 0;
+	int centerX = _renderDistance / 2;
+	int centerZ = _renderDistance / 2;
 
-                if (x < 0 || x >= _renderDistance || z < 0 || z >= _renderDistance)
-                    continue;
+	for (int layer = 0; layer < _renderDistance; ++layer)
+	{
+		for (int dx = -layer; dx <= layer; ++dx)
+		{
+			int x = centerX + dx;
+			if (x < 0 || x >= _renderDistance) continue;
 
-				_displayedChunk[x + z * _renderDistance].mutex.lock();
-                Chunk* chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-                
-                if (chunkToDisplay)
-                {
+			for (int dz = -layer; dz <= layer; ++dz)
+			{
+				int z = centerZ + dz;
+				if (z < 0 || z >= _renderDistance) continue;
+
+				Chunk* chunkToDisplay = nullptr;
+				{
+					std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
+					chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
+				}
+
+				if (chunkToDisplay)
+				{
 					triangleDrawn += chunkToDisplay->display();
-                }
-				_displayedChunk[x + z * _renderDistance].mutex.unlock();
-            }
-        }
-    }
-    return triangleDrawn;
+				}
+			}
+		}
+	}
+
+	return triangleDrawn;
 }
 
 int	World::getCachedChunksNumber()

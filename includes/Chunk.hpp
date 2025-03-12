@@ -23,7 +23,7 @@ class Chunk
 		Chunk					*_south = nullptr;
 		Chunk					*_east = nullptr;
 		Chunk					*_west = nullptr;
-		bool					_isFullyLoaded;
+		std::atomic_bool		_isFullyLoaded;
 	public:
 		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager, bool isBorder);
 		~Chunk();
