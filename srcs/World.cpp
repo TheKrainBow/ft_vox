@@ -95,7 +95,7 @@ void World::unloadChunk()
 	_chunksListMutex.lock();
 	size_t listSize = _chunkList.size();
 	_chunksListMutex.unlock();
-
+// TODO: Unload perlin maps too/Fix segfault when coming back to removed terrain
 	Chunk *tempChunk = nullptr;
 	if (listSize >= CACHE_SIZE)
 	{
@@ -160,7 +160,7 @@ void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosi
 	_displayedChunk[x + z * _renderDistance].mutex.lock();
 	_displayedChunk[correctX + correctZ * renderDistance].chunk = chunk;
 	_displayedChunk[x + z * _renderDistance].mutex.unlock();
-	unloadChunk();
+	// unloadChunk();
 }
 
 int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)

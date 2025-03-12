@@ -12,6 +12,7 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	}
 	_subChunksMutex.unlock();
 	_position = position;
+	// std::cout << _position.x << "	" << _position.y << std::endl;
 	_north = _south = _east = _west = nullptr;
 	_isFullyLoaded = false;
 	getNeighbors(isBorder);
