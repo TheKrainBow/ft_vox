@@ -123,7 +123,8 @@ Chunk *Chunk::getWestChunk()
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
-	_isFullyLoaded = (_north && _south && _west && _east);
+	if (!_isFullyLoaded)
+		_isFullyLoaded = (_north && _south && _west && _east);
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
@@ -131,7 +132,8 @@ void Chunk::setNorthChunk(Chunk *chunk)
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
-	_isFullyLoaded = (_north && _south && _west && _east);
+	if (!_isFullyLoaded)
+		_isFullyLoaded = (_north && _south && _west && _east);
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
@@ -139,7 +141,8 @@ void Chunk::setSouthChunk(Chunk *chunk)
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
-	_isFullyLoaded = (_north && _south && _west && _east);
+	if (!_isFullyLoaded)
+		_isFullyLoaded = (_north && _south && _west && _east);
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
@@ -147,7 +150,8 @@ void Chunk::setEastChunk(Chunk *chunk)
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
-	_isFullyLoaded = (_north && _south && _west && _east);
+	if (!_isFullyLoaded)
+		_isFullyLoaded = (_north && _south && _west && _east);
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
