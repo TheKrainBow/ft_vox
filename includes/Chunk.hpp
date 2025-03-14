@@ -24,12 +24,14 @@ class Chunk
 		Chunk					*_east = nullptr;
 		Chunk					*_west = nullptr;
 		std::atomic_bool		_isFullyLoaded;
+		std::atomic_bool		_facesSent;
 	public:
 		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager, bool isBorder);
 		~Chunk();
 		void getNeighbors(bool isBorder);
 		SubChunk *getSubChunk(int y);
 		void sendFacesToDisplay();
+		bool isReady();
 		int display();
 		Chunk *getNorthChunk();
 		Chunk *getSouthChunk();

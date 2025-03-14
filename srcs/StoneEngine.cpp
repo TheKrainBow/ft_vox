@@ -172,7 +172,6 @@ void StoneEngine::display()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 
 	drawnTriangles = _world.display();
-	drawnTriangles = _world.display();
 
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)

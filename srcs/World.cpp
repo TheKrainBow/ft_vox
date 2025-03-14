@@ -225,14 +225,14 @@ void World::loadChunks(vec3 camPosition)
 			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
 		retBot = std::async(std::launch::async, 
 			std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
-		retTop.get();
-		retBot.get();
 		retRight = std::async(std::launch::async, 
 			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
 		retLeft = std::async(std::launch::async, 
 			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
 		retRight.get();
 		retLeft.get();
+		retTop.get();
+		retBot.get();
 		vec3 newPos = _camera->getWorldPosition();
 		vec3 camChunk(newPos.x / CHUNK_SIZE, newPos.y / CHUNK_SIZE, newPos.z / CHUNK_SIZE);
 		if (newPos.x < 0) camChunk.x--;
@@ -347,75 +347,59 @@ void World::generateSpiralOrder()
 
 int World::display()
 {
-    int triangleDrawn = 0;
+	int triangleDrawn = 0;
+	std::vector<std::pair<int, int>> retryChunks;
+	int retryCount = 0;
+	int maxRetries = 4;
 
-    for (auto [x, z] : _spiralOrder)
-    {
-        Chunk* chunkToDisplay = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
-            chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-        }
+	bool allChunksReady = false;
 
-        if (chunkToDisplay)
-        {
-            triangleDrawn += chunkToDisplay->display();
-        }
-    }
+	while (!allChunksReady && retryCount < maxRetries)
+	{
+		allChunksReady = true;
+		retryCount++;
 
-    return triangleDrawn;
+		for (auto [x, z] : _spiralOrder)
+		{
+			Chunk* chunkToDisplay = nullptr;
+			{
+				std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
+				chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
+			}
+
+			if (chunkToDisplay && chunkToDisplay->isReady())
+			{
+				triangleDrawn += chunkToDisplay->display();
+			}
+			else
+			{
+				retryChunks.emplace_back(x, z);
+				allChunksReady = false;
+			}
+		}
+
+		if (!allChunksReady)
+		{
+			for (auto [x, z] : retryChunks)
+			{
+				Chunk* chunkToDisplay = nullptr;
+				{
+					std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
+					chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
+				}
+
+				if (chunkToDisplay && chunkToDisplay->isReady())
+				{
+					triangleDrawn += chunkToDisplay->display();
+				}
+			}
+
+			retryChunks.clear();
+		}
+	}
+
+	return triangleDrawn;
 }
-
-// int World::display()
-// {
-// 	int triangleDrawn = 0;
-// 	for (int x = 0; x < _renderDistance; x++)
-// 	{
-// 		for (int z = 0; z < _renderDistance; z++)
-// 		{
-// 			_displayedChunk[x + z * _renderDistance].mutex.lock();
-// 			if (_displayedChunk[x + z * _renderDistance].chunk)
-// 				triangleDrawn += _displayedChunk[x + z * _renderDistance].chunk->display();
-// 			_displayedChunk[x + z * _renderDistance].mutex.unlock();
-// 		}
-// 	}
-// 	return (triangleDrawn);
-// }
-
-// int World::display()
-// {
-// 	int triangleDrawn = 0;
-// 	int centerX = _renderDistance / 2;
-// 	int centerZ = _renderDistance / 2;
-
-// 	for (int layer = 0; layer < _renderDistance; ++layer)
-// 	{
-// 		for (int dx = -layer; dx <= layer; ++dx)
-// 		{
-// 			int x = centerX + dx;
-// 			if (x < 0 || x >= _renderDistance) continue;
-
-// 			for (int dz = -layer; dz <= layer; ++dz)
-// 			{
-// 				int z = centerZ + dz;
-// 				if (z < 0 || z >= _renderDistance) continue;
-
-// 				Chunk* chunkToDisplay = nullptr;
-// 				{
-// 					std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
-// 					chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-// 				}
-
-// 				if (chunkToDisplay)
-// 				{
-// 					triangleDrawn += chunkToDisplay->display();
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	return triangleDrawn;
-// }
 
 int	World::getCachedChunksNumber()
 {

@@ -15,6 +15,7 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	// std::cout << _position.x << "	" << _position.y << std::endl;
 	_north = _south = _east = _west = nullptr;
 	_isFullyLoaded = false;
+	_facesSent = false;
 	getNeighbors(isBorder);
 	_isInit = true;
 }
@@ -92,13 +93,21 @@ SubChunk *Chunk::getSubChunk(int y)
 	return nullptr;
 }
 
+bool Chunk::isReady()
+{
+	return _isFullyLoaded && _facesSent;
+}
+
 void Chunk::sendFacesToDisplay()
 {
 	if (!_isFullyLoaded)
 		return ;
+	if (_facesSent)
+		return ;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	for (auto subChunk : _subChunks)
 		subChunk->sendFacesToDisplay();
+	_facesSent = true;
 }
 
 Chunk *Chunk::getNorthChunk()
