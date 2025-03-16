@@ -27,6 +27,19 @@ struct ChunkSlot
 
 class SubChunk;
 
+struct ChunkElement
+{
+	Chunk *chunk;
+	int priority;
+	int displayPos;
+};
+
+struct Compare {
+    bool operator()(const ChunkElement& a, const ChunkElement& b) const {
+        return a.priority > b.priority;
+    }
+};
+
 class World
 {
 private:
@@ -40,6 +53,7 @@ private:
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
 		std::vector<std::pair<int, int>>			_spiralOrder;
+
 	// Player related informations
 		Camera										*_camera;
 		int											_renderDistance;

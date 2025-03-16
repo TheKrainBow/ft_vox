@@ -158,9 +158,9 @@ void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosi
 		_chunks[pair] = chunk;
 		_chunksMutex.unlock();
 	}
-	_displayedChunk[x + z * _renderDistance].mutex.lock();
+	_displayedChunk[correctX + correctZ * renderDistance].mutex.lock();
 	_displayedChunk[correctX + correctZ * renderDistance].chunk = chunk;
-	_displayedChunk[x + z * _renderDistance].mutex.unlock();
+	_displayedChunk[correctX + correctZ * renderDistance].mutex.unlock();
 	// unloadChunk();
 }
 
@@ -229,10 +229,10 @@ void World::loadChunks(vec3 camPosition)
 			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
 		retLeft = std::async(std::launch::async, 
 			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
-		retRight.get();
-		retLeft.get();
 		retTop.get();
 		retBot.get();
+		retRight.get();
+		retLeft.get();
 		vec3 newPos = _camera->getWorldPosition();
 		vec3 camChunk(newPos.x / CHUNK_SIZE, newPos.y / CHUNK_SIZE, newPos.z / CHUNK_SIZE);
 		if (newPos.x < 0) camChunk.x--;
@@ -289,6 +289,7 @@ Chunk *World::getChunk(vec2 position)
 	}
 	return nullptr;
 }
+
 void World::generateSpiralOrder()
 {
     int centerX = _renderDistance / 2;
