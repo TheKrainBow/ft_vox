@@ -50,6 +50,7 @@ private:
 		std::mutex									_chunksMutex;
 		std::mutex									_chunksListMutex;
 		ChunkSlot									*_displayedChunk;
+		std::mutex									displayMutex;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
 		std::vector<std::pair<int, int>>			_spiralOrder;
@@ -60,7 +61,6 @@ private:
 		int											_maxRender = 1000;
 		bool										*_isRunning;
 		std::mutex									*_runningMutex;
-		std::mutex displayMutex;
 		std::atomic_bool							displayReady;
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
