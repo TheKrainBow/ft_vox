@@ -353,7 +353,6 @@ void World::generateSpiralOrder()
             }
         }
     }
-	std::cout << _spiralOrder.size() << std::endl;
 }
 
 int World::display()
@@ -361,7 +360,6 @@ int World::display()
 	int triangleDrawn = 0;
 	std::vector<std::pair<int, int>> retryChunks;
 	int retryCount = 0;
-	// int maxRetries = 10;
 
 	bool allChunksReady = false;
 
