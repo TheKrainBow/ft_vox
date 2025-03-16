@@ -60,6 +60,8 @@ private:
 		int											_maxRender = 1000;
 		bool										*_isRunning;
 		std::mutex									*_runningMutex;
+		std::mutex displayMutex;
+		std::atomic_bool							displayReady;
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
@@ -68,7 +70,6 @@ public:
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);
-	int	getLoadedChunksNumber();
 	int	getCachedChunksNumber();
 	void sendFacesToDisplay();
 	Chunk* getChunk(vec2 position);

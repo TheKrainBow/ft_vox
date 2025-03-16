@@ -135,14 +135,7 @@ void StoneEngine::display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
-	// glm::mat4 viewMatrix = glm::lookAt(
-	// 	camera.getPosition(),         // cam position
-	// 	camera.getCenter(),           // Look-at point
-	// 	glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
-	// );
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
-
-
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
@@ -160,8 +153,6 @@ void StoneEngine::display()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	// glBindTexture(GL_TEXTURE_2D, _textureManager.getMergedText());  // Bind the texture
-	// glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 	
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -170,9 +161,7 @@ void StoneEngine::display()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
-
 	drawnTriangles = _world.display();
-
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -419,7 +408,7 @@ int StoneEngine::initGLFW()
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
 	glfwMakeContextCurrent(_window);
-	glfwSwapInterval(0);
+	glfwSwapInterval(1);
 	if (!isWSL())
 		glfwSetCursorPosCallback(_window, mouseCallback);
 	return 1;
