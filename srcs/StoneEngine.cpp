@@ -408,7 +408,7 @@ int StoneEngine::initGLFW()
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
 	glfwMakeContextCurrent(_window);
-	glfwSwapInterval(1);
+	glfwSwapInterval(0);
 	if (!isWSL())
 		glfwSetCursorPosCallback(_window, mouseCallback);
 	return 1;
