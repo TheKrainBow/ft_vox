@@ -11,6 +11,7 @@ uniform mat4 projection;
 out vec2 TexCoord;
 flat out int TextureID;
 out vec3 Normal; // Output normal for lighting
+out vec3 FragPos; // Output fragment position for lighting
 
 void main()
 {
@@ -45,10 +46,10 @@ void main()
         basePos.zy = basePos.yz;
     }
 
-	if (direction == 0)
-	{
+    if (direction == 0)
+    {
         normal = vec3(0.0, 0.0, 1.0);
-	}
+    }
     if (direction == 1) // -X
     {
         basePos.x = -basePos.x + lengthX;
@@ -77,6 +78,7 @@ void main()
         normal = vec3(0.0, 1.0, 0.0);
     }
 
+    // Compute world position and transform normal to world space
     vec3 worldPosition = worldPos + basePos + instancePos;
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
@@ -86,4 +88,5 @@ void main()
     TexCoord = finalUV;
     TextureID = textureID;
     Normal = mat3(transpose(inverse(model))) * normal; // Transform normal to world space
+    FragPos = worldPosition; // Pass world position to fragment shader
 }
