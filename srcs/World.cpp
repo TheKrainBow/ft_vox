@@ -32,9 +32,9 @@ World::~World()
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 		delete it->second;
-	displayMutex.lock();
+	_displayMutex.lock();
 	delete [] _displayedChunk;
-	displayMutex.unlock();
+	_displayMutex.unlock();
 }
 
 NoiseGenerator &World::getNoiseGenerator(void)
@@ -129,6 +129,24 @@ void World::unloadChunk()
 		_chunksListMutex.lock();
 		_chunkList.erase(listIt);
 		_chunksListMutex.unlock();
+		_displayMutex.lock();
+		for (int i = 0; i < _maxRender * _maxRender; ++i)
+		{
+			_displayedChunk[i].mutex.lock();
+			if (_displayedChunk[i].chunk)
+			{
+				if (_displayedChunk[i].chunk == tempChunk)
+				{
+					_displayedChunk[i].chunk = nullptr;
+					delete tempChunk;
+					_displayedChunk[i].mutex.unlock();
+					_displayMutex.unlock();
+					return ;
+				}
+			}
+			_displayedChunk[i].mutex.unlock();
+		}
+		_displayMutex.unlock();
 		delete tempChunk;
 	}
 }
@@ -225,11 +243,7 @@ void World::loadChunks(vec3 camPosition)
 
 	_skipLoad = false;
 	
-	displayMutex.lock();
-	for (int i = 0; i < _maxRender * _maxRender; ++i)
-		_displayedChunk[i].chunk = nullptr;
-
-	displayMutex.unlock();
+	resetTerrain();
 	loadChunk(0, 0, renderDistance, 1, camPosition);
 	for (int render = 2; getIsRunning() && render <= renderDistance; render += 2)
 	{
@@ -358,6 +372,17 @@ void World::generateSpiralOrder()
     }
 }
 
+void World::resetTerrain()
+{
+	for (auto [x, z] : _spiralOrder)
+	{
+		_displayMutex.lock();
+		std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
+		_displayedChunk[x + z * _renderDistance].chunk = nullptr;
+		_displayMutex.unlock();
+	}
+}
+
 int World::display()
 {
 	int triangleDrawn = 0;
@@ -374,10 +399,10 @@ int World::display()
 		for (auto [x, z] : _spiralOrder)
 		{
 			Chunk* chunkToDisplay = nullptr;
-			displayMutex.lock();
+			_displayMutex.lock();
 			std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
 			chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-			displayMutex.unlock();
+			_displayMutex.unlock();
 
 			if (chunkToDisplay && chunkToDisplay->isReady())
 			{
@@ -395,10 +420,10 @@ int World::display()
 			for (auto [x, z] : retryChunks)
 			{
 				Chunk* chunkToDisplay = nullptr;
-				displayMutex.lock();
+				_displayMutex.lock();
 				std::lock_guard<std::mutex> lock(_displayedChunk[x + z * _renderDistance].mutex);
 				chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-				displayMutex.unlock();
+				_displayMutex.unlock();
 
 				if (chunkToDisplay && chunkToDisplay->isReady())
 				{

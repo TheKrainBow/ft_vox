@@ -50,7 +50,7 @@ private:
 		std::mutex									_chunksMutex;
 		std::mutex									_chunksListMutex;
 		ChunkSlot									*_displayedChunk;
-		std::mutex									displayMutex;
+		std::mutex									_displayMutex;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
 		std::vector<std::pair<int, int>>			_spiralOrder;
@@ -89,4 +89,5 @@ private:
 	void updateNeighbours(std::pair<int, int> pair);
 	void unloadChunk();
 	void generateSpiralOrder();
+	void resetTerrain();
 };
