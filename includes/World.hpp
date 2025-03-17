@@ -71,7 +71,6 @@ public:
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);
 	int	getCachedChunksNumber();
-	void sendFacesToDisplay();
 	Chunk* getChunk(vec2 position);
 	SubChunk* getSubChunk(vec3 position);
 	int display();

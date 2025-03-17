@@ -99,6 +99,7 @@ bool World::getIsRunning()
 
 void World::unloadChunk()
 {
+	//TODO free perlin map
 	_chunksListMutex.lock();
 	if (_chunkList.size() < CACHE_SIZE)
 	{
