@@ -100,54 +100,55 @@ bool World::getIsRunning()
 void World::unloadChunk()
 {
 	_chunksListMutex.lock();
-	size_t listSize = _chunkList.size();
-	_chunksListMutex.unlock();
-// TODO: Unload perlin maps too/Fix segfault when coming back to removed terrain
-	Chunk *tempChunk = nullptr;
-	if (listSize >= CACHE_SIZE)
+	if (_chunkList.size() < CACHE_SIZE)
 	{
-		_chunksListMutex.lock();
-		auto listIt = _chunkList.begin();
-		auto listItend = _chunkList.end();
-		if (listIt != listItend)
-			tempChunk = (*listIt);
 		_chunksListMutex.unlock();
-		if (!tempChunk)
-			return ;
-		vec2 pos = tempChunk->getPosition();
-		std::pair<int, int> chunkPair(pos.x, pos.y);
+		return;
+	}
 
+	// Get player position in chunk coordinates
+	vec3 playerPos = _camera->getWorldPosition();
+	int playerChunkX = playerPos.x / CHUNK_SIZE;
+	int playerChunkZ = playerPos.z / CHUNK_SIZE;
+	if (playerPos.x < 0) playerChunkX--;
+	if (playerPos.z < 0) playerChunkZ--;
+
+	// Find the farthest chunk
+	auto farthestChunkIt = _chunkList.end();
+	float maxDistance = -1.0f;
+	for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it)
+	{
+		Chunk* chunk = *it;
+		int chunkX = chunk->getPosition().x;
+		int chunkZ = chunk->getPosition().y;
+		float distance = sqrt(pow(chunkX - playerChunkX, 2) + pow(chunkZ - playerChunkZ, 2));
+		if (distance > maxDistance)
+		{
+			maxDistance = distance;
+			farthestChunkIt = it;
+		}
+	}
+
+	if (farthestChunkIt != _chunkList.end())
+	{
+		Chunk* chunkToRemove = *farthestChunkIt;
+		// Remove from _chunkList
+		_chunkList.erase(farthestChunkIt);
+		_chunksListMutex.unlock();
+
+		std::pair<int, int> key(chunkToRemove->getPosition().x, chunkToRemove->getPosition().y);
+
+		// Remove from _chunks
 		_chunksMutex.lock();
-		auto chunksIt = _chunks.find(chunkPair);
-		auto chunksItend = _chunks.end();
-
-		if (chunksIt == chunksItend)
-			return _chunksMutex.unlock();
-		_chunks.erase(chunksIt);
+		_chunks.erase(key);
 		_chunksMutex.unlock();
 
-		_chunksListMutex.lock();
-		_chunkList.erase(listIt);
+		// Clean up memory
+		delete chunkToRemove;
+	}
+	else
+	{
 		_chunksListMutex.unlock();
-		_displayMutex.lock();
-		for (int i = 0; i < _maxRender * _maxRender; ++i)
-		{
-			_displayedChunk[i].mutex.lock();
-			if (_displayedChunk[i].chunk)
-			{
-				if (_displayedChunk[i].chunk == tempChunk)
-				{
-					_displayedChunk[i].chunk = nullptr;
-					delete tempChunk;
-					_displayedChunk[i].mutex.unlock();
-					_displayMutex.unlock();
-					return ;
-				}
-			}
-			_displayedChunk[i].mutex.unlock();
-		}
-		_displayMutex.unlock();
-		delete tempChunk;
 	}
 }
 
@@ -173,7 +174,7 @@ void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosi
 			chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager, true);
 		else
 			chunk = new Chunk(vec2(pair.first, pair.second), _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager, false);
-		
+
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
@@ -185,7 +186,7 @@ void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosi
 	_displayedChunk[correctX + correctZ * renderDistance].mutex.lock();
 	_displayedChunk[correctX + correctZ * renderDistance].chunk = chunk;
 	_displayedChunk[correctX + correctZ * renderDistance].mutex.unlock();
-	// unloadChunk();
+	unloadChunk();
 }
 
 int World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
