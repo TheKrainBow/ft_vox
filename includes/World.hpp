@@ -69,10 +69,10 @@ public:
 	void loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
-	char getBlock(vec3 position);
+	char getBlock(ivec3 position);
 	int	getCachedChunksNumber();
-	Chunk* getChunk(vec2 position);
-	SubChunk* getSubChunk(vec3 position);
+	Chunk* getChunk(ivec2 position);
+	SubChunk* getSubChunk(ivec3 position);
 	int display();
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
