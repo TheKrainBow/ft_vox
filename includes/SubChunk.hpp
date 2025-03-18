@@ -20,7 +20,7 @@ class SubChunk
 			Direction	direction;
 		} Face;
 	private:
-		ivec3				_position;
+		vec3				_position;
 		std::vector<char>	_blocks;
 		double				_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
 		World				&_world;
@@ -37,29 +37,29 @@ class SubChunk
 		std::vector<int>	_vertexData;
 		TextureManager		&_textManager;
 	public:
-		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
+		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
 		void setupBuffers();
 		int display(void);
 		void addTextureVertex(Face face);
-		void addFace(ivec3 position, Direction dir, TextureType texture);
+		void addFace(vec3 position, Direction dir, TextureType texture);
 		void loadHeight();
 		void loadBiome();
-		ivec3 getPosition(void);
-	    char getBlock(ivec3 position);
+		vec3 getPosition(void);
+	    char getBlock(vec3 position);
 		void sendFacesToDisplay();
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		// void renderBoundaries() const;
 	private:
-		void addBlock(ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
-		void addUpFace(ivec3 position, TextureType texture);
-		void addDownFace(ivec3 position, TextureType texture);
-		void addNorthFace(ivec3 position, TextureType texture);
-		void addSouthFace(ivec3 position, TextureType texture);
-		void addEastFace(ivec3 position, TextureType texture);
-		void addWestFace(ivec3 position, TextureType texture);
+		void addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
+		void addUpFace(vec3 position, TextureType texture);
+		void addDownFace(vec3 position, TextureType texture);
+		void addNorthFace(vec3 position, TextureType texture);
+		void addSouthFace(vec3 position, TextureType texture);
+		void addEastFace(vec3 position, TextureType texture);
+		void addWestFace(vec3 position, TextureType texture);
 	
 		void processFaces();
 		void processUpVertex();

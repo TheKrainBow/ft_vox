@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 position, PerlinMap *perlinMap, World &world, TextureManager &textureManager, bool isBorder) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &textureManager, bool isBorder) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
@@ -33,25 +33,25 @@ void Chunk::getNeighbors(bool isBorder)
 		return ;
 	if (!_north)
 	{
-		_north = _world.getChunk(ivec2(_position.x + 1, _position.y));
+		_north = _world.getChunk(vec2((int)_position.x + 1, (int)_position.y));
 		if (_north)
 			_north->setSouthChunk(this);
 	}
 	if (!_south)
 	{
-		_south = _world.getChunk(ivec2(_position.x - 1, _position.y));
+		_south = _world.getChunk(vec2((int)_position.x - 1, (int)_position.y));
 		if (_south)
 			_south->setNorthChunk(this);
 	}
 	if (!_east)
 	{
-		_east = _world.getChunk(ivec2(_position.x, _position.y + 1));
+		_east = _world.getChunk(vec2((int)_position.x, (int)_position.y + 1));
 		if (_east)
 			_east->setWestChunk(this);
 	}
 	if (!_west)
 	{
-		_west = _world.getChunk(ivec2(_position.x, _position.y - 1));
+		_west = _world.getChunk(vec2((int)_position.x, (int)_position.y - 1));
 		if (_west)
 			_west->setEastChunk(this);
 	}
@@ -59,7 +59,7 @@ void Chunk::getNeighbors(bool isBorder)
 	sendFacesToDisplay();
 }
 
-ivec2 Chunk::getPosition()
+vec2 Chunk::getPosition()
 {
 	return _position;
 }

@@ -12,7 +12,7 @@ class World;
 class Chunk
 {
 	private:
-		ivec2					_position;
+		vec2					_position;
 		std::vector<SubChunk *>	_subChunks;
 		std::mutex				_subChunksMutex;
 		bool					_isInit = false;
@@ -26,7 +26,7 @@ class Chunk
 		std::atomic_bool		_isFullyLoaded;
 		std::atomic_bool		_facesSent;
 	public:
-		Chunk(ivec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager, bool isBorder);
+		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager, bool isBorder);
 		~Chunk();
 		void getNeighbors(bool isBorder);
 		SubChunk *getSubChunk(int y);
@@ -41,5 +41,5 @@ class Chunk
 		void setSouthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);
 		void setWestChunk(Chunk *chunk);
-		ivec2 getPosition();
+		vec2 getPosition();
 };
