@@ -18,9 +18,9 @@ vec3 World::calculateBlockPos(vec3 position) const
 
 World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera)
 {
-	_displayedChunk = new ChunkSlot[_maxRender * _maxRender];
+	_displayedChunk = new ChunkSlot[RENDER_DISTANCE * RENDER_DISTANCE];
 
-	for (int i = 0; i < _maxRender * _maxRender; ++i)
+	for (int i = 0; i < RENDER_DISTANCE * RENDER_DISTANCE; ++i)
 		_displayedChunk[i].chunk = nullptr;
 	
 	_renderDistance = RENDER_DISTANCE;
@@ -99,7 +99,8 @@ bool World::getIsRunning()
 
 void World::unloadChunk()
 {
-	//TODO free perlin map
+	//TODO Save or do not unload modified chunks (delete block)
+	//(Add a isModified boolean in Chunk or SubChunk class)
 	_chunksListMutex.lock();
 	if (_chunkList.size() < CACHE_SIZE)
 	{
@@ -144,6 +145,7 @@ void World::unloadChunk()
 		_chunks.erase(key);
 		_chunksMutex.unlock();
 
+		_perlinGenerator.removePerlinMap(key.first, key.second);
 		// Clean up memory
 		delete chunkToRemove;
 	}
