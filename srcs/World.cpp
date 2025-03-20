@@ -101,6 +101,8 @@ void World::unloadChunk()
 {
 	//TODO Save or do not unload modified chunks (delete block)
 	//(Add a isModified boolean in Chunk or SubChunk class)
+	//TODO Protect from display segv when cache_size is smaller than double the surface
+	// (defines to change to reproduce: CHACHE_SIZE 2500 RENDER_DISTANCE 61)
 	_chunksListMutex.lock();
 	if (_chunkList.size() < CACHE_SIZE)
 	{
