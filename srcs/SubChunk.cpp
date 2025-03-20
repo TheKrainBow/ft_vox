@@ -5,7 +5,7 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wor
 	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
-	bzero(_blocks.data(), _blocks.size());
+	std::fill(_blocks.begin(), _blocks.end(), 0);
 	loadHeight();
 	loadBiome();
 }
@@ -229,12 +229,14 @@ void SubChunk::clearFaces() {
 	{
 		_faces[i].clear();
 	}
+	_vertexData.clear();
+	_hasSentFaces = false;
 }
 
 void SubChunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
-		return ;
+		clearFaces();
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)

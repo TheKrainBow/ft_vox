@@ -51,6 +51,7 @@ class SubChunk
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
+		void clearFaces();
 		// void renderBoundaries() const;
 	private:
 		void addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
@@ -68,7 +69,6 @@ class SubChunk
 		void processSouthVertex();
 		void processEastVertex();
 		void processWestVertex();
-		void clearFaces();
 		void initGLBuffer();
 };
 

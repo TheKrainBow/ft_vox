@@ -12,11 +12,11 @@ Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &
 	}
 	_subChunksMutex.unlock();
 	_position = position;
-	// std::cout << _position.x << "	" << _position.y << std::endl;
 	_north = _south = _east = _west = nullptr;
 	_isFullyLoaded = false;
 	_facesSent = false;
-	getNeighbors(isBorder);
+	_isBorder = isBorder;
+	getNeighbors();
 	_isInit = true;
 }
 
@@ -27,7 +27,7 @@ Chunk::~Chunk()
 	_subChunks.clear();
 }
 
-void Chunk::getNeighbors(bool isBorder)
+void Chunk::getNeighbors()
 {
 	if (_isFullyLoaded)
 		return ;
@@ -55,7 +55,7 @@ void Chunk::getNeighbors(bool isBorder)
 		if (_west)
 			_west->setEastChunk(this);
 	}
-	_isFullyLoaded = isBorder || (_north && _south && _west && _east);
+	_isFullyLoaded = (_north && _south && _west && _east);
 	sendFacesToDisplay();
 }
 
@@ -66,7 +66,7 @@ vec2 Chunk::getPosition()
 
 int Chunk::display()
 {
-	if (!_isFullyLoaded)
+	if (!_isFullyLoaded && !_isBorder)
 		return (0);
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	int triangleDrawn = 0;
@@ -95,12 +95,12 @@ SubChunk *Chunk::getSubChunk(int y)
 
 bool Chunk::isReady()
 {
-	return _isFullyLoaded && _facesSent;
+	return (_isFullyLoaded || _isBorder) && _facesSent;
 }
 
 void Chunk::sendFacesToDisplay()
 {
-	if (!_isFullyLoaded)
+	if (!_isFullyLoaded && !_isBorder)
 		return ;
 	if (_facesSent)
 		return ;
@@ -133,35 +133,51 @@ Chunk *Chunk::getWestChunk()
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
-	if (!_isFullyLoaded)
-		_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
+
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded && _isBorder)
+	{
+		_isBorder = false;
+		_facesSent = false;
+	}
+	sendFacesToDisplay();
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
-	if (!_isFullyLoaded)
-		_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
+
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded && _isBorder)
+	{
+		_isBorder = false;
+		_facesSent = false;
+	}
+	sendFacesToDisplay();
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
-	if (!_isFullyLoaded)
-		_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
+
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded && _isBorder)
+	{
+		_isBorder = false;
+		_facesSent = false;
+	}
+	sendFacesToDisplay();
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
-	if (!_isFullyLoaded)
-		_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
+
+	_isFullyLoaded = (_north && _south && _west && _east);
+	if (_isFullyLoaded && _isBorder)
+	{
+		_isBorder = false;
+		_facesSent = false;
+	}
+	sendFacesToDisplay();
 }
