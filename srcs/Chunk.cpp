@@ -94,6 +94,7 @@ void Chunk::getNeighbors()
 	chrono.printChronos();
 }
 
+
 vec2 Chunk::getPosition()
 {
 	return _position;
@@ -153,8 +154,6 @@ void Chunk::setNorthChunk(Chunk *chunk)
 		_isBorder = false;
 		_facesSent = false;
 	}
-	sendFacesToDisplay();
-	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
@@ -169,8 +168,6 @@ void Chunk::setSouthChunk(Chunk *chunk)
 		_isBorder = false;
 		_facesSent = false;
 	}
-	sendFacesToDisplay();
-	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
@@ -185,8 +182,6 @@ void Chunk::setEastChunk(Chunk *chunk)
 		_isBorder = false;
 		_facesSent = false;
 	}
-	sendFacesToDisplay();
-	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
@@ -201,8 +196,6 @@ void Chunk::setWestChunk(Chunk *chunk)
 		_isBorder = false;
 		_facesSent = false;
 	}
-	sendFacesToDisplay();
-	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
 	if (_isFullyLoaded)
 		sendFacesToDisplay();
 }
