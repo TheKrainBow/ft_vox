@@ -121,20 +121,15 @@ char SubChunk::getBlock(vec3 position)
 
 void SubChunk::addDownFace(vec3 position, TextureType texture)
 {
+	int x = _position.x * CHUNK_SIZE + position.x;
+	int y = _position.y * CHUNK_SIZE + position.y;
+	int z = _position.z * CHUNK_SIZE + position.z;
 	char block = 0;
 	if (position.y > 0)
 		block = getBlock({position.x, position.y - 1, position.z});
 	else
-	{
-		SubChunk *chunk = _chunk.getSubChunk(_position.y - 1);
-		if (!chunk)
-			block = '*';
-		else
-		{
-			chunk->getBlock({position.x, CHUNK_SIZE - 1, position.z});
-		}
-	}
-	if (block == 0)
+		block = _world.getBlock({x, y - 1, z});
+	if (block == 0 && !_chunk.getSubChunk(_position.y - 1))
 		addFace(position, DOWN, texture);
 }
 
