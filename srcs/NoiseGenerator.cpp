@@ -118,6 +118,8 @@ PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int re
 	newMap->map = new double[size * size];
 	newMap->resolution = resolution;
 	newMap->position = vec2(startX, startZ);
+	newMap->heighest = 0;
+	newMap->lowest = 256;
 
 	for (int x = 0; x < size; x += resolution)
 		for (int z = 0; z < size; z += resolution)
