@@ -4,8 +4,8 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wor
 {
 	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-	memcpy(_perlinMap, perlinMap->map, (sizeof(double) * perlinMap->size * perlinMap->size));
 	std::fill(_blocks.begin(), _blocks.end(), 0);
+	_perlinMap = &perlinMap->map;
 	loadHeight();
 	loadBiome();
 }
@@ -55,7 +55,7 @@ void SubChunk::loadHeight()
 		{
 			for (int z = 0; z < CHUNK_SIZE ; z++)
 			{
-				double height = _perlinMap[z * CHUNK_SIZE + x];
+				double height = (*_perlinMap)[z * CHUNK_SIZE + x];
 				size_t maxHeight = (size_t)(height);
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = 'S';
@@ -121,15 +121,19 @@ char SubChunk::getBlock(vec3 position)
 
 void SubChunk::addDownFace(vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-
 	char block = 0;
 	if (position.y > 0)
 		block = getBlock({position.x, position.y - 1, position.z});
 	else
-		block = _world.getBlock(vec3(x, y - 1, z));
+	{
+		SubChunk *chunk = _chunk.getSubChunk(_position.y - 1);
+		if (!chunk)
+			block = '*';
+		else
+		{
+			chunk->getBlock({position.x, CHUNK_SIZE - 1, position.z});
+		}
+	}
 	if (block == 0)
 		addFace(position, DOWN, texture);
 }

@@ -5,6 +5,7 @@
 #include "TextureManager.hpp"
 #include "define.hpp"
 #include "World.hpp"
+#include "Chrono.hpp"
 
 class BiomeGenerator;
 class World;
@@ -22,7 +23,7 @@ class SubChunk
 	private:
 		vec3				_position;
 		std::vector<char>	_blocks;
-		double				_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
+		double				**_perlinMap;
 		World				&_world;
 		Chunk				&_chunk;
 
@@ -36,6 +37,7 @@ class SubChunk
 		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
 		TextureManager		&_textManager;
+		Chrono chrono;
 	public:
 		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
