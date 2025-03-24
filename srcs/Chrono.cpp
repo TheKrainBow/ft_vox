@@ -10,7 +10,9 @@ void Chrono::startChrono(int index, std::string label)
     Chrono::ChronoData newChrono;
     newChrono.start = std::chrono::high_resolution_clock::now(); 
     newChrono.label = label;
-    _chronos[index] = newChrono;
+	chronosMutex.lock();
+	_chronos[index] = newChrono;
+	chronosMutex.unlock();
 }
 
 void Chrono::stopChrono(int index)
@@ -20,6 +22,7 @@ void Chrono::stopChrono(int index)
 
 void Chrono::printChronos(void)
 {
+	std::lock_guard<std::mutex> lock(mic);
     for (auto &chrono : _chronos)
     {        
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(chrono.second.end - chrono.second.start);

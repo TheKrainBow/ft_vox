@@ -3,6 +3,7 @@
 #include <chrono>
 #include <string>
 #include <map>
+#include <mutex>
 
 class Chrono
 {
@@ -18,6 +19,8 @@ private:
         CHUNK_LOADING,
         TOTAL_CHUNK_LOADING,
     };
+	std::mutex	mic;
+	std::mutex chronosMutex;
 public:
     Chrono();
     ~Chrono();
