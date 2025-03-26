@@ -5,6 +5,8 @@
 #include "World.hpp"
 #include "TextureManager.hpp"
 #include "SubChunk.hpp"
+#include "Chrono.hpp"
+#include <future>
 
 class SubChunk;
 class World;
@@ -26,6 +28,7 @@ class Chunk
 		std::atomic_bool		_isFullyLoaded;
 		std::atomic_bool		_isBorder;
 		std::atomic_bool		_facesSent;
+		Chrono chrono;
 	public:
 		Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &_textureManager, bool isBorder);
 		~Chunk();

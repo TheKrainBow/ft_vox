@@ -1,17 +1,16 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(vec2 position, PerlinMap *perlinMap, World &world, TextureManager &textureManager, bool isBorder) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, bool isBorder) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
-	_subChunksMutex.lock();
-	for (int y = (perlinMap->lowest) - 1 ; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
+	for (int y = (perlinMap->lowest) - 256; y < (perlinMap->heighest); y += CHUNK_SIZE)
 	{
-		SubChunk *newChunk = new SubChunk(vec3(position.x, y / CHUNK_SIZE, position.y), perlinMap, *this, world, textureManager);
-		_subChunks.push_back(newChunk);
+		_subChunksMutex.lock();
+		_subChunks.emplace_back(new SubChunk({pos.x, y / CHUNK_SIZE, pos.y}, perlinMap, *this, world, textureManager));
+		_subChunksMutex.unlock();
 	}
-	_subChunksMutex.unlock();
-	_position = position;
+	_position = pos;
 	_north = _south = _east = _west = nullptr;
 	_isFullyLoaded = false;
 	_facesSent = false;
@@ -57,6 +56,42 @@ void Chunk::getNeighbors()
 	}
 	_isFullyLoaded = (_north && _south && _west && _east);
 	sendFacesToDisplay();
+	// chrono.startChrono(2, "Getting chunks");
+    std::future<Chunk *> retNorth = std::async(std::launch::async, [this]() {
+        return _world.getChunk({_position.x + 1, _position.y});
+    });
+
+    std::future<Chunk *> retSouth = std::async(std::launch::async, [this]() {
+        return _world.getChunk({_position.x - 1, _position.y});
+    });
+
+    std::future<Chunk *> retEast = std::async(std::launch::async, [this]() {
+        return _world.getChunk({_position.x, _position.y + 1});
+    });
+
+    std::future<Chunk *> retWest = std::async(std::launch::async, [this]() {
+        return _world.getChunk({_position.x, _position.y - 1});
+    });
+
+    // Wait for all futures and assign the results
+    _north = retNorth.get();
+    if (_north) _north->setSouthChunk(this);
+
+    _south = retSouth.get();
+    if (_south) _south->setNorthChunk(this);
+
+    _east = retEast.get();
+    if (_east) _east->setWestChunk(this);
+
+    _west = retWest.get();
+    if (_west) _west->setEastChunk(this);
+
+	// chrono.stopChrono(2);
+    _isFullyLoaded = (_north && _south && _west && _east);
+	chrono.startChrono(3, "Sending faces");
+    sendFacesToDisplay();
+	chrono.stopChrono(3);
+	chrono.printChronos();
 }
 
 vec2 Chunk::getPosition()
@@ -100,34 +135,12 @@ bool Chunk::isReady()
 
 void Chunk::sendFacesToDisplay()
 {
-	if (!_isFullyLoaded && !_isBorder)
-		return ;
 	if (_facesSent)
 		return ;
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
-	for (auto subChunk : _subChunks)
+	for (auto &subChunk : _subChunks)
 		subChunk->sendFacesToDisplay();
 	_facesSent = true;
-}
-
-Chunk *Chunk::getNorthChunk()
-{
-	return _north;
-}
-
-Chunk *Chunk::getSouthChunk()
-{
-	return _south;
-}
-
-Chunk *Chunk::getEastChunk()
-{
-	return _east;
-}
-
-Chunk *Chunk::getWestChunk()
-{
-	return _west;
 }
 
 void Chunk::setNorthChunk(Chunk *chunk)
@@ -141,6 +154,9 @@ void Chunk::setNorthChunk(Chunk *chunk)
 		_facesSent = false;
 	}
 	sendFacesToDisplay();
+	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
@@ -154,6 +170,9 @@ void Chunk::setSouthChunk(Chunk *chunk)
 		_facesSent = false;
 	}
 	sendFacesToDisplay();
+	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
@@ -167,6 +186,9 @@ void Chunk::setEastChunk(Chunk *chunk)
 		_facesSent = false;
 	}
 	sendFacesToDisplay();
+	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
@@ -180,4 +202,7 @@ void Chunk::setWestChunk(Chunk *chunk)
 		_facesSent = false;
 	}
 	sendFacesToDisplay();
+	_isFullyLoaded = (_isFullyLoaded || (_north && _south && _west && _east));
+	if (_isFullyLoaded)
+		sendFacesToDisplay();
 }
