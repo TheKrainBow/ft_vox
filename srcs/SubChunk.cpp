@@ -51,9 +51,9 @@ void SubChunk::loadHeight()
 	if (_loaded) return ;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
-		for (int x = 0; x < CHUNK_SIZE ; x++)
+		for (int z = 0; z < CHUNK_SIZE ; z++)
 		{
-			for (int z = 0; z < CHUNK_SIZE ; z++)
+			for (int x = 0; x < CHUNK_SIZE ; x++)
 			{
 				double height = (*_perlinMap)[z * CHUNK_SIZE + x];
 				size_t maxHeight = (size_t)(height);
@@ -121,44 +121,54 @@ char SubChunk::getBlock(vec3 position)
 
 void SubChunk::addDownFace(vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
 	char block = 0;
 	if (position.y > 0)
 		block = getBlock({position.x, position.y - 1, position.z});
 	else
-		block = _world.getBlock({x, y - 1, z});
-	if (block == 0 && !_chunk.getSubChunk(_position.y - 1))
+	{
+		SubChunk *underChunk = nullptr;
+		underChunk = _chunk.getSubChunk(_position.y - 1);
+		if (!underChunk)
+			block = '/';
+		else
+			block = underChunk->getBlock({position.x, CHUNK_SIZE - 1, position.z});
+	}
+	if (block == 0)
 		addFace(position, DOWN, texture);
 }
 
 void SubChunk::addUpFace(vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-
 	char block = 0;
 	if (position.y != (CHUNK_SIZE - 1))
 		block = getBlock({position.x, position.y + 1, position.z});
 	else
-		block = _world.getBlock(vec3(x, y + 1, z));
+	{
+		SubChunk *overChunk = nullptr;
+		overChunk = _chunk.getSubChunk(_position.y + 1);
+		if (overChunk)
+			block = overChunk->getBlock({position.x, 0, position.z});
+	}
 	if (block == 0)
 		addFace(position, UP, texture);
 }
 
 void SubChunk::addNorthFace(vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
+	Chunk *northChunk = nullptr;
+	SubChunk *subChunk = nullptr;
 
 	char block = 0;
 	if (position.z != 0)
 		block = getBlock({position.x, position.y, position.z - 1});
 	else
-		block = _world.getBlock(vec3(x, y, z - 1));
+	{
+		northChunk = _world.getChunk({_position.x, _position.z + 1});
+		if (northChunk)
+			subChunk = northChunk->getSubChunk(_position.y);
+		if (subChunk)
+			block = subChunk->getBlock({position.x, position.y, CHUNK_SIZE - 1});
+	}
 	if (block == 0)
 		addFace(position, NORTH, texture);
 }

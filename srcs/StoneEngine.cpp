@@ -174,10 +174,9 @@ void StoneEngine::display()
 
 void StoneEngine::updateChunks()
 {
-	chronoHelper.startChrono(0, "Update chunks");
+	chronoHelper.startChrono(0, "Load chunks");
 	_world.loadChunks(camera.getWorldPosition());
 	chronoHelper.stopChrono(0);
-	// std::cout << "Cached Chunks: " << _world.getCachedChunksNumber() << std::endl;
 	chronoHelper.printChronos();
 }
 

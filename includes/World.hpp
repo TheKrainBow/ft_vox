@@ -4,7 +4,9 @@
 #include "SubChunk.hpp"
 #include "Chunk.hpp"
 #include "Camera.hpp"
+#include "Chrono.hpp"
 #include <map>
+#include <atomic>
 
 class Chunk;
 
@@ -50,7 +52,9 @@ private:
 		std::mutex									_chunksMutex;
 		std::mutex									_chunksListMutex;
 		ChunkSlot									*_displayedChunk;
-		std::mutex									_displayMutex;
+		std::mutex									_displayChunkMutex;
+		std::queue<Chunk*>							_displayQueue;
+		std::mutex									_displayQueueMutex;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
 		std::vector<std::pair<int, int>>			_spiralOrder;
@@ -62,6 +66,7 @@ private:
 		bool										*_isRunning;
 		std::mutex									*_runningMutex;
 		std::atomic_bool							displayReady;
+		Chrono chronoHelper;
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
@@ -81,12 +86,13 @@ public:
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 	bool getIsRunning();
-	int loadTopChunks(int renderDistance, int render, vec3 camPosition);
-	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
-	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
-	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
+	void loadTopChunks(int renderDistance, int render, vec3 camPosition);
+	void loadRightChunks(int renderDistance, int render, vec3 camPosition);
+	void loadBotChunks(int renderDistance, int render, vec3 camPosition);
+	void loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 	void updateNeighbours(std::pair<int, int> pair);
 	void unloadChunk();
 	void generateSpiralOrder();
 	void resetTerrain();
+	bool hasMoved(vec3 oldPos);
 };
