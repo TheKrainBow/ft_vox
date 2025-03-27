@@ -27,7 +27,8 @@ SRC_NAME	=	stb_truetype.cpp		\
 				SplineInterpolator.cpp	\
 				World.cpp				\
 				Chrono.cpp				\
-				Shader.cpp
+				Shader.cpp				\
+				ThreadPool.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

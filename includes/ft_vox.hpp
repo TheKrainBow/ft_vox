@@ -27,6 +27,8 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <list>
+#include <future>
+#include <type_traits>
 
 using namespace glm;
 

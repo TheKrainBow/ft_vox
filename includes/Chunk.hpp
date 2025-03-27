@@ -23,7 +23,6 @@ class Chunk
 		World								&_world;
 		TextureManager						&_textureManager;
 		PerlinMap							*_perlinMap;
-		std::atomic_bool					_facesSent;
 		Chrono								_chrono;
 		Chunk					*_north = nullptr;
 		Chunk					*_south = nullptr;

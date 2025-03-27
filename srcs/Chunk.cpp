@@ -6,9 +6,7 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 	_perlinMap = perlinMap;
 	for (int y = (perlinMap->lowest) - 64; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
 	{
-		_subChunksMutex.lock();
 		_subChunks[(y / CHUNK_SIZE)] = new SubChunk({pos.x, y / CHUNK_SIZE, pos.y}, perlinMap, *this, world, textureManager);
-		_subChunksMutex.unlock();
 	}
 	_position = pos;
 	_facesSent = false;

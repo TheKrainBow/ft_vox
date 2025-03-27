@@ -273,6 +273,7 @@ void StoneEngine::updateChunkWorker()
 			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
 			{
 				updateChunks();
+				
 				firstIteration = false;
 			}
 

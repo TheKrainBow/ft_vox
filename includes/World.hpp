@@ -5,6 +5,7 @@
 #include "Chunk.hpp"
 #include "Camera.hpp"
 #include "Chrono.hpp"
+#include "ThreadPool.hpp"
 #include <map>
 #include <atomic>
 
@@ -58,8 +59,8 @@ private:
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
 		std::vector<std::pair<int, int>>			_spiralOrder;
-
-	// Player related informations
+		
+		// Player related informations
 		Camera										*_camera;
 		int											_renderDistance;
 		int											_maxRender = 1000;
@@ -67,6 +68,7 @@ private:
 		std::mutex									*_runningMutex;
 		std::atomic_bool							displayReady;
 		Chrono chronoHelper;
+		ThreadPool 									_threadPool;
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();

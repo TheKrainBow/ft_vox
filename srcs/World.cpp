@@ -16,7 +16,7 @@ vec3 World::calculateBlockPos(vec3 position) const
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera)
+World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(std::thread::hardware_concurrency())
 {
 	_displayedChunk = new ChunkSlot[RENDER_DISTANCE * RENDER_DISTANCE];
 
@@ -163,9 +163,6 @@ void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosi
 	int correctZ = (renderDistance / 2) - (render / 2) + z;
 	std::pair<int, int> pair(int(camPosition.x) / CHUNK_SIZE - render / 2 + x , int(camPosition.z) / CHUNK_SIZE - render / 2 + z);
 
-	_displayedChunk[correctX + correctZ * renderDistance].mutex.lock();
-	_displayedChunk[correctX + correctZ * renderDistance].chunk = nullptr;
-	_displayedChunk[correctX + correctZ * renderDistance].mutex.unlock();
 	_chunksMutex.lock();
 	auto it = _chunks.find(pair);
 	auto itend = _chunks.end();
@@ -245,36 +242,30 @@ void World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
 	}
 }
 
-void World::loadChunks(vec3 camPosition)
-{
-	int renderDistance = _renderDistance;
-	std::future<void> retTop;
-	std::future<void> retBot;
-	std::future<void> retLeft;
-	std::future<void> retRight;
 
-	vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
-	_skipLoad = false;
-	//resetTerrain();
-	loadChunk(0, 0, renderDistance, 1, camPosition);
-	for (int render = 2; getIsRunning() && render <= renderDistance; render += 2)
+void World::loadChunks(vec3 camPosition) {
+    int renderDistance = _renderDistance;
+    vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
+    if (oldCamChunk.x < 0) oldCamChunk.x--;
+    if (oldCamChunk.z < 0) oldCamChunk.z--;
+    _skipLoad = false;
+
+	resetTerrain();
+    loadChunk(0, 0, renderDistance, 1, camPosition);
+	std::vector<std::future<void>> retLst;
+    for (int render = 2; getIsRunning() && render <= renderDistance; render += 2)
 	{
-		retTop = std::async(std::launch::async, 
-			std::bind(&World::loadTopChunks, this, renderDistance, render, camPosition));
-		retBot = std::async(std::launch::async, 
-			std::bind(&World::loadBotChunks, this, renderDistance, render, camPosition));
-		retRight = std::async(std::launch::async, 
-			std::bind(&World::loadRightChunks, this, renderDistance, render, camPosition));
-		retLeft = std::async(std::launch::async, 
-			std::bind(&World::loadLeftChunks, this, renderDistance, render, camPosition));
-		retRight.get();
-		retLeft.get();
-		retTop.get();
-		retBot.get();
+		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, renderDistance, render, camPosition));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, renderDistance, render, camPosition));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, renderDistance, render, camPosition));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, renderDistance, render, camPosition));
+
 		if (hasMoved(oldCamChunk))
-			break ;
+			break;
+    }
+	for (std::future<void> &ret : retLst)
+	{
+		ret.get();
 	}
 }
 
