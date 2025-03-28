@@ -14,7 +14,8 @@ class Chunk;
 class SubChunk
 {
 	public:
-		typedef struct s_Face {
+		typedef struct s_Face
+		{
 			glm::vec3	position;
 			glm::vec2	size;
 			TextureType	texture;
@@ -54,7 +55,6 @@ class SubChunk
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		void clearFaces();
-		// void renderBoundaries() const;
 	private:
 		void addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
 		void addUpFace(vec3 position, TextureType texture);

@@ -1,6 +1,7 @@
 #include "ThreadPool.hpp"
 
 ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
+	std::cout << "Threads available: " << numThreads << std::endl;
     for (size_t i = 0; i < numThreads; ++i) {
         workers.emplace_back([this] {
             while (true) {

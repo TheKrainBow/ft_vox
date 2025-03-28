@@ -192,7 +192,7 @@ void StoneEngine::findMoveRotationSpeed()
 
 	// Apply delta to rotation and movespeed
 	if (keyStates[GLFW_KEY_LEFT_CONTROL])
-		moveSpeed = (MOVEMENT_SPEED * 2.0) * deltaTime;
+		moveSpeed = (MOVEMENT_SPEED * 20.0) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	

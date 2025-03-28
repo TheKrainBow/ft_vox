@@ -139,36 +139,30 @@ void SubChunk::addDownFace(vec3 position, TextureType texture)
 
 void SubChunk::addUpFace(vec3 position, TextureType texture)
 {
+	int x = _position.x * CHUNK_SIZE + position.x;
+	int y = _position.y * CHUNK_SIZE + position.y;
+	int z = _position.z * CHUNK_SIZE + position.z;
+
 	char block = 0;
-	if (position.y != (CHUNK_SIZE - 1))
+	if (position.y != CHUNK_SIZE - 1)
 		block = getBlock({position.x, position.y + 1, position.z});
 	else
-	{
-		SubChunk *overChunk = nullptr;
-		overChunk = _chunk.getSubChunk(_position.y + 1);
-		if (overChunk)
-			block = overChunk->getBlock({position.x, 0, position.z});
-	}
+		block = _world.getBlock(vec3(x, y + 1, z));
 	if (block == 0)
 		addFace(position, UP, texture);
 }
 
 void SubChunk::addNorthFace(vec3 position, TextureType texture)
 {
-	Chunk *northChunk = nullptr;
-	SubChunk *subChunk = nullptr;
+	int x = _position.x * CHUNK_SIZE + position.x;
+	int y = _position.y * CHUNK_SIZE + position.y;
+	int z = _position.z * CHUNK_SIZE + position.z;
 
 	char block = 0;
 	if (position.z != 0)
 		block = getBlock({position.x, position.y, position.z - 1});
 	else
-	{
-		northChunk = _world.getChunk({_position.x, _position.z + 1});
-		if (northChunk)
-			subChunk = northChunk->getSubChunk(_position.y);
-		if (subChunk)
-			block = subChunk->getBlock({position.x, position.y, CHUNK_SIZE - 1});
-	}
+		block = _world.getBlock(vec3(x, y, z - 1));
 	if (block == 0)
 		addFace(position, NORTH, texture);
 }
@@ -234,10 +228,9 @@ vec3 SubChunk::getPosition()
 }
 
 void SubChunk::clearFaces() {
+	std::cout << "Cleared faces" << std::endl;
 	for (int i = 0; i < 6; i++)
-	{
 		_faces[i].clear();
-	}
 	_vertexData.clear();
 	_hasSentFaces = false;
 }
@@ -245,7 +238,8 @@ void SubChunk::clearFaces() {
 void SubChunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
-		clearFaces();
+		return ;
+	// 	clearFaces();
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)
@@ -255,16 +249,16 @@ void SubChunk::sendFacesToDisplay()
 				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
 				{
 					case 'D':
-						addBlock(vec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
-						break;
+					addBlock(vec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
+					break;
 					case 'S':
-						addBlock(vec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
-						break;
+					addBlock(vec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
+					break;
 					case 'G':
-						addBlock(vec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
-						break;
+					addBlock(vec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
+					break;
 					default :
-						break;
+					break;
 				}
 			}
 		}

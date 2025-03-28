@@ -16,14 +16,14 @@ vec3 World::calculateBlockPos(vec3 position) const
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(std::thread::hardware_concurrency())
+World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(6)
 {
-	_displayedChunk = new ChunkSlot[RENDER_DISTANCE * RENDER_DISTANCE];
-
-	for (int i = 0; i < RENDER_DISTANCE * RENDER_DISTANCE; ++i)
-		_displayedChunk[i].chunk = nullptr;
-	
 	_renderDistance = RENDER_DISTANCE;
+
+	_displayedChunk = new ChunkSlot[_renderDistance * _renderDistance];
+	for (int i = 0; i < _renderDistance * _renderDistance; ++i)
+		_displayedChunk[i].chunk = nullptr;
+
 	generateSpiralOrder();
 }
 
@@ -101,7 +101,7 @@ void World::unloadChunk()
 	//TODO Save or do not unload modified chunks (delete block)
 	//(Add a isModified boolean in Chunk or SubChunk class)
 	//TODO Protect from display segv when cache_size is smaller than double the surface
-	// (defines to change to reproduce: CHACHE_SIZE 2500 RENDER_DISTANCE 61)
+	// (defines to change to reproduce: CACHE_SIZE 2500 RENDER_DISTANCE 61)
 	_chunksListMutex.lock();
 	if (_chunkList.size() < CACHE_SIZE)
 	{
@@ -242,7 +242,6 @@ void World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
 	}
 }
 
-
 void World::loadChunks(vec3 camPosition) {
     int renderDistance = _renderDistance;
     vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
@@ -250,7 +249,7 @@ void World::loadChunks(vec3 camPosition) {
     if (oldCamChunk.z < 0) oldCamChunk.z--;
     _skipLoad = false;
 
-	resetTerrain();
+	// resetTerrain();
     loadChunk(0, 0, renderDistance, 1, camPosition);
 	std::vector<std::future<void>> retLst;
     for (int render = 2; getIsRunning() && render <= renderDistance; render += 2)
@@ -284,8 +283,7 @@ bool World::hasMoved(vec3 oldPos)
 char World::getBlock(vec3 position)
 {
 	// std::cout << "World::getBlock" << std::endl;
-	vec3 chunkPos(position);
-	chunkPos /= CHUNK_SIZE;
+	vec3 chunkPos((int)position.x / CHUNK_SIZE, (int)position.y / CHUNK_SIZE, (int)position.z / CHUNK_SIZE);
 	chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
 	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
 	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
@@ -293,13 +291,21 @@ char World::getBlock(vec3 position)
 	chunkPos.y = int(chunkPos.y);
 	chunkPos.z = int(chunkPos.z);
 
-	SubChunk *chunk = getSubChunk(chunkPos);
+	Chunk *chunk = getChunk(vec2(chunkPos.x, chunkPos.z));
 	if (!chunk)
 	{
-		//std::cout << "Couldn't get Subchunk in: " << chunkPos.x << " " << chunkPos.y << " " << chunkPos.z << std::endl;
-		return NOT_FOUND;
+		// std::cout << "No chunk (" << chunkPos.x << ", " << chunkPos.z << ")" << std::endl;
+		return 0;
 	}
-	return chunk->getBlock(calculateBlockPos(position));
+	SubChunk *subChunk = chunk->getSubChunk(chunkPos.y);
+	// SubChunk *chunk = getSubChunk(chunkPos);
+	if (!subChunk)
+	{
+		// std::cout << "No subchunk (" << chunkPos.y << ")" << std::endl;
+		//std::cout << "Couldn't get Subchunk in: " << chunkPos.x << " " << chunkPos.y << " " << chunkPos.z << std::endl;
+		return 0;
+	}
+	return subChunk->getBlock(calculateBlockPos(position));
 }
 
 SubChunk *World::getSubChunk(vec3 position)
@@ -310,7 +316,6 @@ SubChunk *World::getSubChunk(vec3 position)
 	_chunksMutex.unlock();
 	if (it != itend)
 		return it->second->getSubChunk(position.y);
-	//std::cout << "Couldn't get Chunk in: " << position.x << " " << position.y << " " << position.z << std::endl;
 	return nullptr;
 }
 
@@ -393,24 +398,19 @@ void World::resetTerrain()
 
 int World::display()
 {
-	int trianglesDrawn = 0;
+	int triangleDrawn = 0;
 
-	for (auto &[x, z] : _spiralOrder)
+	for (auto [x, z] : _spiralOrder)
 	{
-		Chunk *chunkToDisplay = nullptr;
-
+		Chunk* chunkToDisplay = nullptr;
 		_displayedChunk[x + z * _renderDistance].mutex.lock();
 		chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
 		_displayedChunk[x + z * _renderDistance].mutex.unlock();
-
-		if (chunkToDisplay && chunkToDisplay->isReady())
-		{
-			trianglesDrawn += chunkToDisplay->display();
-		}
-		else
-			return trianglesDrawn;
+		if (chunkToDisplay)
+			triangleDrawn += chunkToDisplay->display();
 	}
-	return trianglesDrawn;
+
+	return triangleDrawn;
 }
 
 int	World::getCachedChunksNumber()

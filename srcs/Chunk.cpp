@@ -4,12 +4,13 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
-	for (int y = (perlinMap->lowest) - 64; y < (perlinMap->heighest) + CHUNK_SIZE; y += CHUNK_SIZE)
+	for (int y = (perlinMap->lowest) - (CHUNK_SIZE * 2); y < (perlinMap->heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
 		_subChunks[(y / CHUNK_SIZE)] = new SubChunk({pos.x, y / CHUNK_SIZE, pos.y}, perlinMap, *this, world, textureManager);
 	}
 	_position = pos;
 	_facesSent = false;
+	// getNeighbors();
 	sendFacesToDisplay();
 	_isInit = true;
 }
@@ -25,44 +26,58 @@ Chunk::~Chunk()
 
 void Chunk::getNeighbors()
 {
-	if (_isFullyLoaded)
-		return ;
+	// if (_isFullyLoaded)
+	// 	return ;
 	// _chrono.startChrono(2, "Getting chunks");
-    std::future<Chunk *> retNorth = std::async(std::launch::async, [this]() {
-        return _world.getChunk({_position.x + 1, _position.y});
-    });
+    // std::future<Chunk *> retNorth = std::async(std::launch::async, [this]() {
+    //     return _world.getChunk({_position.x + 1, _position.y});
+    // });
 
-    std::future<Chunk *> retSouth = std::async(std::launch::async, [this]() {
-        return _world.getChunk({_position.x - 1, _position.y});
-    });
+    // std::future<Chunk *> retSouth = std::async(std::launch::async, [this]() {
+    //     return _world.getChunk({_position.x - 1, _position.y});
+    // });
 
-    std::future<Chunk *> retEast = std::async(std::launch::async, [this]() {
-        return _world.getChunk({_position.x, _position.y + 1});
-    });
+    // std::future<Chunk *> retEast = std::async(std::launch::async, [this]() {
+    //     return _world.getChunk({_position.x, _position.y + 1});
+    // });
 
-    std::future<Chunk *> retWest = std::async(std::launch::async, [this]() {
-        return _world.getChunk({_position.x, _position.y - 1});
-    });
+    // std::future<Chunk *> retWest = std::async(std::launch::async, [this]() {
+    //     return _world.getChunk({_position.x, _position.y - 1});
+    // });
 
     // Wait for all futures and assign the results
-    _north = retNorth.get();
-    if (_north) _north->setSouthChunk(this);
+    _north = _world.getChunk({_position.x + 1, _position.y});
+    _south = _world.getChunk({_position.x - 1, _position.y});
+    _east = _world.getChunk({_position.x, _position.y + 1});
+    _west = _world.getChunk({_position.x, _position.y - 1});
+    if (_north) {
+		_north->setSouthChunk(this);
+		// _north->sendFacesToDisplay();
+	}
 
-    _south = retSouth.get();
-    if (_south) _south->setNorthChunk(this);
+    // _south = retSouth.get();
+    if (_south) {
+		_south->setNorthChunk(this);
+		// _south->sendFacesToDisplay();
+	}
 
-    _east = retEast.get();
-    if (_east) _east->setWestChunk(this);
+    // _east = retEast.get();
+    if (_east) {
+		_east->setNorthChunk(this);
+		// _east->sendFacesToDisplay();
+	}
 
-    _west = retWest.get();
-    if (_west) _west->setEastChunk(this);
+    // _west = retWest.get();
+    if (_west) {
+		_west->setNorthChunk(this);
+		// _west->sendFacesToDisplay();
+	}
 
 	// _chrono.stopChrono(2);
-    _isFullyLoaded = (_north && _south && _west && _east);
-	_chrono.startChrono(3, "Sending faces");
+	// _chrono.startChrono(3, "Sending faces");
     sendFacesToDisplay();
-	_chrono.stopChrono(3);
-	_chrono.printChronos();
+	// _chrono.stopChrono(3);
+	// _chrono.printChronos();
 }
 
 
@@ -76,12 +91,10 @@ int Chunk::display()
 	if (!_facesSent)
 		return (0);
 	int triangleDrawn = 0;
-	_subChunksMutex.lock();
 	for (auto &subchunk : _subChunks)
 	{
 		triangleDrawn += subchunk.second->display();
 	}
-	_subChunksMutex.unlock();
 	return triangleDrawn;
 }
 
@@ -89,10 +102,8 @@ SubChunk *Chunk::getSubChunk(int y)
 {
 	if (_isInit == false)
 		return nullptr;
-	_subChunksMutex.lock();
 	auto it = _subChunks.find(y);
 	auto endIt = _subChunks.end();
-	_subChunksMutex.unlock();
 	if (it != endIt)
 		return it->second;
 	return nullptr;
@@ -107,10 +118,8 @@ void Chunk::sendFacesToDisplay()
 {
 	if (_facesSent)
 		return ;
-	_subChunksMutex.lock();
 	for (auto &subChunk : _subChunks)
 		subChunk.second->sendFacesToDisplay();
-	_subChunksMutex.unlock();
 	_facesSent = true;
 }
 
