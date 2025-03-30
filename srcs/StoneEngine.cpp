@@ -81,7 +81,7 @@ void StoneEngine::initTextures()
 void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
@@ -89,6 +89,7 @@ void StoneEngine::initShaders()
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
 }
 
 void StoneEngine::initDebugTextBox()
@@ -134,19 +135,12 @@ void StoneEngine::display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
-	glm::mat4 viewMatrix = glm::lookAt(
-		camera.getPosition(),         // cam position
-		camera.getCenter(),           // Look-at point
-		glm::vec3(0.0f, 1.0f, 0.0f) // Up direction
-	);
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
-
-
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	viewMatrix = glm::mat4(1.0f);
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.getPosition()));
@@ -155,13 +149,10 @@ void StoneEngine::display()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-	
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	// glBindTexture(GL_TEXTURE_2D, _textureManager.getMergedText());  // Bind the texture
-	// glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 	
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -170,9 +161,7 @@ void StoneEngine::display()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
-
 	drawnTriangles = _world.display();
-
 	glDisable(GL_CULL_FACE);
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -183,14 +172,34 @@ void StoneEngine::display()
 	glfwSwapBuffers(_window);
 }
 
-void StoneEngine::updateChunks()
+void StoneEngine::loadFirstChunks()
 {
-	chronoHelper.startChrono(0, "Update chunks");
-	_world.loadChunks(camera.getWorldPosition());
+	chronoHelper.startChrono(0, "Load chunks");
+	_world.loadFirstChunks(camera.getChunkPosition(CHUNK_SIZE));
 	chronoHelper.stopChrono(0);
-	// std::cout << "Cached Chunks: " << _world.getCachedChunksNumber() << std::endl;
 	chronoHelper.printChronos();
 }
+
+void StoneEngine::loadNextChunks(ivec2 newCamChunk)
+{
+	chronoHelper.startChrono(0, "Load chunks");
+
+	// Run both calls in parallel using std::async
+	// auto unLoadNextChunk = std::async(std::launch::async, 
+	// 	[&]() {_world.unLoadNextChunks(oldCamChunk, newCamChunk, worldPos); });
+
+	// auto loadNextChunk = std::async(std::launch::async, 
+	// 	[&]() { _world.loadFirstChunks(worldPos); });
+
+	// Ensure both complete before stopping the chrono
+	// loadNextChunk.get();
+	// unLoadNextChunk.get();
+	_world.loadFirstChunks(newCamChunk);
+	_world.unLoadNextChunks(newCamChunk);
+	chronoHelper.stopChrono(0);
+	chronoHelper.printChronos();
+}
+
 
 void StoneEngine::findMoveRotationSpeed()
 {
@@ -204,13 +213,14 @@ void StoneEngine::findMoveRotationSpeed()
 
 	// Apply delta to rotation and movespeed
 	if (keyStates[GLFW_KEY_LEFT_CONTROL])
-		moveSpeed = (MOVEMENT_SPEED * 2.0) * deltaTime;
+		moveSpeed = (MOVEMENT_SPEED * 20.0) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	
 
-	if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
+	//ZOOM
+	// if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); loadNextChunks(camera.getChunkPosition(CHUNK_SIZE));}
+	// if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadFirstChunks(camera.getChunkPosition(CHUNK_SIZE));}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
@@ -247,21 +257,6 @@ void StoneEngine::updateMovement()
 	}
 }
 
-// void StoneEngine::chunkUpdateWorker()
-// {
-// 	while (running.load())
-// 	{
-// 		std::unique_lock<std::mutex> lock(chunksMutex);
-// 		chunkCondition.wait(lock, [this] {return updateChunkFlag.load() || !running.load();});
-// 		if (!running.load()) break ;
-
-// 		updateChunkFlag.store(false);
-// 		lock.unlock();
-// 		updateChunks();
-// 		usleep(2000);
-// 	}
-// }
-
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
@@ -271,31 +266,30 @@ void StoneEngine::updateChunkWorker()
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
+
 	while (getIsRunning())
 	{
-		vec3 cameraPos = camera.getWorldPosition();
-		if (oldPos.x != cameraPos.x || oldPos.y != cameraPos.y || oldPos.z != cameraPos.z || firstIteration)
+		vec3 worldPos = camera.getWorldPosition();
+		if (oldPos.x != worldPos.x || oldPos.y != worldPos.y || oldPos.z != worldPos.z || firstIteration)
 		{
 			// Check new chunk position for necessary updates to chunks
-			vec3 camChunk(cameraPos.x / CHUNK_SIZE, cameraPos.y / CHUNK_SIZE, cameraPos.z / CHUNK_SIZE);
-			if (cameraPos.x < 0) camChunk.x--;
-			if (cameraPos.y < 0) camChunk.y--;
-			if (cameraPos.z < 0) camChunk.z--;
+			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
 			if (firstIteration)
 			{
-				updateChunks();
+				loadFirstChunks();
 				firstIteration = false;
 			}
-			else if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y) || floor(oldCamChunk.z) != floor(camChunk.z)))
-				updateChunks();
+			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.y)))
+			{
+				loadNextChunks(camChunk);
+			}
 
-			oldPos = cameraPos;
+			oldPos = worldPos;
 			oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
 			if (oldCamChunk.x < 0) oldCamChunk.x--;
 			if (oldCamChunk.y < 0) oldCamChunk.y--;
 			if (oldCamChunk.z < 0) oldCamChunk.z--;
 		}
-		// usleep(200);
 	}
 }
 
@@ -306,6 +300,8 @@ void StoneEngine::update()
 
 	// Update player position and orientation
 	updateMovement();
+
+	// Update display
 	display();
 
 	// Register end of frame for the next delta
@@ -318,7 +314,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)width / (float)height, 0.1f, 10000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
@@ -334,7 +330,6 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 {
 	(void)scancode;
 	(void)mods;
-
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
@@ -406,7 +401,8 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 }
 
 int StoneEngine::initGLFW()
-{
+{	
+	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{

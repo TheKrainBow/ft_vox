@@ -3,7 +3,7 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
-CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 -g3 #-fsanitize=address
+CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 #-g3 -fsanitize=address
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
 
 OBJ_PATH		=	obj/
@@ -27,7 +27,8 @@ SRC_NAME	=	stb_truetype.cpp		\
 				SplineInterpolator.cpp	\
 				World.cpp				\
 				Chrono.cpp				\
-				Shader.cpp
+				Shader.cpp				\
+				ThreadPool.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

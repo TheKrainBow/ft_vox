@@ -32,15 +32,15 @@ void NoiseGenerator::clearPerlinMaps(void)
 {
 	for (auto &map : _perlinMaps)
 	{
-		if (map && map->map)
+		if (map.second && map.second->map)
 		{
-			delete [] map->map;
-			map->map = nullptr;
+			delete [] map.second->map;
+			map.second->map = nullptr;
 		}
-		if (map)
+		if (map.second)
 		{
-			delete map;
-			map = nullptr;
+			delete map.second;
+			map.second = nullptr;
 		}
 	}
 	_perlinMaps.clear();
@@ -118,6 +118,8 @@ PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int re
 	newMap->map = new double[size * size];
 	newMap->resolution = resolution;
 	newMap->position = vec2(startX, startZ);
+	newMap->heighest = 0;
+	newMap->lowest = 256;
 
 	for (int x = 0; x < size; x += resolution)
 		for (int z = 0; z < size; z += resolution)
@@ -128,18 +130,40 @@ PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int re
 			if (newMap->map[z * size + x] < newMap->lowest)
 				newMap->lowest = newMap->map[z * size + x];
 		}
-	_perlinMaps.push_back(newMap);
+	_perlinMaps[{startX, startZ}] = newMap;
 	return (newMap);
+}
+
+
+void NoiseGenerator::removePerlinMap(int x, int z)
+{
+	std::lock_guard<std::mutex> lock(_perlinMutex);
+	auto it = _perlinMaps.find({x, z});
+	auto itend = _perlinMaps.end();
+	PerlinMap *map = (*it).second;
+	if (it != itend)
+	{
+		if (map && map->map)
+		{
+			delete [] map->map;
+			map->map = nullptr;
+		}
+		if (map)
+		{
+			delete map;
+			map = nullptr;
+		}
+		_perlinMaps.erase({x, z});
+	}
 }
 
 PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
 {
 	std::lock_guard<std::mutex> lock(_perlinMutex);
-	for (auto &map : _perlinMaps)
-	{
-		if (map->position.x == x && map->position.y == y)
-			return (map);
-	}
+	auto it = _perlinMaps.find({x, y});
+	auto itend = _perlinMaps.end();
+	if (it != itend)
+		return ((*it).second);
 	return addPerlinMap(x, y, CHUNK_SIZE, 1);
 }
 

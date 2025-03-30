@@ -1,6 +1,6 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{-100, -1500, 0}, center{0.0f, 0.0f, 10.0f} { angle.x = 0; angle.y = -90;};
+Camera::Camera() : position{-1000, -120, -1000}, angle(0, -90) { };
 /*
 	Moving the camera around (first person view)
 */
@@ -27,10 +27,7 @@ void Camera::move(float  forward, float  strafe, float up)
 	_positionMutex.lock();
 	position.z += (forwardX + strafeX) * movementspeed;
 	position.x += (forwardZ + strafeZ) * movementspeed;
-	center.x = position.x;
-	center.z = position.z -10.0f;
 	position.y += movementspeed * up;
-	center.y = position.y;
 	_positionMutex.unlock();
 }
 
@@ -54,15 +51,17 @@ vec3 Camera::getWorldPosition(void)
 	return (vec3(-position.x, -position.y, -position.z));
 }
 
+ivec2 Camera::getChunkPosition(int chunkSize) {
+	ivec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
+	if (-position.x < 0) camChunk.x--;
+	if (-position.z < 0) camChunk.y--;
+	return camChunk;
+}
+
 vec3 Camera::getPosition()
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
 	return position;
-}
-
-vec3 Camera::getCenter()
-{
-	return center;
 }
 
 vec2 Camera::getAngles()

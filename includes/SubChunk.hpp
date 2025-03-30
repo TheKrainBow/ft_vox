@@ -5,14 +5,17 @@
 #include "TextureManager.hpp"
 #include "define.hpp"
 #include "World.hpp"
+#include "Chrono.hpp"
 
 class BiomeGenerator;
 class World;
+class Chunk;
 
 class SubChunk
 {
 	public:
-		typedef struct s_Face {
+		typedef struct s_Face
+		{
 			glm::vec3	position;
 			glm::vec2	size;
 			TextureType	texture;
@@ -21,20 +24,23 @@ class SubChunk
 	private:
 		vec3				_position;
 		std::vector<char>	_blocks;
-		double				_perlinMap[CHUNK_SIZE * CHUNK_SIZE];
+		double				**_perlinMap;
 		World				&_world;
+		Chunk				&_chunk;
 
     	std::vector<Face>	_faces[6];
 		bool				_loaded = false;
 		bool				_hasSentFaces = false;
+		bool				_isFullyLoaded = true;
 		bool				_hasBufferInitialized = false;
 		GLuint				_vao;
 		GLuint				_vbo;
 		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
-		TextureManager &_textManager;
+		TextureManager		&_textManager;
+		Chrono chrono;
 	public:
-		SubChunk(vec3 position, PerlinMap *perlinMap, World &world, TextureManager &textManager);
+		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
 		void setupBuffers();
 		int display(void);
@@ -48,9 +54,16 @@ class SubChunk
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
-		// void renderBoundaries() const;
+		void clearFaces();
 	private:
 		void addBlock(vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
+		void addUpFace(vec3 position, TextureType texture);
+		void addDownFace(vec3 position, TextureType texture);
+		void addNorthFace(vec3 position, TextureType texture);
+		void addSouthFace(vec3 position, TextureType texture);
+		void addEastFace(vec3 position, TextureType texture);
+		void addWestFace(vec3 position, TextureType texture);
+	
 		void processFaces();
 		void processUpVertex();
 		void processDownVertex();
@@ -58,7 +71,6 @@ class SubChunk
 		void processSouthVertex();
 		void processEastVertex();
 		void processWestVertex();
-		void clearFaces();
 		void initGLBuffer();
 };
 

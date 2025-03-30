@@ -38,6 +38,7 @@ class NoiseGenerator {
 		void setSeed(size_t seed);
 		const size_t &getSeed() const;
 		void setNoiseData(const NoiseData &data);
+		void removePerlinMap(int x, int z);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;
@@ -51,7 +52,7 @@ class NoiseGenerator {
 		size_t _seed;
 		NoiseData _data;
 		std::vector<int> _permutation;
-		std::vector<PerlinMap *> _perlinMaps;
+		std::unordered_map<std::pair<int, int>, PerlinMap*, pair_hash>	_perlinMaps;
 		std::mutex				_perlinMutex;
 		SplineData spline;
 };

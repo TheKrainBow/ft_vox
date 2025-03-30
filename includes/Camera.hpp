@@ -12,6 +12,7 @@ class Camera {
 		void reset();
 		void updateMousePos(int x, int y);
 		vec3 getWorldPosition();
+		ivec2 getChunkPosition(int chunkSize);
 		vec3 getCenter();
 		vec3 getPosition();
 		vec2 getAngles();
@@ -21,7 +22,6 @@ class Camera {
 
 	private:
 		vec3 position;
-		vec3 center;
 		vec2 angle;
 		float rotationspeed = 125.0f;
 		float movementspeed = 10.0f;

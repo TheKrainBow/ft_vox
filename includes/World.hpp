@@ -4,7 +4,10 @@
 #include "SubChunk.hpp"
 #include "Chunk.hpp"
 #include "Camera.hpp"
+#include "Chrono.hpp"
+#include "ThreadPool.hpp"
 #include <map>
+#include <atomic>
 
 class Chunk;
 
@@ -19,46 +22,89 @@ namespace std {
     };
 }
 
+struct ChunkSlot
+{
+	Chunk *chunk;
+	std::mutex mutex;
+};
+
 class SubChunk;
+
+struct ChunkElement
+{
+	Chunk *chunk;
+	int priority;
+	int displayPos;
+};
+
+struct Compare {
+    bool operator()(const ChunkElement& a, const ChunkElement& b) const {
+        return a.priority > b.priority;
+    }
+};
 
 class World
 {
 private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
-		std::map<std::pair<int, int>, Chunk*>		_chunks;
-		std::mutex									_displayMutex;
-		Chunk										**_displayedChunk;
+		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_chunks;
+		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_displayedChunks;
+		std::list<Chunk *>							_chunkList;
+		std::mutex									_chunksMutex;
+		std::mutex									_chunksListMutex;
+
+		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash> _activeChunks;
+		std::queue<std::pair<int, int>>	_chunkRemovalOrder;
+		std::queue<Chunk *>	_chunksLoadOrder;
+		std::mutex			_chunksRemovalMutex;
+		std::mutex			_chunksLoadMutex;
+		
+		std::mutex									_displayChunkMutex;
+		std::queue<Chunk*>							_displayQueue;
+		std::mutex									_displayQueueMutex;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
-	// Player related informations
+		std::vector<std::pair<int, int>>			_spiralOrder;
+		
+		// Player related informations
 		Camera										*_camera;
 		int											_renderDistance;
 		int											_maxRender = 1000;
 		bool										*_isRunning;
 		std::mutex									*_runningMutex;
+		std::atomic_bool							displayReady;
+		Chrono chronoHelper;
+		ThreadPool 									_threadPool;
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
-	void loadChunks(vec3 camPosition);
-	void loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition);
+	void loadFirstChunks(ivec2 camPosition);
+
+	void unLoadNextChunks(ivec2 newCamChunk);
+	void loadChunk(int x, int z, int render, ivec2 camPosition);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);
-	int	getLoadedChunksNumber();
 	int	getCachedChunksNumber();
-	void sendFacesToDisplay();
-	SubChunk* getChunk(vec3 position);
+	Chunk* getChunk(vec2 position);
+	SubChunk* getSubChunk(vec3 position);
 	int display();
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
-	int loadTopChunks(int renderDistance, int render, vec3 camPosition);
-	int loadRightChunks(int renderDistance, int render, vec3 camPosition);
-	int loadBotChunks(int renderDistance, int render, vec3 camPosition);
-	int loadLeftChunks(int renderDistance, int render, vec3 camPosition);
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 	bool getIsRunning();
+	void loadTopChunks(int render, ivec2 camPosition);
+	void loadRightChunks(int render, ivec2 camPosition);
+	void loadBotChunks(int render, ivec2 camPosition);
+	void loadLeftChunks(int render, ivec2 camPosition);
+	void updateNeighbours(std::pair<int, int> pair);
+	void unloadChunk();
+	void generateSpiralOrder();
+	bool hasMoved(ivec2 oldPos);
+	void loadOrder();
+	void removeOrder();
 };
