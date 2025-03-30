@@ -170,9 +170,9 @@ double NoiseGenerator::getHeight(vec2 pos)
 	// double oceanThreshold = 0.48;  // Controls ocean frequency (lower = more oceans)
 
 	// Base terrain height
-	double height = 100.0;
-	height += smoothBlend(surfaceHeight, erosionHeight, erosionMask);
-	height = smoothBlend(height, peaksHeight, peaksMask);
+	double height;
+	height = smoothBlend(surfaceHeight, erosionHeight, erosionMask);
+	height = 100.0 + smoothBlend(height, peaksHeight, peaksMask);
 
 	// // Apply ocean mask
 	// if (oceanMask < oceanThreshold)
