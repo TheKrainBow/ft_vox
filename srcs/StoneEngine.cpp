@@ -172,13 +172,34 @@ void StoneEngine::display()
 	glfwSwapBuffers(_window);
 }
 
-void StoneEngine::updateChunks()
+void StoneEngine::loadFirstChunks()
 {
 	chronoHelper.startChrono(0, "Load chunks");
-	_world.loadChunks(camera.getWorldPosition());
+	_world.loadFirstChunks(camera.getChunkPosition(CHUNK_SIZE));
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
+
+void StoneEngine::loadNextChunks(ivec2 newCamChunk)
+{
+	chronoHelper.startChrono(0, "Load chunks");
+
+	// Run both calls in parallel using std::async
+	// auto unLoadNextChunk = std::async(std::launch::async, 
+	// 	[&]() {_world.unLoadNextChunks(oldCamChunk, newCamChunk, worldPos); });
+
+	// auto loadNextChunk = std::async(std::launch::async, 
+	// 	[&]() { _world.loadFirstChunks(worldPos); });
+
+	// Ensure both complete before stopping the chrono
+	// loadNextChunk.get();
+	// unLoadNextChunk.get();
+	_world.loadFirstChunks(newCamChunk);
+	_world.unLoadNextChunks(newCamChunk);
+	chronoHelper.stopChrono(0);
+	chronoHelper.printChronos();
+}
+
 
 void StoneEngine::findMoveRotationSpeed()
 {
@@ -197,8 +218,9 @@ void StoneEngine::findMoveRotationSpeed()
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	
 
-	if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadChunks(camera.getWorldPosition());}
+	//ZOOM
+	// if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); loadNextChunks(camera.getChunkPosition(CHUNK_SIZE));}
+	// if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadFirstChunks(camera.getChunkPosition(CHUNK_SIZE));}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
@@ -235,22 +257,6 @@ void StoneEngine::updateMovement()
 	}
 }
 
-// void StoneEngine::chunkUpdateWorker()
-// {
-// 	while (running.load())
-// 	{
-// 		std::unique_lock<std::mutex> lock(chunksMutex);
-// 		chunkCondition.wait(lock, [this] {return updateChunkFlag.load() || !running.load();});
-// 		if (!running.load()) break ;
-
-// 		updateChunkFlag.store(false);
-// 		lock.unlock();
-// 		updateChunks();
-// 		usleep(2000);
-// 	}
-// }
-
-
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
@@ -260,24 +266,25 @@ void StoneEngine::updateChunkWorker()
 	if (oldCamChunk.x < 0) oldCamChunk.x--;
 	if (oldCamChunk.y < 0) oldCamChunk.y--;
 	if (oldCamChunk.z < 0) oldCamChunk.z--;
+
 	while (getIsRunning())
 	{
-		vec3 cameraPos = camera.getWorldPosition();
-		if (oldPos.x != cameraPos.x || oldPos.y != cameraPos.y || oldPos.z != cameraPos.z || firstIteration)
+		vec3 worldPos = camera.getWorldPosition();
+		if (oldPos.x != worldPos.x || oldPos.y != worldPos.y || oldPos.z != worldPos.z || firstIteration)
 		{
 			// Check new chunk position for necessary updates to chunks
-			vec3 camChunk(cameraPos.x / CHUNK_SIZE, cameraPos.y / CHUNK_SIZE, cameraPos.z / CHUNK_SIZE);
-			if (cameraPos.x < 0) camChunk.x--;
-			if (cameraPos.y < 0) camChunk.y--;
-			if (cameraPos.z < 0) camChunk.z--;
-			if (firstIteration || (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.z))))
+			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
+			if (firstIteration)
 			{
-				updateChunks();
-				
+				loadFirstChunks();
 				firstIteration = false;
 			}
+			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.y)))
+			{
+				loadNextChunks(camChunk);
+			}
 
-			oldPos = cameraPos;
+			oldPos = worldPos;
 			oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
 			if (oldCamChunk.x < 0) oldCamChunk.x--;
 			if (oldCamChunk.y < 0) oldCamChunk.y--;

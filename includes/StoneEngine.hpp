@@ -91,7 +91,8 @@ class StoneEngine {
 		// Runtime methods
 		void calculateFps();
 		void display();
-		void updateChunks();
+		void loadFirstChunks();
+		void loadNextChunks(ivec2 newCamChunk);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();

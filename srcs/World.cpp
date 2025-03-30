@@ -19,12 +19,6 @@ vec3 World::calculateBlockPos(vec3 position) const
 World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(6)
 {
 	_renderDistance = RENDER_DISTANCE;
-
-	_displayedChunk = new ChunkSlot[_renderDistance * _renderDistance];
-	for (int i = 0; i < _renderDistance * _renderDistance; ++i)
-		_displayedChunk[i].chunk = nullptr;
-
-	generateSpiralOrder();
 }
 
 World::~World()
@@ -32,7 +26,6 @@ World::~World()
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 		delete it->second;
-	delete [] _displayedChunk;
 }
 
 NoiseGenerator &World::getNoiseGenerator(void)
@@ -146,7 +139,7 @@ void World::unloadChunk()
 		_chunks.erase(key);
 		_chunksMutex.unlock();
 
-		_perlinGenerator.removePerlinMap(key.first, key.second);
+		//_perlinGenerator.removePerlinMap(key.first, key.second);
 		// Clean up memory
 		delete chunkToRemove;
 	}
@@ -156,13 +149,10 @@ void World::unloadChunk()
 	}
 }
 
-void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosition)
+void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 {
 	Chunk *chunk = nullptr;
-	int correctX = (renderDistance / 2) - (render / 2) + x;
-	int correctZ = (renderDistance / 2) - (render / 2) + z;
-	std::pair<int, int> pair(int(camPosition.x) / CHUNK_SIZE - render / 2 + x , int(camPosition.z) / CHUNK_SIZE - render / 2 + z);
-
+	std::pair<int, int> pair(chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z);
 	_chunksMutex.lock();
 	auto it = _chunks.find(pair);
 	auto itend = _chunks.end();
@@ -184,82 +174,65 @@ void World::loadChunk(int x, int z, int renderDistance, int render, vec3 camPosi
 		_chunks[pair] = chunk;
 		_chunksMutex.unlock();
 	}
-	_displayedChunk[correctX + correctZ * renderDistance].mutex.lock();
-	_displayedChunk[correctX + correctZ * renderDistance].chunk = chunk;
-	_displayedChunk[correctX + correctZ * renderDistance].mutex.unlock();
+
+	_chunksLoadMutex.lock();
+	_chunksLoadOrder.emplace(chunk);
+	_displayedChunks[pair] = chunk;
+	_chunksLoadMutex.unlock();
 	unloadChunk();
 }
 
-void World::loadTopChunks(int renderDistance, int render, vec3 camPosition)
+void World::loadTopChunks(int render, ivec2 chunkPos)
 {
-	vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
-
 	int z = 0;
-	for (int x = 1; x < render && !hasMoved(oldCamChunk); x++)
+	for (int x = 0; x < render; x++)
 	{
-		loadChunk(x, z, renderDistance, render, camPosition);
+		loadChunk(x, z, render, chunkPos);
 	}
 }
 
-void World::loadBotChunks(int renderDistance, int render, vec3 camPosition)
+void World::loadBotChunks(int render, ivec2 chunkPos)
 {
-	vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
-
 	int z = render - 1;
-	for (int x = render - 2; x >= 0 && !hasMoved(oldCamChunk); x--)
+	for (int x = render - 1; x >= 0; x--)
 	{
-		loadChunk(x, z, renderDistance, render, camPosition);
+		loadChunk(x, z, render, chunkPos);
 	}
 }
 
-void World::loadRightChunks(int renderDistance, int render, vec3 camPosition)
+void World::loadRightChunks(int render, ivec2 chunkPos)
 {
-	vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
-
 	int x = render - 1;
-	for (int z = 1; z < render && !hasMoved(oldCamChunk); z++)
+	for (int z = 0; z < render; z++)
 	{
-		loadChunk(x, z, renderDistance, render, camPosition);
+		loadChunk(x, z, render, chunkPos);
 	}
 }
 
-void World::loadLeftChunks(int renderDistance, int render, vec3 camPosition)
+void World::loadLeftChunks(int render, ivec2 chunkPos)
 {
-	vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
-
 	int x = 0;
-	for (int z = render - 2; z >= 0 && !hasMoved(oldCamChunk); z--)
+	for (int z = render - 1; z >= 0; z--)
 	{
-		loadChunk(x, z, renderDistance, render, camPosition);
+		loadChunk(x, z, render, chunkPos);
 	}
 }
 
-void World::loadChunks(vec3 camPosition) {
+void World::loadFirstChunks(ivec2 chunkPos)
+{
     int renderDistance = _renderDistance;
-    vec3 oldCamChunk = vec3(camPosition.x / CHUNK_SIZE, camPosition.y / CHUNK_SIZE, camPosition.z / CHUNK_SIZE);
-    if (oldCamChunk.x < 0) oldCamChunk.x--;
-    if (oldCamChunk.z < 0) oldCamChunk.z--;
     _skipLoad = false;
 
-	// resetTerrain();
-    loadChunk(0, 0, renderDistance, 1, camPosition);
+    loadChunk(0, 0, 1, chunkPos);
 	std::vector<std::future<void>> retLst;
-    for (int render = 2; getIsRunning() && render <= renderDistance; render += 2)
+    for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
-		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, renderDistance, render, camPosition));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, renderDistance, render, camPosition));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, renderDistance, render, camPosition));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, renderDistance, render, camPosition));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos));
 
-		if (hasMoved(oldCamChunk))
+		if (hasMoved(chunkPos))
 			break;
     }
 	for (std::future<void> &ret : retLst)
@@ -268,14 +241,41 @@ void World::loadChunks(vec3 camPosition) {
 	}
 }
 
-bool World::hasMoved(vec3 oldPos)
+void World::unLoadNextChunks(ivec2 newCamChunk)
 {
-	vec3 newPos = _camera->getWorldPosition();
-	vec3 camChunk(newPos.x / CHUNK_SIZE, newPos.y / CHUNK_SIZE, newPos.z / CHUNK_SIZE);
-	if (newPos.x < 0) camChunk.x--;
-	if (newPos.z < 0) camChunk.z--;
+	std::pair<int, int> pos;
+	std::queue<std::pair<int, int>> deleteQueue;
+	for (auto &it : _displayedChunks)
+	{
+		Chunk *chunk = it.second;
+		vec2 chunkPos = chunk->getPosition();
+		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
+		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
+		{
+			// std::cout << chunkPos.x << " - " << newCamChunk.x << " = " << abs(chunkPos.x - newCamChunk.x) << " > " << _renderDistance << std::endl;
+			// std::cout << chunkPos.y << " - " << newCamChunk.y << " = " << abs(chunkPos.y - newCamChunk.y) << " > " << _renderDistance << std::endl;
+			pos = {(int)chunkPos.x, (int)chunkPos.y };
+			deleteQueue.emplace(pos);
+		}
+	}
+	// std::cout << deleteQueue.size() << std::endl;
+	while (!deleteQueue.empty())
+	{
+		std::pair<int, int> pos;
+		pos = deleteQueue.front();
+		_chunksRemovalMutex.lock();
+		_chunkRemovalOrder.emplace(pos);
+		_chunksRemovalMutex.unlock();
+		_displayedChunks.erase(pos);
+		deleteQueue.pop();
+	}
+}
 
-	if (((floor(oldPos.x) != floor(camChunk.x) || floor(oldPos.z) != floor(camChunk.z))))
+bool World::hasMoved(ivec2 oldPos)
+{
+	ivec2 camChunk = _camera->getChunkPosition(CHUNK_SIZE);
+
+	if (((floor(oldPos.x) != floor(camChunk.x) || floor(oldPos.y) != floor(camChunk.y))))
 		return true;
 	return false;
 }
@@ -330,87 +330,43 @@ Chunk *World::getChunk(vec2 position)
 	return nullptr;
 }
 
-void World::generateSpiralOrder()
+void World::loadOrder()
 {
-	int renderDistance = _renderDistance - 1;
-    int centerX = renderDistance / 2;
-    int centerZ = renderDistance / 2;
-
-    _spiralOrder.clear();
-    _spiralOrder.reserve(renderDistance * renderDistance);
-
-    int x = centerX;
-    int z = centerZ;
-
-    _spiralOrder.emplace_back(x, z);
-
-    int dx = 1; // Start by going right
-    int dz = 0;
-
-    int steps = 1;
-    int stepCount = 0;
-    int directionChanges = 0;
-
-    while (_spiralOrder.size() < renderDistance * renderDistance)
-    {
-        // Move to the next position
-        x += dx;
-        z += dz;
-
-        // If within bounds, add to the spiral order
-        if (x >= 0 && x < renderDistance && z >= 0 && z < renderDistance)
-        {
-            _spiralOrder.emplace_back(x, z);
-        }
-
-        stepCount++;
-
-        // If we've completed the current segment length, change direction
-        if (stepCount == steps)
-        {
-            stepCount = 0;
-            directionChanges++;
-
-            // Change direction (Right → Down → Left → Up)
-            if (dx == 1 && dz == 0) { dx = 0; dz = 1; }   // Right → Down
-            else if (dx == 0 && dz == 1) { dx = -1; dz = 0; }  // Down → Left
-            else if (dx == -1 && dz == 0) { dx = 0; dz = -1; }  // Left → Up
-            else if (dx == 0 && dz == -1) { dx = 1; dz = 0; } // Up → Right
-
-            // Increase segment length every two turns
-            if (directionChanges % 2 == 0)
-            {
-                steps++;
-            }
-        }
-    }
+	_chunksLoadMutex.lock();
+	while (!_chunksLoadOrder.empty())
+	{
+		Chunk *chunk = nullptr;
+		chunk = _chunksLoadOrder.front();
+		vec2 chunkPos = chunk->getPosition();
+		_activeChunks[{chunkPos.x, chunkPos.y}] = chunk;
+		_chunksLoadOrder.pop();
+	}
+	_chunksLoadMutex.unlock();
 }
 
-void World::resetTerrain()
+void World::removeOrder()
 {
-	for (auto [x, z] : _spiralOrder)
+	_chunksRemovalMutex.lock();
+	while (!_chunkRemovalOrder.empty())
 	{
-		_displayedChunk[x + z * _renderDistance].mutex.lock();
-		_displayedChunk[x + z * _renderDistance].chunk = nullptr;
-		_displayedChunk[x + z * _renderDistance].mutex.unlock();
+		std::pair<int, int> pos;
+		pos = _chunkRemovalOrder.front();
+		_activeChunks.erase(pos);
+		_chunkRemovalOrder.pop();
 	}
+	_chunksRemovalMutex.unlock();
 }
 
 int World::display()
 {
-	int triangleDrawn = 0;
-
-	for (auto [x, z] : _spiralOrder)
+	int trianglesDrawn = 0;
+	removeOrder();
+	loadOrder();
+	for (auto &activeChunk : _activeChunks)
 	{
-		Chunk* chunkToDisplay = nullptr;
-		_displayedChunk[x + z * _renderDistance].mutex.lock();
-		chunkToDisplay = _displayedChunk[x + z * _renderDistance].chunk;
-		_displayedChunk[x + z * _renderDistance].mutex.unlock();
-		if (chunkToDisplay)
-			triangleDrawn += chunkToDisplay->display();
+		trianglesDrawn += activeChunk.second->display();
 	}
-
-	return triangleDrawn;
+	return trianglesDrawn;
 }
 
 int	World::getCachedChunksNumber()

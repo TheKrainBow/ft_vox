@@ -49,10 +49,17 @@ private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
 		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_chunks;
+		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_displayedChunks;
 		std::list<Chunk *>							_chunkList;
 		std::mutex									_chunksMutex;
 		std::mutex									_chunksListMutex;
-		ChunkSlot									*_displayedChunk;
+
+		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash> _activeChunks;
+		std::queue<std::pair<int, int>>	_chunkRemovalOrder;
+		std::queue<Chunk *>	_chunksLoadOrder;
+		std::mutex			_chunksRemovalMutex;
+		std::mutex			_chunksLoadMutex;
+		
 		std::mutex									_displayChunkMutex;
 		std::queue<Chunk*>							_displayQueue;
 		std::mutex									_displayQueueMutex;
@@ -72,8 +79,10 @@ private:
 public:
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
-	void loadChunks(vec3 camPosition);
-	void loadChunk(int x, int z, int renderMax, int currentRender, vec3 camPosition);
+	void loadFirstChunks(ivec2 camPosition);
+
+	void unLoadNextChunks(ivec2 newCamChunk);
+	void loadChunk(int x, int z, int render, ivec2 camPosition);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);
@@ -88,13 +97,14 @@ public:
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 	bool getIsRunning();
-	void loadTopChunks(int renderDistance, int render, vec3 camPosition);
-	void loadRightChunks(int renderDistance, int render, vec3 camPosition);
-	void loadBotChunks(int renderDistance, int render, vec3 camPosition);
-	void loadLeftChunks(int renderDistance, int render, vec3 camPosition);
+	void loadTopChunks(int render, ivec2 camPosition);
+	void loadRightChunks(int render, ivec2 camPosition);
+	void loadBotChunks(int render, ivec2 camPosition);
+	void loadLeftChunks(int render, ivec2 camPosition);
 	void updateNeighbours(std::pair<int, int> pair);
 	void unloadChunk();
 	void generateSpiralOrder();
-	void resetTerrain();
-	bool hasMoved(vec3 oldPos);
+	bool hasMoved(ivec2 oldPos);
+	void loadOrder();
+	void removeOrder();
 };
