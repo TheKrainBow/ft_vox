@@ -10,6 +10,9 @@ out vec4 FragColor;       // The output color of the fragment
 void main() {
     // FragColor = vec4(0, TexCoord.x / 5, 0, 1);
     // FragColor = vec4(TexCoord, 0, 1);
-    FragColor = texture(textureArray, vec3(TexCoord, TextureID));
+    vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
+    // if (TextureID == 6)
+    //     texColor.a = 0;
+    FragColor = texColor;
     // FragColor = vec4(0, 0, 0, 1);
 }

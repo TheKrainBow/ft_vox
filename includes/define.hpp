@@ -14,6 +14,15 @@
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 11
 # define ROTATION_SPEED 1.0f
-# define MOVEMENT_SPEED 0.5f
 # define NOT_FOUND 0
 # define CACHE_SIZE 50000
+# define MOVEMENT_SPEED 2.0f
+
+# define OCEAN_HEIGHT 180
+
+# define AIR 0
+# define STONE 'S'
+# define DIRT 'D'
+# define GRASS 'G'
+# define SAND 's'
+# define WATER 'W'

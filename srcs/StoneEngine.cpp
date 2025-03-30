@@ -1,6 +1,16 @@
 #include "StoneEngine.hpp"
 
-StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)//, updateChunkFlag(false), running(true)
+bool isTransparent(char block)
+{
+	return block == AIR || block == WATER;
+}
+
+bool faceDisplayCondition(char blockToDisplay, char neighbourBlock)
+{
+	return isTransparent(neighbourBlock) && blockToDisplay != neighbourBlock;
+}
+
+StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)
 {
 	initData();
 	initGLFW();
@@ -75,6 +85,8 @@ void StoneEngine::initTextures()
 		{ T_STONE, "textures/stone.ppm" },
 		{ T_GRASS_SIDE, "textures/grass_block_side.ppm" },
 		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
+		{ T_SAND, "textures/sand.ppm" },
+		{ T_WATER, "textures/water.ppm" },
 	});
 }
 
