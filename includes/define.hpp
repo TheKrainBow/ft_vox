@@ -1,4 +1,4 @@
-#pragma once
+# pragma once
 # define SHOW_TRIANGLES false
 # define ENABLE_WORLD_GENERATION false
 # define SHOW_DEBUG true
@@ -10,13 +10,13 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 31
+# define RENDER_DISTANCE 11
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
-# define CHUNK_SIZE 11
+# define CHUNK_SIZE 32
 # define ROTATION_SPEED 1.0f
 # define NOT_FOUND 0
 # define CACHE_SIZE 50000
-# define MOVEMENT_SPEED 2.0f
+# define MOVEMENT_SPEED 0.5f
 
 # define OCEAN_HEIGHT 180
 
