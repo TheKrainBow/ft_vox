@@ -55,28 +55,6 @@ int *World::getRenderDistancePtr()
 	return &_renderDistance;
 }
 
-void World::updateNeighbours(std::pair<int, int> pair)
-{
-	std::pair<int, int> top (pair.first + 1, pair.second);
-	std::pair<int, int> bot (pair.first - 1, pair.second);
-	std::pair<int, int> left (pair.first, pair.second + 1);
-	std::pair<int, int> right (pair.first, pair.second - 1);
-
-	auto it = _chunks.find(top);
-	if (it != _chunks.end())
-		it->second->sendFacesToDisplay();
-	it = _chunks.find(bot);
-	if (it != _chunks.end())
-		it->second->sendFacesToDisplay();
-	it = _chunks.find(left);
-	if (it != _chunks.end())
-		it->second->sendFacesToDisplay();
-	it = _chunks.find(right);
-	if (it != _chunks.end())
-		it->second->sendFacesToDisplay();
-}
-
-
 void World::setRunning(std::mutex *runningMutex, bool *isRunning)
 {
 	_isRunning = isRunning;
@@ -220,12 +198,11 @@ void World::loadLeftChunks(int render, ivec2 chunkPos)
 
 void World::loadFirstChunks(ivec2 chunkPos)
 {
-    int renderDistance = _renderDistance;
     _skipLoad = false;
 
     loadChunk(0, 0, 1, chunkPos);
 	std::vector<std::future<void>> retLst;
-    for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
+    for (int render = 2; getIsRunning() && render < _renderDistance; render+=2)
 	{
 		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos));
@@ -239,6 +216,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	{
 		ret.get();
 	}
+	retLst.clear();
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)

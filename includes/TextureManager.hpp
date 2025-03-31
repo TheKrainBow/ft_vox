@@ -14,10 +14,11 @@ enum TextureType {
 	T_GRASS_SIDE,
 	T_GRASS_TOP,
 	T_SAND,
-	T_WATER
+	T_WATER,
+	T_SNOW,
 };
 
-# define N_TEXTURES 7
+# define N_TEXTURES 8
 # define TEXTURE_SIZE 16
 
 class TextureManager {

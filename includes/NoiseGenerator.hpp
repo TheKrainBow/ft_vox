@@ -40,6 +40,7 @@ class NoiseGenerator {
 		const size_t &getSeed() const;
 		void setNoiseData(const NoiseData &data);
 		void removePerlinMap(int x, int z);
+		vec2 getBorderWarping(double x, double z);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;
@@ -49,7 +50,6 @@ class NoiseGenerator {
 		double getErosionNoise(vec2 pos);
 		double getOceanNoise(vec2 pos);
 		double getHeight(vec2 pos);
-		vec2 getBorderWarping(double x, double z);
 		double getPeaksValleysNoise(vec2 pos);
 
 		size_t _seed;

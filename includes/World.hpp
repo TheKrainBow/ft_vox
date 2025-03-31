@@ -101,7 +101,6 @@ private:
 	void loadRightChunks(int render, ivec2 camPosition);
 	void loadBotChunks(int render, ivec2 camPosition);
 	void loadLeftChunks(int render, ivec2 camPosition);
-	void updateNeighbours(std::pair<int, int> pair);
 	void unloadChunk();
 	void generateSpiralOrder();
 	bool hasMoved(ivec2 oldPos);

@@ -87,6 +87,7 @@ void StoneEngine::initTextures()
 		{ T_GRASS_TOP, "textures/grass_block_top_colored.ppm" },
 		{ T_SAND, "textures/sand.ppm" },
 		{ T_WATER, "textures/water.ppm" },
+		{ T_SNOW, "textures/snow.ppm" },
 	});
 }
 

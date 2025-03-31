@@ -10,6 +10,12 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wor
 	loadBiome();
 }
 
+void SubChunk::pushVerticesToOpenGL() {
+    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+	_needUpdate = false;
+}
+
 void SubChunk::initGLBuffer()
 {
 	if (_hasBufferInitialized == true)
@@ -34,8 +40,7 @@ void SubChunk::initGLBuffer()
     glEnableVertexAttribArray(1);
 
     // Instance data (instancePositions)
-    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+	pushVerticesToOpenGL();
 
     glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
     glEnableVertexAttribArray(2);
@@ -109,8 +114,30 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 		setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
+void SubChunk::loadMountain(int x, int z, size_t ground)
+{
+	(void)x;
+	(void)z;
+	(void)ground;
+	//
+	setBlock(vec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
+	for (int i = -1; i > -4; i--)
+		setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
+	// setBlock(vec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
+	// for (int i = -1; i > -5; i--)
+	// 	setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
+}
+
 void SubChunk::loadBiome()
 {
+	NoiseGenerator &noisegen = _world.getNoiseGenerator();
+	noisegen.setNoiseData({
+		1.0,  // amplitude
+		0.9, // frequency
+		0.02,  // persistence
+		0.5,  // lacunarity
+		12     // nb_octaves
+	});
 	for (int x = 0; x < CHUNK_SIZE ; x++)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z++)
@@ -118,6 +145,9 @@ void SubChunk::loadBiome()
 			size_t ground = (*_perlinMap)[z * CHUNK_SIZE + x];
 			if (ground <= OCEAN_HEIGHT)
 				loadOcean(x, z, ground);
+			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15)) {
+				loadMountain(x, z, ground);
+			}
 			else if (ground)
 				loadPlaine(x, z, ground);
 		}
@@ -196,6 +226,8 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				block = subChunk->getBlock(vec3(position.x, position.y, CHUNK_SIZE - 1));
+			} else {
+				block = 1;
 			}
 		}
 	}
@@ -215,6 +247,8 @@ void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType textur
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				block = subChunk->getBlock(vec3(position.x, position.y, 0));
+			} else {
+				block = 1;
 			}
 		}
 	}
@@ -234,6 +268,8 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				block = subChunk->getBlock(vec3(CHUNK_SIZE - 1, position.y, position.z));
+			} else {
+				block = 1;
 			}
 		}
 	}
@@ -253,6 +289,8 @@ void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				block = subChunk->getBlock(vec3(0, position.y, position.z));
+			} else {
+				block = 1;
 			}
 		}
 	}
@@ -278,18 +316,19 @@ vec3 SubChunk::getPosition()
 }
 
 void SubChunk::clearFaces() {
-	std::cout << "Cleared faces" << std::endl;
+	// std::cout << "Cleared faces" << std::endl;
 	for (int i = 0; i < 6; i++)
 		_faces[i].clear();
 	_vertexData.clear();
 	_hasSentFaces = false;
+	_needUpdate = true;
 }
 
 void SubChunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)
-		return ;
-	// 	clearFaces();
+		clearFaces();
+	// 	return ;
 	for (int x = 0; x < CHUNK_SIZE; x++)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y++)
@@ -312,6 +351,9 @@ void SubChunk::sendFacesToDisplay()
 						break;
 					case WATER:
 						addBlock(WATER, vec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER);
+						break;
+					case SNOW:
+						addBlock(SNOW, vec3(x, y, z), T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW);
 						break;
 					default :
 						break;
@@ -356,6 +398,8 @@ int SubChunk::display(void)
 {
 	if (_hasBufferInitialized == false)
 		initGLBuffer();
+	if (_needUpdate)
+		pushVerticesToOpenGL();
     glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);

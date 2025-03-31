@@ -14,9 +14,9 @@ class World;
 class Chunk
 {
 	private:
-		vec2					_position;
-		std::atomic_bool		_isFullyLoaded;
-		std::atomic_bool		_facesSent;
+		vec2								_position;
+		std::atomic_bool					_isFullyLoaded;
+		std::atomic_bool					_facesSent;
 		std::unordered_map<int, SubChunk *>	_subChunks;
 		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
@@ -24,10 +24,12 @@ class Chunk
 		TextureManager						&_textureManager;
 		PerlinMap							*_perlinMap;
 		Chrono								_chrono;
-		Chunk					*_north = nullptr;
-		Chunk					*_south = nullptr;
-		Chunk					*_east = nullptr;
-		Chunk					*_west = nullptr;
+		Chunk								*_north = nullptr;
+		Chunk								*_south = nullptr;
+		Chunk								*_east = nullptr;
+		Chunk								*_west = nullptr;
+		int									_loads = 0;
+		std::mutex							_sendFaceMutex;
 	public:
 		Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
 		~Chunk();

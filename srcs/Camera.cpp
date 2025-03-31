@@ -1,6 +1,6 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{-1125, -165, -1422}, angle(0, -90) { };
+Camera::Camera() : position{-574, -380, -1126}, angle(335, -4) { };
 /*
 	Moving the camera around (first person view)
 */

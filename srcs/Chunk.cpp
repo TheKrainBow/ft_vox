@@ -4,15 +4,41 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
+	_position = pos;
+	_facesSent = false;
 	getNeighbors();
-	for (int y = (perlinMap->lowest) - (CHUNK_SIZE * 2); y < (perlinMap->heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
+	int heighest = perlinMap->heighest;
+	int lowest = perlinMap->lowest;
+	if (heighest < OCEAN_HEIGHT) {
+		heighest = OCEAN_HEIGHT;
+	}
+	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
+	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
+	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
 		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
 	}
 	_isInit = true;
-	_position = pos;
-	_facesSent = false;
 	sendFacesToDisplay();
+
+    if (_north) {
+		_north->sendFacesToDisplay();
+	}
+
+    // _south = retSouth.get();
+    if (_south) {
+		_south->sendFacesToDisplay();
+	}
+
+    // _east = retEast.get();
+    if (_east) {
+		_east->sendFacesToDisplay();
+	}
+
+    // _west = retWest.get();
+    if (_west) {
+		_west->sendFacesToDisplay();
+	}
 }
 
 Chunk::~Chunk()
@@ -46,31 +72,27 @@ void Chunk::getNeighbors()
     // });
 
     // Wait for all futures and assign the results
-    _north = _world.getChunk({_position.x + 1, _position.y - 1});
-    _south = _world.getChunk({_position.x - 1, _position.y + 1});
+    _north = _world.getChunk({_position.x, _position.y - 1});
+    _south = _world.getChunk({_position.x, _position.y + 1});
     _east = _world.getChunk({_position.x + 1, _position.y});
     _west = _world.getChunk({_position.x - 1, _position.y});
     if (_north) {
 		_north->setSouthChunk(this);
-		// _north->sendFacesToDisplay();
 	}
 
     // _south = retSouth.get();
     if (_south) {
 		_south->setNorthChunk(this);
-		// _south->sendFacesToDisplay();
 	}
 
     // _east = retEast.get();
     if (_east) {
-		_east->setNorthChunk(this);
-		// _east->sendFacesToDisplay();
+		_east->setWestChunk(this);
 	}
 
     // _west = retWest.get();
     if (_west) {
-		_west->setNorthChunk(this);
-		// _west->sendFacesToDisplay();
+		_west->setEastChunk(this);
 	}
 
 	// _chrono.stopChrono(2);
@@ -92,7 +114,9 @@ int Chunk::display()
 	int triangleDrawn = 0;
 	for (auto &subchunk : _subChunks)
 	{
+		_subChunksMutex.lock();
 		triangleDrawn += subchunk.second->display();
+		_subChunksMutex.unlock();
 	}
 	return triangleDrawn;
 }
@@ -115,11 +139,12 @@ bool Chunk::isReady()
 
 void Chunk::sendFacesToDisplay()
 {
-	if (_facesSent)
-		return ;
+	_subChunksMutex.lock();
 	for (auto &subChunk : _subChunks)
 		subChunk.second->sendFacesToDisplay();
+	_subChunksMutex.unlock();
 	_facesSent = true;
+	_loads++;
 }
 
 void Chunk::setNorthChunk(Chunk *chunk)

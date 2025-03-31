@@ -38,6 +38,7 @@ class SubChunk
 		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
 		TextureManager		&_textManager;
+		bool				_needUpdate;
 		Chrono chrono;
 	public:
 		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
@@ -50,10 +51,12 @@ class SubChunk
 		void loadBiome();
 		void loadOcean(int x, int z, size_t ground);
 		void loadPlaine(int x, int z, size_t ground);
+		void loadMountain(int x, int z, size_t ground);
 		vec3 getPosition(void);
 		char getBlock(vec3 position);
 		void setBlock(vec3 position, char block);
 		void sendFacesToDisplay();
+		void pushVerticesToOpenGL();
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
