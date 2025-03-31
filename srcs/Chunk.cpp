@@ -4,6 +4,7 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
+	getNeighbors();
 	for (int y = (perlinMap->lowest) - (CHUNK_SIZE * 2); y < (perlinMap->heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
 		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
@@ -11,7 +12,6 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 	_isInit = true;
 	_position = pos;
 	_facesSent = false;
-	// getNeighbors();
 	sendFacesToDisplay();
 }
 
@@ -46,10 +46,10 @@ void Chunk::getNeighbors()
     // });
 
     // Wait for all futures and assign the results
-    _north = _world.getChunk({_position.x + 1, _position.y});
-    _south = _world.getChunk({_position.x - 1, _position.y});
-    _east = _world.getChunk({_position.x, _position.y + 1});
-    _west = _world.getChunk({_position.x, _position.y - 1});
+    _north = _world.getChunk({_position.x + 1, _position.y - 1});
+    _south = _world.getChunk({_position.x - 1, _position.y + 1});
+    _east = _world.getChunk({_position.x + 1, _position.y});
+    _west = _world.getChunk({_position.x - 1, _position.y});
     if (_north) {
 		_north->setSouthChunk(this);
 		// _north->sendFacesToDisplay();
@@ -75,7 +75,6 @@ void Chunk::getNeighbors()
 
 	// _chrono.stopChrono(2);
 	// _chrono.startChrono(3, "Sending faces");
-    sendFacesToDisplay();
 	// _chrono.stopChrono(3);
 	// _chrono.printChronos();
 }
@@ -126,51 +125,42 @@ void Chunk::sendFacesToDisplay()
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
-
-	_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-	{
-		_facesSent = false;
-	}
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
-
-	_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-	{
-		_facesSent = false;
-	}
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
-
-	_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-	{
-		_facesSent = false;
-	}
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
-
-	_isFullyLoaded = (_north && _south && _west && _east);
-	if (_isFullyLoaded)
-	{
-		_facesSent = false;
-	}
-	if (_isFullyLoaded)
-		sendFacesToDisplay();
 }
+
+Chunk *Chunk::getNorthChunk() {
+	return _north;
+}
+
+Chunk *Chunk::getSouthChunk() {
+	return _south;
+}
+
+Chunk *Chunk::getEastChunk() {
+	return _east;
+}
+
+Chunk *Chunk::getWestChunk() {
+	return _west;
+}
+
+
+// Load chunks: 0,203s
+// Load chunks: 0,256s
+// Load chunks: 0,245s
+// Load chunks: 0,235s
+// Load chunks: 0,208s

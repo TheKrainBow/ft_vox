@@ -41,4 +41,8 @@ class Chunk
 		void setNorthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);
 		void setSouthChunk(Chunk *chunk);
+		Chunk *getNorthChunk();
+		Chunk *getSouthChunk();
+		Chunk *getWestChunk();
+		Chunk *getEastChunk();
 };

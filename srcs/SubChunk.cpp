@@ -186,63 +186,76 @@ void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture)
 
 void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-	(void)current;
 	char block = 0;
 	if (position.z != 0)
 		block = getBlock({position.x, position.y, position.z - 1});
-	else
-		block = _world.getBlock(vec3(x, y, z - 1));
+	else {
+		Chunk *chunk = _chunk.getNorthChunk();
+		if (chunk)
+		{
+			SubChunk *subChunk = chunk->getSubChunk(_position.y);
+			if (subChunk) {
+				block = subChunk->getBlock(vec3(position.x, position.y, CHUNK_SIZE - 1));
+			}
+		}
+	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, NORTH, texture);
 }
 
 void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-	(void)current;
-
 	char block = 0;
 	if (position.z != CHUNK_SIZE - 1)
 		block = getBlock({position.x, position.y, position.z + 1});
-	else
-		block = _world.getBlock(vec3(x, y, z + 1));
+	else {
+		Chunk *chunk = _chunk.getSouthChunk();
+		if (chunk)
+		{
+			SubChunk *subChunk = chunk->getSubChunk(_position.y);
+			if (subChunk) {
+				block = subChunk->getBlock(vec3(position.x, position.y, 0));
+			}
+		}
+	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, SOUTH, texture);
 }
 
 void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-	(void)current;
-
 	char block = 0;
 	if (position.x != 0)
 		block = getBlock({position.x - 1, position.y, position.z});
-	else
-		block = _world.getBlock(vec3(x - 1, y, z));
+	else {
+		Chunk *chunk = _chunk.getWestChunk();
+		if (chunk)
+		{
+			SubChunk *subChunk = chunk->getSubChunk(_position.y);
+			if (subChunk) {
+				block = subChunk->getBlock(vec3(CHUNK_SIZE - 1, position.y, position.z));
+			}
+		}
+	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, WEST, texture);
 }
 
 void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-	(void)current;
-
 	char block = 0;
 	if (position.x != CHUNK_SIZE - 1)
 		block = getBlock({position.x + 1, position.y, position.z});
-	else
-		block = _world.getBlock(vec3(x + 1, y, z));
+	else {
+		Chunk *chunk = _chunk.getEastChunk();
+		if (chunk)
+		{
+			SubChunk *subChunk = chunk->getSubChunk(_position.y);
+			if (subChunk) {
+				block = subChunk->getBlock(vec3(0, position.y, position.z));
+			}
+		}
+	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, EAST, texture);
 }
