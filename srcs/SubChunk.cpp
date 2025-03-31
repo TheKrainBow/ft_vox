@@ -153,8 +153,6 @@ char SubChunk::getBlock(vec3 position)
 
 void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture)
 {
-	(void)current;
-
 	char block = 0;
 	if (position.y > 0)
 		block = getBlock({position.x, position.y - 1, position.z});
@@ -173,15 +171,15 @@ void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture
 
 void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture)
 {
-	int x = _position.x * CHUNK_SIZE + position.x;
-	int y = _position.y * CHUNK_SIZE + position.y;
-	int z = _position.z * CHUNK_SIZE + position.z;
-
 	char block = 0;
 	if (position.y != CHUNK_SIZE - 1)
 		block = getBlock({position.x, position.y + 1, position.z});
 	else
-		block = _world.getBlock(vec3(x, y + 1, z));
+	{
+		SubChunk *overChunk = _chunk.getSubChunk(_position.y + 1);
+		if (overChunk)
+			block = overChunk->getBlock({position.x, 0, position.z});
+	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, UP, texture);
 }
@@ -251,8 +249,9 @@ void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture
 
 void SubChunk::addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
 {
-	//
 	addUpFace(block, position, up);
+	if (block == WATER)
+		return;
 	addDownFace(block, position, down);
 	addNorthFace(block, position, north);
 	addSouthFace(block, position, south);

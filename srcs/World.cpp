@@ -185,7 +185,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 void World::loadTopChunks(int render, ivec2 chunkPos)
 {
 	int z = 0;
-	for (int x = 0; x < render; x++)
+	for (int x = 0; x < render && getIsRunning(); x++)
 	{
 		loadChunk(x, z, render, chunkPos);
 	}
@@ -194,7 +194,7 @@ void World::loadTopChunks(int render, ivec2 chunkPos)
 void World::loadBotChunks(int render, ivec2 chunkPos)
 {
 	int z = render - 1;
-	for (int x = render - 1; x >= 0; x--)
+	for (int x = render - 1; getIsRunning() && x >= 0; x--)
 	{
 		loadChunk(x, z, render, chunkPos);
 	}
@@ -203,7 +203,7 @@ void World::loadBotChunks(int render, ivec2 chunkPos)
 void World::loadRightChunks(int render, ivec2 chunkPos)
 {
 	int x = render - 1;
-	for (int z = 0; z < render; z++)
+	for (int z = 0; z < render && getIsRunning(); z++)
 	{
 		loadChunk(x, z, render, chunkPos);
 	}
@@ -212,7 +212,7 @@ void World::loadRightChunks(int render, ivec2 chunkPos)
 void World::loadLeftChunks(int render, ivec2 chunkPos)
 {
 	int x = 0;
-	for (int z = render - 1; z >= 0; z--)
+	for (int z = render - 1; getIsRunning() && z >= 0; z--)
 	{
 		loadChunk(x, z, render, chunkPos);
 	}

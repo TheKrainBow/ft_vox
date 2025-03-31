@@ -38,34 +38,39 @@ unsigned char* loadTexturePPM(const std::string& filename, int& width, int& heig
     return rgbaData;  // Don't forget to delete[] after usage!
 }
 
-void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::string>> textureList) {
-	glGenTextures(1, &_textureArrayID);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureArrayID);
+void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data) {
+    glGenTextures(1, &_textureArrayID);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, _textureArrayID);
 
-	// Set texture parameters
-	glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-	GLfloat maxAniso = 0.0f;
-	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
-	glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
-	glTexEnvf(GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -1.0f);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_LOD_BIAS, -1.0f);
 
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // Set Anisotropic Filtering (only if supported)
+    GLfloat maxAniso = 0.0f;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+    if (maxAniso > 1.0f) {
+        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+    }
 
-	int width = TEXTURE_SIZE, height = TEXTURE_SIZE;
-	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, TEXTURE_SIZE, TEXTURE_SIZE, N_TEXTURES, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    // Allocate storage for the texture array
+    int width = TEXTURE_SIZE, height = TEXTURE_SIZE;
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, width, height, N_TEXTURES, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
-	// Load and upload textures
-	for (int i = 0; i < N_TEXTURES; i++) {
-		unsigned char *data = loadTexturePPM(textureList[i].second, width, height);
-		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		delete []data;
-	}
-	// Set texture parameters
-	glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    // Load and upload textures
+    for (int i = 0; i < N_TEXTURES; i++) {
+        if (!data.empty()) {
+            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, loadTexturePPM(data[i].second, width, height));
+        }
+    }
+
+    // Generate mipmaps after all textures are uploaded
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
 
 GLuint TextureManager::getTextureArray() const

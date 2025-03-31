@@ -6,13 +6,13 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 	_perlinMap = perlinMap;
 	for (int y = (perlinMap->lowest) - (CHUNK_SIZE * 2); y < (perlinMap->heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
-		_subChunks[(y / CHUNK_SIZE)] = new SubChunk({pos.x, y / CHUNK_SIZE, pos.y}, perlinMap, *this, world, textureManager);
+		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
 	}
+	_isInit = true;
 	_position = pos;
 	_facesSent = false;
 	// getNeighbors();
 	sendFacesToDisplay();
-	_isInit = true;
 }
 
 Chunk::~Chunk()
