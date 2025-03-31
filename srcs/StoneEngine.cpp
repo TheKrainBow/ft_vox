@@ -56,6 +56,7 @@ void StoneEngine::initData()
 	showDebugInfo		= SHOW_DEBUG;
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
+	showLight			= SHOW_LIGHTING;
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -74,6 +75,9 @@ void StoneEngine::initData()
 	moveSpeed		= 0.0;
 	rotationSpeed	= 0.0;
 
+	// Game data
+	sunPosition = {0.0f, 0.0f, 0.0f};
+	timeValue = 39800;
 }
 
 void StoneEngine::initTextures()
@@ -94,11 +98,18 @@ void StoneEngine::initTextures()
 void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
+	glm::vec3 viewPos = camera.getPosition();
+	sunPosition = {0.0f, 0.0f, 0.0f};
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
@@ -120,6 +131,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
 	debugBox.addLine("xangle: ", Textbox::FLOAT, &camAngle->x);
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
+	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
 }
 
@@ -246,12 +258,21 @@ void StoneEngine::findMoveRotationSpeed()
 void StoneEngine::updateMovement()
 {
 	// Camera movement
+	glm::vec3 oldPos = camera.getPosition(); // Old pos
 	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
+	glm::vec3 viewPos = camera.getPosition(); // New position
+
+	if (viewPos != oldPos)
+	{
+		viewPos.y *= -1;
+		glUseProgram(shaderProgram);
+		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+	}
 
 	// Camera rotation
 	if (!isWSL())
@@ -306,21 +327,50 @@ void StoneEngine::updateChunkWorker()
 	}
 }
 
+void StoneEngine::updateGameTick()
+{
+	timeValue += 6; // Increment time value per game tick
+	//std::cout << "timeValue: " << timeValue << std::endl;
+
+	if (timeValue >= 86400)
+		timeValue = 0;
+	if (showLight)
+	{
+		glUseProgram(shaderProgram);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
+	}
+	else
+	{
+		// Always daytime
+		glUseProgram(shaderProgram);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 64000);
+	}
+	//std::cout << "Updating gameTICK" << std::endl;
+}
+
 void StoneEngine::update()
 {
-	// Check for delta and apply to move and rotation speeds
-	findMoveRotationSpeed();
+    // Check for delta and apply to move and rotation speeds
+    findMoveRotationSpeed();
 
-	// Update player position and orientation
-	updateMovement();
+    // Get current time
+    end = std::chrono::steady_clock::now();
+    delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    start = end; // Reset start time for next frame
 
-	// Update display
-	display();
+    // Check if it's time to update the game tick (20 times per second)
+    static auto lastGameTick = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
+    {
+        updateGameTick();
+        lastGameTick = end; // Reset game tick timer
+    }
 
-	// Register end of frame for the next delta
-	end = std::chrono::steady_clock::now(); 
-	delta = std::chrono::duration_cast<std::chrono::milliseconds>(start - end);
+    // Update player position and orientation
+    updateMovement();
+    display();
 }
+
 
 void StoneEngine::reshapeAction(int width, int height)
 {
@@ -346,6 +396,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
