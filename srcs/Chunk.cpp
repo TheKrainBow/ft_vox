@@ -139,11 +139,12 @@ bool Chunk::isReady()
 
 void Chunk::sendFacesToDisplay()
 {
-	if (_facesSent)
-		return ;
-	_facesSent = true;
+	_subChunksMutex.lock();
 	for (auto &subChunk : _subChunks)
 		subChunk.second->sendFacesToDisplay();
+	_subChunksMutex.unlock();
+	_facesSent = true;
+	_loads++;
 }
 
 void Chunk::setNorthChunk(Chunk *chunk)

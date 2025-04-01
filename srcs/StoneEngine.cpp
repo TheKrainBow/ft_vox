@@ -343,7 +343,7 @@ void StoneEngine::updateGameTick()
 	{
 		// Always daytime
 		glUseProgram(shaderProgram);
-		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 64000);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
 	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }

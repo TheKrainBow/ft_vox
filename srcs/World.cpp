@@ -339,8 +339,8 @@ void World::removeOrder()
 int World::display()
 {
 	int trianglesDrawn = 0;
-	removeOrder();
 	loadOrder();
+	removeOrder();
 	for (auto &activeChunk : _activeChunks)
 	{
 		trianglesDrawn += activeChunk.second->display();
