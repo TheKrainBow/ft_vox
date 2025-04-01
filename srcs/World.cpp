@@ -16,7 +16,7 @@ vec3 World::calculateBlockPos(vec3 position) const
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(6)
+World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(8)
 {
 	_renderDistance = RENDER_DISTANCE;
 }
@@ -152,7 +152,6 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 		_chunks[pair] = chunk;
 		_chunksMutex.unlock();
 	}
-
 	_chunksLoadMutex.lock();
 	_chunksLoadOrder.emplace(chunk);
 	_displayedChunks[pair] = chunk;
@@ -198,17 +197,18 @@ void World::loadLeftChunks(int render, ivec2 chunkPos)
 
 void World::loadFirstChunks(ivec2 chunkPos)
 {
-    _skipLoad = false;
+	int renderDistance = _renderDistance;
+	_skipLoad = false;
 
-    loadChunk(0, 0, 1, chunkPos);
 	std::vector<std::future<void>> retLst;
-    for (int render = 2; getIsRunning() && render < _renderDistance; render+=2)
+	loadChunk(0, 0, 1, chunkPos);
+    for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
+		// Load chunks
 		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos));
-
 		if (hasMoved(chunkPos))
 			break;
     }
@@ -218,6 +218,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	}
 	retLst.clear();
 }
+
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
 {

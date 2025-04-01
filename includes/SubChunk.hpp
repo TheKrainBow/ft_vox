@@ -24,7 +24,7 @@ class SubChunk
 	private:
 		vec3				_position;
 		std::vector<char>	_blocks;
-		double				**_perlinMap;
+		double				**_heightMap;
 		World				&_world;
 		Chunk				&_chunk;
 

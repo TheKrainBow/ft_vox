@@ -106,4 +106,5 @@ private:
 	bool hasMoved(ivec2 oldPos);
 	void loadOrder();
 	void removeOrder();
+	void updateChunk(int x, int z, int render, ivec2 chunkPos);
 };

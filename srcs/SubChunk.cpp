@@ -5,7 +5,7 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wor
 	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	std::fill(_blocks.begin(), _blocks.end(), 0);
-	_perlinMap = &perlinMap->map;
+	_heightMap = &perlinMap->heightMap;
 	loadHeight();
 	loadBiome();
 }
@@ -60,7 +60,7 @@ void SubChunk::loadHeight()
 		{
 			for (int x = 0; x < CHUNK_SIZE ; x++)
 			{
-				double height = (*_perlinMap)[z * CHUNK_SIZE + x];
+				double height = (*_heightMap)[z * CHUNK_SIZE + x];
 				size_t maxHeight = (size_t)(height);
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = STONE;
@@ -142,7 +142,7 @@ void SubChunk::loadBiome()
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z++)
 		{
-			size_t ground = (*_perlinMap)[z * CHUNK_SIZE + x];
+			size_t ground = (*_heightMap)[z * CHUNK_SIZE + x];
 			if (ground <= OCEAN_HEIGHT)
 				loadOcean(x, z, ground);
 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15)) {

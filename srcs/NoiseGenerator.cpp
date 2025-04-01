@@ -38,10 +38,10 @@ void NoiseGenerator::clearPerlinMaps(void)
 {
 	for (auto &map : _perlinMaps)
 	{
-		if (map.second && map.second->map)
+		if (map.second && map.second->heightMap)
 		{
-			delete [] map.second->map;
-			map.second->map = nullptr;
+			delete [] map.second->heightMap;
+			map.second->heightMap = nullptr;
 		}
 		if (map.second)
 		{
@@ -187,31 +187,12 @@ double NoiseGenerator::getHeight(vec2 pos)
 	return height;
 }
 
-// double NoiseGenerator::getHeight(vec2 pos)
-// {
-// 	pos = getBorderWarping(pos.x, pos.y);
-// 	double continentalNoise = getContinentalNoise(pos);
-// 	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
-// 	double erosionNoise = getErosionNoise(pos);
-// 	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
-// 	double erosionMask = (erosionNoise + 1.0) * 0.5;
-// 	double peaksNoise = getPeaksValleysNoise(pos);
-// 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
-// 	double peaksMask = (peaksNoise + 1.0) * 0.5;
-
-// 	double height = 100.0;
-// 	height += smoothBlend(surfaceHeight, erosionHeight, erosionMask);
-// 	height = smoothBlend(height, peaksHeight, peaksMask);
-// 	height = pow(height, 1.05); // Slightly bias towards higher values
-
-// 	return height;
-// }
-
 PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
 {
 	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
-	newMap->map = new double[size * size];
+	newMap->heightMap = new double[size * size];
+	newMap->caveMap = new double[size * size * size];
 	newMap->resolution = resolution;
 	newMap->position = vec2(startX, startZ);
 	newMap->heighest = 0;
@@ -220,11 +201,11 @@ PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int re
 	for (int x = 0; x < size; x += resolution)
 		for (int z = 0; z < size; z += resolution)
 		{
-			newMap->map[z * size + x] = getHeight({(startX * size) + x, (startZ * size) + z});
-			if (newMap->map[z * size + x] > newMap->heighest)
-				newMap->heighest = newMap->map[z * size + x];
-			if (newMap->map[z * size + x] < newMap->lowest)
-				newMap->lowest = newMap->map[z * size + x];
+			newMap->heightMap[z * size + x] = getHeight({(startX * size) + x, (startZ * size) + z});
+			if (newMap->heightMap[z * size + x] > newMap->heighest)
+				newMap->heighest = newMap->heightMap[z * size + x];
+			if (newMap->heightMap[z * size + x] < newMap->lowest)
+				newMap->lowest = newMap->heightMap[z * size + x];
 		}
 	_perlinMaps[{startX, startZ}] = newMap;
 	return (newMap);
@@ -239,10 +220,10 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	PerlinMap *map = (*it).second;
 	if (it != itend)
 	{
-		if (map && map->map)
+		if (map && map->heightMap)
 		{
-			delete [] map->map;
-			map->map = nullptr;
+			delete [] map->heightMap;
+			map->heightMap = nullptr;
 		}
 		if (map)
 		{

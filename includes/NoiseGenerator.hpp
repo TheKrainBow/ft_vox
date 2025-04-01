@@ -21,13 +21,16 @@ struct SplineData {
 class NoiseGenerator {
 	public:
 		struct PerlinMap {
-			double *map = nullptr;
+			double *heightMap = nullptr;
+			double *caveMap = nullptr;
 			vec2	position;
 			double	heighest = std::numeric_limits<double>::min();
 			double	lowest = std::numeric_limits<double>::max();
 			double	resolution = 1;
 			double	size = CHUNK_SIZE;
-			~PerlinMap() {if (map) delete [] map;};
+			~PerlinMap() {
+				if (heightMap) delete [] heightMap;
+				if (caveMap) delete [] caveMap;};
 		};
 	public:
 		NoiseGenerator(size_t seed);
