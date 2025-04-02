@@ -408,6 +408,11 @@ int SubChunk::display(void)
 
 void SubChunk::processFaces()
 {
+	// for (int i = 0; i < 6; i++) {
+	// 	for (Face face : _faces[i]) {
+	// 		addTextureVertex(face);
+	// 	}
+	// }
 	processUpVertex();
 	processDownVertex();
 	processNorthVertex();
