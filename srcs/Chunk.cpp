@@ -107,6 +107,20 @@ ivec2 Chunk::getPosition()
 	return _position;
 }
 
+int Chunk::displayTransparent()
+{
+	if (!_facesSent)
+		return (0);
+	int triangleDrawn = 0;
+	for (auto &subchunk : _subChunks)
+	{
+		_subChunksMutex.lock();
+		triangleDrawn += subchunk.second->displayTransparent();
+		_subChunksMutex.unlock();
+	}
+	return triangleDrawn;
+}
+
 int Chunk::display()
 {
 	if (!_facesSent)

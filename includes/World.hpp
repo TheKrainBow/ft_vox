@@ -51,7 +51,6 @@ private:
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_chunks;
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_displayedChunks;
 		std::list<Chunk *>							_chunkList;
-		std::mutex									_chunksMutex;
 		std::mutex									_chunksListMutex;
 
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> _activeChunks;
@@ -76,6 +75,7 @@ private:
 		Chrono chronoHelper;
 		ThreadPool 									_threadPool;
 public:
+		std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
 	void loadFirstChunks(ivec2 camPosition);

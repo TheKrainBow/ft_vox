@@ -61,18 +61,18 @@ bool compareEastStep2Faces(const SubChunk::Face& a, const SubChunk::Face& b) {
 }
 
 
-void SubChunk::processUpVertex()
+void SubChunk::processUpVertex(std::vector<Face> *faces, std::vector<int> *vertexData)
 {
-    if (_faces[UP].empty())
+    if (faces[UP].empty())
         return ;
-    std::sort(_faces[UP].begin(), _faces[UP].end(), compareUpFaces);
+    std::sort(faces[UP].begin(), faces[UP].end(), compareUpFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
 
     bool isFirst = true;
     Face lastFace;
     Face newFace;
-    for (Face face : _faces[UP])
+    for (Face face : faces[UP])
     {
         if (isFirst || newFace.size.y > 31 || newFace.texture != face.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
         {
@@ -102,22 +102,22 @@ void SubChunk::processUpVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addTextureVertex(face);
+        addTextureVertex(face, vertexData);
     }
 }
 
-void SubChunk::processDownVertex()
+void SubChunk::processDownVertex(std::vector<Face> *faces, std::vector<int> *vertexData)
 {
-    if (_faces[DOWN].empty())
+    if (faces[DOWN].empty())
         return ;
-    std::sort(_faces[DOWN].begin(), _faces[DOWN].end(), compareUpFaces);
+    std::sort(faces[DOWN].begin(), faces[DOWN].end(), compareUpFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
 
     bool isFirst = true;
     Face lastFace;
     Face newFace;
-    for (Face face : _faces[DOWN])
+    for (Face face : faces[DOWN])
     {
         if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
         {
@@ -148,22 +148,22 @@ void SubChunk::processDownVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addTextureVertex(face);
+        addTextureVertex(face, vertexData);
     }
 }
 
-void SubChunk::processNorthVertex()
+void SubChunk::processNorthVertex(std::vector<Face> *faces, std::vector<int> *vertexData)
 {
-    if (_faces[NORTH].empty())
+    if (faces[NORTH].empty())
         return ;
-    std::sort(_faces[NORTH].begin(), _faces[NORTH].end(), compareNorthFaces);
+    std::sort(faces[NORTH].begin(), faces[NORTH].end(), compareNorthFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
 
     bool isFirst = true;
     Face lastFace;
     Face newFace;
-    for (Face face : _faces[NORTH])
+    for (Face face : faces[NORTH])
     {
         if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
         {
@@ -194,22 +194,22 @@ void SubChunk::processNorthVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addTextureVertex(face);
+        addTextureVertex(face, vertexData);
     }
 }
 
-void SubChunk::processSouthVertex()
+void SubChunk::processSouthVertex(std::vector<Face> *faces, std::vector<int> *vertexData)
 {
-    if (_faces[SOUTH].empty())
+    if (faces[SOUTH].empty())
         return ;
-    std::sort(_faces[SOUTH].begin(), _faces[SOUTH].end(), compareNorthFaces);
+    std::sort(faces[SOUTH].begin(), faces[SOUTH].end(), compareNorthFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
 
     bool isFirst = true;
     Face lastFace;
     Face newFace;
-    for (Face face : _faces[SOUTH])
+    for (Face face : faces[SOUTH])
     {
         if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
         {
@@ -240,22 +240,22 @@ void SubChunk::processSouthVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addTextureVertex(face);
+        addTextureVertex(face, vertexData);
     }
 }
 
-void SubChunk::processEastVertex()
+void SubChunk::processEastVertex(std::vector<Face> *faces, std::vector<int> *vertexData)
 {
-    if (_faces[EAST].empty())
+    if (faces[EAST].empty())
         return ;
-    std::sort(_faces[EAST].begin(), _faces[EAST].end(), compareEastFaces);
+    std::sort(faces[EAST].begin(), faces[EAST].end(), compareEastFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
 
     bool isFirst = true;
     Face lastFace;
     Face newFace;
-    for (Face face : _faces[EAST])
+    for (Face face : faces[EAST])
     {
         if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
         {
@@ -285,22 +285,22 @@ void SubChunk::processEastVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addTextureVertex(face);
+        addTextureVertex(face, vertexData);
     }
 }
 
-void SubChunk::processWestVertex()
+void SubChunk::processWestVertex(std::vector<Face> *faces, std::vector<int> *vertexData)
 {
-    if (_faces[WEST].empty())
+    if (faces[WEST].empty())
         return ;
-    std::sort(_faces[WEST].begin(), _faces[WEST].end(), compareEastFaces);
+    std::sort(faces[WEST].begin(), faces[WEST].end(), compareEastFaces);
     std::vector<Face> mergedFacesZ;
     std::vector<Face> mergedFaces;
 
     bool isFirst = true;
     Face lastFace;
     Face newFace;
-    for (Face face : _faces[WEST])
+    for (Face face : faces[WEST])
     {
         if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
         {
@@ -330,17 +330,20 @@ void SubChunk::processWestVertex()
     mergedFaces.push_back(newFace);
 
     for (Face face : mergedFaces) {
-        addTextureVertex(face);
+        addTextureVertex(face, vertexData);
     }
 }
 
 
-void SubChunk::addFace(vec3 position, Direction dir, TextureType texture) {
+void SubChunk::addFace(vec3 position, Direction dir, TextureType texture, bool isTransparent) {
     Face newFace;
     newFace.position = position;
-    newFace.size = fvec2(0, 0);
-    // newFace.size = fvec2(1, 1);
+    newFace.size = ivec2(0, 0);
+    // newFace.size = ivec2(1, 1);
     newFace.direction = dir;
     newFace.texture = texture;
-    _faces[dir].push_back(newFace);
+    if (isTransparent)
+        _transparentFaces[dir].push_back(newFace);
+    else
+        _faces[dir].push_back(newFace);
 }

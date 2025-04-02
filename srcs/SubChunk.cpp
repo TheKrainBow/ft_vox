@@ -10,10 +10,16 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wor
 	loadBiome();
 }
 
-void SubChunk::pushVerticesToOpenGL() {
-    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
-	_needUpdate = false;
+void SubChunk::pushVerticesToOpenGL(bool isTransparent) {
+	if (isTransparent) {
+		glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _transparentVertexData.size(), _transparentVertexData.data(), GL_STATIC_DRAW);
+		_needTransparentUpdate = false;
+	} else {
+		glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+		_needUpdate = false;
+	}
 }
 
 void SubChunk::initGLBuffer()
@@ -21,7 +27,7 @@ void SubChunk::initGLBuffer()
 	if (_hasBufferInitialized == true)
 		return ;
 	glGenVertexArrays(1, &_vao);
-	glGenBuffers(1, &_vbo);
+	glGenVertexArrays(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
 
     GLfloat vertices[] = {
@@ -40,11 +46,29 @@ void SubChunk::initGLBuffer()
     glEnableVertexAttribArray(1);
 
     // Instance data (instancePositions)
-	pushVerticesToOpenGL();
+	pushVerticesToOpenGL(false);
 
-    glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-    glEnableVertexAttribArray(2);
-    glVertexAttribDivisor(2, 1); // Update once per instance
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1); // Update once per instance
+
+	glGenVertexArrays(1, &_transparentVao);
+	glGenBuffers(1, &_transparentInstanceVBO);
+
+    glBindVertexArray(_transparentVao);
+    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
+    glEnableVertexAttribArray(1);
+
+    // Instance data (instancePositions)
+	pushVerticesToOpenGL(true);
+
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1); // Update once per instance
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
@@ -101,7 +125,7 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 		setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
 	setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
 	int i;
-	for (i = -1; i > -4; i--)
+	for (i = 0; i > -4; i--)
 		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
 	for (; i > -8; i--)
 		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
@@ -144,7 +168,7 @@ void SubChunk::loadBiome()
 		{
 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
 			if (ground <= OCEAN_HEIGHT)
-				loadOcean(x, z, ground);
+				loadOcean(x, z, ground + 2);
 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15)) {
 				loadMountain(x, z, ground);
 			}
@@ -181,7 +205,7 @@ char SubChunk::getBlock(vec3 position)
 	return _blocks[x + (z * CHUNK_SIZE) + y * CHUNK_SIZE * CHUNK_SIZE];
 }
 
-void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture)
+void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.y > 0)
@@ -196,10 +220,10 @@ void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture
 			block = underChunk->getBlock({position.x, CHUNK_SIZE - 1, position.z});
 	}
 	if (faceDisplayCondition(current, block))
-		addFace(position, DOWN, texture);
+		addFace(position, DOWN, texture, isTransparent);
 }
 
-void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture)
+void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.y != CHUNK_SIZE - 1)
@@ -211,10 +235,10 @@ void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture)
 			block = overChunk->getBlock({position.x, 0, position.z});
 	}
 	if (faceDisplayCondition(current, block))
-		addFace(position, UP, texture);
+		addFace(position, UP, texture, isTransparent);
 }
 
-void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType texture)
+void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.z != 0)
@@ -232,10 +256,10 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 		}
 	}
 	if (faceDisplayCondition(current, block))
-		addFace(position, NORTH, texture);
+		addFace(position, NORTH, texture, isTransparent);
 }
 
-void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType texture)
+void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.z != CHUNK_SIZE - 1)
@@ -253,10 +277,10 @@ void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType textur
 		}
 	}
 	if (faceDisplayCondition(current, block))
-		addFace(position, SOUTH, texture);
+		addFace(position, SOUTH, texture, isTransparent);
 }
 
-void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture)
+void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.x != 0)
@@ -274,10 +298,10 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 		}
 	}
 	if (faceDisplayCondition(current, block))
-		addFace(position, WEST, texture);
+		addFace(position, WEST, texture, isTransparent);
 }
 
-void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture)
+void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.x != CHUNK_SIZE - 1)
@@ -295,19 +319,17 @@ void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture
 		}
 	}
 	if (faceDisplayCondition(current, block))
-		addFace(position, EAST, texture);
+		addFace(position, EAST, texture, isTransparent);
 }
 
-void SubChunk::addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west)
+void SubChunk::addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
 {
-	addUpFace(block, position, up);
-	if (block == WATER)
-		return;
-	addDownFace(block, position, down);
-	addNorthFace(block, position, north);
-	addSouthFace(block, position, south);
-	addWestFace(block, position, west);
-	addEastFace(block, position, east);
+	addUpFace(block, position, up, isTransparent);
+	addDownFace(block, position, down, isTransparent);
+	addNorthFace(block, position, north, isTransparent);
+	addSouthFace(block, position, south, isTransparent);
+	addWestFace(block, position, west, isTransparent);
+	addEastFace(block, position, east, isTransparent);
 }
 
 vec3 SubChunk::getPosition()
@@ -318,10 +340,15 @@ vec3 SubChunk::getPosition()
 void SubChunk::clearFaces() {
 	// std::cout << "Cleared faces" << std::endl;
 	for (int i = 0; i < 6; i++)
+	{
 		_faces[i].clear();
+		_transparentFaces[i].clear();
+	}
 	_vertexData.clear();
+	_transparentVertexData.clear();
 	_hasSentFaces = false;
 	_needUpdate = true;
+	_needTransparentUpdate = true;
 }
 
 void SubChunk::sendFacesToDisplay()
@@ -350,7 +377,7 @@ void SubChunk::sendFacesToDisplay()
 						addBlock(SAND, vec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
 						break;
 					case WATER:
-						addBlock(WATER, vec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER);
+						addBlock(WATER, vec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
 						break;
 					case SNOW:
 						addBlock(SNOW, vec3(x, y, z), T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW);
@@ -361,11 +388,12 @@ void SubChunk::sendFacesToDisplay()
 			}
 		}
 	}
-	processFaces();
+	processFaces(false);
+	processFaces(true);
 	_hasSentFaces = true;
 }
 
-void SubChunk::addTextureVertex(Face face)
+void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 {
 	int x = face.position.x;
 	int y = face.position.y;
@@ -383,7 +411,7 @@ void SubChunk::addTextureVertex(Face face)
 		lengthX = face.size.y - 1;
 		lengthY = face.size.x - 1;
 	}
-	
+
 	newVertex |= (x & 0x1F) << 0;			// 5 bits for x
 	newVertex |= (y & 0x1F) << 5;			// 5 bits for y
 	newVertex |= (z & 0x1F) << 10;			// 5 bits for z
@@ -391,32 +419,56 @@ void SubChunk::addTextureVertex(Face face)
 	newVertex |= (lengthX & 0x1F) << 18;	// 5 bits for lengthX
 	newVertex |= (lengthY & 0x1F) << 23;	// 5 bits for lengthY
 	newVertex |= (textureID & 0x0F) << 28;	// 4 bits for textureID
-	_vertexData.push_back(newVertex);
+	vertexData->push_back(newVertex);
+}
+
+int SubChunk::displayTransparent(void)
+{
+	if (_hasBufferInitialized == false)
+		initGLBuffer();
+	if (_needTransparentUpdate) {
+		pushVerticesToOpenGL(true);
+	}
+	glBindVertexArray(_transparentVao);
+	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _transparentVertexData.size());
+	glBindVertexArray(0);
+	return (_transparentVertexData.size() * 2);
 }
 
 int SubChunk::display(void)
 {
 	if (_hasBufferInitialized == false)
 		initGLBuffer();
-	if (_needUpdate)
-		pushVerticesToOpenGL();
-    glBindVertexArray(_vao);
+	if (_needUpdate) {
+		pushVerticesToOpenGL(false);
+	}
+	glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, _vertexData.size());
 	glBindVertexArray(0);
-    return (_vertexData.size() * 2);
+	return (_vertexData.size() * 2);
 }
 
-void SubChunk::processFaces()
+void SubChunk::processFaces(bool isTransparent)
 {
 	// for (int i = 0; i < 6; i++) {
 	// 	for (Face face : _faces[i]) {
 	// 		addTextureVertex(face);
 	// 	}
 	// }
-	processUpVertex();
-	processDownVertex();
-	processNorthVertex();
-	processSouthVertex();
-	processEastVertex();
-	processWestVertex();
+	if (isTransparent)
+	{
+		processUpVertex(_transparentFaces, &_transparentVertexData);
+		processDownVertex(_transparentFaces, &_transparentVertexData);
+		processNorthVertex(_transparentFaces, &_transparentVertexData);
+		processSouthVertex(_transparentFaces, &_transparentVertexData);
+		processEastVertex(_transparentFaces, &_transparentVertexData);
+		processWestVertex(_transparentFaces, &_transparentVertexData);
+	} else {
+		processUpVertex(_faces, &_vertexData);
+		processDownVertex(_faces, &_vertexData);
+		processNorthVertex(_faces, &_vertexData);
+		processSouthVertex(_faces, &_vertexData);
+		processEastVertex(_faces, &_vertexData);
+		processWestVertex(_faces, &_vertexData);
+	}
 }

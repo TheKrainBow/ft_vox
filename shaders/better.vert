@@ -78,6 +78,10 @@ void main()
         normal = vec3(0.0, 1.0, 0.0);
     }
 
+    if (textureID == 6)
+    {
+        basePos.y -= 0.1;
+    }
     // Compute world position and transform normal to world space
     vec3 worldPosition = worldPos + basePos + instancePos;
     finalUV.x *= lengthX;

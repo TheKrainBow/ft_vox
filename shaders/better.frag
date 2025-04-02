@@ -61,6 +61,12 @@ float calculateAmbientLight(float time)
 void main() {
     vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
 
+	float dist = sqrt(((FragPos.x - viewPos.x) * (FragPos.x - viewPos.x)) + ((FragPos.y - viewPos.y) * (FragPos.y - viewPos.y)) + ((FragPos.z - viewPos.z) * (FragPos.z - viewPos.z)));
+	if (dist > 10)
+		dist = 10;
+	if (TextureID == 6) {
+		texColor.a = 0.8;
+	}
     // Ambient Lighting
     float ambientStrength = calculateAmbientLight(timeValue);
 

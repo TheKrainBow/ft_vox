@@ -342,6 +342,10 @@ int World::display()
 	{
 		trianglesDrawn += activeChunk.second->display();
 	}
+	for (auto &activeChunk : _activeChunks)
+	{
+		trianglesDrawn += activeChunk.second->displayTransparent();
+	}
 	return trianglesDrawn;
 }
 

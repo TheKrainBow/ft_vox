@@ -38,6 +38,7 @@ class Chunk
 		void sendFacesToDisplay();
 		bool isReady();
 		int display();
+		int displayTransparent();
 		ivec2 getPosition();
 		void setWestChunk(Chunk *chunk);
 		void setNorthChunk(Chunk *chunk);

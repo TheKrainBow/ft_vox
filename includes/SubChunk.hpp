@@ -28,15 +28,24 @@ class SubChunk
 		World				&_world;
 		Chunk				&_chunk;
 
-    	std::vector<Face>	_faces[6];
 		bool				_loaded = false;
 		bool				_hasSentFaces = false;
 		bool				_isFullyLoaded = true;
 		bool				_hasBufferInitialized = false;
+
+		std::vector<Face>	_faces[6];
 		GLuint				_vao;
 		GLuint				_vbo;
 		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
+
+		std::vector<Face>	_transparentFaces[6];
+		GLuint				_transparentVao;
+		GLuint				_transparentVbo;
+		GLuint				_transparentInstanceVBO;
+		std::vector<int>	_transparentVertexData;
+		bool				_needTransparentUpdate;
+	
 		TextureManager		&_textManager;
 		bool				_needUpdate;
 		Chrono chrono;
@@ -45,8 +54,9 @@ class SubChunk
 		~SubChunk();
 		void setupBuffers();
 		int display(void);
-		void addTextureVertex(Face face);
-		void addFace(vec3 position, Direction dir, TextureType texture);
+		int displayTransparent(void);
+		void addTextureVertex(Face face, std::vector<int> *_vertexData);
+		void addFace(vec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight();
 		void loadBiome();
 		void loadOcean(int x, int z, size_t ground);
@@ -56,27 +66,27 @@ class SubChunk
 		char getBlock(vec3 position);
 		void setBlock(vec3 position, char block);
 		void sendFacesToDisplay();
-		void pushVerticesToOpenGL();
+		void pushVerticesToOpenGL(bool isTransparent);
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		void clearFaces();
 	private:
-		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west);
-		void addUpFace(BlockType block, vec3 position, TextureType texture);
-		void addDownFace(BlockType block, vec3 position, TextureType texture);
-		void addNorthFace(BlockType block, vec3 position, TextureType texture);
-		void addSouthFace(BlockType block, vec3 position, TextureType texture);
-		void addEastFace(BlockType block, vec3 position, TextureType texture);
-		void addWestFace(BlockType block, vec3 position, TextureType texture);
+		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
+		void addUpFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
+		void addDownFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
+		void addNorthFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
+		void addSouthFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
+		void addEastFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
+		void addWestFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
 	
-		void processFaces();
-		void processUpVertex();
-		void processDownVertex();
-		void processNorthVertex();
-		void processSouthVertex();
-		void processEastVertex();
-		void processWestVertex();
+		void processFaces(bool isTransparent);
+		void processUpVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
+		void processDownVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
+		void processNorthVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
+		void processSouthVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
+		void processEastVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
+		void processWestVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
 		void initGLBuffer();
 };
 
