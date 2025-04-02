@@ -294,17 +294,13 @@ void StoneEngine::updateMovement()
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
-	vec3 oldPos = camera.getWorldPosition();
-
-	vec3 oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
-	if (oldCamChunk.x < 0) oldCamChunk.x--;
-	if (oldCamChunk.y < 0) oldCamChunk.y--;
-	if (oldCamChunk.z < 0) oldCamChunk.z--;
+	ivec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
+	vec3 oldCamPos = camera.getPosition();
 
 	while (getIsRunning())
 	{
-		vec3 worldPos = camera.getWorldPosition();
-		if (oldPos.x != worldPos.x || oldPos.y != worldPos.y || oldPos.z != worldPos.z || firstIteration)
+		vec3 newCamPos = camera.getPosition();
+		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
 		{
 			// Check new chunk position for necessary updates to chunks
 			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
@@ -313,16 +309,12 @@ void StoneEngine::updateChunkWorker()
 				loadFirstChunks();
 				firstIteration = false;
 			}
-			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.z) != floor(camChunk.y)))
+			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y)))
 			{
 				loadNextChunks(camChunk);
 			}
-
-			oldPos = worldPos;
-			oldCamChunk = vec3(oldPos.x / CHUNK_SIZE, oldPos.y / CHUNK_SIZE, oldPos.z / CHUNK_SIZE);
-			if (oldCamChunk.x < 0) oldCamChunk.x--;
-			if (oldCamChunk.y < 0) oldCamChunk.y--;
-			if (oldCamChunk.z < 0) oldCamChunk.z--;
+			oldCamPos = newCamPos;
+			oldCamChunk = camChunk;
 		}
 	}
 }
