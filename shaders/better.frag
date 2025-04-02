@@ -28,11 +28,10 @@ vec3 computeSunPosition(float time) {
     return vec3(x, y, z);
 }
 
-float calculateDifuseLight(float time)
+float calculateDifuseLight(float time, vec3 lightDir)
 {
     vec3 norm = normalize(Normal);
     vec3 sunPos = computeSunPosition(time);
-    vec3 lightDir = normalize(FragPos - sunPos);
 	float diff;
 	diff = max(dot(norm, lightDir), 0.0);
 	return (diff);
@@ -58,8 +57,20 @@ float calculateAmbientLight(float time)
 	return (ambient);
 }
 
+float calculateSpecularLight(float time, vec3 lightDir)
+{
+    vec3 norm = normalize(Normal);
+    float specularStrength = 0.5;
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, norm);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 2);
+	float specular = specularStrength * spec;
+	return specular;
+}
+
 void main() {
     vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
+    vec3 lightDir = normalize(FragPos - computeSunPosition(timeValue));
 
 	if (TextureID == 6)
 	{
@@ -74,14 +85,12 @@ void main() {
     // Ambient Lighting
     float ambientStrength = calculateAmbientLight(timeValue);
 
-    // Diffuse Lighting
-	float diff = calculateDifuseLight(timeValue);
-
     // Specular Lighting
-    // float specularStrength = 0.4;
-    // vec3 viewDir = normalize(FragPos - viewPos);
-    // vec3 reflectDir = reflect(-lightDir, norm);
-    // float spec = pow(max(dot(viewDir, reflectDir), 0.0), 256);
+	float specularStrength = calculateSpecularLight(timeValue, lightDir);
+
+    // Diffuse Lighting
+	float diff = calculateDifuseLight(timeValue, lightDir);
+
 	float diffuseFactor = 0.2;
 	
 	if (timeValue < 40000)
@@ -94,7 +103,7 @@ void main() {
 		diffuseFactor = 0.2 * diffuseFactor;
 	}
 
-	float totalLight = ambientStrength + (diff * diffuseFactor);
+	float totalLight = ambientStrength + specularStrength + (diff * diffuseFactor);
 	if (totalLight > 1)
 		totalLight = 1;
     // Combine lighting

@@ -246,8 +246,8 @@ void StoneEngine::findMoveRotationSpeed()
 	
 
 	//ZOOM
-	// if (keyStates[GLFW_KEY_KP_ADD]) {_world.increaseRenderDistance(); loadNextChunks(camera.getChunkPosition(CHUNK_SIZE));}
-	// if (keyStates[GLFW_KEY_KP_SUBTRACT]) {_world.decreaseRenderDistance(); _world.loadFirstChunks(camera.getChunkPosition(CHUNK_SIZE));}
+	if (keyStates[GLFW_KEY_KP_ADD]) {timeValue++;}
+	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {timeValue--;}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
@@ -325,8 +325,10 @@ void StoneEngine::updateGameTick()
 	timeValue += 6; // Increment time value per game tick
 	//std::cout << "timeValue: " << timeValue << std::endl;
 
-	if (timeValue >= 86400)
+	if (timeValue > 86400)
 		timeValue = 0;
+	if (timeValue < 0)
+		timeValue = 86400;
 	if (showLight)
 	{
 		glUseProgram(shaderProgram);

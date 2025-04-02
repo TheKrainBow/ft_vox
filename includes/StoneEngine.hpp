@@ -60,7 +60,7 @@ class StoneEngine {
 
 		// Game data
 		glm::vec3 sunPosition;
-		int timeValue;
+		std::atomic_int timeValue;
 	public:
 		StoneEngine(int seed);
 		~StoneEngine();
