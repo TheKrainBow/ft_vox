@@ -339,6 +339,7 @@ void SubChunk::addFace(vec3 position, Direction dir, TextureType texture) {
     Face newFace;
     newFace.position = position;
     newFace.size = fvec2(0, 0);
+    // newFace.size = fvec2(1, 1);
     newFace.direction = dir;
     newFace.texture = texture;
     _faces[dir].push_back(newFace);
