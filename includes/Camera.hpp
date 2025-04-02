@@ -3,6 +3,19 @@
 
 #include "ft_vox.hpp"
 
+// Cardinal directions
+enum e_direction
+{
+	N,
+	NW,
+	W,
+	SW,
+	S,
+	SE,
+	E,
+	NE
+};
+
 class Camera {
 	public:
 		Camera();
@@ -13,11 +26,11 @@ class Camera {
 		void updateMousePos(int x, int y);
 		vec3 getWorldPosition();
 		ivec2 getChunkPosition(int chunkSize);
-		vec3 getCenter();
 		vec3 getPosition();
 		vec2 getAngles();
 		vec3 *getPositionPtr();
 		vec2 *getAnglesPtr();
+		e_direction *getDirectionPtr();
 		void rotate(float xAngle, float yAngle, double rotationSpeed);
 
 	private:
@@ -28,5 +41,5 @@ class Camera {
 		bool mouseRotation = false;
 		vec2 mousePos;
 		std::mutex _positionMutex;
-		// std::mutex angleMutex;
+		e_direction _facing;
 };

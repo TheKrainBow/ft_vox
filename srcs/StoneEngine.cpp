@@ -120,6 +120,7 @@ void StoneEngine::initDebugTextBox()
 {
 	vec3 *camPos = camera.getPositionPtr();
 	vec2 *camAngle = camera.getAnglesPtr();
+	e_direction *facing_direction = camera.getDirectionPtr();
 
 	debugBox.initData(_window, 0, 0, 200, 200);
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
@@ -132,6 +133,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("xangle: ", Textbox::FLOAT, &camAngle->x);
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
 	debugBox.addLine("time: ", Textbox::INT, &timeValue);
+	debugBox.addLine("Facing: ", Textbox::DIRECTION, facing_direction);
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
 }
 

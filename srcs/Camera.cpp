@@ -1,12 +1,15 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{-574, -380, -1126}, angle(335, -4) { };
-/*
-	Moving the camera around (first person view)
-*/
+Camera::Camera() : position{-574, -380, -1126}, angle(0, -4) {
+	int test = int(angle.x) / 45;
+	_facing = e_direction(test);
+};
 
 Camera::~Camera() {};
 
+/*
+	Moving the camera around (first person view)
+*/
 void Camera::move(float  forward, float  strafe, float up)
 {
 	//std::lock_guard<std::mutex> lock(positionMutex);
@@ -90,6 +93,13 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 		angle.x = 360;
 	else if (angle.x > 360)
 		angle.x = 0;
+	int test = int(angle.x) / 45;
+	_facing = e_direction(test);
+}
+
+e_direction *Camera::getDirectionPtr()
+{
+	return &_facing;
 }
 
 void Camera::updateMousePos(int x, int y)

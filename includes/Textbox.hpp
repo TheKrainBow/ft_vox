@@ -6,14 +6,33 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include "Camera.hpp"
 #include "stb_truetype.hpp"
+
+struct direction_pair
+{
+	e_direction direction;
+	std::string name;
+};
+
+const direction_pair directionTab[8] = {
+	{N, "North"},
+	{NW, "North West"},
+	{W, "West"},
+	{SW, "South West"},
+	{S, "South"},
+	{SE, "South East"},
+	{E, "East"},
+	{NE, "North East"}
+};
 
 class Textbox {
 public:
     enum e_type {
         DOUBLE,
         INT,
-        FLOAT
+        FLOAT,
+		DIRECTION
     };
 private:
     struct Line {
