@@ -99,10 +99,10 @@ void StoneEngine::initShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
-	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
 	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
-	glm::vec3 viewPos = camera.getPosition();
+	glm::vec3 viewPos = camera.getWorldPosition();
 	sunPosition = {0.0f, 0.0f, 0.0f};
 
 	glUseProgram(shaderProgram);
@@ -260,18 +260,17 @@ void StoneEngine::findMoveRotationSpeed()
 void StoneEngine::updateMovement()
 {
 	// Camera movement
-	glm::vec3 oldPos = camera.getPosition(); // Old pos
+	glm::vec3 oldPos = camera.getWorldPosition(); // Old pos
 	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
-	glm::vec3 viewPos = camera.getPosition(); // New position
+	glm::vec3 viewPos = camera.getWorldPosition(); // New position
 
 	if (viewPos != oldPos)
 	{
-		viewPos.y *= -1;
 		glUseProgram(shaderProgram);
 		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 	}
@@ -371,7 +370,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)width / (float)height, 0.1f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 10000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
