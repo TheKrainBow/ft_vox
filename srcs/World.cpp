@@ -38,7 +38,7 @@ NoiseGenerator &World::getNoiseGenerator(void)
 void World::loadPerlinMap(vec3 camPosition)
 {
 	_perlinGenerator.clearPerlinMaps();
-	vec2 position;
+	ivec2 position;
 	for (int x = -RENDER_DISTANCE; x < RENDER_DISTANCE; x++)
 	{
 		for (int z = -RENDER_DISTANCE; z < RENDER_DISTANCE; z++)
@@ -212,6 +212,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		if (hasMoved(chunkPos))
 			break;
     }
+
 	for (std::future<void> &ret : retLst)
 	{
 		ret.get();
@@ -227,7 +228,7 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 	for (auto &it : _displayedChunks)
 	{
 		Chunk *chunk = it.second;
-		vec2 chunkPos = chunk->getPosition();
+		ivec2 chunkPos = chunk->getPosition();
 		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
 		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
 		{
@@ -270,7 +271,7 @@ char World::getBlock(vec3 position)
 	chunkPos.y = int(chunkPos.y);
 	chunkPos.z = int(chunkPos.z);
 
-	Chunk *chunk = getChunk(vec2(chunkPos.x, chunkPos.z));
+	Chunk *chunk = getChunk(ivec2(chunkPos.x, chunkPos.z));
 	if (!chunk)
 	{
 		// std::cout << "No chunk (" << chunkPos.x << ", " << chunkPos.z << ")" << std::endl;
@@ -298,7 +299,7 @@ SubChunk *World::getSubChunk(vec3 position)
 	return nullptr;
 }
 
-Chunk *World::getChunk(vec2 position)
+Chunk *World::getChunk(ivec2 position)
 {
 	_chunksMutex.lock();
 	auto it = _chunks.find({position.x, position.y});
@@ -316,7 +317,7 @@ void World::loadOrder()
 	{
 		Chunk *chunk = nullptr;
 		chunk = _chunksLoadOrder.front();
-		vec2 chunkPos = chunk->getPosition();
+		ivec2 chunkPos = chunk->getPosition();
 		_activeChunks[{chunkPos.x, chunkPos.y}] = chunk;
 		_chunksLoadOrder.pop();
 	}

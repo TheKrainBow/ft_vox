@@ -87,7 +87,7 @@ public:
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);
 	int	getCachedChunksNumber();
-	Chunk* getChunk(vec2 position);
+	Chunk* getChunk(ivec2 position);
 	SubChunk* getSubChunk(vec3 position);
 	int display();
 	void increaseRenderDistance();

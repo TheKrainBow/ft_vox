@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
@@ -102,7 +102,7 @@ void Chunk::getNeighbors()
 }
 
 
-vec2 Chunk::getPosition()
+ivec2 Chunk::getPosition()
 {
 	return _position;
 }

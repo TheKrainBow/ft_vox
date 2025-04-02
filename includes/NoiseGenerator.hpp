@@ -23,7 +23,7 @@ class NoiseGenerator {
 		struct PerlinMap {
 			double *heightMap = nullptr;
 			double *caveMap = nullptr;
-			vec2	position;
+			ivec2	position;
 			double	heighest = std::numeric_limits<double>::min();
 			double	lowest = std::numeric_limits<double>::max();
 			double	resolution = 1;

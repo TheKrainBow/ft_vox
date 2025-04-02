@@ -14,7 +14,7 @@ class World;
 class Chunk
 {
 	private:
-		vec2								_position;
+		ivec2								_position;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
 		std::unordered_map<int, SubChunk *>	_subChunks;
@@ -31,14 +31,14 @@ class Chunk
 		int									_loads = 0;
 		std::mutex							_sendFaceMutex;
 	public:
-		Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
 		~Chunk();
 		void getNeighbors();
 		SubChunk *getSubChunk(int y);
 		void sendFacesToDisplay();
 		bool isReady();
 		int display();
-		vec2 getPosition();
+		ivec2 getPosition();
 		void setWestChunk(Chunk *chunk);
 		void setNorthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);
