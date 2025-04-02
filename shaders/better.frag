@@ -60,7 +60,9 @@ float calculateAmbientLight(float time)
 float calculateSpecularLight(float time, vec3 lightDir)
 {
     vec3 norm = normalize(Normal);
-    float specularStrength = 0.5;
+    float specularStrength;
+	if (TextureID == 6 ) specularStrength = 0.1;
+	else specularStrength = 0.2;
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 2);
@@ -76,7 +78,7 @@ void main() {
 	{
 		// Transparency for water
 		float minDistance = 20.0;
-		float maxDistance = 500.0;
+		float maxDistance = 250.0;
 		float dist = distance(viewPos, FragPos);
 		float transparency = clamp(((dist - minDistance) / (maxDistance - minDistance)), 0.6, 1.0);
 		texColor.a = texColor.a * transparency;

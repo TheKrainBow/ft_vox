@@ -246,8 +246,8 @@ void StoneEngine::findMoveRotationSpeed()
 	
 
 	//ZOOM
-	if (keyStates[GLFW_KEY_KP_ADD]) {timeValue++;}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {timeValue--;}
+	if (keyStates[GLFW_KEY_KP_ADD]) {timeValue+=50;}
+	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {timeValue-=50;}
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
