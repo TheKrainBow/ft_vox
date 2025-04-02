@@ -16,8 +16,8 @@ class SubChunk
 	public:
 		typedef struct s_Face
 		{
-			glm::fvec3	position;
-			glm::fvec2	size;
+			glm::ivec3	position;
+			glm::ivec2	size;
 			TextureType	texture;
 			Direction	direction;
 		} Face;

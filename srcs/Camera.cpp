@@ -93,8 +93,13 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 		angle.x = 360;
 	else if (angle.x > 360)
 		angle.x = 0;
-	int test = int(angle.x) / 45;
-	_facing = e_direction(test);
+	double tmp = angle.x + 45/2;
+	if (tmp < 0)
+		tmp = 360;
+	else if (tmp > 360)
+		tmp = 0;
+	double test = int(tmp) / 45;
+	_facing = e_direction((int)test);
 }
 
 e_direction *Camera::getDirectionPtr()
