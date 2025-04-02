@@ -338,10 +338,12 @@ int World::display()
 	int trianglesDrawn = 0;
 	loadOrder();
 	removeOrder();
+	glEnable(GL_CULL_FACE);
 	for (auto &activeChunk : _activeChunks)
 	{
 		trianglesDrawn += activeChunk.second->display();
 	}
+	glDisable(GL_CULL_FACE);
 	for (auto &activeChunk : _activeChunks)
 	{
 		trianglesDrawn += activeChunk.second->displayTransparent();
