@@ -51,11 +51,10 @@ GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentSha
 // void reshape(GLFWwindow* window, int width, int height);
 bool faceDisplayCondition(char blockToDisplay, char neighbourBlock);
 
-struct pair_hash {
-	template <class T1, class T2>
-	std::size_t operator () (const std::pair<T1, T2>& pair) const {
-		auto h1 = std::hash<T1>{}(pair.first);
-		auto h2 = std::hash<T2>{}(pair.second);
+struct ivec2_hash {
+	std::size_t operator () (const glm::ivec2 vec) const {
+		auto h1 = std::hash<int>{}(vec.x);
+		auto h2 = std::hash<int>{}(vec.y);
 		return h1 ^ (h2 << 1);
 	}
 };

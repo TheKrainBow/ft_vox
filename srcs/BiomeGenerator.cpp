@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:55:27 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/01/11 03:08:20 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/04/02 12:05:52 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -49,20 +49,20 @@ void BiomeGenerator::findBiomeCenters(vec2 playerPos)
 	}
 
 	// Add offset and calculate temps
-	for (const std::pair<float, float> &pair : _biomeCentersTemp)
+	for (const ivec2 &vec : _biomeCentersTemp)
 	{
 		BiomeData data;
 
 		// Create a noise data depending on the position that will serve for temps and offset
-		double noise = _noiseGen.noise(pair.first * 0.01, pair.second * 0.01) * 10.0;
+		double noise = _noiseGen.noise(vec.x * 0.01, vec.y * 0.01) * 10.0;
 		if (noise > 1.0)
 			noise *= 0.1;
 		else if (noise < -1.0)
 			noise *= 0.1;
 
 		// Apply offset and amplify with an arbitrary but constant metric
-		data.center.x = pair.first + (noise * OFFSET_METRIC);
-		data.center.y = pair.second + (noise * OFFSET_METRIC);
+		data.center.x = vec.x + (noise * OFFSET_METRIC);
+		data.center.y = vec.y + (noise * OFFSET_METRIC);
 
 		// Determine biome type with noise generated (0.0 < temperature < 1.0)
 		double temperature = (noise + 1.0) * 0.5;

@@ -36,8 +36,8 @@ class NoiseGenerator {
 		NoiseGenerator(size_t seed);
 		~NoiseGenerator();
 		double noise(double x, double y) const;
-		PerlinMap *addPerlinMap(int x, int y, int size, int resolution);
-		PerlinMap *getPerlinMap(int x, int y);
+		PerlinMap *addPerlinMap(ivec2 &pos, int size, int resolution);
+		PerlinMap *getPerlinMap(ivec2 &pos);
 		void clearPerlinMaps(void);
 		void setSeed(size_t seed);
 		const size_t &getSeed() const;
@@ -58,7 +58,7 @@ class NoiseGenerator {
 		size_t _seed;
 		NoiseData _data;
 		std::vector<int> _permutation;
-		std::unordered_map<std::pair<int, int>, PerlinMap*, pair_hash>	_perlinMaps;
+		std::unordered_map<ivec2, PerlinMap*, ivec2_hash>	_perlinMaps;
 		std::mutex				_perlinMutex;
 		SplineData spline;
 };

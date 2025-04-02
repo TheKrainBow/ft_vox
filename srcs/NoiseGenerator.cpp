@@ -187,27 +187,27 @@ double NoiseGenerator::getHeight(vec2 pos)
 	return height;
 }
 
-PerlinMap *NoiseGenerator::addPerlinMap(int startX, int startZ, int size, int resolution)
+PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
 	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
 	newMap->heightMap = new double[size * size];
 	newMap->caveMap = new double[size * size * size];
 	newMap->resolution = resolution;
-	newMap->position = vec2(startX, startZ);
+	newMap->position = pos;
 	newMap->heighest = 0;
 	newMap->lowest = 256;
 
 	for (int x = 0; x < size; x += resolution)
 		for (int z = 0; z < size; z += resolution)
 		{
-			newMap->heightMap[z * size + x] = getHeight({(startX * size) + x, (startZ * size) + z});
+			newMap->heightMap[z * size + x] = getHeight({(pos.x * size) + x, (pos.y * size) + z});
 			if (newMap->heightMap[z * size + x] > newMap->heighest)
 				newMap->heighest = newMap->heightMap[z * size + x];
 			if (newMap->heightMap[z * size + x] < newMap->lowest)
 				newMap->lowest = newMap->heightMap[z * size + x];
 		}
-	_perlinMaps[{startX, startZ}] = newMap;
+	_perlinMaps[pos] = newMap;
 	return (newMap);
 }
 
@@ -234,14 +234,14 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	}
 }
 
-PerlinMap *NoiseGenerator::getPerlinMap(int x, int y)
+PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos)
 {
 	std::lock_guard<std::mutex> lock(_perlinMutex);
-	auto it = _perlinMaps.find({x, y});
+	auto it = _perlinMaps.find(pos);
 	auto itend = _perlinMaps.end();
 	if (it != itend)
 		return ((*it).second);
-	return addPerlinMap(x, y, CHUNK_SIZE, 1);
+	return addPerlinMap(pos, CHUNK_SIZE, 1);
 }
 
 // Layered perlin noise samples by octaves number

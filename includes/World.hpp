@@ -48,14 +48,14 @@ class World
 private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
-		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_chunks;
-		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash>	_displayedChunks;
+		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_chunks;
+		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_displayedChunks;
 		std::list<Chunk *>							_chunkList;
 		std::mutex									_chunksMutex;
 		std::mutex									_chunksListMutex;
 
-		std::unordered_map<std::pair<int, int>, Chunk*, pair_hash> _activeChunks;
-		std::queue<std::pair<int, int>>	_chunkRemovalOrder;
+		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> _activeChunks;
+		std::queue<glm::ivec2>	_chunkRemovalOrder;
 		std::queue<Chunk *>	_chunksLoadOrder;
 		std::mutex			_chunksRemovalMutex;
 		std::mutex			_chunksLoadMutex;
@@ -65,7 +65,6 @@ private:
 		std::mutex									_displayQueueMutex;
 		bool										_skipLoad;
 		TextureManager								&_textureManager;
-		std::vector<std::pair<int, int>>			_spiralOrder;
 		
 		// Player related informations
 		Camera										*_camera;

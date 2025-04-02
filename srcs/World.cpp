@@ -45,7 +45,7 @@ void World::loadPerlinMap(vec3 camPosition)
 		{
 			position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
 			position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
-			_perlinGenerator.addPerlinMap(position.x, position.y, CHUNK_SIZE, 1);
+			_perlinGenerator.addPerlinMap(position, CHUNK_SIZE, 1);
 		}
 	}
 }
@@ -110,7 +110,7 @@ void World::unloadChunk()
 		_chunkList.erase(farthestChunkIt);
 		_chunksListMutex.unlock();
 
-		std::pair<int, int> key(chunkToRemove->getPosition().x, chunkToRemove->getPosition().y);
+		ivec2 key = chunkToRemove->getPosition();
 
 		// Remove from _chunks
 		_chunksMutex.lock();
@@ -130,9 +130,9 @@ void World::unloadChunk()
 void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 {
 	Chunk *chunk = nullptr;
-	std::pair<int, int> pair(chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z);
+	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
 	_chunksMutex.lock();
-	auto it = _chunks.find(pair);
+	auto it = _chunks.find(pos);
 	auto itend = _chunks.end();
 	if (it != itend)
 	{
@@ -142,19 +142,19 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 	else if (_skipLoad == false)
 	{
 		_chunksMutex.unlock();
-		chunk = new Chunk({pair.first, pair.second}, _perlinGenerator.getPerlinMap(pair.first, pair.second), *this, _textureManager);
+		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos), *this, _textureManager);
 
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
 
 		_chunksMutex.lock();
-		_chunks[pair] = chunk;
+		_chunks[pos] = chunk;
 		_chunksMutex.unlock();
 	}
 	_chunksLoadMutex.lock();
 	_chunksLoadOrder.emplace(chunk);
-	_displayedChunks[pair] = chunk;
+	_displayedChunks[pos] = chunk;
 	_chunksLoadMutex.unlock();
 	unloadChunk();
 }
@@ -223,8 +223,8 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
 {
-	std::pair<int, int> pos;
-	std::queue<std::pair<int, int>> deleteQueue;
+	ivec2 pos;
+	std::queue<ivec2> deleteQueue;
 	for (auto &it : _displayedChunks)
 	{
 		Chunk *chunk = it.second;
@@ -232,16 +232,12 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
 		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
 		{
-			// std::cout << chunkPos.x << " - " << newCamChunk.x << " = " << abs(chunkPos.x - newCamChunk.x) << " > " << _renderDistance << std::endl;
-			// std::cout << chunkPos.y << " - " << newCamChunk.y << " = " << abs(chunkPos.y - newCamChunk.y) << " > " << _renderDistance << std::endl;
-			pos = {(int)chunkPos.x, (int)chunkPos.y };
-			deleteQueue.emplace(pos);
+			deleteQueue.emplace(chunkPos);
 		}
 	}
 	// std::cout << deleteQueue.size() << std::endl;
 	while (!deleteQueue.empty())
 	{
-		std::pair<int, int> pos;
 		pos = deleteQueue.front();
 		_chunksRemovalMutex.lock();
 		_chunkRemovalOrder.emplace(pos);
@@ -291,7 +287,7 @@ char World::getBlock(vec3 position)
 SubChunk *World::getSubChunk(vec3 position)
 {
 	_chunksMutex.lock();
-	auto it = _chunks.find(std::make_pair(position.x, position.z));
+	auto it = _chunks.find(ivec2(position.x, position.z));
 	auto itend = _chunks.end();
 	_chunksMutex.unlock();
 	if (it != itend)
@@ -329,7 +325,7 @@ void World::removeOrder()
 	_chunksRemovalMutex.lock();
 	while (!_chunkRemovalOrder.empty())
 	{
-		std::pair<int, int> pos;
+		ivec2 pos;
 		pos = _chunkRemovalOrder.front();
 		_activeChunks.erase(pos);
 		_chunkRemovalOrder.pop();
