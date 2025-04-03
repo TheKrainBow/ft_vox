@@ -49,3 +49,17 @@ GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentSha
     glDeleteShader(fragmentShader);
     return shaderProgram;
 }
+
+std::string readShaderProgram(const std::string &filePath)
+{
+    std::ifstream shaderFile(filePath);
+    if (!shaderFile.is_open())
+	{
+        std::cerr << "Error: Shader file could not be opened: " << filePath << std::endl;
+        return 0;
+    }
+    std::stringstream shaderStream;
+    shaderStream << shaderFile.rdbuf();
+    std::string shaderCode = shaderStream.str();
+	return shaderCode;
+}

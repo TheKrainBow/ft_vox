@@ -18,6 +18,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initTextures();
 	initShaders();
 	initDebugTextBox();
+	frameBufferInit();
 	reshape(_window, windowWidth, windowHeight);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
@@ -157,11 +158,71 @@ void StoneEngine::calculateFps()
 	}
 }
 
+void StoneEngine::frameBufferInit()
+{
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	// Create a texture to attach to the FBO
+	glGenTextures(1, &fboTexture);
+	glBindTexture(GL_TEXTURE_2D, fboTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, W_WIDTH, W_HEIGHT, 0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// Attach the texture to the FBO
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
+
+	// Check FBO status
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		std::cerr << "Error: FBO not complete!" << std::endl;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);  // Unbind FBO
+	
+	// glGenTextures(1, &depthTexture);
+	// glBindTexture(GL_TEXTURE_2D, depthTexture);
+	// glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, W_WIDTH, W_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// Attach depth texture to FBO or use it directly as needed
+	// glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+	// // Bind the depth texture for read-write in compute shader (binding point 0)
+	// glBindImageTexture(0, depthTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_DEPTH_COMPONENT);
+
+	std::string computeShaderString = readShaderProgram("shaders/compute_shader.glsl");
+	const char* computeShaderSource = computeShaderString.c_str();
+	computeShader = glCreateShader(GL_COMPUTE_SHADER);
+	glShaderSource(computeShader, 1, &computeShaderSource, nullptr);
+	glCompileShader(computeShader);
+
+	computeShaderProgram = glCreateProgram();
+	glAttachShader(computeShaderProgram, computeShader);
+	glLinkProgram(computeShaderProgram);
+	
+
+	// Check for errors in linking
+	GLint success;
+	glGetProgramiv(computeShaderProgram, GL_LINK_STATUS, &success);
+	if (!success)
+	{
+		GLchar infoLog[512];
+		glGetProgramInfoLog(computeShaderProgram, 512, nullptr, infoLog);
+		std::cerr << "ERROR::COMPUTE_SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+	}
+}
+
 void StoneEngine::display()
 {
+	// Step 1: Clear the screen
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 
+	// Step 2: Calculate the model and view matrices
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
@@ -170,32 +231,56 @@ void StoneEngine::display()
 	glm::mat4 viewMatrix = glm::mat4(1.0f);
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.getPosition()));
+	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
 
+	// Step 3: Bind the main shader and send the matrices to the shader
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 
+	// Step 4: Bind the texture array for chunk rendering
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	
+
+	// Step 7: Set up culling and front face definition
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);      // Cull back faces
+	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
+
+	// Step 8: Draw chunks (after compute shader, if enabled)
+	// Assuming this draws the chunks (updated with new texture data)
+	drawnTriangles = _world.display();
+
+	// Step 9: Disable culling and restore polygon mode
+	glDisable(GL_CULL_FACE);
+
+	// Step 5: Use Compute Shader (FBO manipulation) if needed
+	// Bind FBO and dispatch compute shader
+	glUseProgram(computeShaderProgram);
+	glBindImageTexture(0, fboTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F); // Bind FBO texture
+	// Dispatch compute shader
+	glDispatchCompute((GLuint)W_WIDTH / 16, (GLuint)W_HEIGHT / 16, 1); 
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); // Make sure compute shader writes are finished
+
+	// Step 6: Handle polygon mode (triangle mesh view or solid)
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);      // Cull back faces
-	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
-	drawnTriangles = _world.display();
-	glDisable(GL_CULL_FACE);
+
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	// Step 10: Render debug info if enabled
 	if (showDebugInfo)
 		debugBox.render();
 
+	// Step 11: Calculate FPS
 	calculateFps();
+
+	// Step 12: Swap buffers
 	glfwSwapBuffers(_window);
 }
 
@@ -366,13 +451,12 @@ void StoneEngine::update()
     display();
 }
 
-
 void StoneEngine::reshapeAction(int width, int height)
 {
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)width / (float)height, 0.1f, 10000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }

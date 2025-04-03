@@ -22,6 +22,11 @@ class StoneEngine {
 		mat4 projectionMatrix;
 		glm::mat4 viewMatrix;
 		TextureManager _textureManager;
+		GLuint computeShader;
+		GLuint fbo;
+		GLuint fboTexture;
+		GLuint computeShaderProgram;
+		GLuint depthTexture;
 
 		std::mutex		_isRunningMutex;
 		bool			_isRunning = false;
@@ -83,6 +88,7 @@ class StoneEngine {
 		void	initTextures();
 		void	initShaders();
 		void	initDebugTextBox();
+		void	frameBufferInit();
 
 		// Runtime methods
 		void calculateFps();
