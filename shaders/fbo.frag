@@ -5,9 +5,10 @@ in vec2 texCoords;
 
 uniform sampler2D screenTexture;
 
-const float offset_x = 2.0 / 1000.0;
-const float offset_y = 2.0 / 800.0;
+const float offset_x = 1.0 / 1000.0;
+const float offset_y = 1.0 / 800.0;
 
+const float skyOffset = 5.0 / 800.0;
 
 // Define the target "sky color"
 const vec3 skyColor = vec3(0.53, 0.81, 0.92); // Change based on your sky
@@ -19,18 +20,27 @@ void main()
     
     // Check if the pixel is sky based on color similarity
     float diff = distance(currentColor, skyColor);
-    bool isSky = diff < threshold;
+    bool isSkyColor = diff < threshold;
 
-    if (isSky)
+    if (isSkyColor)
 	{
-        // Sample 4 neighboring pixels and average them
-        vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  offset_y)).rgb;
-        vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -offset_y)).rgb;
-        vec3 left  = texture(screenTexture, texCoords + vec2(-offset_x, 0.0)).rgb;
-        vec3 right = texture(screenTexture, texCoords + vec2( offset_x, 0.0)).rgb;
+		// Check if sky or just sky color
+        vec3 skyCheckUp    = texture(screenTexture, texCoords + vec2(0.0,  skyOffset)).rgb;
+   		float diffup = distance(skyCheckUp, skyColor);
+		bool isSky = diffup < threshold;
 
-        vec3 blended = (up + down + left + right) / 4.0;
-        FragColor = vec4(blended, 1.0);
+		if (isSky)
+        	FragColor = vec4(currentColor, 1.0);
+		else
+		{
+			// Sample 4 neighboring pixels and average them
+			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  offset_y)).rgb;
+			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -offset_y)).rgb;
+			vec3 left  = texture(screenTexture, texCoords + vec2(-offset_x, 0.0)).rgb;
+			vec3 right = texture(screenTexture, texCoords + vec2( offset_x, 0.0)).rgb;
+			vec3 blended = (up + down + left + right) / 4.0;
+			FragColor = vec4(blended, 1.0);
+		}
     }
 	else
 	{
