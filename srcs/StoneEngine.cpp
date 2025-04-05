@@ -18,6 +18,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initTextures();
 	initShaders();
 	initDebugTextBox();
+	initFramebuffers();
 	reshape(_window, windowWidth, windowHeight);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
@@ -78,6 +79,49 @@ void StoneEngine::initData()
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
 	timeValue = 39800;
+}
+
+void StoneEngine::initFramebuffers()
+{
+	// Init framebuffer
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	std::cout << windowHeight << " " << windowWidth << std::endl;
+	// Init framebuffer color texture
+	glGenTextures(1, &fboTexture);
+	glBindTexture(GL_TEXTURE_2D, fboTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
+
+	// Init render buffer
+	glGenRenderbuffers(1, &rbo);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth, windowHeight);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "Framebuffer error: " << fboStatus << std::endl;
+
+	// Vao and Vbo that covers the whole screen basically a big rectangle of screen size
+	glGenVertexArrays(1, &rectangleVao);
+	glGenBuffers(1, &rectangleVbo);
+	glBindVertexArray(rectangleVao);
+	glBindBuffer(GL_ARRAY_BUFFER, rectangleVbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(rectangleVertices), &rectangleVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+
+	fboShaderProgram = createShaderProgram("shaders/fbo.vert", "shaders/fbo.frag");
+	glUseProgram(fboShaderProgram);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
 }
 
 void StoneEngine::initTextures()
@@ -159,7 +203,9 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::display()
 {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
 	glMatrixMode(GL_MODELVIEW);
 
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
@@ -185,16 +231,24 @@ void StoneEngine::display()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 	drawnTriangles = _world.display();
 	glDisable(GL_CULL_FACE);
+
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glUseProgram(fboShaderProgram);
+	glBindVertexArray(rectangleVao);
+	glDisable(GL_DEPTH_TEST);
+	// glEnable(GL_FRAMEBUFFER_SRGB);
+	glBindTexture(GL_TEXTURE_2D, fboTexture);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 	if (showDebugInfo)
 		debugBox.render();
-
 	calculateFps();
 	glfwSwapBuffers(_window);
 }
@@ -372,9 +426,9 @@ void StoneEngine::reshapeAction(int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-	projectionMatrix = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(80.0f), float(width / height), 0.1f, 10000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-	//glLoadMatrixf(glm::value_ptr(projectionMatrix));
+	glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
 
 void StoneEngine::reshape(GLFWwindow* window, int width, int height)
