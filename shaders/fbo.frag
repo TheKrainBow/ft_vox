@@ -29,7 +29,8 @@ void main()
 
 		if (isTrueSky)
 		{
-			FragColor = vec4(currentColor, 1.0);
+			vec3 skyColor = vec3(0.53, 0.81, 0.92);
+			FragColor = vec4(skyColor, 1.0);
 		}
 		else
 		{

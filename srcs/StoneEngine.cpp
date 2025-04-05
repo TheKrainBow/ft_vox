@@ -198,6 +198,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
 	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	debugBox.addLine("Facing: ", Textbox::DIRECTION, facing_direction);
+
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
 }
