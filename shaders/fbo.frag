@@ -5,45 +5,38 @@ in vec2 texCoords;
 
 uniform sampler2D screenTexture;
 
-const float offset_x = 1.0 / 1000.0;
-const float offset_y = 1.0 / 800.0;
+uniform vec2 texelSize;
 
-const float skyOffset = 5.0 / 800.0;
+const float skyOffsetY = 5.0;
 
-// Define the target "sky color"
-const vec3 skyColor = vec3(0.53, 0.81, 0.92); // Change based on your sky
-const float threshold = 0.1; // Tolerance for "how close" to sky color
+const vec3 skyColor = vec3(0.53, 0.81, 0.92);
+const float threshold = 0.1;
 
 void main()
 {
-    vec3 currentColor = texture(screenTexture, texCoords).rgb;
-    
-    // Check if the pixel is sky based on color similarity
-    float diff = distance(currentColor, skyColor);
-    bool isSkyColor = diff < threshold;
+	vec3 currentColor = texture(screenTexture, texCoords).rgb;
+	float diff = distance(currentColor, skyColor);
+	bool isSkyColor = diff < threshold;
 
-    if (isSkyColor)
+	if (isSkyColor)
 	{
-		// Check if sky or just sky color
-        vec3 skyCheckUp    = texture(screenTexture, texCoords + vec2(0.0,  skyOffset)).rgb;
-   		float diffup = distance(skyCheckUp, skyColor);
-		bool isSky = diffup < threshold;
+		vec3 skyCheckUp = texture(screenTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).rgb;
+		bool isSky = distance(skyCheckUp, skyColor) < threshold;
 
 		if (isSky)
-        	FragColor = vec4(currentColor, 1.0);
+			FragColor = vec4(currentColor, 1.0);
 		else
 		{
-			// Sample 4 neighboring pixels and average them
-			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  offset_y)).rgb;
-			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -offset_y)).rgb;
-			vec3 left  = texture(screenTexture, texCoords + vec2(-offset_x, 0.0)).rgb;
-			vec3 right = texture(screenTexture, texCoords + vec2( offset_x, 0.0)).rgb;
+			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
+			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
+			vec3 left  = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
+			vec3 right = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
 			vec3 blended = (up + down + left + right) / 4.0;
 			FragColor = vec4(blended, 1.0);
 		}
-    }
+	}
 	else
 	{
-        FragColor = vec4(currentColor, 1.0);
-    }
+		FragColor = vec4(currentColor, 1.0);
+	}
 }

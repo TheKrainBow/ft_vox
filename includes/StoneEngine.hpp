@@ -93,9 +93,12 @@ class StoneEngine {
 		void	initGLEW();
 		int		initGLFW();
 		void	initTextures();
-		void	initShaders();
+		void	initRenderShaders();
 		void	initDebugTextBox();
 		void	initFramebuffers();
+		void	initFboShaders();
+		void	resetFrameBuffers();
+		void	updateFboWindowSize();
 
 		// Runtime methods
 		void calculateFps();

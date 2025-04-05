@@ -16,9 +16,11 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initGLFW();
 	initGLEW();
 	initTextures();
-	initShaders();
+	initRenderShaders();
 	initDebugTextBox();
 	initFramebuffers();
+	initFboShaders();
+	updateFboWindowSize();
 	reshape(_window, windowWidth, windowHeight);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
@@ -26,6 +28,9 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 StoneEngine::~StoneEngine()
 {
 	glDeleteProgram(shaderProgram);
+	glDeleteFramebuffers(1, &fbo);
+	glDeleteTextures(1, &fboTexture);
+	glDeleteRenderbuffers(1, &rbo);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 }
@@ -107,21 +112,6 @@ void StoneEngine::initFramebuffers()
 	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
 		std::cout << "Framebuffer error: " << fboStatus << std::endl;
-
-	// Vao and Vbo that covers the whole screen basically a big rectangle of screen size
-	glGenVertexArrays(1, &rectangleVao);
-	glGenBuffers(1, &rectangleVbo);
-	glBindVertexArray(rectangleVao);
-	glBindBuffer(GL_ARRAY_BUFFER, rectangleVbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(rectangleVertices), &rectangleVertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
-
-	fboShaderProgram = createShaderProgram("shaders/fbo.vert", "shaders/fbo.frag");
-	glUseProgram(fboShaderProgram);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
 }
 
 void StoneEngine::initTextures()
@@ -139,7 +129,7 @@ void StoneEngine::initTextures()
 	});
 }
 
-void StoneEngine::initShaders()
+void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
@@ -158,6 +148,24 @@ void StoneEngine::initShaders()
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
+}
+
+void StoneEngine::initFboShaders()
+{
+	// Vao and Vbo that covers the whole screen basically a big rectangle of screen size
+	glGenVertexArrays(1, &rectangleVao);
+	glGenBuffers(1, &rectangleVbo);
+	glBindVertexArray(rectangleVao);
+	glBindBuffer(GL_ARRAY_BUFFER, rectangleVbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(rectangleVertices), &rectangleVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+
+	fboShaderProgram = createShaderProgram("shaders/fbo.vert", "shaders/fbo.frag");
+	glUseProgram(fboShaderProgram);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
 }
 
 void StoneEngine::initDebugTextBox()
@@ -420,12 +428,34 @@ void StoneEngine::update()
     display();
 }
 
+void StoneEngine::updateFboWindowSize()
+{
+	float texelX = 1.0f / windowWidth;
+	float texelY = 1.0f / windowHeight;
+
+	GLint texelSizeLoc = glGetUniformLocation(fboShaderProgram, "texelSize");
+	glUseProgram(fboShaderProgram);
+	glUniform2f(texelSizeLoc, texelX, texelY);
+}
+
+void StoneEngine::resetFrameBuffers()
+{
+	// Delete old framebuffer and attachments
+	glDeleteFramebuffers(1, &fbo);
+	glDeleteTextures(1, &fboTexture);
+	glDeleteRenderbuffers(1, &rbo);
+	initFramebuffers();
+	updateFboWindowSize();
+}
 
 void StoneEngine::reshapeAction(int width, int height)
 {
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
+	windowHeight = height;
+	windowWidth = width;
+	resetFrameBuffers();
 	projectionMatrix = glm::perspective(glm::radians(80.0f), float(width / height), 0.1f, 10000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glLoadMatrixf(glm::value_ptr(projectionMatrix));
