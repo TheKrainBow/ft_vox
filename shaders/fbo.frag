@@ -4,33 +4,41 @@ out vec4 FragColor;
 in vec2 texCoords;
 
 uniform sampler2D screenTexture;
+uniform sampler2D depthTexture;
 
 uniform vec2 texelSize;
 
+// how far up to look for confirmation
 const float skyOffsetY = 5.0;
 
-const vec3 skyColor = vec3(0.53, 0.81, 0.92);
-const float threshold = 0.1;
+// tweak this based on how far your skybox is
+const float depthSkyThreshold = 0.9999;
 
 void main()
 {
 	vec3 currentColor = texture(screenTexture, texCoords).rgb;
-	float diff = distance(currentColor, skyColor);
-	bool isSkyColor = diff < threshold;
+	float currentDepth = texture(depthTexture, texCoords).r;
 
-	if (isSkyColor)
+	bool isSkyDepth = currentDepth >= depthSkyThreshold;
+
+	if (isSkyDepth)
 	{
-		vec3 skyCheckUp = texture(screenTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).rgb;
-		bool isSky = distance(skyCheckUp, skyColor) < threshold;
+		// Look upwards to make sure it's part of the skybox, not a crack
+		float skyCheckUpDepth = texture(depthTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).r;
+		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold;
 
-		if (isSky)
+		if (isTrueSky)
+		{
 			FragColor = vec4(currentColor, 1.0);
+		}
 		else
 		{
+			// Blend 4 neighbors
 			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
 			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
 			vec3 left  = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
 			vec3 right = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
+
 			vec3 blended = (up + down + left + right) / 4.0;
 			FragColor = vec4(blended, 1.0);
 		}

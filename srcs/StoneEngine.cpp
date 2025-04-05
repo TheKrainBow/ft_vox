@@ -30,7 +30,7 @@ StoneEngine::~StoneEngine()
 	glDeleteProgram(shaderProgram);
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteTextures(1, &fboTexture);
-	glDeleteRenderbuffers(1, &rbo);
+	glDeleteTextures(1, &dboTexture);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 }
@@ -103,14 +103,26 @@ void StoneEngine::initFramebuffers()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
 
 	// Init render buffer
-	glGenRenderbuffers(1, &rbo);
-	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth, windowHeight);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+	// glGenRenderbuffers(1, &rbo);
+	// glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+	// glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth, windowHeight);
+	// glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+	glGenTextures(1, &dboTexture);
+	glBindTexture(GL_TEXTURE_2D, dboTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, windowWidth, windowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// Attach to framebuffer
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dboTexture, 0);
 
 	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
 		std::cout << "Framebuffer error: " << fboStatus << std::endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void StoneEngine::initTextures()
@@ -165,6 +177,7 @@ void StoneEngine::initFboShaders()
 	fboShaderProgram = createShaderProgram("shaders/fbo.vert", "shaders/fbo.frag");
 	glUseProgram(fboShaderProgram);
 	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
 }
 
 void StoneEngine::initDebugTextBox()
@@ -185,7 +198,8 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
 	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	debugBox.addLine("Facing: ", Textbox::DIRECTION, facing_direction);
-	glClearColor(0.53f, 0.81f, 0.92f, 1.0f); // Soft sky blue
+	// Nice soft sky blue
+	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
 }
 
 void StoneEngine::calculateFps()
@@ -244,18 +258,26 @@ void StoneEngine::display()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 	drawnTriangles = _world.display();
 	glDisable(GL_CULL_FACE);
-
+	
 	if (showTriangleMesh)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	if (showDebugInfo)
+		debugBox.render();
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glUseProgram(fboShaderProgram);
 	glBindVertexArray(rectangleVao);
 	glDisable(GL_DEPTH_TEST);
-	// glEnable(GL_FRAMEBUFFER_SRGB);
+
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, fboTexture);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
+	
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, dboTexture);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
+
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-	if (showDebugInfo)
-		debugBox.render();
 	calculateFps();
 	glfwSwapBuffers(_window);
 }
@@ -442,7 +464,7 @@ void StoneEngine::resetFrameBuffers()
 	// Delete old framebuffer and attachments
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteTextures(1, &fboTexture);
-	glDeleteRenderbuffers(1, &rbo);
+	glDeleteTextures(1, &dboTexture);
 	initFramebuffers();
 	updateFboWindowSize();
 }

@@ -26,11 +26,12 @@ class StoneEngine {
 		// Framebuffer data
 		GLuint fbo;
 		GLuint fboTexture;
+		GLuint dboTexture;
 		GLuint rectangleVao;
 		GLuint rectangleVbo;
 
 		// Render buffer data
-		GLuint rbo;
+		// GLuint rbo;
 
 		// Fbo shaders data
 		GLuint fboShaderProgram;
