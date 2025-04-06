@@ -35,7 +35,7 @@ class Chunk
 		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
-		int									_resolution;
+		std::atomic_int						_resolution;
 		SubChunk *getSubChunk(int y);
 		void	updateResolution(int newResolution);
 		void sendFacesToDisplay();

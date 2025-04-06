@@ -73,6 +73,7 @@ private:
 		std::atomic_bool							displayReady;
 		Chrono chronoHelper;
 		ThreadPool 									_threadPool;
+		std::atomic_int 							threshold;
 	public:
 		NoiseGenerator								_perlinGenerator;
 		std::mutex									_chunksMutex;

@@ -203,9 +203,10 @@ Chunk *Chunk::getWestChunk() {
 
 void	Chunk::updateResolution(int newResolution)
 {
-	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_perlinMap->resolution = newResolution;
+	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
+
 	for (auto &subchunk : _subChunks)
 	{
 		_subChunksMutex.lock();

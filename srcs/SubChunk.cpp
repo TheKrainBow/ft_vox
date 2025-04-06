@@ -269,19 +269,19 @@ void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType textur
 	char block = 0;
 	if (position.z != CHUNK_SIZE - _resolution)
 		block = getBlock({position.x, position.y, position.z + _resolution});
-	else {
+	else
+	{
 		Chunk *chunk = _chunk.getSouthChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
+			if (subChunk)
+			{
 				if (subChunk->_resolution == _resolution)
 					block = subChunk->getBlock(vec3(position.x, position.y, 0));
-				else
-					block = 0;
-			} else {
-				block = 1;
 			}
+			else
+				block = 1;
 		}
 	}
 	if (faceDisplayCondition(current, block))
@@ -370,8 +370,8 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
 	std::fill(_blocks.begin(), _blocks.end(), 0);
-	loadBiome();
 	loadHeight();
+	loadBiome();
 	sendFacesToDisplay();
 }
 

@@ -23,7 +23,7 @@ class SubChunk
 		} Face;
 	private:
 		vec3				_position;
-		int					_resolution;
+		std::atomic_int		_resolution;
 		std::vector<char>	_blocks;
 		double				**_heightMap;
 		World				&_world;

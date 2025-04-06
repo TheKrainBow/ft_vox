@@ -142,6 +142,8 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 		_chunksMutex.unlock();
 		if (chunk->_resolution != resolution)
 			chunk->updateResolution(resolution);
+		if ((render - 2) == threshold / 2)
+			chunk->sendFacesToDisplay();
 	}
 	else if (_skipLoad == false)
 	{
@@ -206,28 +208,29 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	std::vector<std::future<void>> retLst;
 	int resolution = RESOLUTION;
-	int treshold = 32;
+	threshold = 32;
 	loadChunk(0, 0, 1, chunkPos, resolution);
     for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
+		std::cout << render << " " << threshold << std::endl;
 		// Load chunks
 		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos, resolution));
-		if (hasMoved(chunkPos))
-			break;
-		if (render >= treshold)
+
+		if (render >= threshold)
 		{
 			resolution *= 2;
-			treshold *= 2;
+			threshold = threshold * 2;
 		}
+		if (hasMoved(chunkPos))
+			break;
     }
 	for (std::future<void> &ret : retLst)
 		ret.get();
 	retLst.clear();
 }
-
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
 {

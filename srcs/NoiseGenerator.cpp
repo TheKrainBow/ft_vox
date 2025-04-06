@@ -216,6 +216,7 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int resolution)
 				map->lowest = map->heightMap[z * map->size + x];
 		}
 	map->resolution = resolution;
+	_perlinMaps[map->position] = map;
 }
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
