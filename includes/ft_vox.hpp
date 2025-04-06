@@ -26,6 +26,9 @@
 #include <condition_variable>
 #include <stdexcept>
 #include <unistd.h>
+#include <list>
+#include <future>
+#include <type_traits>
 
 using namespace glm;
 
@@ -38,28 +41,20 @@ enum Direction {
 	UP,
 };
 
-enum BlockType {
-	AIR,
-	DIRT,
-	COBBLE,
-	STONE,
-	GRASS,
-};
+typedef char BlockType;
 
 bool isWSL();
 GLuint compileShader(const char* filePath, GLenum shaderType);
 GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath);
-void mouseCallback(GLFWwindow* window, double x, double y);
-void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
-void reshape(GLFWwindow* window, int width, int height);
+// void mouseCallback(GLFWwindow* window, double x, double y);
+// void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
+// void reshape(GLFWwindow* window, int width, int height);
+bool faceDisplayCondition(char blockToDisplay, char neighbourBlock);
 
-
-
-struct pair_hash {
-	template <class T1, class T2>
-	std::size_t operator () (const std::pair<T1, T2>& pair) const {
-		auto h1 = std::hash<T1>{}(pair.first);
-		auto h2 = std::hash<T2>{}(pair.second);
+struct ivec2_hash {
+	std::size_t operator () (const glm::ivec2 vec) const {
+		auto h1 = std::hash<int>{}(vec.x);
+		auto h2 = std::hash<int>{}(vec.y);
 		return h1 ^ (h2 << 1);
 	}
 };

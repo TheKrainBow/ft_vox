@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   BiomeGenerator.hpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: maagosti <maagosti@student.42.fr>          +#+  +:+       +#+        */
+/*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:34:45 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/02/05 01:44:54 by maagosti         ###   ########.fr       */
+/*   Updated: 2025/04/02 12:04:36 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -53,7 +53,7 @@ class BiomeGenerator
 		BiomeType findClosestBiomes(double x, double y) const;
 	private:
 		std::vector<BiomeData> _biomes;
-		std::unordered_set<std::pair<float, float>, pair_hash> _biomeCentersTemp;
+		std::unordered_set<ivec2, ivec2_hash> _biomeCentersTemp;
 		size_t _seed;
 		NoiseGenerator _noiseGen;
 };

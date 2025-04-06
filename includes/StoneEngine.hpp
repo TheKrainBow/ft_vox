@@ -9,17 +9,18 @@
 #include "define.hpp"
 #include "Chrono.hpp"
 
-
 class StoneEngine {
 	private:
 		// Display
 		GLFWwindow* _window;
 		GLuint shaderProgram;
+		GLuint sunProgram;
 		World _world;
 		int windowHeight;
 		int windowWidth;
 		Camera camera;
 		mat4 projectionMatrix;
+		glm::mat4 viewMatrix;
 		TextureManager _textureManager;
 
 		std::mutex		_isRunningMutex;
@@ -32,6 +33,7 @@ class StoneEngine {
 		bool showTriangleMesh;
 		bool mouseCaptureToggle;
 		bool showDebugInfo;
+		bool showLight;
 
 		// Player speed
 		float moveSpeed;
@@ -50,21 +52,15 @@ class StoneEngine {
 	
 		// World gen
 		NoiseGenerator noise_gen;
-	
-		// Multi-Threads data
-		// std::mutex chunksMutex;
-		// std::mutex printMutex;
-
-		// std::thread chunkUpdateThread;
-		// std::thread displayThread;
-		// std::atomic<bool> updateChunkFlag;
-		// std::atomic<bool> running;
-		// std::condition_variable chunkCondition;
 
 		// Game time
 		std::chrono::steady_clock::time_point start;
 		std::chrono::steady_clock::time_point end;
 		std::chrono::milliseconds delta;
+
+		// Game data
+		glm::vec3 sunPosition;
+		std::atomic_int timeValue;
 	public:
 		StoneEngine(int seed);
 		~StoneEngine();
@@ -91,7 +87,8 @@ class StoneEngine {
 		// Runtime methods
 		void calculateFps();
 		void display();
-		void updateChunks();
+		void loadFirstChunks();
+		void loadNextChunks(ivec2 newCamChunk);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();
@@ -100,6 +97,7 @@ class StoneEngine {
 		void findMoveRotationSpeed();
 		void update();
 		void updateMovement();
+		void updateGameTick();
 
 		void updateChunkWorker();
 

@@ -99,6 +99,10 @@ void Textbox::render() {
 			text = line.label + std::to_string(*((float *)(line.value)));
 		else if (line.type == INT)
 			text = line.label + std::to_string(*((int *)(line.value)));
+		else if (line.type == DIRECTION)
+		{
+			text = line.label + directionTab[std::clamp(*(int *)(line.value), 0, 7)].name;
+		}
 		float startX = positionX + 5;
 		for (const char& ch : text) {
 			if (ch >= 32) {
