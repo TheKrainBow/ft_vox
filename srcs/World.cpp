@@ -333,20 +333,31 @@ void World::removeOrder()
 	_chunksRemovalMutex.unlock();
 }
 
-int World::display()
+void World::updateActiveChunks()
 {
-	int trianglesDrawn = 0;
 	loadOrder();
 	removeOrder();
-	glEnable(GL_CULL_FACE);
-	for (auto &activeChunk : _activeChunks)
-	{
-		trianglesDrawn += activeChunk.second->display();
-	}
+}
+
+int World::displayTransparent()
+{
+	int trianglesDrawn = 0;
+
 	glDisable(GL_CULL_FACE);
 	for (auto &activeChunk : _activeChunks)
 	{
 		trianglesDrawn += activeChunk.second->displayTransparent();
+	}
+	return trianglesDrawn;
+}
+
+int World::display()
+{
+	int trianglesDrawn = 0;
+	glEnable(GL_CULL_FACE);
+	for (auto &activeChunk : _activeChunks)
+	{
+		trianglesDrawn += activeChunk.second->display();
 	}
 	return trianglesDrawn;
 }

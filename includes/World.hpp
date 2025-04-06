@@ -88,7 +88,9 @@ public:
 	int	getCachedChunksNumber();
 	Chunk* getChunk(ivec2 position);
 	SubChunk* getSubChunk(vec3 position);
+	void updateActiveChunks();
 	int display();
+	int displayTransparent();
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();

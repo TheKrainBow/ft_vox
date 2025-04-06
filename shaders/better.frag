@@ -1,7 +1,8 @@
 #version 430 core
 
 uniform vec3 lightColor;
-uniform int timeValue; // New time uniform
+// New time uniform
+uniform int timeValue;
 uniform vec3 viewPos;
 uniform sampler2DArray textureArray;
 

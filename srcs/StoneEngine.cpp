@@ -223,13 +223,8 @@ void StoneEngine::calculateFps()
 	}
 }
 
-void StoneEngine::display()
+void StoneEngine::activateRenderShader()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glMatrixMode(GL_MODELVIEW);
-
 	glm::mat4 modelMatrix = glm::mat4(1.0f);
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
@@ -257,14 +252,10 @@ void StoneEngine::display()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
-	drawnTriangles = _world.display();
-	glDisable(GL_CULL_FACE);
-	
-	if (showTriangleMesh)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	if (showDebugInfo)
-		debugBox.render();
+}
 
+void StoneEngine::activateFboShader()
+{
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glUseProgram(fboShaderProgram);
 	glBindVertexArray(rectangleVao);
@@ -277,10 +268,66 @@ void StoneEngine::display()
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, dboTexture);
 	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
-
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-	calculateFps();
-	glfwSwapBuffers(_window);
+}
+
+void StoneEngine::triangleMeshToggle()
+{
+	if (showTriangleMesh)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	else
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+void StoneEngine::display()
+{
+    // Init and clear buffers
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glMatrixMode(GL_MODELVIEW);
+
+	// Render solid blocks
+    activateRenderShader();
+    _world.updateActiveChunks();
+    glCullFace(GL_FRONT);
+    glFrontFace(GL_CCW);
+    drawnTriangles = _world.display();
+    glDisable(GL_CULL_FACE);
+
+    triangleMeshToggle();
+
+    // Fix holes in terrain with post process fbo.frag shader
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    activateFboShader();
+
+    // Copy dbo from screen
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+                      0, 0, windowWidth, windowHeight,
+                      GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Transparent blocks draw
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+
+    activateRenderShader();
+    drawnTriangles += _world.displayTransparent();
+
+    // Debug UI
+    if (showDebugInfo)
+        debugBox.render();
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+
+    // Swap buffers
+    calculateFps();
+    glfwSwapBuffers(_window);
 }
 
 void StoneEngine::loadFirstChunks()
@@ -417,12 +464,16 @@ void StoneEngine::updateGameTick()
 	{
 		glUseProgram(shaderProgram);
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
+		glUseProgram(fboShaderProgram);
+		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), timeValue);
 	}
 	else
 	{
 		// Always daytime
 		glUseProgram(shaderProgram);
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
+		glUseProgram(fboShaderProgram);
+		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), 58500);
 	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }

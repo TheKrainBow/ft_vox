@@ -106,6 +106,9 @@ class StoneEngine {
 		void display();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
+		void activateRenderShader();
+		void activateFboShader();
+		void triangleMeshToggle();
 
 		// Multi thread methods
 		//void chunkUpdateWorker();

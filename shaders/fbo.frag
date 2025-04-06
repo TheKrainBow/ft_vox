@@ -5,6 +5,7 @@ in vec2 texCoords;
 
 uniform sampler2D screenTexture;
 uniform sampler2D depthTexture;
+uniform int timeValue;
 
 uniform vec2 texelSize;
 
@@ -13,6 +14,38 @@ const float skyOffsetY = 5.0;
 
 // tweak this based on how far your skybox is
 const float depthSkyThreshold = 0.9999;
+
+vec3 computeSkyColor(float time)
+{
+    float t = mod(time, 86400.0); // Ensure wraparound
+
+    vec3 nightColor   = vec3(0.05, 0.07, 0.2);
+    vec3 dawnColor    = vec3(0.8, 0.5, 0.3);
+    vec3 dayColor     = vec3(0.53, 0.81, 0.92);
+    vec3 duskColor    = vec3(0.8, 0.4, 0.2);
+
+    vec3 skyColor;
+
+    if (t < 21600.0) {
+        // Night → Dawn (0–6h)
+        float f = t / 21600.0;
+        skyColor = mix(nightColor, dawnColor, f);
+    } else if (t < 43200.0) {
+        // Dawn → Day (6–12h)
+        float f = (t - 21600.0) / 21600.0;
+        skyColor = mix(dawnColor, dayColor, f);
+    } else if (t < 64800.0) {
+        // Day → Dusk (12–18h)
+        float f = (t - 43200.0) / 21600.0;
+        skyColor = mix(dayColor, duskColor, f);
+    } else {
+        // Dusk → Night (18–24h)
+        float f = (t - 64800.0) / 21600.0;
+        skyColor = mix(duskColor, nightColor, f);
+    }
+
+    return skyColor;
+}
 
 void main()
 {
@@ -26,11 +59,11 @@ void main()
 		// Look upwards to make sure it's part of the skybox, not a crack
 		float skyCheckUpDepth = texture(depthTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).r;
 		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold;
+		// vec3 currentColor = computeSkyColor(timeValue);
 
 		if (isTrueSky)
 		{
-			vec3 skyColor = vec3(0.53, 0.81, 0.92);
-			FragColor = vec4(skyColor, 1.0);
+			FragColor = vec4(currentColor, 1.0);
 		}
 		else
 		{
