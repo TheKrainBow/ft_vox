@@ -103,6 +103,9 @@ int Chunk::displayTransparent()
 	if (!_facesSent)
 		return (0);
 	int triangleDrawn = 0;
+	GLint loc = glGetUniformLocation(_world._shaderProgram, "resolution");
+	glUseProgram(_world._shaderProgram); // make sure the shader is active
+	glUniform1i(loc, _resolution);
 	for (auto &subchunk : _subChunks)
 	{
 		_subChunksMutex.lock();
@@ -116,10 +119,10 @@ int Chunk::display()
 {
 	if (!_facesSent)
 		return (0);
-	// GLint loc = glGetUniformLocation(_world._shaderProgram, "resolution");
-	// glUseProgram(_world._shaderProgram); // make sure the shader is active
-	// glUniform1i(loc, _resolution);
 	int triangleDrawn = 0;
+	GLint loc = glGetUniformLocation(_world._shaderProgram, "resolution");
+	glUseProgram(_world._shaderProgram); // make sure the shader is active
+	glUniform1i(loc, _resolution);
 	for (auto &subchunk : _subChunks)
 	{
 		_subChunksMutex.lock();
@@ -198,7 +201,10 @@ Chunk *Chunk::getWestChunk() {
 	return _west;
 }
 
-
+void	Chunk::updateResolution(int newResolution) {
+	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
+	sendFacesToDisplay();
+}
 // Load chunks: 0,203s
 // Load chunks: 0,256s
 // Load chunks: 0,245s

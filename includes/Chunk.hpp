@@ -15,7 +15,6 @@ class Chunk
 {
 	private:
 		ivec2								_position;
-		int									_resolution;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
 		bool								_hasAllNeighbors;
@@ -36,7 +35,9 @@ class Chunk
 		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
+		int									_resolution;
 		SubChunk *getSubChunk(int y);
+		void	updateResolution(int newResolution);
 		void sendFacesToDisplay();
 		bool isReady();
 		int display();

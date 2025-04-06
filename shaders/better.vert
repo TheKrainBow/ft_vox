@@ -17,7 +17,6 @@ out vec3 FragPos; // Output fragment position for lighting
 void main()
 {
     int res = resolution;
-    res = 1;
     // Decode instance data
     int x = (instanceData >> 0) & 0x1F;
     int y = (instanceData >> 5) & 0x1F;
@@ -34,8 +33,9 @@ void main()
     lengthX++;
     lengthY++;
     finalUV.y = 1.0 - finalUV.y;
-    lengthX *= res;
-    lengthY *= res;
+    finalUV /= res;
+    // lengthX *= res;
+    // lengthY *= res;
     basePos.x *= lengthX;
     basePos.y *= lengthY;
 

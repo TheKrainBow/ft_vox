@@ -47,7 +47,6 @@ class World
 {
 private:
 	// World related informations
-		NoiseGenerator								_perlinGenerator;
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_chunks;
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_displayedChunks;
 		std::list<Chunk *>							_chunkList;
@@ -75,6 +74,7 @@ private:
 		Chrono chronoHelper;
 		ThreadPool 									_threadPool;
 	public:
+		NoiseGenerator								_perlinGenerator;
 		std::mutex									_chunksMutex;
 		GLuint 										_shaderProgram;
 	World(int seed, TextureManager &textureManager, Camera &camera);
@@ -97,10 +97,10 @@ private:
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 	bool getIsRunning();
-	void loadTopChunks(int render, ivec2 camPosition);
-	void loadRightChunks(int render, ivec2 camPosition);
-	void loadBotChunks(int render, ivec2 camPosition);
-	void loadLeftChunks(int render, ivec2 camPosition);
+	void loadTopChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadRightChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadBotChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadLeftChunks(int render, ivec2 camPosition, int resolution = 1);
 	void unloadChunk();
 	void generateSpiralOrder();
 	bool hasMoved(ivec2 oldPos);

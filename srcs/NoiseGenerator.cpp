@@ -187,7 +187,7 @@ double NoiseGenerator::getHeight(vec2 pos)
 	return height;
 }
 
-void NoiseGenerator::UpdatePerlinMapResolution(PerlinMap *map, int resolution)
+void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int resolution)
 {
 	if (!map || resolution > map->resolution)
 		return ;
@@ -273,7 +273,7 @@ PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos, int resolution)
 	if (it != itend)
 	{
 		if ((*it).second->resolution > resolution)
-			UpdatePerlinMapResolution((*it).second, resolution);
+			updatePerlinMapResolution((*it).second, resolution);
 		return ((*it).second);
 	}
 	return addPerlinMap(pos, CHUNK_SIZE, resolution);

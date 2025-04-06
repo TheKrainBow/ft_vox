@@ -132,7 +132,6 @@ void World::unloadChunk()
 void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 {
 	Chunk *chunk = nullptr;
-	resolution = 1;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
 	_chunksMutex.lock();
 	auto it = _chunks.find(pos);
@@ -140,6 +139,8 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 	if (it != itend)
 	{
 		chunk = it->second;
+		if (chunk->_resolution > resolution)
+			chunk->updateResolution(resolution);
 		_chunksMutex.unlock();
 	}
 	else if (_skipLoad == false)
@@ -162,39 +163,39 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 	unloadChunk();
 }
 
-void World::loadTopChunks(int render, ivec2 chunkPos)
+void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int z = 0;
 	for (int x = 0; x < render && getIsRunning(); x++)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadBotChunks(int render, ivec2 chunkPos)
+void World::loadBotChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int z = render - 1;
 	for (int x = render - 1; getIsRunning() && x >= 0; x--)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadRightChunks(int render, ivec2 chunkPos)
+void World::loadRightChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int x = render - 1;
 	for (int z = 0; z < render && getIsRunning(); z++)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadLeftChunks(int render, ivec2 chunkPos)
+void World::loadLeftChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int x = 0;
 	for (int z = render - 1; getIsRunning() && z >= 0; z--)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
@@ -204,22 +205,26 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	_skipLoad = false;
 
 	std::vector<std::future<void>> retLst;
-	loadChunk(0, 0, 1, chunkPos);
+	int resolution = RESOLUTION;
+	int treshold = 32;
+	loadChunk(0, 0, 1, chunkPos, resolution);
     for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
 		// Load chunks
-		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution));
+		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos, resolution));
 		if (hasMoved(chunkPos))
 			break;
+		if (render >= treshold)
+		{
+			resolution *= 2;
+			treshold *= 2;
+		}
     }
-
 	for (std::future<void> &ret : retLst)
-	{
 		ret.get();
-	}
 	retLst.clear();
 }
 

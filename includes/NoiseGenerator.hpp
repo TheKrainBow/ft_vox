@@ -36,7 +36,7 @@ class NoiseGenerator {
 		NoiseGenerator(size_t seed);
 		~NoiseGenerator();
 		double noise(double x, double y) const;
-		void UpdatePerlinMapResolution(PerlinMap *map, int resolution);
+		void updatePerlinMapResolution(PerlinMap *map, int resolution);
 		PerlinMap *addPerlinMap(ivec2 &pos, int size, int resolution);
 		PerlinMap *getPerlinMap(ivec2 &pos, int resolution = 1);
 		void clearPerlinMaps(void);
