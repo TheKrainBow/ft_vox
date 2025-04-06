@@ -72,6 +72,7 @@ class SubChunk
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		void clearFaces();
+		void updateResolution(int resolution, PerlinMap *perlinMap);
 	private:
 		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);

@@ -189,7 +189,7 @@ double NoiseGenerator::getHeight(vec2 pos)
 
 void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int resolution)
 {
-	if (!map || resolution > map->resolution)
+	if (!map)
 		return ;
 	// Todo: Not recalculate height that already exist
 	// while (map->resolution > resolution)

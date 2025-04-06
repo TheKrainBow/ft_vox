@@ -365,6 +365,16 @@ void SubChunk::clearFaces() {
 	_needTransparentUpdate = true;
 }
 
+void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
+{
+	_resolution = resolution;
+	_heightMap = &perlinMap->heightMap;
+	std::fill(_blocks.begin(), _blocks.end(), 0);
+	loadBiome();
+	loadHeight();
+	sendFacesToDisplay();
+}
+
 void SubChunk::sendFacesToDisplay()
 {
 	if (_hasSentFaces == true)

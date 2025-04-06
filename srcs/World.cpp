@@ -16,7 +16,7 @@ vec3 World::calculateBlockPos(vec3 position) const
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(8)
+World::World(int seed, TextureManager &textureManager, Camera &camera) : _textureManager(textureManager), _camera(&camera), _threadPool(8), _perlinGenerator(seed)
 {
 }
 
@@ -139,9 +139,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 	if (it != itend)
 	{
 		chunk = it->second;
-		if (chunk->_resolution > resolution)
-			chunk->updateResolution(resolution);
 		_chunksMutex.unlock();
+		if (chunk->_resolution != resolution)
+			chunk->updateResolution(resolution);
 	}
 	else if (_skipLoad == false)
 	{

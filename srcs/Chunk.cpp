@@ -201,9 +201,18 @@ Chunk *Chunk::getWestChunk() {
 	return _west;
 }
 
-void	Chunk::updateResolution(int newResolution) {
+void	Chunk::updateResolution(int newResolution)
+{
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
-	sendFacesToDisplay();
+	_perlinMap->resolution = newResolution;
+	_resolution = newResolution;
+	for (auto &subchunk : _subChunks)
+	{
+		_subChunksMutex.lock();
+		SubChunk *chunk = subchunk.second;
+		chunk->updateResolution(newResolution, _perlinMap);
+		_subChunksMutex.unlock();
+	}
 }
 // Load chunks: 0,203s
 // Load chunks: 0,256s
