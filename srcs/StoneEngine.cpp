@@ -22,6 +22,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initFboShaders();
 	updateFboWindowSize();
 	reshape(_window, windowWidth, windowHeight);
+	_world.init(shaderProgram, RENDER_DISTANCE);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 

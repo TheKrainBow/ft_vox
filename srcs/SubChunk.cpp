@@ -1,8 +1,9 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager) : _world(world), _chunk(chunk), _textManager(textManager)
+SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution) : _world(world), _chunk(chunk), _textManager(textManager)
 {
 	_position = position;
+	_resolution = resolution;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	std::fill(_blocks.begin(), _blocks.end(), 0);
 	_heightMap = &perlinMap->heightMap;
@@ -78,11 +79,11 @@ void SubChunk::initGLBuffer()
 void SubChunk::loadHeight()
 {
 	if (_loaded) return ;
-	for (int y = 0; y < CHUNK_SIZE ; y++)
+	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 	{
-		for (int z = 0; z < CHUNK_SIZE ; z++)
+		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
-			for (int x = 0; x < CHUNK_SIZE ; x++)
+			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 			{
 				double height = (*_heightMap)[z * CHUNK_SIZE + x];
 				size_t maxHeight = (size_t)(height);
@@ -209,15 +210,15 @@ void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture
 {
 	char block = 0;
 	if (position.y > 0)
-		block = getBlock({position.x, position.y - 1, position.z});
+		block = getBlock({position.x, position.y - _resolution, position.z});
 	else
 	{
 		SubChunk *underChunk = nullptr;
-		underChunk = _chunk.getSubChunk(_position.y - 1);
+		underChunk = _chunk.getSubChunk(_position.y - _resolution);
 		if (!underChunk)
 			block = '/';
 		else
-			block = underChunk->getBlock({position.x, CHUNK_SIZE - 1, position.z});
+			block = underChunk->getBlock({position.x, CHUNK_SIZE - _resolution, position.z});
 	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, DOWN, texture, isTransparent);
@@ -226,8 +227,8 @@ void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture
 void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
-	if (position.y != CHUNK_SIZE - 1)
-		block = getBlock({position.x, position.y + 1, position.z});
+	if (position.y != CHUNK_SIZE - _resolution)
+		block = getBlock({position.x, position.y + _resolution, position.z});
 	else
 	{
 		SubChunk *overChunk = _chunk.getSubChunk(_position.y + 1);
@@ -242,14 +243,14 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 {
 	char block = 0;
 	if (position.z != 0)
-		block = getBlock({position.x, position.y, position.z - 1});
+		block = getBlock({position.x, position.y, position.z - _resolution});
 	else {
 		Chunk *chunk = _chunk.getNorthChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(vec3(position.x, position.y, CHUNK_SIZE - 1));
+				block = subChunk->getBlock(vec3(position.x, position.y, CHUNK_SIZE - _resolution));
 			} else {
 				block = 1;
 			}
@@ -262,8 +263,8 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
-	if (position.z != CHUNK_SIZE - 1)
-		block = getBlock({position.x, position.y, position.z + 1});
+	if (position.z != CHUNK_SIZE - _resolution)
+		block = getBlock({position.x, position.y, position.z + _resolution});
 	else {
 		Chunk *chunk = _chunk.getSouthChunk();
 		if (chunk)
@@ -284,14 +285,14 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 {
 	char block = 0;
 	if (position.x != 0)
-		block = getBlock({position.x - 1, position.y, position.z});
+		block = getBlock({position.x - _resolution, position.y, position.z});
 	else {
 		Chunk *chunk = _chunk.getWestChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(vec3(CHUNK_SIZE - 1, position.y, position.z));
+				block = subChunk->getBlock(vec3(CHUNK_SIZE - _resolution, position.y, position.z));
 			} else {
 				block = 1;
 			}
@@ -304,8 +305,8 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
-	if (position.x != CHUNK_SIZE - 1)
-		block = getBlock({position.x + 1, position.y, position.z});
+	if (position.x != CHUNK_SIZE - _resolution)
+		block = getBlock({position.x + _resolution, position.y, position.z});
 	else {
 		Chunk *chunk = _chunk.getEastChunk();
 		if (chunk)
@@ -356,11 +357,11 @@ void SubChunk::sendFacesToDisplay()
 	if (_hasSentFaces == true)
 		clearFaces();
 	// 	return ;
-	for (int x = 0; x < CHUNK_SIZE; x++)
+	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
-		for (int y = 0; y < CHUNK_SIZE; y++)
+		for (int y = 0; y < CHUNK_SIZE; y += _resolution)
 		{
-			for (int z = 0; z < CHUNK_SIZE; z++)
+			for (int z = 0; z < CHUNK_SIZE; z += _resolution)
 			{
 				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
 				{

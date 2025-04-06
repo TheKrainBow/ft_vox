@@ -23,6 +23,7 @@ class SubChunk
 		} Face;
 	private:
 		vec3				_position;
+		int					_resolution;
 		std::vector<char>	_blocks;
 		double				**_heightMap;
 		World				&_world;
@@ -50,7 +51,7 @@ class SubChunk
 		bool				_needUpdate;
 		Chrono chrono;
 	public:
-		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
+		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();
 		void setupBuffers();
 		int display(void);

@@ -6,7 +6,7 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	_perlinMap = perlinMap;
 	_position = pos;
 	_facesSent = false;
-	(void)resolution;
+	_resolution = resolution;
 	getNeighbors();
 	int heighest = perlinMap->heighest;
 	int lowest = perlinMap->lowest;
@@ -17,7 +17,7 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
 	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
-		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
+		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager, _resolution);
 	}
 	_isInit = true;
 	sendFacesToDisplay();
@@ -116,6 +116,9 @@ int Chunk::display()
 {
 	if (!_facesSent)
 		return (0);
+	// GLint loc = glGetUniformLocation(_world._shaderProgram, "resolution");
+	// glUseProgram(_world._shaderProgram); // make sure the shader is active
+	// glUniform1i(loc, _resolution);
 	int triangleDrawn = 0;
 	for (auto &subchunk : _subChunks)
 	{

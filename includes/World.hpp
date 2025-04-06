@@ -52,7 +52,7 @@ private:
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_displayedChunks;
 		std::list<Chunk *>							_chunkList;
 		std::mutex									_chunksListMutex;
-
+		
 		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> _activeChunks;
 		std::queue<glm::ivec2>	_chunkRemovalOrder;
 		std::queue<Chunk *>	_chunksLoadOrder;
@@ -74,14 +74,15 @@ private:
 		std::atomic_bool							displayReady;
 		Chrono chronoHelper;
 		ThreadPool 									_threadPool;
-public:
+	public:
 		std::mutex									_chunksMutex;
+		GLuint 										_shaderProgram;
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
 	void loadFirstChunks(ivec2 camPosition);
-
+	void init(GLuint shaderProgram, int renderDistance);
 	void unLoadNextChunks(ivec2 newCamChunk);
-	void loadChunk(int x, int z, int render, ivec2 camPosition);
+	void loadChunk(int x, int z, int render, ivec2 camPosition, int resolution = 1);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);

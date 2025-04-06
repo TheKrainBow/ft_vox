@@ -18,7 +18,11 @@ vec3 World::calculateBlockPos(vec3 position) const
 
 World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(8)
 {
-	_renderDistance = RENDER_DISTANCE;
+}
+
+void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
+	_shaderProgram = shaderProgram;
+	_renderDistance = renderDistance;
 }
 
 World::~World()
@@ -32,8 +36,6 @@ NoiseGenerator &World::getNoiseGenerator(void)
 {
 	return (_perlinGenerator);
 }
-
-
 
 void World::loadPerlinMap(vec3 camPosition)
 {
@@ -127,9 +129,10 @@ void World::unloadChunk()
 	}
 }
 
-void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
+void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 {
 	Chunk *chunk = nullptr;
+	resolution = 1;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
 	_chunksMutex.lock();
 	auto it = _chunks.find(pos);
@@ -142,7 +145,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 	else if (_skipLoad == false)
 	{
 		_chunksMutex.unlock();
-		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos), *this, _textureManager);
+		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
 
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);

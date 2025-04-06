@@ -15,6 +15,7 @@ class Chunk
 {
 	private:
 		ivec2								_position;
+		int									_resolution;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
 		bool								_hasAllNeighbors;

@@ -7,6 +7,7 @@ layout(location = 2) in int instanceData; // Encoded instance data
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform int resolution;
 
 out vec2 TexCoord;
 flat out int TextureID;
@@ -15,6 +16,8 @@ out vec3 FragPos; // Output fragment position for lighting
 
 void main()
 {
+    int res = resolution;
+    res = 1;
     // Decode instance data
     int x = (instanceData >> 0) & 0x1F;
     int y = (instanceData >> 5) & 0x1F;
@@ -31,6 +34,8 @@ void main()
     lengthX++;
     lengthY++;
     finalUV.y = 1.0 - finalUV.y;
+    lengthX *= res;
+    lengthY *= res;
     basePos.x *= lengthX;
     basePos.y *= lengthY;
 
@@ -53,7 +58,7 @@ void main()
     if (direction == 1) // -X
     {
         basePos.x = -basePos.x + lengthX;
-        basePos.z += 1;
+        basePos.z += res;
         normal = vec3(-1.0, 0.0, 0.0);
     }
     if (direction == 2) // -Y
@@ -64,7 +69,7 @@ void main()
     }
     if (direction == 3) // +X
     {
-        basePos.x += 1;
+        basePos.x += res;
         normal = vec3(1.0, 0.0, 0.0);
     }
     if (direction == 4) // -Z
@@ -74,7 +79,7 @@ void main()
     }
     if (direction == 5) // +Y
     {
-        basePos.y++;
+        basePos.y += res;
         normal = vec3(0.0, 1.0, 0.0);
     }
 

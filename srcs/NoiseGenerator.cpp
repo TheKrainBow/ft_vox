@@ -187,6 +187,37 @@ double NoiseGenerator::getHeight(vec2 pos)
 	return height;
 }
 
+void NoiseGenerator::UpdatePerlinMapResolution(PerlinMap *map, int resolution)
+{
+	if (!map || resolution > map->resolution)
+		return ;
+	// Todo: Not recalculate height that already exist
+	// while (map->resolution > resolution)
+	// {
+	// 	for (int x = 0; x < map->size; x += map->resolution)
+	// 		for (int z = 0; z < map->size; z += map->resolution)
+	// 		{
+	// 			map->heightMap[z * map->size + x] = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+	// 			if (map->heightMap[z * map->size + x] > map->heighest)
+	// 				map->heighest = map->heightMap[z * map->size + x];
+	// 			if (map->heightMap[z * map->size + x] < map->lowest)
+	// 				map->lowest = map->heightMap[z * map->size + x];
+	// 		}
+	// 	map->resolution /= 2;
+	// }
+
+	for (int x = 0; x < map->size; x += resolution)
+		for (int z = 0; z < map->size; z += resolution)
+		{
+			map->heightMap[z * map->size + x] = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+			if (map->heightMap[z * map->size + x] > map->heighest)
+				map->heighest = map->heightMap[z * map->size + x];
+			if (map->heightMap[z * map->size + x] < map->lowest)
+				map->lowest = map->heightMap[z * map->size + x];
+		}
+	map->resolution = resolution;
+}
+
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
 	PerlinMap *newMap = new PerlinMap();
@@ -234,14 +265,18 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	}
 }
 
-PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos)
+PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos, int resolution)
 {
 	std::lock_guard<std::mutex> lock(_perlinMutex);
 	auto it = _perlinMaps.find(pos);
 	auto itend = _perlinMaps.end();
 	if (it != itend)
+	{
+		if ((*it).second->resolution > resolution)
+			UpdatePerlinMapResolution((*it).second, resolution);
 		return ((*it).second);
-	return addPerlinMap(pos, CHUNK_SIZE, 1);
+	}
+	return addPerlinMap(pos, CHUNK_SIZE, resolution);
 }
 
 // Layered perlin noise samples by octaves number
