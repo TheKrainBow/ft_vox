@@ -34,6 +34,7 @@ class SubChunk
 		bool				_hasBufferInitialized = false;
 
 		std::vector<Face>	_faces[6];
+	
 		GLuint				_vao;
 		GLuint				_vbo;
 		GLuint				_instanceVBO;
@@ -41,7 +42,6 @@ class SubChunk
 
 		std::vector<Face>	_transparentFaces[6];
 		GLuint				_transparentVao;
-		GLuint				_transparentVbo;
 		GLuint				_transparentInstanceVBO;
 		std::vector<int>	_transparentVertexData;
 		bool				_needTransparentUpdate;
@@ -71,6 +71,8 @@ class SubChunk
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		void clearFaces();
+		std::vector<int> getSolidVertex();
+		std::vector<int> getTransparentVertex();
 	private:
 		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);

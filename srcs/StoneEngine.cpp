@@ -19,6 +19,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initShaders();
 	initDebugTextBox();
 	reshape(_window, windowWidth, windowHeight);
+	_world.initGLBuffer();
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 

@@ -46,36 +46,59 @@ struct Compare {
 class World
 {
 private:
-	// World related informations
-		NoiseGenerator								_perlinGenerator;
-		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_chunks;
-		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_displayedChunks;
-		std::list<Chunk *>							_chunkList;
-		std::mutex									_chunksListMutex;
+	struct RenderChunk {
+		GLuint	solidVAO;
+		GLuint	solidVBO;
+		int		solidVertexCount;
+		GLuint	transparentVAO;
+		GLuint	transparentVBO;
+		int		transparentVertexCount;
+	};
 
-		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> _activeChunks;
-		std::queue<glm::ivec2>	_chunkRemovalOrder;
-		std::queue<Chunk *>	_chunksLoadOrder;
-		std::mutex			_chunksRemovalMutex;
-		std::mutex			_chunksLoadMutex;
-		
-		std::mutex									_displayChunkMutex;
-		std::queue<Chunk*>							_displayQueue;
-		std::mutex									_displayQueueMutex;
-		bool										_skipLoad;
-		TextureManager								&_textureManager;
-		
-		// Player related informations
-		Camera										*_camera;
-		int											_renderDistance;
-		int											_maxRender = 1000;
-		bool										*_isRunning;
-		std::mutex									*_runningMutex;
-		std::atomic_bool							displayReady;
-		Chrono chronoHelper;
-		ThreadPool 									_threadPool;
+	// World related informations
+	bool															_isBufferInit;
+	NoiseGenerator													_perlinGenerator;
+	std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>				_chunks;
+
+	std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>				_displayedChunks;
+	
+	std::list<Chunk *>												_chunkList;
+	std::mutex														_chunkListMutex;
+	
+	
+	std::unordered_map<glm::ivec2, RenderChunk, ivec2_hash>			_renderedChunks;
+
+	std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>				_activeChunks;
+	std::queue<glm::ivec2>											_chunkRemovalOrder;
+	std::queue<Chunk *>												_chunksLoadOrder;
+	std::mutex														_chunksRemovalMutex;
+	std::mutex														_chunksLoadMutex;
+	
+	bool															_skipLoad;
+	TextureManager													&_textureManager;
+
+	GLuint				_instanceVBO;
+
+	GLuint				_solidVAO;
+	GLuint				_solidVBO;
+	std::vector<int>	_solidVertices;
+
+	GLuint				_transparentVAO;
+	GLuint				_transparentVBO;
+	std::vector<int>	_transparentVertices;
+
+	// Player related informations
+	Camera															*_camera;
+	int																_renderDistance;
+	int																_maxRender = 1000;
+	bool															*_isRunning;
+	std::mutex														*_runningMutex;
+	std::atomic_bool												displayReady;
+	Chrono chronoHelper;
+	ThreadPool 														_threadPool;
 public:
-		std::mutex									_chunksMutex;
+	std::mutex														_chunksMutex;
+
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
 	void loadFirstChunks(ivec2 camPosition);
@@ -93,6 +116,7 @@ public:
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
+	void initGLBuffer();
 private:
 	vec3 calculateBlockPos(vec3 position) const;
 	bool getIsRunning();
@@ -106,4 +130,6 @@ private:
 	void loadOrder();
 	void removeOrder();
 	void updateChunk(int x, int z, int render, ivec2 chunkPos);
+
+	RenderChunk initRenderChunk(Chunk *chunk);
 };

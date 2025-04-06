@@ -48,4 +48,6 @@ class Chunk
 		Chunk *getSouthChunk();
 		Chunk *getWestChunk();
 		Chunk *getEastChunk();
+		std::vector<int> getSolidVertex();
+		std::vector<int> getTransparentVertex();
 };

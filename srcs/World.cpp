@@ -19,6 +19,7 @@ vec3 World::calculateBlockPos(vec3 position) const
 World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(8)
 {
 	_renderDistance = RENDER_DISTANCE;
+	_isBufferInit = false;
 }
 
 World::~World()
@@ -73,10 +74,10 @@ void World::unloadChunk()
 	//(Add a isModified boolean in Chunk or SubChunk class)
 	//TODO Protect from display segv when cache_size is smaller than double the surface
 	// (defines to change to reproduce: CACHE_SIZE 2500 RENDER_DISTANCE 61)
-	_chunksListMutex.lock();
+	_chunkListMutex.lock();
 	if (_chunkList.size() < CACHE_SIZE)
 	{
-		_chunksListMutex.unlock();
+		_chunkListMutex.unlock();
 		return;
 	}
 
@@ -108,7 +109,7 @@ void World::unloadChunk()
 		Chunk* chunkToRemove = *farthestChunkIt;
 		// Remove from _chunkList
 		_chunkList.erase(farthestChunkIt);
-		_chunksListMutex.unlock();
+		_chunkListMutex.unlock();
 
 		ivec2 key = chunkToRemove->getPosition();
 
@@ -123,7 +124,7 @@ void World::unloadChunk()
 	}
 	else
 	{
-		_chunksListMutex.unlock();
+		_chunkListMutex.unlock();
 	}
 }
 
@@ -144,9 +145,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 		_chunksMutex.unlock();
 		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos), *this, _textureManager);
 
-		_chunksListMutex.lock();
+		_chunkListMutex.lock();
 		_chunkList.emplace_back(chunk);
-		_chunksListMutex.unlock();
+		_chunkListMutex.unlock();
 
 		_chunksMutex.lock();
 		_chunks[pos] = chunk;
@@ -305,23 +306,105 @@ Chunk *World::getChunk(ivec2 position)
 		return it->second;
 	return nullptr;
 }
+World::RenderChunk World::initRenderChunk(Chunk *chunk) {
+    RenderChunk dest;
+
+    // Retrieve solid and transparent vertex data from chunk
+    std::vector<int> solidVertex = chunk->getSolidVertex();
+    std::vector<int> transparentVertex = chunk->getTransparentVertex();
+
+    dest.solidVertexCount = solidVertex.size();
+    dest.transparentVertexCount = transparentVertex.size();
+
+    // Handle solid vertex data (using instancing)
+    if (dest.solidVertexCount > 0) {
+        glGenVertexArrays(1, &dest.solidVAO);
+        glBindVertexArray(dest.solidVAO);
+
+        // Bind the instance VBO (shared across all instances)
+        glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+		glVertexAttribIPointer(0, 3, GL_INT, 3 * sizeof(int), (void*)0); // Instance data (instance positions)
+		glEnableVertexAttribArray(0);
+
+        // Create and bind the solid VBO for the chunk-specific vertex data
+        glGenBuffers(1, &dest.solidVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, dest.solidVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(int) * dest.solidVertexCount, solidVertex.data(), GL_STATIC_DRAW);
+
+		glVertexAttribIPointer(1, 1, GL_INT, sizeof(int), (void*)0); // Instance data (instance positions)
+		glEnableVertexAttribArray(1);
+		glVertexAttribDivisor(1, 1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    // Handle solid vertex data (using instancing)
+    if (dest.solidVertexCount > 0) {
+        glGenVertexArrays(1, &dest.transparentVAO);
+        glBindVertexArray(dest.transparentVAO);
+
+        // Bind the instance VBO (shared across all instances)
+        glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+		glVertexAttribIPointer(0, 3, GL_INT, 3 * sizeof(int), (void*)0); // Instance data (instance positions)
+		glEnableVertexAttribArray(0);
+
+        // Create and bind the solid VBO for the chunk-specific vertex data
+        glGenBuffers(1, &dest.transparentVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, dest.transparentVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(int) * dest.solidVertexCount, solidVertex.data(), GL_STATIC_DRAW);
+
+		glVertexAttribIPointer(1, 1, GL_INT, sizeof(int), (void*)0); // Instance data (instance positions)
+		glEnableVertexAttribArray(1);
+		glVertexAttribDivisor(1, 1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    return dest;
+}
+
+
 
 void World::loadOrder()
 {
-	_chunksLoadMutex.lock();
-	while (!_chunksLoadOrder.empty())
-	{
-		Chunk *chunk = nullptr;
-		chunk = _chunksLoadOrder.front();
-		ivec2 chunkPos = chunk->getPosition();
-		_activeChunks[{chunkPos.x, chunkPos.y}] = chunk;
-		_chunksLoadOrder.pop();
-	}
-	_chunksLoadMutex.unlock();
+    if (_isBufferInit == false)
+        return;
+
+    _chunksLoadMutex.lock();
+    while (!_chunksLoadOrder.empty())
+    {
+        Chunk* chunk = _chunksLoadOrder.front();
+        ivec2 chunkPos = chunk->getPosition();
+
+        // Initialize RenderChunk and add to the map
+        RenderChunk renderChunk = initRenderChunk(chunk);
+        _renderedChunks[{chunkPos.x, chunkPos.y}] = renderChunk;
+        
+        _chunksLoadOrder.pop();
+    }
+    _chunksLoadMutex.unlock();
+}
+
+
+void World::initGLBuffer() {
+    GLint vertices[] = {
+		0, 0, 0,
+        1, 0, 0,
+        0, 1, 0,
+        1, 1, 0,
+    };
+	glGenBuffers(1, &_instanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	_isBufferInit = true;
 }
 
 void World::removeOrder()
 {
+	if (_isBufferInit == false)
+		return ;
 	_chunksRemovalMutex.lock();
 	while (!_chunkRemovalOrder.empty())
 	{
@@ -339,15 +422,20 @@ int World::display()
 	loadOrder();
 	removeOrder();
 	glEnable(GL_CULL_FACE);
-	for (auto &activeChunk : _activeChunks)
-	{
-		trianglesDrawn += activeChunk.second->display();
-	}
+    for (auto& renderChunk : _renderedChunks) {
+		glBindVertexArray(renderChunk.second.solidVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, renderChunk.second.solidVBO);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, renderChunk.second.solidVertexCount);
+    }
+	glBindVertexArray(0);
+    
 	glDisable(GL_CULL_FACE);
-	for (auto &activeChunk : _activeChunks)
-	{
-		trianglesDrawn += activeChunk.second->displayTransparent();
-	}
+    for (auto& renderChunk : _renderedChunks) {
+		glBindVertexArray(renderChunk.second.transparentVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, renderChunk.second.transparentVBO);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, renderChunk.second.transparentVertexCount);
+    }
+    glBindVertexArray(0);
 	return trianglesDrawn;
 }
 

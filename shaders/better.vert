@@ -1,8 +1,7 @@
 #version 430 core
 
-layout(location = 0) in vec3 aPos;      // Vertex position
-layout(location = 1) in vec3 worldPos;  // World position
-layout(location = 2) in int instanceData; // Encoded instance data
+layout(location = 0) in ivec3 aPos;      // Vertex position
+layout(location = 1) in int instanceData; // Encoded instance data
 
 uniform mat4 model;
 uniform mat4 view;
@@ -83,7 +82,7 @@ void main()
         basePos.y -= 0.1;
     }
     // Compute world position and transform normal to world space
-    vec3 worldPosition = worldPos + basePos + instancePos;
+    vec3 worldPosition = basePos + instancePos;
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
     

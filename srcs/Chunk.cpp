@@ -197,7 +197,29 @@ Chunk *Chunk::getWestChunk() {
 	return _west;
 }
 
+std::vector<int> Chunk::getTransparentVertex() {
+	std::vector<int>	dest;
+	
+	_subChunksMutex.lock();
+	for (auto &subchunk : _subChunks) {
+		std::vector<int> subChunkVertex = subchunk.second->getTransparentVertex();
+		dest.insert(dest.end(), subChunkVertex.begin(), subChunkVertex.end());
+	}
+	_subChunksMutex.unlock();
+	return dest;
+}
 
+std::vector<int> Chunk::getSolidVertex() {
+	std::vector<int>	dest;
+
+	_subChunksMutex.lock();
+	for (auto &subchunk : _subChunks) {
+		std::vector<int> subChunkVertex = subchunk.second->getSolidVertex();
+		dest.insert(dest.end(), subChunkVertex.begin(), subChunkVertex.end());
+	}
+	_subChunksMutex.unlock();
+	return dest;
+}
 // Load chunks: 0,203s
 // Load chunks: 0,256s
 // Load chunks: 0,245s

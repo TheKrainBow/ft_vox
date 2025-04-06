@@ -21,57 +21,55 @@ void SubChunk::pushVerticesToOpenGL(bool isTransparent) {
 		_needUpdate = false;
 	}
 }
-
 void SubChunk::initGLBuffer()
 {
 	if (_hasBufferInitialized == true)
 		return ;
+
 	glGenVertexArrays(1, &_vao);
 	glGenVertexArrays(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
 
     GLfloat vertices[] = {
-        0, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-        1, 0, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-        0, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
-        1, 1, 0, _position.x * CHUNK_SIZE, _position.y * CHUNK_SIZE, _position.z * CHUNK_SIZE,
+        0, 0, 0,
+        1, 0, 0,
+        0, 1, 0,
+        1, 1, 0,
     };
 
     glBindVertexArray(_vao);
     glBindBuffer(GL_ARRAY_BUFFER, _vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0); // Positions
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
-    glEnableVertexAttribArray(1);
 
     // Instance data (instancePositions)
-	pushVerticesToOpenGL(false);
+    pushVerticesToOpenGL(false);
 
-	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-	glEnableVertexAttribArray(2);
-	glVertexAttribDivisor(2, 1); // Update once per instance
+	glVertexAttribIPointer(1, 1, GL_INT, sizeof(int), (void*)0); // Instance data (instance positions)
+	glEnableVertexAttribArray(1);
+	glVertexAttribDivisor(1, 1); // Update once per instance
 
+	// Transparent VAO and Instance VBO
 	glGenVertexArrays(1, &_transparentVao);
 	glGenBuffers(1, &_transparentInstanceVBO);
 
     glBindVertexArray(_transparentVao);
     glBindBuffer(GL_ARRAY_BUFFER, _vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0); // Positions
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
-    glEnableVertexAttribArray(1);
 
     // Instance data (instancePositions)
-	pushVerticesToOpenGL(true);
+    pushVerticesToOpenGL(true);
 
-	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-	glEnableVertexAttribArray(2);
-	glVertexAttribDivisor(2, 1); // Update once per instance
+	glVertexAttribIPointer(1, 1, GL_INT, sizeof(int), (void*)0); // Instance data (instance positions)
+	glEnableVertexAttribArray(1);
+	glVertexAttribDivisor(1, 1); // Update once per instance
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
+
 	_hasBufferInitialized = true;
 }
 
@@ -424,6 +422,7 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 
 int SubChunk::displayTransparent(void)
 {
+	return (0);
 	if (_hasBufferInitialized == false)
 		initGLBuffer();
 	if (_needTransparentUpdate) {
@@ -437,6 +436,7 @@ int SubChunk::displayTransparent(void)
 
 int SubChunk::display(void)
 {
+	return (0);
 	if (_hasBufferInitialized == false)
 		initGLBuffer();
 	if (_needUpdate) {
@@ -471,4 +471,13 @@ void SubChunk::processFaces(bool isTransparent)
 		processEastVertex(_faces, &_vertexData);
 		processWestVertex(_faces, &_vertexData);
 	}
+}
+
+std::vector<int> SubChunk::getSolidVertex() {
+	std::vector<int> dest(_vertexData);
+	return dest;
+}
+std::vector<int> SubChunk::getTransparentVertex() {
+	std::vector<int> dest(_transparentVertexData);
+	return dest;
 }
