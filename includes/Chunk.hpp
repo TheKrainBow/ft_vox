@@ -17,6 +17,7 @@ class Chunk
 		ivec2								_position;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
+		bool								_hasAllNeighbors;
 		std::unordered_map<int, SubChunk *>	_subChunks;
 		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
@@ -31,7 +32,7 @@ class Chunk
 		int									_loads = 0;
 		std::mutex							_sendFaceMutex;
 	public:
-		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
 		SubChunk *getSubChunk(int y);

@@ -23,6 +23,19 @@ class StoneEngine {
 		glm::mat4 viewMatrix;
 		TextureManager _textureManager;
 
+		// Framebuffer data
+		GLuint fbo;
+		GLuint fboTexture;
+		GLuint dboTexture;
+		GLuint rectangleVao;
+		GLuint rectangleVbo;
+
+		// Render buffer data
+		// GLuint rbo;
+
+		// Fbo shaders data
+		GLuint fboShaderProgram;
+
 		std::mutex		_isRunningMutex;
 		bool			_isRunning = false;
 
@@ -81,8 +94,12 @@ class StoneEngine {
 		void	initGLEW();
 		int		initGLFW();
 		void	initTextures();
-		void	initShaders();
+		void	initRenderShaders();
 		void	initDebugTextBox();
+		void	initFramebuffers();
+		void	initFboShaders();
+		void	resetFrameBuffers();
+		void	updateFboWindowSize();
 
 		// Runtime methods
 		void calculateFps();

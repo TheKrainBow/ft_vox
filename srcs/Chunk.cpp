@@ -1,11 +1,12 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
 	_position = pos;
 	_facesSent = false;
+	(void)resolution;
 	getNeighbors();
 	int heighest = perlinMap->heighest;
 	int lowest = perlinMap->lowest;
@@ -21,24 +22,14 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	_isInit = true;
 	sendFacesToDisplay();
 
-    if (_north) {
+    if (_north)
 		_north->sendFacesToDisplay();
-	}
-
-    // _south = retSouth.get();
-    if (_south) {
+    if (_south)
 		_south->sendFacesToDisplay();
-	}
-
-    // _east = retEast.get();
-    if (_east) {
+    if (_east)
 		_east->sendFacesToDisplay();
-	}
-
-    // _west = retWest.get();
-    if (_west) {
+    if (_west)
 		_west->sendFacesToDisplay();
-	}
 }
 
 Chunk::~Chunk()
@@ -153,6 +144,9 @@ bool Chunk::isReady()
 
 void Chunk::sendFacesToDisplay()
 {
+	// if (_hasAllNeighbors != true) {
+	// 	return ;
+	// }
 	_subChunksMutex.lock();
 	for (auto &subChunk : _subChunks)
 		subChunk.second->sendFacesToDisplay();
@@ -164,21 +158,25 @@ void Chunk::sendFacesToDisplay()
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 Chunk *Chunk::getNorthChunk() {
