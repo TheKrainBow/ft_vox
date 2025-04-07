@@ -129,7 +129,7 @@ void World::unloadChunk()
 	}
 }
 
-void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
+void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir)
 {
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
@@ -141,9 +141,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution)
 		chunk = it->second;
 		_chunksMutex.unlock();
 		if (chunk->_resolution != resolution)
-			chunk->updateResolution(resolution);
-		if ((render - 2) == threshold / 2)
-			chunk->sendFacesToDisplay();
+			chunk->updateResolution(resolution, dir);
 	}
 	else if (_skipLoad == false)
 	{
@@ -170,7 +168,7 @@ void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)
 	int z = 0;
 	for (int x = 0; x < render && getIsRunning(); x++)
 	{
-		loadChunk(x, z, render, chunkPos, resolution);
+		loadChunk(x, z, render, chunkPos, resolution, NORTH);
 	}
 }
 
@@ -179,7 +177,7 @@ void World::loadBotChunks(int render, ivec2 chunkPos, int resolution)
 	int z = render - 1;
 	for (int x = render - 1; getIsRunning() && x >= 0; x--)
 	{
-		loadChunk(x, z, render, chunkPos, resolution);
+		loadChunk(x, z, render, chunkPos, resolution, SOUTH);
 	}
 }
 
@@ -188,7 +186,7 @@ void World::loadRightChunks(int render, ivec2 chunkPos, int resolution)
 	int x = render - 1;
 	for (int z = 0; z < render && getIsRunning(); z++)
 	{
-		loadChunk(x, z, render, chunkPos, resolution);
+		loadChunk(x, z, render, chunkPos, resolution, EAST);
 	}
 }
 
@@ -197,7 +195,7 @@ void World::loadLeftChunks(int render, ivec2 chunkPos, int resolution)
 	int x = 0;
 	for (int z = render - 1; getIsRunning() && z >= 0; z--)
 	{
-		loadChunk(x, z, render, chunkPos, resolution);
+		loadChunk(x, z, render, chunkPos, resolution, WEST);
 	}
 }
 
@@ -208,21 +206,21 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	std::vector<std::future<void>> retLst;
 	int resolution = RESOLUTION;
-	threshold = 32;
-	loadChunk(0, 0, 1, chunkPos, resolution);
+	_threshold = 64;
+	loadChunk(0, 0, 1, chunkPos, resolution, NORTH);
     for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
-		std::cout << render << " " << threshold << std::endl;
+		// std::cout << render << " " << _threshold << std::endl;
 		// Load chunks
 		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos, resolution));
 
-		if (render >= threshold)
+		if (render >= _threshold)
 		{
 			resolution *= 2;
-			threshold = threshold * 2;
+			_threshold = _threshold * 2;
 		}
 		if (hasMoved(chunkPos))
 			break;

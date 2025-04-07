@@ -73,7 +73,7 @@ private:
 		std::atomic_bool							displayReady;
 		Chrono chronoHelper;
 		ThreadPool 									_threadPool;
-		std::atomic_int 							threshold;
+		std::atomic_int 							_threshold;
 	public:
 		NoiseGenerator								_perlinGenerator;
 		std::mutex									_chunksMutex;
@@ -83,7 +83,8 @@ private:
 	void loadFirstChunks(ivec2 camPosition);
 	void init(GLuint shaderProgram, int renderDistance);
 	void unLoadNextChunks(ivec2 newCamChunk);
-	void loadChunk(int x, int z, int render, ivec2 camPosition, int resolution = 1);
+	
+	void loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(vec3 position);

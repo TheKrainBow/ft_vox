@@ -145,7 +145,7 @@ void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
-	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 100000000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
 	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
 	glm::vec3 viewPos = camera.getWorldPosition();
@@ -479,7 +479,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	projectionMatrix = glm::perspective(glm::radians(80.0f), float(width) / float(height), 0.1f, 10000000.0f);
+	projectionMatrix = glm::perspective(glm::radians(80.0f), float(width) / float(height), 0.1f, 100000000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }

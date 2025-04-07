@@ -39,6 +39,10 @@ void main()
     basePos.x *= lengthX;
     basePos.y *= lengthY;
 
+    if (textureID == 6)
+    {
+        // res = 1;
+    }
     // Default normal
     vec3 normal = vec3(0.0, 0.0, 0.0);
 

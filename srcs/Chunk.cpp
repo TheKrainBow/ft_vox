@@ -201,7 +201,7 @@ Chunk *Chunk::getWestChunk() {
 	return _west;
 }
 
-void	Chunk::updateResolution(int newResolution)
+void	Chunk::updateResolution(int newResolution, Direction dir)
 {
 	_perlinMap->resolution = newResolution;
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
@@ -210,10 +210,18 @@ void	Chunk::updateResolution(int newResolution)
 	for (auto &subchunk : _subChunks)
 	{
 		_subChunksMutex.lock();
-		SubChunk *chunk = subchunk.second;
-		chunk->updateResolution(newResolution, _perlinMap);
+		SubChunk *subChunk = subchunk.second;
+		subChunk->updateResolution(newResolution, _perlinMap);
 		_subChunksMutex.unlock();
 	}
+	if (dir == NORTH && _north)
+		_north->sendFacesToDisplay();
+	else if (dir == SOUTH && _south)
+		_south->sendFacesToDisplay();
+	else if (dir == EAST && _east)
+		_east->sendFacesToDisplay();
+	else if (dir == WEST && _west)
+		_west->sendFacesToDisplay();
 }
 // Load chunks: 0,203s
 // Load chunks: 0,256s
