@@ -46,6 +46,7 @@ void StoneEngine::run()
 		update();
 		glfwPollEvents();
 	}
+
 	_isRunningMutex.lock();
 	_isRunning = false;
 	_isRunningMutex.unlock();
@@ -86,30 +87,39 @@ void StoneEngine::initData()
 	timeValue = 39800;
 }
 
+void StoneEngine::activateFboShader()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glUseProgram(fboShaderProgram);
+	glBindVertexArray(rectangleVao);
+	glDisable(GL_DEPTH_TEST);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, intermediateTexture);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
+	
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, intermediateDbo);
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
 void StoneEngine::initFramebuffers()
 {
-	// Init framebuffer
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-	// Init framebuffer color texture
-	glGenTextures(1, &fboTexture);
-	glBindTexture(GL_TEXTURE_2D, fboTexture);
+	// Intermediate FBO (non-multisampled)
+	glGenFramebuffers(1, &intermediateFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, intermediateFbo);
+	glGenTextures(1, &intermediateTexture);
+	glBindTexture(GL_TEXTURE_2D, intermediateTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, intermediateTexture, 0);
 
-	// Init render buffer
-	// glGenRenderbuffers(1, &rbo);
-	// glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-	// glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth, windowHeight);
-	// glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-
-	glGenTextures(1, &dboTexture);
-	glBindTexture(GL_TEXTURE_2D, dboTexture);
+	glGenTextures(1, &intermediateDbo);
+	glBindTexture(GL_TEXTURE_2D, intermediateDbo);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, windowWidth, windowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -117,11 +127,33 @@ void StoneEngine::initFramebuffers()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 	// Attach to framebuffer
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dboTexture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, intermediateDbo, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "Framebuffer error: " << fboStatus << std::endl;
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "Intermediate framebuffer not complete!" << std::endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	// Init framebuffer (multi sampled)
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	// Color attachment (multisampled)
+	glGenTextures(1, &fboTexture);
+	glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fboTexture);
+	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 8, GL_RGB, windowWidth, windowHeight, GL_TRUE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, fboTexture, 0);
+
+	// Depth renderbuffer (multisampled)
+	GLuint fboDepthRbo;
+	glGenRenderbuffers(1, &fboDepthRbo);
+	glBindRenderbuffer(GL_RENDERBUFFER, fboDepthRbo);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, 8, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDepthRbo);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "MSAA framebuffer not complete!" << std::endl;
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -254,23 +286,6 @@ void StoneEngine::activateRenderShader()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
 
-void StoneEngine::activateFboShader()
-{
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glUseProgram(fboShaderProgram);
-	glBindVertexArray(rectangleVao);
-	glDisable(GL_DEPTH_TEST);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fboTexture);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
-	
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, dboTexture);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-}
-
 void StoneEngine::triangleMeshToggle()
 {
 	if (showTriangleMesh)
@@ -278,6 +293,7 @@ void StoneEngine::triangleMeshToggle()
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
+
 void StoneEngine::display()
 {
     // Init and clear buffers
@@ -286,7 +302,7 @@ void StoneEngine::display()
     glEnable(GL_DEPTH_TEST);
     glMatrixMode(GL_MODELVIEW);
 
-	// Render solid blocks
+    // Render solid blocks
     activateRenderShader();
     _world.updateActiveChunks();
     glCullFace(GL_FRONT);
@@ -296,18 +312,29 @@ void StoneEngine::display()
 
     triangleMeshToggle();
 
+    // Resolve MSAA (color from fbo -> intermediate)
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFbo);
+    glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+                      0, 0, windowWidth, windowHeight,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    // Resolve MSAA (depth from fbo -> intermediate)
+    glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+                      0, 0, windowWidth, windowHeight,
+                      GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to screen
+
     // Fix holes in terrain with post process fbo.frag shader
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
     activateFboShader();
 
-    // Copy dbo from screen
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    // Copy depth from intermediate to screen (needed for transparency)
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, intermediateFbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBlitFramebuffer(0, 0, windowWidth, windowHeight,
                       0, 0, windowWidth, windowHeight,
                       GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Transparent blocks draw
     glDepthMask(GL_FALSE);
@@ -618,7 +645,7 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 
 int StoneEngine::initGLFW()
 {	
-	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
+	glfwWindowHint(GLFW_SAMPLES, 8); // Request 32-bit depth buffer
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{
