@@ -9,6 +9,7 @@
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
+# define MSAA 8
 # define W_WIDTH 1000
 # define W_HEIGHT 800
 # define RENDER_DISTANCE 61

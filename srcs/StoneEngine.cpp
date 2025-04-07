@@ -141,14 +141,14 @@ void StoneEngine::initFramebuffers()
 	// Color attachment (multisampled)
 	glGenTextures(1, &fboTexture);
 	glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fboTexture);
-	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 8, GL_RGB, windowWidth, windowHeight, GL_TRUE);
+	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAA, GL_RGB, windowWidth, windowHeight, GL_TRUE);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, fboTexture, 0);
 
 	// Depth renderbuffer (multisampled)
 	GLuint fboDepthRbo;
 	glGenRenderbuffers(1, &fboDepthRbo);
 	glBindRenderbuffer(GL_RENDERBUFFER, fboDepthRbo);
-	glRenderbufferStorageMultisample(GL_RENDERBUFFER, 8, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAA, GL_DEPTH_COMPONENT, windowWidth, windowHeight);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboDepthRbo);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -317,12 +317,12 @@ void StoneEngine::display()
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFbo);
     glBlitFramebuffer(0, 0, windowWidth, windowHeight,
                       0, 0, windowWidth, windowHeight,
-                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                      GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
     // Resolve MSAA (depth from fbo -> intermediate)
-    glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-                      0, 0, windowWidth, windowHeight,
-                      GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    // glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+    //                   0, 0, windowWidth, windowHeight,
+    //                   GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // Back to screen
 
@@ -645,7 +645,8 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 
 int StoneEngine::initGLFW()
 {	
-	glfwWindowHint(GLFW_SAMPLES, 8); // Request 32-bit depth buffer
+	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
+	glfwWindowHint(GLFW_SAMPLES, MSAA);
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{
