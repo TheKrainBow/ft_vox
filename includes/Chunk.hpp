@@ -51,4 +51,5 @@ class Chunk
 		Chunk *getSouthChunk();
 		Chunk *getWestChunk();
 		Chunk *getEastChunk();
+		void freeSubChunks();
 };

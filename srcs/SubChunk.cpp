@@ -252,7 +252,7 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(vec3(position.x, position.y, CHUNK_SIZE - _resolution));
+					block = subChunk->getBlock(ivec3(position.x, position.y, CHUNK_SIZE - _resolution));
 				else
 					block = 0;
 			} else {
@@ -278,7 +278,7 @@ void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType textur
 			if (subChunk)
 			{
 				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(vec3(position.x, position.y, 0));
+					block = subChunk->getBlock(ivec3(position.x, position.y, 0));
 			}
 			else
 				block = 1;
@@ -300,7 +300,7 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(vec3(CHUNK_SIZE - _resolution, position.y, position.z));
+					block = subChunk->getBlock(ivec3(CHUNK_SIZE - _resolution, position.y, position.z));
 				else
 					block = 0;
 			} else {
@@ -324,7 +324,7 @@ void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
 				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(vec3(0, position.y, position.z));
+					block = subChunk->getBlock(ivec3(0, position.y, position.z));
 				else
 					block = 0;
 			} else {

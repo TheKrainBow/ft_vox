@@ -197,6 +197,15 @@ Chunk *Chunk::getEastChunk() {
 	return _east;
 }
 
+void Chunk::freeSubChunks()
+{
+	_subChunksMutex.lock();
+	for (auto &subchunk : _subChunks)
+		delete subchunk.second;
+	_subChunksMutex.unlock();
+	_subChunks.clear();
+}
+
 Chunk *Chunk::getWestChunk() {
 	return _west;
 }

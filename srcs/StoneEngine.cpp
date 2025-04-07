@@ -306,8 +306,10 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	// Ensure both complete before stopping the chrono
 	// loadNextChunk.get();
 	// unLoadNextChunk.get();
-	_world.loadFirstChunks(newCamChunk);
-	_world.unLoadNextChunks(newCamChunk);
+	if (getIsRunning())
+		_world.loadFirstChunks(newCamChunk);
+	if (getIsRunning())
+		_world.unLoadNextChunks(newCamChunk);
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }

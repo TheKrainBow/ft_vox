@@ -76,28 +76,25 @@ void World::unloadChunk()
 	//TODO Protect from display segv when cache_size is smaller than double the surface
 	// (defines to change to reproduce: CACHE_SIZE 2500 RENDER_DISTANCE 61)
 	_chunksListMutex.lock();
+	// std::cout << _chunkList.size() << std::endl;
 	if (_chunkList.size() < CACHE_SIZE)
-	{
-		_chunksListMutex.unlock();
-		return;
-	}
-
+		return _chunksListMutex.unlock();
 	// Get player position in chunk coordinates
-	vec3 playerPos = _camera->getWorldPosition();
-	int playerChunkX = playerPos.x / CHUNK_SIZE;
-	int playerChunkZ = playerPos.z / CHUNK_SIZE;
-	if (playerPos.x < 0) playerChunkX--;
-	if (playerPos.z < 0) playerChunkZ--;
+	ivec2 chunkPos = _camera->getChunkPosition(CHUNK_SIZE);
+	int playerChunkX = chunkPos.x;
+	int playerChunkZ = chunkPos.y;
 
 	// Find the farthest chunk
 	auto farthestChunkIt = _chunkList.end();
-	float maxDistance = -1.0f;
+	int maxDistance = -1;
 	for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it)
 	{
 		Chunk* chunk = *it;
-		int chunkX = chunk->getPosition().x;
-		int chunkZ = chunk->getPosition().y;
-		float distance = sqrt(pow(chunkX - playerChunkX, 2) + pow(chunkZ - playerChunkZ, 2));
+		ivec2 chunkPos = chunk->getPosition();
+
+		int chunkX = chunkPos.x;
+		int chunkZ = chunkPos.y;
+		int distance = sqrt(pow(chunkX - playerChunkX, 2) + pow(chunkZ - playerChunkZ, 2));
 		if (distance > maxDistance)
 		{
 			maxDistance = distance;
@@ -112,15 +109,16 @@ void World::unloadChunk()
 		_chunkList.erase(farthestChunkIt);
 		_chunksListMutex.unlock();
 
-		ivec2 key = chunkToRemove->getPosition();
+		ivec2 pos = chunkToRemove->getPosition();
 
 		// Remove from _chunks
 		_chunksMutex.lock();
-		_chunks.erase(key);
+		_chunks.erase(pos);
 		_chunksMutex.unlock();
 
-		//_perlinGenerator.removePerlinMap(key.first, key.second);
 		// Clean up memory
+		_perlinGenerator.removePerlinMap(pos.x, pos.y);
+		chunkToRemove->freeSubChunks();
 		delete chunkToRemove;
 	}
 	else
@@ -160,7 +158,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	_chunksLoadOrder.emplace(chunk);
 	_displayedChunks[pos] = chunk;
 	_chunksLoadMutex.unlock();
-	unloadChunk();
+	//unloadChunk();
 }
 
 void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)
@@ -206,11 +204,10 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	std::vector<std::future<void>> retLst;
 	int resolution = RESOLUTION;
-	_threshold = 64;
+	_threshold = 162;
 	loadChunk(0, 0, 1, chunkPos, resolution, NORTH);
     for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
 	{
-		// std::cout << render << " " << _threshold << std::endl;
 		// Load chunks
 		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution));
 		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution));
@@ -227,7 +224,6 @@ void World::loadFirstChunks(ivec2 chunkPos)
     }
 	for (std::future<void> &ret : retLst)
 		ret.get();
-	retLst.clear();
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
@@ -265,16 +261,13 @@ bool World::hasMoved(ivec2 oldPos)
 	return false;
 }
 
-char World::getBlock(vec3 position)
+char World::getBlock(ivec3 position)
 {
 	// std::cout << "World::getBlock" << std::endl;
-	vec3 chunkPos((int)position.x / CHUNK_SIZE, (int)position.y / CHUNK_SIZE, (int)position.z / CHUNK_SIZE);
-	chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
-	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
-	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
-	chunkPos.x = int(chunkPos.x);
-	chunkPos.y = int(chunkPos.y);
-	chunkPos.z = int(chunkPos.z);
+	ivec3 chunkPos(position.x / CHUNK_SIZE, position.y / CHUNK_SIZE, position.z / CHUNK_SIZE);
+	chunkPos.x -= (position.x < 0 && abs(position.x) % CHUNK_SIZE != 0);
+	chunkPos.z -= (position.z < 0 && abs(position.z) % CHUNK_SIZE != 0);
+	chunkPos.y -= (position.y < 0 && abs(position.y) % CHUNK_SIZE != 0);
 
 	Chunk *chunk = getChunk(ivec2(chunkPos.x, chunkPos.z));
 	if (!chunk)
@@ -306,12 +299,14 @@ SubChunk *World::getSubChunk(vec3 position)
 
 Chunk *World::getChunk(ivec2 position)
 {
-	_chunksMutex.lock();
+	std::lock_guard<std::mutex> lock(_chunksMutex);
 	auto it = _chunks.find({position.x, position.y});
 	auto itend = _chunks.end();
-	_chunksMutex.unlock();
 	if (it != itend)
-		return it->second;
+	{
+		Chunk *chunk = it->second;
+		return chunk;
+	}
 	return nullptr;
 }
 

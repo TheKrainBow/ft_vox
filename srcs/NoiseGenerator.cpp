@@ -249,9 +249,9 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	std::lock_guard<std::mutex> lock(_perlinMutex);
 	auto it = _perlinMaps.find({x, z});
 	auto itend = _perlinMaps.end();
-	PerlinMap *map = (*it).second;
 	if (it != itend)
 	{
+		PerlinMap *map = (*it).second;
 		if (map && map->heightMap)
 		{
 			delete [] map->heightMap;
