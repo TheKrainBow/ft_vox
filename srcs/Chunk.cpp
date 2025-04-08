@@ -6,6 +6,8 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	_perlinMap = perlinMap;
 	_position = pos;
 	_facesSent = false;
+	_needUpdate = true;
+	_hasBufferInitialized = false;
 	getNeighbors();
 	int heighest = perlinMap->heighest;
 	int lowest = perlinMap->lowest;
@@ -20,25 +22,14 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	}
 	_isInit = true;
 	sendFacesToDisplay();
-
-    if (_north) {
+	if (_north)
 		_north->sendFacesToDisplay();
-	}
-
-    // _south = retSouth.get();
-    if (_south) {
+	if (_south)
 		_south->sendFacesToDisplay();
-	}
-
-    // _east = retEast.get();
-    if (_east) {
+	if (_east)
 		_east->sendFacesToDisplay();
-	}
-
-    // _west = retWest.get();
-    if (_west) {
+	if (_west)
 		_west->sendFacesToDisplay();
-	}
 }
 
 Chunk::~Chunk()
@@ -107,32 +98,98 @@ ivec2 Chunk::getPosition()
 	return _position;
 }
 
-int Chunk::displayTransparent()
-{
-	if (!_facesSent)
-		return (0);
-	int triangleDrawn = 0;
-	for (auto &subchunk : _subChunks)
-	{
-		_subChunksMutex.lock();
-		triangleDrawn += subchunk.second->displayTransparent();
-		_subChunksMutex.unlock();
-	}
-	return triangleDrawn;
+// int Chunk::displayTransparent()
+// {
+// 	if (!_facesSent)
+// 		return (0);
+// 	int triangleDrawn = 0;
+// 	for (auto &subchunk : _subChunks)
+// 	{
+// 		_subChunksMutex.lock();
+// 		triangleDrawn += subchunk.second->displayTransparent();
+// 		_subChunksMutex.unlock();
+// 	}
+// 	return triangleDrawn;
+// }
+
+void Chunk::pushVerticesToOpenGL(bool isTransparent) {
+	// if (isTransparent) {
+	// 	glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
+	// 	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _transparentVertexData.size(), _transparentVertexData.data(), GL_STATIC_DRAW);
+	// 	_needTransparentUpdate = false;
+	// } else {
+	// }
+	(void)isTransparent;
+
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+	_needUpdate = false;
 }
 
-int Chunk::display()
+void Chunk::clearFaces() {
+	_vertexData.clear();
+	// _transparentVertexData.clear();
+	// _hasSentFaces = false;
+	_needUpdate = true;
+	// _needTransparentUpdate = true;
+}
+
+void Chunk::initGLBuffer()
 {
-	if (!_facesSent)
-		return (0);
-	int triangleDrawn = 0;
-	for (auto &subchunk : _subChunks)
-	{
-		_subChunksMutex.lock();
-		triangleDrawn += subchunk.second->display();
-		_subChunksMutex.unlock();
-	}
-	return triangleDrawn;
+	if (_hasBufferInitialized == true)
+		return ;
+	glGenVertexArrays(1, &_vao);
+	glGenBuffers(1, &_vbo);
+	glGenBuffers(1, &_instanceVBO);
+	glGenBuffers(1, &_indirectBuffer);
+
+    GLfloat vertices[] = {
+        0, 0, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
+        1, 0, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
+        0, 1, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
+        1, 1, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
+    };
+
+    glBindVertexArray(_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
+    glEnableVertexAttribArray(1);
+	
+    // Instance data (instancePositions)
+	pushVerticesToOpenGL(false);
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1); // Update once per instance
+
+
+	// glGenVertexArrays(1, &_transparentVao);
+	// glGenBuffers(1, &_transparentInstanceVBO);
+
+    // glBindVertexArray(_transparentVao);
+    // glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+    // glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
+    // glEnableVertexAttribArray(0);
+    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
+    // glEnableVertexAttribArray(1);
+
+    // // Instance data (instancePositions)
+	// pushVerticesToOpenGL(true);
+
+	// glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+	// glEnableVertexAttribArray(2);
+	// glVertexAttribDivisor(2, 1); // Update once per instance
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+	_hasBufferInitialized = true;
 }
 
 SubChunk *Chunk::getSubChunk(int y)
@@ -151,14 +208,51 @@ bool Chunk::isReady()
 	return _facesSent;
 }
 
+int Chunk::display(void)
+{
+	_subChunksMutex.lock();
+	if (_hasBufferInitialized == false)
+		initGLBuffer();
+	if (_needUpdate) {
+		pushVerticesToOpenGL(false);
+	}
+	long long size = _vertexData.size();
+	glBindVertexArray(_vao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _indirectBufferData.size(), 0);
+	// glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, 0); // 0 offset for the start of the indirect buffer
+	
+	// for (auto &cmd : _indirectBufferData)
+	// {
+	// 	glDrawArraysInstancedBaseInstance(
+	// 		GL_TRIANGLE_STRIP, cmd.first, cmd.count, cmd.instanceCount, cmd.baseInstance);
+	// }
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	glBindVertexArray(0);
+	_subChunksMutex.unlock();
+	return (size * 2);
+}
+
 void Chunk::sendFacesToDisplay()
 {
 	_subChunksMutex.lock();
+	if (_facesSent == true)
+		clearFaces();
 	for (auto &subChunk : _subChunks)
+	{
 		subChunk.second->sendFacesToDisplay();
-	_subChunksMutex.unlock();
+		std::vector<int> vertices = subChunk.second->getVertices();
+		_indirectBufferData.push_back(DrawArraysIndirectCommand{
+			4,
+			uint(vertices.size()),
+			0,
+			uint(_vertexData.size()),
+		});
+		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+	}
 	_facesSent = true;
-	_loads++;
+	_subChunksMutex.unlock();
 }
 
 void Chunk::setNorthChunk(Chunk *chunk)

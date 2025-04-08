@@ -13,7 +13,7 @@ uniform vec2 texelSize;
 const float skyOffsetY = 5.0;
 
 // tweak this based on how far your skybox is
-const float depthSkyThreshold = 0.9999;
+const float depthSkyThreshold = 1;
 
 vec3 computeSkyColor(float time)
 {
@@ -58,7 +58,8 @@ void main()
 	{
 		// Look upwards to make sure it's part of the skybox, not a crack
 		float skyCheckUpDepth = texture(depthTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).r;
-		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold;
+		float skyCheckDownDepth = texture(depthTexture, texCoords - vec2(0.0, skyOffsetY * texelSize.y)).r;
+		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold || skyCheckDownDepth >= depthSkyThreshold;
 		// vec3 currentColor = computeSkyColor(timeValue);
 
 		if (isTrueSky)

@@ -343,11 +343,11 @@ int World::displayTransparent()
 {
 	int trianglesDrawn = 0;
 
-	glDisable(GL_CULL_FACE);
-	for (auto &activeChunk : _activeChunks)
-	{
-		trianglesDrawn += activeChunk.second->displayTransparent();
-	}
+	// glDisable(GL_CULL_FACE);
+	// for (auto &activeChunk : _activeChunks)
+	// {
+	// 	trianglesDrawn += activeChunk.second->displayTransparent();
+	// }
 	return trianglesDrawn;
 }
 

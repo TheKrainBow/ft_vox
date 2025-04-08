@@ -30,9 +30,6 @@ class StoneEngine {
 		GLuint rectangleVao;
 		GLuint rectangleVbo;
 
-		// Render buffer data
-		// GLuint rbo;
-
 		// Fbo shaders data
 		GLuint fboShaderProgram;
 

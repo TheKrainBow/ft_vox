@@ -249,7 +249,7 @@ void StoneEngine::activateRenderShader()
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	glEnable(GL_CULL_FACE);
+	// glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
@@ -316,7 +316,7 @@ void StoneEngine::display()
     glEnable(GL_DEPTH_TEST);
 
     activateRenderShader();
-    drawnTriangles += _world.displayTransparent();
+    // drawnTriangles += _world.displayTransparent();
 
     // Debug UI
     if (showDebugInfo)

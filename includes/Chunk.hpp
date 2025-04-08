@@ -11,6 +11,13 @@
 class SubChunk;
 class World;
 
+typedef  struct {
+    uint  count;
+    uint  instanceCount;
+    uint  first;
+    uint  baseInstance;
+} DrawArraysIndirectCommand;
+
 class Chunk
 {
 	private:
@@ -28,8 +35,20 @@ class Chunk
 		Chunk								*_south = nullptr;
 		Chunk								*_east = nullptr;
 		Chunk								*_west = nullptr;
-		int									_loads = 0;
 		std::mutex							_sendFaceMutex;
+		// Render buffer data
+		GLuint _ssbo;
+
+		bool 				_hasBufferInitialized;
+
+		GLuint									_vao;
+		GLuint									_vbo;
+		GLuint									_instanceVBO;
+		std::vector<int>						_vertexData;
+		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
+		GLuint									_indirectBuffer;
+		bool									_needUpdate;
+	
 	public:
 		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
 		~Chunk();
@@ -48,4 +67,7 @@ class Chunk
 		Chunk *getSouthChunk();
 		Chunk *getWestChunk();
 		Chunk *getEastChunk();
+		void initGLBuffer();
+		void pushVerticesToOpenGL(bool isTransparent);
+		void clearFaces();
 };

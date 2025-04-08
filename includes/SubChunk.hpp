@@ -34,27 +34,19 @@ class SubChunk
 		bool				_hasBufferInitialized = false;
 
 		std::vector<Face>	_faces[6];
-		GLuint				_vao;
-		GLuint				_vbo;
-		GLuint				_instanceVBO;
 		std::vector<int>	_vertexData;
 
 		std::vector<Face>	_transparentFaces[6];
-		GLuint				_transparentVao;
-		GLuint				_transparentVbo;
-		GLuint				_transparentInstanceVBO;
 		std::vector<int>	_transparentVertexData;
-		bool				_needTransparentUpdate;
 	
 		TextureManager		&_textManager;
 		bool				_needUpdate;
+		bool				_needTransparentUpdate;
 		Chrono chrono;
 	public:
 		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
 		void setupBuffers();
-		int display(void);
-		int displayTransparent(void);
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(vec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight();
@@ -71,6 +63,7 @@ class SubChunk
 		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
 		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		void clearFaces();
+		std::vector<int> getVertices();
 	private:
 		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
