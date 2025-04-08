@@ -9,11 +9,15 @@ uniform int timeValue;
 
 uniform vec2 texelSize;
 
-// how far up to look for confirmation
+// Offset to check for sky
 const float skyOffsetY = 5.0;
 
-// tweak this based on how far your skybox is
+// Skybox far
 const float depthSkyThreshold = 0.9999;
+
+// Fog constants
+const float fogStart = 40.0;
+const float fogEnd = 500.0;
 
 vec3 computeSkyColor(float time)
 {
@@ -47,38 +51,50 @@ vec3 computeSkyColor(float time)
     return skyColor;
 }
 
+float calculateFogFactor(float depth)
+{
+	float linearDepth = (2.0 * 0.1 * 1000.0) / (1000.0 + 0.1 - depth * (1000.0 - 0.1));
+
+	float fogFactor = clamp((linearDepth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
+	return fogFactor;
+}
+
 void main()
 {
 	vec3 currentColor = texture(screenTexture, texCoords).rgb;
 	float currentDepth = texture(depthTexture, texCoords).r;
-
 	bool isSkyDepth = currentDepth >= depthSkyThreshold;
+	vec3 fogColor = computeSkyColor(timeValue);
+	float fogFactor;
 
 	if (isSkyDepth)
 	{
-		// Look upwards to make sure it's part of the skybox, not a crack
 		float skyCheckUpDepth = texture(depthTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).r;
 		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold;
-		// vec3 currentColor = computeSkyColor(timeValue);
 
 		if (isTrueSky)
 		{
 			FragColor = vec4(currentColor, 1.0);
+			return ;
 		}
 		else
 		{
-			// Blend 4 neighbors
 			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
 			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
 			vec3 left  = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
 			vec3 right = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
-
 			vec3 blended = (up + down + left + right) / 4.0;
-			FragColor = vec4(blended, 1.0);
+
+			float neighborDepth = texture(depthTexture, texCoords + vec2(texelSize.x, 0.0)).r;
+			fogFactor = calculateFogFactor(neighborDepth);
+			currentColor = mix(blended, fogColor, fogFactor);
+			FragColor = vec4(currentColor, 1.0);
 		}
 	}
 	else
 	{
+		fogFactor = calculateFogFactor(currentDepth);
+		currentColor = mix(currentColor, fogColor, fogFactor);
 		FragColor = vec4(currentColor, 1.0);
 	}
 }
