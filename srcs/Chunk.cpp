@@ -125,6 +125,11 @@ void Chunk::pushVerticesToOpenGL(bool isTransparent) {
 	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
+	glNamedBufferStorage(_ssbo, 
+		sizeof(glm::vec4) * _indirectBufferData.size(), 
+		(const void *)_ssboData.data(), 
+		GL_DYNAMIC_STORAGE_BIT);
+	
 	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
 	_needUpdate = false;
@@ -132,6 +137,8 @@ void Chunk::pushVerticesToOpenGL(bool isTransparent) {
 
 void Chunk::clearFaces() {
 	_vertexData.clear();
+	_ssboData.clear();
+	_indirectBufferData.clear();
 	// _transparentVertexData.clear();
 	// _hasSentFaces = false;
 	_needUpdate = true;
@@ -146,6 +153,7 @@ void Chunk::initGLBuffer()
 	glGenBuffers(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
 	glGenBuffers(1, &_indirectBuffer);
+	glCreateBuffers(1, &_ssbo);
 
     GLfloat vertices[] = {
         0, 0, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
@@ -217,17 +225,13 @@ int Chunk::display(void)
 		pushVerticesToOpenGL(false);
 	}
 	long long size = _vertexData.size();
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
 
 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _indirectBufferData.size(), 0);
-	// glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, 0); // 0 offset for the start of the indirect buffer
-	
-	// for (auto &cmd : _indirectBufferData)
-	// {
-	// 	glDrawArraysInstancedBaseInstance(
-	// 		GL_TRIANGLE_STRIP, cmd.first, cmd.count, cmd.instanceCount, cmd.baseInstance);
-	// }
+
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 	_subChunksMutex.unlock();
@@ -248,6 +252,10 @@ void Chunk::sendFacesToDisplay()
 			uint(vertices.size()),
 			0,
 			uint(_vertexData.size()),
+		});
+		vec3 pos = subChunk.second->getPosition();
+		_ssboData.push_back(glm::vec4{
+			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, 0
 		});
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
 	}

@@ -1,4 +1,4 @@
-#version 430 core
+#version 460 core
 
 layout(location = 0) in vec3 aPos;      // Vertex position
 layout(location = 1) in vec3 worldPos;  // World position
@@ -7,6 +7,10 @@ layout(location = 2) in int instanceData; // Encoded instance data
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+
+layout(binding = 3, std430) readonly buffer ssbo1 {
+    vec4 ssbo[];
+};
 
 out vec2 TexCoord;
 flat out int TextureID;
@@ -83,7 +87,7 @@ void main()
         basePos.y -= 0.1;
     }
     // Compute world position and transform normal to world space
-    vec3 worldPosition = worldPos + basePos + instancePos;
+    vec3 worldPosition = ssbo[gl_DrawID].xyz + basePos + instancePos;
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
     

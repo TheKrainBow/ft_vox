@@ -37,10 +37,11 @@ class Chunk
 		Chunk								*_west = nullptr;
 		std::mutex							_sendFaceMutex;
 		// Render buffer data
-		GLuint _ssbo;
 
 		bool 				_hasBufferInitialized;
-
+		
+		GLuint									_ssbo;
+		std::vector<glm::vec4>					_ssboData;
 		GLuint									_vao;
 		GLuint									_vbo;
 		GLuint									_instanceVBO;
