@@ -18,7 +18,6 @@ class Chunk
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
 		std::unordered_map<int, SubChunk *>	_subChunks;
-		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
 		World								&_world;
 		TextureManager						&_textureManager;
@@ -28,7 +27,6 @@ class Chunk
 		Chunk								*_south = nullptr;
 		Chunk								*_east = nullptr;
 		Chunk								*_west = nullptr;
-		std::mutex							_sendFaceMutex;
 		// Render buffer data
 
 		bool 				_hasBufferInitialized;
@@ -42,6 +40,7 @@ class Chunk
 		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
 		GLuint									_indirectBuffer;
 		bool									_needUpdate;
+		std::mutex								_sendFacesMutex;
 	
 	public:
 		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
@@ -50,7 +49,6 @@ class Chunk
 		SubChunk *getSubChunk(int y);
 		void sendFacesToDisplay();
 		bool isReady();
-		int displayTransparent();
 		ivec2 getPosition();
 		void setWestChunk(Chunk *chunk);
 		void setNorthChunk(Chunk *chunk);
@@ -60,11 +58,9 @@ class Chunk
 		Chunk *getSouthChunk();
 		Chunk *getWestChunk();
 		Chunk *getEastChunk();
-		void initGLBuffer();
-		void pushVerticesToOpenGL(bool isTransparent);
 		void clearFaces();
 
-		std::vector<int> getVertices();
-		std::vector<DrawArraysIndirectCommand> getIndirectData();
-		std::vector<vec4> getSSBO();
+		std::vector<int> &getVertices();
+		std::vector<DrawArraysIndirectCommand> &getIndirectData();
+		std::vector<vec4> &getSSBO();
 };

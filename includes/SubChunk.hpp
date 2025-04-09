@@ -38,7 +38,7 @@ class SubChunk
 
 		std::vector<Face>	_transparentFaces[6];
 		std::vector<int>	_transparentVertexData;
-	
+
 		TextureManager		&_textManager;
 		bool				_needUpdate;
 		bool				_needTransparentUpdate;
