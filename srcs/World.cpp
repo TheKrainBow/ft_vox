@@ -353,17 +353,6 @@ void World::sendFacesToDisplay()
 		size_t size = _vertexData.size();
 		std::vector<int> vertices = chunk.second->getVertices();
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-		
-		// _indirectBufferData.push_back(DrawArraysIndirectCommand{
-			// 	4,
-			// 	uint(vertices.size()),
-			// 	0,
-			// 	uint(_vertexData.size()),
-			// });
-			// ivec2 pos = chunk.second->getPosition();
-			// _ssboData.push_back(glm::vec4{
-				// 	pos.x * CHUNK_SIZE, 0, pos.y * CHUNK_SIZE, 0
-				// });
 		std::vector<DrawArraysIndirectCommand> indirectBufferData = chunk.second->getIndirectData();
 		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
 			tmp.baseInstance += size;
