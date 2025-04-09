@@ -46,7 +46,6 @@ class SubChunk
 	public:
 		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
-		void setupBuffers();
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(vec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight();
@@ -58,12 +57,9 @@ class SubChunk
 		char getBlock(vec3 position);
 		void setBlock(vec3 position, char block);
 		void sendFacesToDisplay();
-		void pushVerticesToOpenGL(bool isTransparent);
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
-		double getContinentalNoise(vec2 pos, NoiseGenerator &noise_gen);
-		double getMinHeight(vec2 pos, NoiseGenerator &noise_gen);
 		void clearFaces();
-		std::vector<int> getVertices();
+		std::vector<int> &getVertices();
 	private:
 		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);

@@ -1,8 +1,8 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager) : _world(world), _chunk(chunk), _textManager(textManager)
+SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager)
+: _position(position), _world(world), _chunk(chunk), _textManager(textManager)
 {
-	_position = position;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	std::fill(_blocks.begin(), _blocks.end(), 0);
 	_heightMap = &perlinMap->heightMap;
@@ -12,35 +12,18 @@ SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wor
 
 void SubChunk::loadHeight()
 {
-	if (_loaded) return ;
 	for (int y = 0; y < CHUNK_SIZE ; y++)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z++)
 		{
 			for (int x = 0; x < CHUNK_SIZE ; x++)
 			{
-				double height = (*_heightMap)[z * CHUNK_SIZE + x];
-				size_t maxHeight = (size_t)(height);
+				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = STONE;
 			}
 		}
 	}
-	// for (int y = 1; y < 3 ; y++)
-	// {
-	// 	for (int x = 1; x < 4 ; x++)
-	// 	{
-	// 		for (int z = 1; z < 5 ; z++)
-	// 		{
-	// 			// double height = _perlinMap[z * CHUNK_SIZE + x];
-	// 			// height = 100;
-	// 			// size_t maxHeight = (size_t)(height);
-	// 			// if (y + _position.y * CHUNK_SIZE <= maxHeight)
-	// 			_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = STONE;
-	// 		}
-	// 	}
-	// }
-	_loaded = true;
 }
 
 vec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
@@ -75,16 +58,9 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
-	(void)x;
-	(void)z;
-	(void)ground;
-	//
 	setBlock(vec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
 	for (int i = -1; i > -4; i--)
 		setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
-	// setBlock(vec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
-	// for (int i = -1; i > -5; i--)
-	// 	setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
 void SubChunk::loadBiome()
@@ -273,7 +249,6 @@ vec3 SubChunk::getPosition()
 }
 
 void SubChunk::clearFaces() {
-	// std::cout << "Cleared faces" << std::endl;
 	for (int i = 0; i < 6; i++)
 	{
 		_faces[i].clear();
@@ -359,11 +334,6 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 
 void SubChunk::processFaces(bool isTransparent)
 {
-	// for (int i = 0; i < 6; i++) {
-	// 	for (Face face : _faces[i]) {
-	// 		addTextureVertex(face);
-	// 	}
-	// }
 	(void)isTransparent;
 	// if (isTransparent)
 	// {
@@ -383,6 +353,6 @@ void SubChunk::processFaces(bool isTransparent)
 	// }
 }
 
-std::vector<int> SubChunk::getVertices() {
+std::vector<int> &SubChunk::getVertices() {
 	return _vertexData;
 }
