@@ -212,7 +212,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 
 	int resolution = RESOLUTION;
-	_threshold = 32;
+	_threshold = 20;
 	std::vector<std::future<void>> retLst;
 	// loadChunk(0, 0, 1, chunkPos);
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)

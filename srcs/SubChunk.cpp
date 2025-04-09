@@ -44,16 +44,16 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 		setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
 	setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
 	int i;
-	for (i = 0; i > -4; i--)
+	for (i = 0; i > -4 * _resolution; i--)
 		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
-	for (; i > -8; i--)
+	for (; i > -8 * _resolution; i--)
 		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
 	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
-	for (int i = -1; i > -5; i--)
+	for (int i = -1; i > -5 * _resolution; i--)
 		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
