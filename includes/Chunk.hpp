@@ -17,7 +17,9 @@ class Chunk
 		ivec2								_position;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
+		std::atomic_bool								_hasAllNeighbors;
 		std::unordered_map<int, SubChunk *>	_subChunks;
+		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
 		World								&_world;
 		TextureManager						&_textureManager;
@@ -27,8 +29,7 @@ class Chunk
 		Chunk								*_south = nullptr;
 		Chunk								*_east = nullptr;
 		Chunk								*_west = nullptr;
-		std::atomic_bool					_hasAllNeighbors;
-		// Render buffer data
+
 
 		bool 				_hasBufferInitialized;
 		
@@ -42,12 +43,13 @@ class Chunk
 		GLuint									_indirectBuffer;
 		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
-	
 	public:
-		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
+		std::atomic_int						_resolution;
 		SubChunk *getSubChunk(int y);
+		void updateResolution(int newResolution, Direction dir);
 		void sendFacesToDisplay();
 		bool isReady();
 		ivec2 getPosition();
@@ -64,4 +66,5 @@ class Chunk
 		std::vector<int> &getVertices();
 		std::vector<DrawArraysIndirectCommand> &getIndirectData();
 		std::vector<vec4> &getSSBO();
+		void freeSubChunks();
 };

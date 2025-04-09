@@ -112,6 +112,5 @@ void main() {
     // Combine lighting
     vec3 result = (totalLight * lightColor) * texColor.rgb;
 
-
     FragColor = vec4(result, texColor.a);
 }

@@ -47,57 +47,59 @@ class World
 {
 private:
 	// World related informations
-		NoiseGenerator								_perlinGenerator;
-		std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
-		std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
-		std::list<Chunk *>							_chunkList;
-		std::mutex									_chunksListMutex;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+	std::list<Chunk *>							_chunkList;
+	std::mutex									_chunksListMutex;
 
-		std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
-		std::queue<ivec2>	_chunkRemovalOrder;
-		std::mutex			_chunksRemovalMutex;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
+	std::queue<ivec2>	_chunkRemovalOrder;
+	std::mutex			_chunksRemovalMutex;
 
-		std::queue<Chunk *>	_chunksLoadLoadOrder;
-		std::mutex			_chunksLoadLoadMutex;
+	std::queue<Chunk *>	_chunksLoadLoadOrder;
+	std::mutex			_chunksLoadLoadMutex;
 
-		std::queue<Chunk *>	_chunksLoadOrder;
-		std::mutex			_chunksLoadMutex;
-		
-		std::mutex									_displayChunkMutex;
-		std::queue<Chunk*>							_displayQueue;
-		std::mutex									_displayQueueMutex;
-		bool										_skipLoad;
-		TextureManager								&_textureManager;
-		
-		// Player related informations
-		Camera										*_camera;
-		int											_renderDistance;
-		int											_maxRender = 1000;
-		bool										*_isRunning;
-		std::mutex									*_runningMutex;
-		std::atomic_bool							displayReady;
-		Chrono chronoHelper;
-		ThreadPool 									_threadPool;
-
-		bool 				_hasBufferInitialized;
-		GLuint									_ssbo;
-		std::vector<vec4>						_ssboData;
-		size_t									_drawnSSBOSize;
-		GLuint									_vao;
-		GLuint									_vbo;
-		GLuint									_instanceVBO;
-		std::vector<int>						_vertexData;
-		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
-		GLuint									_indirectBuffer;
-		bool									_needUpdate;
+	std::queue<Chunk *>	_chunksLoadOrder;
+	std::mutex			_chunksLoadMutex;
+	
+	std::mutex									_displayChunkMutex;
+	std::queue<Chunk*>							_displayQueue;
+	std::mutex									_displayQueueMutex;
+	bool										_skipLoad;
+	TextureManager								&_textureManager;
+	
+	// Player related informations
+	Camera										*_camera;
+	int											_renderDistance;
+	int											_maxRender = 1000;
+	bool										*_isRunning;
+	std::mutex									*_runningMutex;
+	std::atomic_bool							displayReady;
+	Chrono chronoHelper;
+	ThreadPool 									_threadPool;
+	bool 				_hasBufferInitialized;
+	GLuint									_ssbo;
+	std::vector<vec4>						_ssboData;
+	size_t									_drawnSSBOSize;
+	GLuint									_vao;
+	GLuint									_vbo;
+	GLuint									_instanceVBO;
+	std::vector<int>						_vertexData;
+	std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
+	GLuint									_indirectBuffer;
+	bool									_needUpdate;
+	std::atomic_int 							_threshold;
 public:
-		std::mutex									_chunksMutex;
+	NoiseGenerator								_perlinGenerator;
+	GLuint 										_shaderProgram;
+	std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera);
 	~World();
 	void loadFirstChunks(ivec2 camPosition);
-
+	void init(GLuint shaderProgram, int renderDistance);
+	
 	void unLoadNextChunks(ivec2 newCamChunk);
-	void loadChunk(int x, int z, int render, ivec2 camPosition);
+	void loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	char getBlock(ivec3 position);
@@ -114,10 +116,10 @@ public:
 private:
 	ivec3 calculateBlockPos(ivec3 position) const;
 	bool getIsRunning();
-	void loadTopChunks(int render, ivec2 camPosition);
-	void loadRightChunks(int render, ivec2 camPosition);
-	void loadBotChunks(int render, ivec2 camPosition);
-	void loadLeftChunks(int render, ivec2 camPosition);
+	void loadTopChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadRightChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadBotChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadLeftChunks(int render, ivec2 camPosition, int resolution = 1);
 	void unloadChunk();
 	void generateSpiralOrder();
 	bool hasMoved(ivec2 oldPos);

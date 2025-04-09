@@ -23,6 +23,7 @@ class SubChunk
 		} Face;
 	private:
 		ivec3				_position;
+		int					_resolution;
 		std::vector<char>	_blocks;
 		double				**_heightMap;
 		World				&_world;
@@ -34,6 +35,7 @@ class SubChunk
 		bool				_hasBufferInitialized = false;
 
 		std::vector<Face>	_faces[6];
+	
 		std::vector<int>	_vertexData;
 
 		std::vector<Face>	_transparentFaces[6];
@@ -44,7 +46,7 @@ class SubChunk
 		bool				_needTransparentUpdate;
 		Chrono chrono;
 	public:
-		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
+		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
@@ -57,9 +59,11 @@ class SubChunk
 		char getBlock(ivec3 position);
 		void setBlock(ivec3 position, char block);
 		void sendFacesToDisplay();
+		void pushVerticesToOpenGL(bool isTransparent);
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		void clearFaces();
 		std::vector<int> &getVertices();
+		void updateResolution(int resolution, PerlinMap *perlinMap);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);

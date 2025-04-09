@@ -74,14 +74,14 @@ void SubChunk::processUpVertex(std::vector<Face> *faces, std::vector<int> *verte
     Face newFace;
     for (Face face : faces[UP])
     {
-        if (isFirst || newFace.size.y > 31 || newFace.texture != face.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
+        if (isFirst || newFace.size.y > 31 || newFace.texture != face.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution)
         {
             if (isFirst == false)
                 mergedFacesZ.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.y++;
+        newFace.size.y += _resolution;
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
@@ -89,14 +89,14 @@ void SubChunk::processUpVertex(std::vector<Face> *faces, std::vector<int> *verte
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1 || newFace.size.y != face.size.y)
+        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || newFace.size.y != face.size.y)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.x++;
+        newFace.size.x += _resolution;
         lastFace = Face(face);
     }
     mergedFaces.push_back(newFace);
@@ -119,14 +119,14 @@ void SubChunk::processDownVertex(std::vector<Face> *faces, std::vector<int> *ver
     Face newFace;
     for (Face face : faces[DOWN])
     {
-        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1)
+        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.y++;
+        newFace.size.y += _resolution;
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
@@ -135,14 +135,14 @@ void SubChunk::processDownVertex(std::vector<Face> *faces, std::vector<int> *ver
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1 || newFace.size.y != face.size.y)
+        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || newFace.size.y != face.size.y)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.x++;
+        newFace.size.x += _resolution;
         lastFace = Face(face);
     }
     mergedFaces.push_back(newFace);
@@ -165,14 +165,14 @@ void SubChunk::processNorthVertex(std::vector<Face> *faces, std::vector<int> *ve
     Face newFace;
     for (Face face : faces[NORTH])
     {
-        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
+        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.x++;
+        newFace.size.x += _resolution;
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
@@ -181,14 +181,14 @@ void SubChunk::processNorthVertex(std::vector<Face> *faces, std::vector<int> *ve
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - 1 || newFace.size.x != face.size.x)
+        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - _resolution || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.y++;
+        newFace.size.y += _resolution;
         lastFace = Face(face);
     }
     mergedFaces.push_back(newFace);
@@ -211,14 +211,14 @@ void SubChunk::processSouthVertex(std::vector<Face> *faces, std::vector<int> *ve
     Face newFace;
     for (Face face : faces[SOUTH])
     {
-        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - 1)
+        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.x++;
+        newFace.size.x += _resolution;
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
@@ -227,14 +227,14 @@ void SubChunk::processSouthVertex(std::vector<Face> *faces, std::vector<int> *ve
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - 1 || newFace.size.x != face.size.x)
+        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.z != newFace.position.z || lastFace.position.y != face.position.y - _resolution || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.y++;
+        newFace.size.y += _resolution;
         lastFace = Face(face);
     }
     mergedFaces.push_back(newFace);
@@ -257,14 +257,14 @@ void SubChunk::processEastVertex(std::vector<Face> *faces, std::vector<int> *ver
     Face newFace;
     for (Face face : faces[EAST])
     {
-        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
+        if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - _resolution)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.x++;
+        newFace.size.x += _resolution;
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
@@ -272,14 +272,14 @@ void SubChunk::processEastVertex(std::vector<Face> *faces, std::vector<int> *ver
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1 || newFace.size.x != face.size.x)
+        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.y++;
+        newFace.size.y += _resolution;
         lastFace = Face(face);
     }
     mergedFaces.push_back(newFace);
@@ -302,14 +302,14 @@ void SubChunk::processWestVertex(std::vector<Face> *faces, std::vector<int> *ver
     Face newFace;
     for (Face face : faces[WEST])
     {
-        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - 1)
+        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.z != newFace.position.z || face.position.x != newFace.position.x || lastFace.position.y != face.position.y - _resolution)
         {
             if (!isFirst)
                 mergedFacesZ.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.x++;
+        newFace.size.x += _resolution;
         lastFace = Face(face);
     }
     mergedFacesZ.push_back(newFace);
@@ -317,14 +317,14 @@ void SubChunk::processWestVertex(std::vector<Face> *faces, std::vector<int> *ver
     isFirst = true;
     for (Face face : mergedFacesZ)
     {
-        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - 1 || newFace.size.x != face.size.x)
+        if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || newFace.size.x != face.size.x)
         {
             if (!isFirst)
                 mergedFaces.push_back(newFace);
             isFirst = false;
             newFace = Face(face);
         }
-        newFace.size.y++;
+        newFace.size.y += _resolution;
         lastFace = Face(face);
     }
     mergedFaces.push_back(newFace);

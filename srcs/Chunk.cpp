@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
@@ -9,6 +9,7 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	_needUpdate = true;
 	_hasBufferInitialized = false;
 	_hasAllNeighbors = false;
+	_resolution = resolution;
 	int heighest = perlinMap->heighest;
 	int lowest = perlinMap->lowest;
 	if (heighest < OCEAN_HEIGHT) {
@@ -18,11 +19,11 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
 	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
-		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
+		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager, resolution);
 	}
 	_isInit = true;
 	// sendFacesToDisplay();
-	getNeighbors();
+	// getNeighbors();
 }
 
 Chunk::~Chunk()
@@ -109,7 +110,7 @@ void Chunk::sendFacesToDisplay()
 		});
 		ivec3 pos = subChunk.second->getPosition();
 		_ssboData.push_back(ivec4{
-			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, 0
+			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
 	}
@@ -120,29 +121,25 @@ void Chunk::sendFacesToDisplay()
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
-	if (_north && _south && _east && _west)
-		_hasAllNeighbors = true;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
-	if (_north && _south && _east && _west)
-		_hasAllNeighbors = true;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
-	if (_north && _south && _east && _west)
-		_hasAllNeighbors = true;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
-	if (_north && _south && _east && _west)
-		_hasAllNeighbors = true;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 Chunk *Chunk::getNorthChunk() {
@@ -178,3 +175,40 @@ std::vector<vec4> &Chunk::getSSBO()
 	std::lock_guard<std::mutex> lock(_sendFacesMutex);
 	return _ssboData;
 }
+
+void Chunk::freeSubChunks()
+{
+	_subChunksMutex.lock();
+	for (auto &subchunk : _subChunks)
+		delete subchunk.second;
+	_subChunksMutex.unlock();
+	_subChunks.clear();
+}
+
+void	Chunk::updateResolution(int newResolution, Direction dir)
+{
+	_perlinMap->resolution = newResolution;
+	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
+	_resolution = newResolution;
+
+	for (auto &subchunk : _subChunks)
+	{
+		_subChunksMutex.lock();
+		SubChunk *subChunk = subchunk.second;
+		subChunk->updateResolution(newResolution, _perlinMap);
+		_subChunksMutex.unlock();
+	}
+	if (dir == NORTH && _north)
+		_north->sendFacesToDisplay();
+	else if (dir == SOUTH && _south)
+		_south->sendFacesToDisplay();
+	else if (dir == EAST && _east)
+		_east->sendFacesToDisplay();
+	else if (dir == WEST && _west)
+		_west->sendFacesToDisplay();
+}
+// Load chunks: 0,203s
+// Load chunks: 0,256s
+// Load chunks: 0,245s
+// Load chunks: 0,235s
+// Load chunks: 0,208s

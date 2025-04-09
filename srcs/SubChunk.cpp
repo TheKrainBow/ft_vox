@@ -1,8 +1,9 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager)
-: _position(position), _world(world), _chunk(chunk), _textManager(textManager)
+SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution) : _world(world), _chunk(chunk), _textManager(textManager)
 {
+	_position = position;
+	_resolution = resolution;
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	std::fill(_blocks.begin(), _blocks.end(), 0);
 	_heightMap = &perlinMap->heightMap;
@@ -12,11 +13,11 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 
 void SubChunk::loadHeight()
 {
-	for (int y = 0; y < CHUNK_SIZE ; y++)
+	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 	{
-		for (int z = 0; z < CHUNK_SIZE ; z++)
+		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
-			for (int x = 0; x < CHUNK_SIZE ; x++)
+			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 			{
 				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
@@ -59,7 +60,7 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
-	for (int i = -1; i > -4; i--)
+	for (int i = -1; i > -4 * _resolution; i --)
 		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
 }
 
@@ -73,11 +74,12 @@ void SubChunk::loadBiome()
 		0.5,  // lacunarity
 		12     // nb_octaves
 	});
-	for (int x = 0; x < CHUNK_SIZE ; x++)
+	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 	{
-		for (int z = 0; z < CHUNK_SIZE ; z++)
+		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
+			ground = ground - (int(ground) % _resolution);
 			if (ground <= OCEAN_HEIGHT)
 				loadOcean(x, z, ground + 2);
 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15)) {
@@ -120,7 +122,7 @@ void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType textur
 {
 	char block = 0;
 	if (position.y > 0)
-		block = getBlock({position.x, position.y - 1, position.z});
+		block = getBlock({position.x, position.y - _resolution, position.z});
 	else
 	{
 		SubChunk *underChunk = nullptr;
@@ -128,7 +130,7 @@ void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType textur
 		if (!underChunk)
 			block = '/';
 		else
-			block = underChunk->getBlock({position.x, CHUNK_SIZE - 1, position.z});
+			block = underChunk->getBlock({position.x, CHUNK_SIZE - _resolution, position.z});
 	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, DOWN, texture, isTransparent);
@@ -137,8 +139,8 @@ void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType textur
 void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
-	if (position.y != CHUNK_SIZE - 1)
-		block = getBlock({position.x, position.y + 1, position.z});
+	if (position.y != CHUNK_SIZE - _resolution)
+		block = getBlock({position.x, position.y + _resolution, position.z});
 	else
 	{
 		SubChunk *overChunk = _chunk.getSubChunk(_position.y + 1);
@@ -153,14 +155,17 @@ void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType textu
 {
 	char block = 0;
 	if (position.z != 0)
-		block = getBlock({position.x, position.y, position.z - 1});
+		block = getBlock({position.x, position.y, position.z - _resolution});
 	else {
 		Chunk *chunk = _chunk.getNorthChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(ivec3(position.x, position.y, CHUNK_SIZE - 1));
+				if (subChunk->_resolution == _resolution)
+					block = subChunk->getBlock(ivec3(position.x, position.y, CHUNK_SIZE - _resolution));
+				else
+					block = 0;
 			} else {
 				block = 1;
 			}
@@ -173,18 +178,21 @@ void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType textu
 void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
-	if (position.z != CHUNK_SIZE - 1)
-		block = getBlock({position.x, position.y, position.z + 1});
-	else {
+	if (position.z != CHUNK_SIZE - _resolution)
+		block = getBlock({position.x, position.y, position.z + _resolution});
+	else
+	{
 		Chunk *chunk = _chunk.getSouthChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				block = subChunk->getBlock(ivec3(position.x, position.y, 0));
-			} else {
-				block = 1;
+			if (subChunk)
+			{
+				if (subChunk->_resolution == _resolution)
+					block = subChunk->getBlock(ivec3(position.x, position.y, 0));
 			}
+			else
+				block = 1;
 		}
 	}
 	if (faceDisplayCondition(current, block))
@@ -195,14 +203,17 @@ void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType textur
 {
 	char block = 0;
 	if (position.x != 0)
-		block = getBlock({position.x - 1, position.y, position.z});
+		block = getBlock({position.x - _resolution, position.y, position.z});
 	else {
 		Chunk *chunk = _chunk.getWestChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(ivec3(CHUNK_SIZE - 1, position.y, position.z));
+				if (subChunk->_resolution == _resolution)
+					block = subChunk->getBlock(ivec3(CHUNK_SIZE - _resolution, position.y, position.z));
+				else
+					block = 0;
 			} else {
 				block = 1;
 			}
@@ -215,15 +226,18 @@ void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType textur
 void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
-	if (position.x != CHUNK_SIZE - 1)
-		block = getBlock({position.x + 1, position.y, position.z});
+	if (position.x != CHUNK_SIZE - _resolution)
+		block = getBlock({position.x + _resolution, position.y, position.z});
 	else {
 		Chunk *chunk = _chunk.getEastChunk();
 		if (chunk)
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(ivec3(0, position.y, position.z));
+				if (subChunk->_resolution == _resolution)
+					block = subChunk->getBlock(ivec3(0, position.y, position.z));
+				else
+					block = 0;
 			} else {
 				block = 1;
 			}
@@ -249,6 +263,7 @@ ivec3 SubChunk::getPosition()
 }
 
 void SubChunk::clearFaces() {
+	// std::cout << "Cleared faces" << std::endl;
 	for (int i = 0; i < 6; i++)
 	{
 		_faces[i].clear();
@@ -261,15 +276,25 @@ void SubChunk::clearFaces() {
 	_needTransparentUpdate = true;
 }
 
+void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
+{
+	_resolution = resolution;
+	_heightMap = &perlinMap->heightMap;
+	std::fill(_blocks.begin(), _blocks.end(), 0);
+	loadHeight();
+	loadBiome();
+	sendFacesToDisplay();
+}
+
 void SubChunk::sendFacesToDisplay()
 {
 	clearFaces();
 	// 	return ;
-	for (int x = 0; x < CHUNK_SIZE; x++)
+	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
-		for (int y = 0; y < CHUNK_SIZE; y++)
+		for (int y = 0; y < CHUNK_SIZE; y += _resolution)
 		{
-			for (int z = 0; z < CHUNK_SIZE; z++)
+			for (int z = 0; z < CHUNK_SIZE; z += _resolution)
 			{
 				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
 				{

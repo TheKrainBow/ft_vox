@@ -16,12 +16,17 @@ ivec3 World::calculateBlockPos(ivec3 position) const
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlinGenerator(seed), _textureManager(textureManager), _camera(&camera), _threadPool(8)
+World::World(int seed, TextureManager &textureManager, Camera &camera) : _textureManager(textureManager), _camera(&camera), _threadPool(8), _perlinGenerator(seed)
 {
 	_needUpdate = true;
 	_hasBufferInitialized = false;
 	_renderDistance = RENDER_DISTANCE;
 	_drawnSSBOSize = 1;
+}
+
+void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
+	_shaderProgram = shaderProgram;
+	_renderDistance = renderDistance;
 }
 
 World::~World()
@@ -35,8 +40,6 @@ NoiseGenerator &World::getNoiseGenerator(void)
 {
 	return (_perlinGenerator);
 }
-
-
 
 void World::loadPerlinMap(vec3 camPosition)
 {
@@ -113,15 +116,16 @@ void World::unloadChunk()
 		_chunkList.erase(farthestChunkIt);
 		_chunksListMutex.unlock();
 
-		ivec2 key = chunkToRemove->getPosition();
+		ivec2 pos = chunkToRemove->getPosition();
 
 		// Remove from _chunks
 		_chunksMutex.lock();
-		_chunks.erase(key);
+		_chunks.erase(pos);
 		_chunksMutex.unlock();
 
-		//_perlinGenerator.removePerlinMap(key.first, key.second);
 		// Clean up memory
+		_perlinGenerator.removePerlinMap(pos.x, pos.y);
+		chunkToRemove->freeSubChunks();
 		delete chunkToRemove;
 	}
 	else
@@ -130,7 +134,7 @@ void World::unloadChunk()
 	}
 }
 
-void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
+void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir)
 {
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
@@ -141,12 +145,14 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
+		if (chunk->_resolution != resolution)
+			chunk->updateResolution(resolution, dir);
 	}
 	else
 	{
 		_chunksMutex.unlock();
-		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos), *this, _textureManager);
-	
+		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
+
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
@@ -163,39 +169,39 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 	// unloadChunk();
 }
 
-void World::loadTopChunks(int render, ivec2 chunkPos)
+void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int z = 0;
 	for (int x = 0; x < render && getIsRunning(); x++)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution, NORTH);
 	}
 }
 
-void World::loadBotChunks(int render, ivec2 chunkPos)
+void World::loadBotChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int z = render - 1;
 	for (int x = render - 1; getIsRunning() && x >= 0; x--)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution, SOUTH);
 	}
 }
 
-void World::loadRightChunks(int render, ivec2 chunkPos)
+void World::loadRightChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int x = render - 1;
 	for (int z = 0; z < render && getIsRunning(); z++)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution, EAST);
 	}
 }
 
-void World::loadLeftChunks(int render, ivec2 chunkPos)
+void World::loadLeftChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int x = 0;
 	for (int z = render - 1; getIsRunning() && z >= 0; z--)
 	{
-		loadChunk(x, z, render, chunkPos);
+		loadChunk(x, z, render, chunkPos, resolution, WEST);
 	}
 }
 
@@ -204,20 +210,28 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	int renderDistance = _renderDistance;
 	_skipLoad = false;
 
+
+	int resolution = RESOLUTION;
+	_threshold = 32;
 	std::vector<std::future<void>> retLst;
 	// loadChunk(0, 0, 1, chunkPos);
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		// Load chunks
-		std::future<void> retTop = _threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos);
-		std::future<void> retRight = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos);
-		std::future<void> retBot = _threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos);
-		std::future<void> retLeft = _threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos);
+		std::future<void> retTop = _threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution);
+		std::future<void> retRight = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution);
+		std::future<void> retBot = _threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution);
+		std::future<void> retLeft = _threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos, resolution);
 		retTop.get();
 		retRight.get();
 		retBot.get();
 		retLeft.get();
 
+		if (render >= _threshold)
+		{
+			resolution *= 2;
+			_threshold = _threshold * 2;
+		}
 		// _chunksLoadMutex.lock();
 		while (!_chunksLoadLoadOrder.empty())
 		{
@@ -239,9 +253,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	// 	ret.get();
 	// }
 	// retLst.clear();
-
 }
-
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
 {
@@ -281,13 +293,10 @@ bool World::hasMoved(ivec2 oldPos)
 char World::getBlock(ivec3 position)
 {
 	// std::cout << "World::getBlock" << std::endl;
-	ivec3 chunkPos((int)position.x / CHUNK_SIZE, (int)position.y / CHUNK_SIZE, (int)position.z / CHUNK_SIZE);
-	chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
-	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
-	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
-	chunkPos.x = int(chunkPos.x);
-	chunkPos.y = int(chunkPos.y);
-	chunkPos.z = int(chunkPos.z);
+	ivec3 chunkPos(position.x / CHUNK_SIZE, position.y / CHUNK_SIZE, position.z / CHUNK_SIZE);
+	chunkPos.x -= (position.x < 0 && abs(position.x) % CHUNK_SIZE != 0);
+	chunkPos.z -= (position.z < 0 && abs(position.z) % CHUNK_SIZE != 0);
+	chunkPos.y -= (position.y < 0 && abs(position.y) % CHUNK_SIZE != 0);
 
 	Chunk *chunk = getChunk(ivec2(chunkPos.x, chunkPos.z));
 	if (!chunk)
@@ -460,7 +469,6 @@ void World::decreaseRenderDistance()
 	if (_renderDistance < 1)
 		_renderDistance = 1;
 }
-
 
 void World::pushVerticesToOpenGL(bool isTransparent) {
 	// if (isTransparent) {

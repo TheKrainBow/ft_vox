@@ -179,12 +179,44 @@ double NoiseGenerator::getHeight(vec2 pos)
 	// {
 	// 	//std::cout << "Ocean" << std::endl;
 	// 	double blendFactor = (oceanThreshold - oceanMask) / oceanThreshold; // Blend smoothly
-	// 	blendFactor = clamp(blendFactor, 0.0, 1.0);
+	// 	blendFactor = glm::clamp(blendFactor, 0.0, 1.0);
 	// 	height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
 	// }
 
 	//height = pow(height, 1.05); // Slightly bias towards higher values
 	return height;
+}
+
+void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int resolution)
+{
+	if (!map)
+		return ;
+	// Todo: Not recalculate height that already exist
+	// while (map->resolution > resolution)
+	// {
+	// 	for (int x = 0; x < map->size; x += map->resolution)
+	// 		for (int z = 0; z < map->size; z += map->resolution)
+	// 		{
+	// 			map->heightMap[z * map->size + x] = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+	// 			if (map->heightMap[z * map->size + x] > map->heighest)
+	// 				map->heighest = map->heightMap[z * map->size + x];
+	// 			if (map->heightMap[z * map->size + x] < map->lowest)
+	// 				map->lowest = map->heightMap[z * map->size + x];
+	// 		}
+	// 	map->resolution /= 2;
+	// }
+
+	for (int x = 0; x < map->size; x += resolution)
+		for (int z = 0; z < map->size; z += resolution)
+		{
+			map->heightMap[z * map->size + x] = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+			if (map->heightMap[z * map->size + x] > map->heighest)
+				map->heighest = map->heightMap[z * map->size + x];
+			if (map->heightMap[z * map->size + x] < map->lowest)
+				map->lowest = map->heightMap[z * map->size + x];
+		}
+	map->resolution = resolution;
+	_perlinMaps[map->position] = map;
 }
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
@@ -217,9 +249,9 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	std::lock_guard<std::mutex> lock(_perlinMutex);
 	auto it = _perlinMaps.find({x, z});
 	auto itend = _perlinMaps.end();
-	PerlinMap *map = (*it).second;
 	if (it != itend)
 	{
+		PerlinMap *map = (*it).second;
 		if (map && map->heightMap)
 		{
 			delete [] map->heightMap;
@@ -234,14 +266,18 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	}
 }
 
-PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos)
+PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos, int resolution)
 {
 	std::lock_guard<std::mutex> lock(_perlinMutex);
 	auto it = _perlinMaps.find(pos);
 	auto itend = _perlinMaps.end();
 	if (it != itend)
+	{
+		if ((*it).second->resolution > resolution)
+			updatePerlinMapResolution((*it).second, resolution);
 		return ((*it).second);
-	return addPerlinMap(pos, CHUNK_SIZE, 1);
+	}
+	return addPerlinMap(pos, CHUNK_SIZE, resolution);
 }
 
 // Layered perlin noise samples by octaves number

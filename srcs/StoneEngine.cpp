@@ -22,6 +22,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initFboShaders();
 	updateFboWindowSize();
 	reshape(_window, windowWidth, windowHeight);
+	_world.init(shaderProgram, RENDER_DISTANCE);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 
@@ -144,7 +145,7 @@ void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
-	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 100000000000.0f);
 	vec3 lightColor(1.0f, 1.0f, 1.0f);
 	vec3 sunColor(1.0f, 0.7f, 1.0f);
 	vec3 viewPos = camera.getWorldPosition();
@@ -225,6 +226,11 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::activateRenderShader()
 {
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glMatrixMode(GL_MODELVIEW);
+
 	mat4 modelMatrix = mat4(1.0f);
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
@@ -353,8 +359,10 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	// Ensure both complete before stopping the chrono
 	// loadNextChunk.get();
 	// unLoadNextChunk.get();
-	_world.loadFirstChunks(newCamChunk);
-	_world.unLoadNextChunks(newCamChunk);
+	if (getIsRunning())
+		_world.loadFirstChunks(newCamChunk);
+	if (getIsRunning())
+		_world.unLoadNextChunks(newCamChunk);
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
@@ -530,7 +538,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	projectionMatrix = perspective(radians(80.0f), float(width) / float(height), 0.1f, 10000000.0f);
+	projectionMatrix = perspective(radians(80.0f), float(width) / float(height), 0.1f, 100000000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glLoadMatrixf(value_ptr(projectionMatrix));
 }
