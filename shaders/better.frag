@@ -66,7 +66,7 @@ float calculateSpecularLight(float time, vec3 lightDir)
 	else specularStrength = 0.2;
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 2);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 1);
 	float specular = specularStrength * spec;
 	return specular;
 }
@@ -111,6 +111,7 @@ void main() {
 		totalLight = 1;
     // Combine lighting
     vec3 result = (totalLight * lightColor) * texColor.rgb;
+
 
     FragColor = vec4(result, texColor.a);
 }

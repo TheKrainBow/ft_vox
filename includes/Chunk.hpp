@@ -27,12 +27,13 @@ class Chunk
 		Chunk								*_south = nullptr;
 		Chunk								*_east = nullptr;
 		Chunk								*_west = nullptr;
+		std::atomic_bool					_hasAllNeighbors;
 		// Render buffer data
 
 		bool 				_hasBufferInitialized;
 		
 		GLuint									_ssbo;
-		std::vector<glm::vec4>					_ssboData;
+		std::vector<vec4>						_ssboData;
 		GLuint									_vao;
 		GLuint									_vbo;
 		GLuint									_instanceVBO;

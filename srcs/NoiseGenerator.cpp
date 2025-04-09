@@ -179,7 +179,7 @@ double NoiseGenerator::getHeight(vec2 pos)
 	// {
 	// 	//std::cout << "Ocean" << std::endl;
 	// 	double blendFactor = (oceanThreshold - oceanMask) / oceanThreshold; // Blend smoothly
-	// 	blendFactor = glm::clamp(blendFactor, 0.0, 1.0);
+	// 	blendFactor = clamp(blendFactor, 0.0, 1.0);
 	// 	height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
 	// }
 

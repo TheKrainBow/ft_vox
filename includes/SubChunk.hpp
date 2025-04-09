@@ -16,13 +16,13 @@ class SubChunk
 	public:
 		typedef struct s_Face
 		{
-			glm::ivec3	position;
-			glm::ivec2	size;
+			ivec3	position;
+			ivec2	size;
 			TextureType	texture;
 			Direction	direction;
 		} Face;
 	private:
-		vec3				_position;
+		ivec3				_position;
 		std::vector<char>	_blocks;
 		double				**_heightMap;
 		World				&_world;
@@ -44,30 +44,30 @@ class SubChunk
 		bool				_needTransparentUpdate;
 		Chrono chrono;
 	public:
-		SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
+		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager);
 		~SubChunk();
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
-		void addFace(vec3 position, Direction dir, TextureType texture, bool isTransparent);
+		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight();
 		void loadBiome();
 		void loadOcean(int x, int z, size_t ground);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
-		vec3 getPosition(void);
-		char getBlock(vec3 position);
-		void setBlock(vec3 position, char block);
+		ivec3 getPosition(void);
+		char getBlock(ivec3 position);
+		void setBlock(ivec3 position, char block);
 		void sendFacesToDisplay();
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		void clearFaces();
 		std::vector<int> &getVertices();
 	private:
-		void addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
-		void addUpFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
-		void addDownFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
-		void addNorthFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
-		void addSouthFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
-		void addEastFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
-		void addWestFace(BlockType block, vec3 position, TextureType texture, bool isTransparent);
+		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
+		void addUpFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
+		void addDownFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
+		void addNorthFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
+		void addSouthFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
+		void addEastFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
+		void addWestFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
 	
 		void processFaces(bool isTransparent);
 		void processUpVertex(std::vector<Face> *faces, std::vector<int> *vertexData);

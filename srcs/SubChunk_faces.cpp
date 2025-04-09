@@ -335,7 +335,7 @@ void SubChunk::processWestVertex(std::vector<Face> *faces, std::vector<int> *ver
 }
 
 
-void SubChunk::addFace(vec3 position, Direction dir, TextureType texture, bool isTransparent) {
+void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent) {
     Face newFace;
     newFace.position = position;
     newFace.size = ivec2(0, 0);

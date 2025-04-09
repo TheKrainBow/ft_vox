@@ -56,26 +56,41 @@ void main()
 
 	if (isSkyDepth)
 	{
-		// Look upwards to make sure it's part of the skybox, not a crack
-		float skyCheckUpDepth = texture(depthTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).r;
-		float skyCheckDownDepth = texture(depthTexture, texCoords - vec2(0.0, skyOffsetY * texelSize.y)).r;
-		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold || skyCheckDownDepth >= depthSkyThreshold;
-		// vec3 currentColor = computeSkyColor(timeValue);
+		vec3 up         = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
+		float upDepth    = texture(depthTexture, texCoords + vec2(0.0,  texelSize.y)).r;
 
-		if (isTrueSky)
-		{
-			FragColor = vec4(currentColor, 1.0);
+		vec3 down       = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
+		float downDepth  = texture(depthTexture, texCoords + vec2(0.0,  -texelSize.y)).r;
+
+		vec3 left       = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
+		float leftDepth  = texture(depthTexture, texCoords + vec2(-texelSize.x, 0.0)).r;
+
+		vec3 right      = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
+		float rightDepth = texture(depthTexture, texCoords + vec2( texelSize.x, 0.0)).r;
+
+		vec3 blended;
+		int n = 0;
+		if (upDepth != 1) {
+			blended += up;
+			n += 1;
 		}
-		else
-		{
-			// Blend 4 neighbors
-			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
-			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
-			vec3 left  = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
-			vec3 right = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
-
-			vec3 blended = (up + down + left + right) / 4.0;
-			FragColor = vec4(blended, 1.0);
+		if (downDepth != 1) {
+			blended += down;
+			n += 1;
+		}
+		if (rightDepth != 1) {
+			blended += right;
+			n += 1;
+		}
+		if (leftDepth != 1) {
+			blended += left;
+			n += 1;
+		}
+		
+		blended /= n;
+		FragColor = vec4(blended, 1.0);
+		if (n == 0) {
+			FragColor = vec4(currentColor, 1.0);
 		}
 	}
 	else

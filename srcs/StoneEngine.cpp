@@ -144,17 +144,17 @@ void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
-	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
-	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
-	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
-	glm::vec3 viewPos = camera.getWorldPosition();
+	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
+	vec3 lightColor(1.0f, 1.0f, 1.0f);
+	vec3 sunColor(1.0f, 0.7f, 1.0f);
+	vec3 viewPos = camera.getWorldPosition();
 	sunPosition = {0.0f, 0.0f, 0.0f};
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(lightColor));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
@@ -225,20 +225,20 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::activateRenderShader()
 {
-	glm::mat4 modelMatrix = glm::mat4(1.0f);
+	mat4 modelMatrix = mat4(1.0f);
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	glm::mat4 viewMatrix = glm::mat4(1.0f);
-	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.getPosition()));
+	mat4 viewMatrix = mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
 	glUseProgram(shaderProgram);
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -392,19 +392,19 @@ void StoneEngine::findMoveRotationSpeed()
 void StoneEngine::updateMovement()
 {
 	// Camera movement
-	glm::vec3 oldPos = camera.getWorldPosition(); // Old pos
+	vec3 oldPos = camera.getWorldPosition(); // Old pos
 	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
-	glm::vec3 viewPos = camera.getWorldPosition(); // New position
+	vec3 viewPos = camera.getWorldPosition(); // New position
 
 	if (viewPos != oldPos)
 	{
 		glUseProgram(shaderProgram);
-		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
 	}
 
 	// Camera rotation
@@ -530,9 +530,9 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	projectionMatrix = glm::perspective(glm::radians(80.0f), float(width) / float(height), 0.1f, 10000000.0f);
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-	glLoadMatrixf(glm::value_ptr(projectionMatrix));
+	projectionMatrix = perspective(radians(80.0f), float(width) / float(height), 0.1f, 10000000.0f);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glLoadMatrixf(value_ptr(projectionMatrix));
 }
 
 void StoneEngine::reshape(GLFWwindow* window, int width, int height)

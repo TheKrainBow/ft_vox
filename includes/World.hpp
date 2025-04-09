@@ -48,15 +48,19 @@ class World
 private:
 	// World related informations
 		NoiseGenerator								_perlinGenerator;
-		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_chunks;
-		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+		std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
+		std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
 		std::list<Chunk *>							_chunkList;
 		std::mutex									_chunksListMutex;
 
-		std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> _activeChunks;
-		std::queue<glm::ivec2>	_chunkRemovalOrder;
-		std::queue<Chunk *>	_chunksLoadOrder;
+		std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
+		std::queue<ivec2>	_chunkRemovalOrder;
 		std::mutex			_chunksRemovalMutex;
+
+		std::queue<Chunk *>	_chunksLoadLoadOrder;
+		std::mutex			_chunksLoadLoadMutex;
+
+		std::queue<Chunk *>	_chunksLoadOrder;
 		std::mutex			_chunksLoadMutex;
 		
 		std::mutex									_displayChunkMutex;
@@ -77,7 +81,8 @@ private:
 
 		bool 				_hasBufferInitialized;
 		GLuint									_ssbo;
-		std::vector<glm::vec4>					_ssboData;
+		std::vector<vec4>						_ssboData;
+		size_t									_drawnSSBOSize;
 		GLuint									_vao;
 		GLuint									_vbo;
 		GLuint									_instanceVBO;
@@ -95,10 +100,10 @@ public:
 	void loadChunk(int x, int z, int render, ivec2 camPosition);
 	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
-	char getBlock(vec3 position);
+	char getBlock(ivec3 position);
 	int	getCachedChunksNumber();
 	Chunk* getChunk(ivec2 position);
-	SubChunk* getSubChunk(vec3 position);
+	SubChunk* getSubChunk(ivec3 position);
 	void updateActiveChunks();
 	int display();
 	int displayTransparent();
@@ -107,7 +112,7 @@ public:
 	int *getRenderDistancePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 private:
-	vec3 calculateBlockPos(vec3 position) const;
+	ivec3 calculateBlockPos(ivec3 position) const;
 	bool getIsRunning();
 	void loadTopChunks(int render, ivec2 camPosition);
 	void loadRightChunks(int render, ivec2 camPosition);

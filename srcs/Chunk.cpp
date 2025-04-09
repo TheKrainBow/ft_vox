@@ -8,7 +8,7 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	_facesSent = false;
 	_needUpdate = true;
 	_hasBufferInitialized = false;
-	getNeighbors();
+	_hasAllNeighbors = false;
 	int heighest = perlinMap->heighest;
 	int lowest = perlinMap->lowest;
 	if (heighest < OCEAN_HEIGHT) {
@@ -21,15 +21,8 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
 	}
 	_isInit = true;
-	sendFacesToDisplay();
-	if (_north)
-		_north->sendFacesToDisplay();
-	if (_south)
-		_south->sendFacesToDisplay();
-	if (_east)
-		_east->sendFacesToDisplay();
-	if (_west)
-		_west->sendFacesToDisplay();
+	// sendFacesToDisplay();
+	getNeighbors();
 }
 
 Chunk::~Chunk()
@@ -56,14 +49,22 @@ void Chunk::getNeighbors()
     _east = _world.getChunk({_position.x + 1, _position.y});
     _west = _world.getChunk({_position.x - 1, _position.y});
 
-	if (_north)
+	if (_north) {
 		_north->setSouthChunk(this);
-    if (_south)
+		_north->sendFacesToDisplay();
+	}
+    if (_south) {
 		_south->setNorthChunk(this);
-    if (_east)
+		_south->sendFacesToDisplay();
+	}
+    if (_east) {
 		_east->setWestChunk(this);
-    if (_west)
+		_east->sendFacesToDisplay();
+	}
+    if (_west) {
 		_west->setEastChunk(this);
+		_west->sendFacesToDisplay();
+	}
 }
 
 ivec2 Chunk::getPosition()
@@ -89,9 +90,13 @@ bool Chunk::isReady()
 
 void Chunk::sendFacesToDisplay()
 {
-	_sendFacesMutex.lock();
+	if (_hasAllNeighbors == false)
+		return ;
 	if (_facesSent == true)
-		clearFaces();
+		return ;
+	_sendFacesMutex.lock();
+		// clearFaces();
+		// return ;
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
@@ -102,8 +107,8 @@ void Chunk::sendFacesToDisplay()
 			0,
 			uint(_vertexData.size()),
 		});
-		vec3 pos = subChunk.second->getPosition();
-		_ssboData.push_back(glm::vec4{
+		ivec3 pos = subChunk.second->getPosition();
+		_ssboData.push_back(ivec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, 0
 		});
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
@@ -115,21 +120,29 @@ void Chunk::sendFacesToDisplay()
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
+	if (_north && _south && _east && _west)
+		_hasAllNeighbors = true;
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
+	if (_north && _south && _east && _west)
+		_hasAllNeighbors = true;
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
+	if (_north && _south && _east && _west)
+		_hasAllNeighbors = true;
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
+	if (_north && _south && _east && _west)
+		_hasAllNeighbors = true;
 }
 
 Chunk *Chunk::getNorthChunk() {

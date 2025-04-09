@@ -10,7 +10,7 @@
 #include <thread>
 
 // Helper function to calculate block position within a chunk
-vec3 World::calculateBlockPos(vec3 position) const
+ivec3 World::calculateBlockPos(ivec3 position) const
 {
 	auto mod = [](int value) { return (value >= 0) ? value % CHUNK_SIZE : (CHUNK_SIZE + (value % CHUNK_SIZE)) % CHUNK_SIZE; };
 	return { mod(position.x), mod(position.y), mod(position.z) };
@@ -21,6 +21,7 @@ World::World(int seed, TextureManager &textureManager, Camera &camera) : _perlin
 	_needUpdate = true;
 	_hasBufferInitialized = false;
 	_renderDistance = RENDER_DISTANCE;
+	_drawnSSBOSize = 1;
 }
 
 World::~World()
@@ -141,23 +142,24 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos)
 		chunk = it->second;
 		_chunksMutex.unlock();
 	}
-	else if (_skipLoad == false)
+	else
 	{
 		_chunksMutex.unlock();
 		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos), *this, _textureManager);
-
+	
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
 
 		_chunksMutex.lock();
 		_chunks[pos] = chunk;
+		chunk->getNeighbors();
 		_chunksMutex.unlock();
 	}
-	_chunksLoadMutex.lock();
-	_chunksLoadOrder.emplace(chunk);
+	_chunksLoadLoadMutex.lock();
+	_chunksLoadLoadOrder.emplace(chunk);
 	_displayedChunks[pos] = chunk;
-	_chunksLoadMutex.unlock();
+	_chunksLoadLoadMutex.unlock();
 	// unloadChunk();
 }
 
@@ -203,23 +205,41 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	_skipLoad = false;
 
 	std::vector<std::future<void>> retLst;
-	loadChunk(0, 0, 1, chunkPos);
-    for (int render = 2; getIsRunning() && render < renderDistance; render += 2)
+	// loadChunk(0, 0, 1, chunkPos);
+    for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		// Load chunks
-		retLst.emplace_back(_threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos));
-		retLst.emplace_back(_threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos));
+		std::future<void> retTop = _threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos);
+		std::future<void> retRight = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos);
+		std::future<void> retBot = _threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos);
+		std::future<void> retLeft = _threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos);
+		retTop.get();
+		retRight.get();
+		retBot.get();
+		retLeft.get();
+
+		// _chunksLoadMutex.lock();
+		while (!_chunksLoadLoadOrder.empty())
+		{
+			_needUpdate = true;
+			Chunk *chunk = _chunksLoadLoadOrder.front();
+			_chunksLoadMutex.lock();
+			_chunksLoadOrder.emplace(chunk);
+			_chunksLoadMutex.unlock();
+			_chunksLoadLoadOrder.pop();
+		}
+		// _chunksLoadMutex.unlock();
+
 		if (hasMoved(chunkPos))
 			break;
     }
 
-	for (std::future<void> &ret : retLst)
-	{
-		ret.get();
-	}
-	retLst.clear();
+	// for (std::future<void> &ret : retLst)
+	// {
+	// 	ret.get();
+	// }
+	// retLst.clear();
+
 }
 
 
@@ -258,10 +278,10 @@ bool World::hasMoved(ivec2 oldPos)
 	return false;
 }
 
-char World::getBlock(vec3 position)
+char World::getBlock(ivec3 position)
 {
 	// std::cout << "World::getBlock" << std::endl;
-	vec3 chunkPos((int)position.x / CHUNK_SIZE, (int)position.y / CHUNK_SIZE, (int)position.z / CHUNK_SIZE);
+	ivec3 chunkPos((int)position.x / CHUNK_SIZE, (int)position.y / CHUNK_SIZE, (int)position.z / CHUNK_SIZE);
 	chunkPos.x -= (position.x < 0 && abs((int)position.x) % CHUNK_SIZE != 0);
 	chunkPos.z -= (position.z < 0 && abs((int)position.z) % CHUNK_SIZE != 0);
 	chunkPos.y -= (position.y < 0 && abs((int)position.y) % CHUNK_SIZE != 0);
@@ -286,7 +306,7 @@ char World::getBlock(vec3 position)
 	return subChunk->getBlock(calculateBlockPos(position));
 }
 
-SubChunk *World::getSubChunk(vec3 position)
+SubChunk *World::getSubChunk(ivec3 position)
 {
 	_chunksMutex.lock();
 	auto it = _chunks.find(ivec2(position.x, position.z));
@@ -299,10 +319,10 @@ SubChunk *World::getSubChunk(vec3 position)
 
 Chunk *World::getChunk(ivec2 position)
 {
-	_chunksMutex.lock();
+	// _chunksMutex.lock();
 	auto it = _chunks.find({position.x, position.y});
 	auto itend = _chunks.end();
-	_chunksMutex.unlock();
+	// _chunksMutex.unlock();
 	if (it != itend)
 		return it->second;
 	return nullptr;
@@ -360,6 +380,26 @@ void World::sendFacesToDisplay()
 		_indirectBufferData.insert(_indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
 		std::vector<vec4> ssboData = chunk.second->getSSBO();
 		_ssboData.insert(_ssboData.end(), ssboData.begin(), ssboData.end());
+	}
+	bool needUpdate = false;
+	size_t size = _ssboData.size() * 2;
+	while (size > _drawnSSBOSize) {
+		_drawnSSBOSize *= 2;
+		needUpdate = true;
+	}
+	if (needUpdate) {
+		glDeleteBuffers(1, &_ssbo);
+		glCreateBuffers(1, &_ssbo);
+		glNamedBufferStorage(_ssbo, 
+			sizeof(ivec4) * _drawnSSBOSize, 
+			nullptr, 
+			GL_DYNAMIC_STORAGE_BIT);
+		glNamedBufferSubData(
+			_ssbo,
+			0,
+			sizeof(ivec4) * _ssboData.size(),
+			_ssboData.data()
+		);
 	}
 }
 
@@ -435,11 +475,15 @@ void World::pushVerticesToOpenGL(bool isTransparent) {
 	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
-	glNamedBufferStorage(_ssbo, 
-		sizeof(glm::vec4) * _indirectBufferData.size(), 
-		(const void *)_ssboData.data(), 
-		GL_DYNAMIC_STORAGE_BIT);
-	
+	if (_ssboData.size() != 0) {
+		glNamedBufferSubData(
+			_ssbo,
+			0,
+			sizeof(ivec4) * _ssboData.size(),
+			_ssboData.data()
+		);
+	}
+
 	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
 	_needUpdate = false;
@@ -449,8 +493,6 @@ void World::clearFaces() {
 	_vertexData.clear();
 	_ssboData.clear();
 	_indirectBufferData.clear();
-	glDeleteBuffers(1, &_ssbo);
-	glCreateBuffers(1, &_ssbo);
 	// _transparentVertexData.clear();
 	// _hasSentFaces = false;
 	// _needTransparentUpdate = true;

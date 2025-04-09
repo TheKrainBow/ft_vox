@@ -6,6 +6,7 @@ layout(location = 2) in int instanceData; // Encoded instance data
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform vec3 viewPos;
 
 layout(binding = 3, std430) readonly buffer ssbo1 {
     vec4 ssbo[];
@@ -89,9 +90,8 @@ void main()
     vec3 worldPosition = ssbo[gl_DrawID].xyz + basePos + instancePos;
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
-    
-    gl_Position = projection * view * model * vec4(worldPosition, 1.0);
 
+    gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;
     TextureID = textureID;
     Normal = mat3(transpose(inverse(model))) * normal; // Transform normal to world space

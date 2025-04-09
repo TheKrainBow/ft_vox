@@ -1,6 +1,6 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(vec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager)
+SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager)
 : _position(position), _world(world), _chunk(chunk), _textManager(textManager)
 {
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
@@ -40,27 +40,27 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 {
 	int y;
 	for (y = OCEAN_HEIGHT; y > (int)ground; y--)
-		setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
-	setBlock(vec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
+		setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
+	setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
 	int i;
 	for (i = 0; i > -4; i--)
-		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
+		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
 	for (; i > -8; i--)
-		setBlock(vec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
+		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
-	setBlock(vec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
+	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
 	for (int i = -1; i > -5; i--)
-		setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
+		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
-	setBlock(vec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
+	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
 	for (int i = -1; i > -4; i--)
-		setBlock(vec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
+		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
 }
 
 void SubChunk::loadBiome()
@@ -94,7 +94,7 @@ SubChunk::~SubChunk()
 	_loaded = false;
 }
 
-void SubChunk::setBlock(vec3 position, char block)
+void SubChunk::setBlock(ivec3 position, char block)
 {
 	int x = position.x;
 	int y = position.y;
@@ -105,7 +105,7 @@ void SubChunk::setBlock(vec3 position, char block)
 	_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = block;
 }
 
-char SubChunk::getBlock(vec3 position)
+char SubChunk::getBlock(ivec3 position)
 {
 	int x = position.x;
 	int y = position.y;
@@ -116,7 +116,7 @@ char SubChunk::getBlock(vec3 position)
 	return _blocks[x + (z * CHUNK_SIZE) + y * CHUNK_SIZE * CHUNK_SIZE];
 }
 
-void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.y > 0)
@@ -134,7 +134,7 @@ void SubChunk::addDownFace(BlockType current, vec3 position, TextureType texture
 		addFace(position, DOWN, texture, isTransparent);
 }
 
-void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.y != CHUNK_SIZE - 1)
@@ -149,7 +149,7 @@ void SubChunk::addUpFace(BlockType current, vec3 position, TextureType texture, 
 		addFace(position, UP, texture, isTransparent);
 }
 
-void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.z != 0)
@@ -160,7 +160,7 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(vec3(position.x, position.y, CHUNK_SIZE - 1));
+				block = subChunk->getBlock(ivec3(position.x, position.y, CHUNK_SIZE - 1));
 			} else {
 				block = 1;
 			}
@@ -170,7 +170,7 @@ void SubChunk::addNorthFace(BlockType current, vec3 position, TextureType textur
 		addFace(position, NORTH, texture, isTransparent);
 }
 
-void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.z != CHUNK_SIZE - 1)
@@ -181,7 +181,7 @@ void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType textur
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(vec3(position.x, position.y, 0));
+				block = subChunk->getBlock(ivec3(position.x, position.y, 0));
 			} else {
 				block = 1;
 			}
@@ -191,7 +191,7 @@ void SubChunk::addSouthFace(BlockType current, vec3 position, TextureType textur
 		addFace(position, SOUTH, texture, isTransparent);
 }
 
-void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.x != 0)
@@ -202,7 +202,7 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(vec3(CHUNK_SIZE - 1, position.y, position.z));
+				block = subChunk->getBlock(ivec3(CHUNK_SIZE - 1, position.y, position.z));
 			} else {
 				block = 1;
 			}
@@ -212,7 +212,7 @@ void SubChunk::addWestFace(BlockType current, vec3 position, TextureType texture
 		addFace(position, WEST, texture, isTransparent);
 }
 
-void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.x != CHUNK_SIZE - 1)
@@ -223,7 +223,7 @@ void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture
 		{
 			SubChunk *subChunk = chunk->getSubChunk(_position.y);
 			if (subChunk) {
-				block = subChunk->getBlock(vec3(0, position.y, position.z));
+				block = subChunk->getBlock(ivec3(0, position.y, position.z));
 			} else {
 				block = 1;
 			}
@@ -233,7 +233,7 @@ void SubChunk::addEastFace(BlockType current, vec3 position, TextureType texture
 		addFace(position, EAST, texture, isTransparent);
 }
 
-void SubChunk::addBlock(BlockType block, vec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
+void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
 {
 	addUpFace(block, position, up, isTransparent);
 	addDownFace(block, position, down, isTransparent);
@@ -243,7 +243,7 @@ void SubChunk::addBlock(BlockType block, vec3 position, TextureType down, Textur
 	addEastFace(block, position, east, isTransparent);
 }
 
-vec3 SubChunk::getPosition()
+ivec3 SubChunk::getPosition()
 {
 	return _position;
 }
@@ -276,22 +276,22 @@ void SubChunk::sendFacesToDisplay()
 					case 0:
 						break;
 					case DIRT:
-						addBlock(DIRT, vec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
+						addBlock(DIRT, ivec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
 						break;
 					case STONE:
-						addBlock(STONE, vec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
+						addBlock(STONE, ivec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
 						break;
 					case GRASS:
-						addBlock(GRASS, vec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
+						addBlock(GRASS, ivec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
 						break;
 					case SAND:
-						addBlock(SAND, vec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
+						addBlock(SAND, ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
 						break;
 					case WATER:
-						addBlock(WATER, vec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
+						addBlock(WATER, ivec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
 						break;
 					case SNOW:
-						addBlock(SNOW, vec3(x, y, z), T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW);
+						addBlock(SNOW, ivec3(x, y, z), T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW);
 						break;
 					default :
 						break;
