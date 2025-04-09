@@ -313,6 +313,7 @@ void World::loadOrder()
 	_chunksLoadMutex.lock();
 	while (!_chunksLoadOrder.empty())
 	{
+		_needUpdate = true;
 		Chunk *chunk = nullptr;
 		chunk = _chunksLoadOrder.front();
 		ivec2 chunkPos = chunk->getPosition();
@@ -327,6 +328,7 @@ void World::removeOrder()
 	_chunksRemovalMutex.lock();
 	while (!_chunkRemovalOrder.empty())
 	{
+		_needUpdate = true;
 		ivec2 pos;
 		pos = _chunkRemovalOrder.front();
 		_activeChunks.erase(pos);
@@ -339,7 +341,8 @@ void World::updateActiveChunks()
 {
 	loadOrder();
 	removeOrder();
-	sendFacesToDisplay();
+	if (_needUpdate)
+		sendFacesToDisplay();
 }
 
 void World::sendFacesToDisplay()
@@ -450,7 +453,7 @@ void World::pushVerticesToOpenGL(bool isTransparent) {
 	
 	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
-	// _needUpdate = false;
+	_needUpdate = false;
 }
 
 void World::clearFaces() {
@@ -461,7 +464,6 @@ void World::clearFaces() {
 	glCreateBuffers(1, &_ssbo);
 	// _transparentVertexData.clear();
 	// _hasSentFaces = false;
-	_needUpdate = true;
 	// _needTransparentUpdate = true;
 }
 
