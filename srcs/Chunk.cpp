@@ -41,6 +41,16 @@ Chunk::~Chunk()
 	_subChunks.clear();
 }
 
+void Chunk::clearFaces() {
+	_vertexData.clear();
+	_ssboData.clear();
+	_indirectBufferData.clear();
+	// _transparentVertexData.clear();
+	// _hasSentFaces = false;
+	_needUpdate = true;
+	// _needTransparentUpdate = true;
+}
+
 void Chunk::getNeighbors()
 {
 	// if (_isFullyLoaded)
@@ -112,94 +122,6 @@ ivec2 Chunk::getPosition()
 // 	return triangleDrawn;
 // }
 
-void Chunk::pushVerticesToOpenGL(bool isTransparent) {
-	// if (isTransparent) {
-	// 	glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
-	// 	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _transparentVertexData.size(), _transparentVertexData.data(), GL_STATIC_DRAW);
-	// 	_needTransparentUpdate = false;
-	// } else {
-	// }
-	(void)isTransparent;
-
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-
-	glNamedBufferStorage(_ssbo, 
-		sizeof(glm::vec4) * _indirectBufferData.size(), 
-		(const void *)_ssboData.data(), 
-		GL_DYNAMIC_STORAGE_BIT);
-	
-	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
-	_needUpdate = false;
-}
-
-void Chunk::clearFaces() {
-	_vertexData.clear();
-	_ssboData.clear();
-	_indirectBufferData.clear();
-	// _transparentVertexData.clear();
-	// _hasSentFaces = false;
-	_needUpdate = true;
-	// _needTransparentUpdate = true;
-}
-
-void Chunk::initGLBuffer()
-{
-	if (_hasBufferInitialized == true)
-		return ;
-	glGenVertexArrays(1, &_vao);
-	glGenBuffers(1, &_vbo);
-	glGenBuffers(1, &_instanceVBO);
-	glGenBuffers(1, &_indirectBuffer);
-	glCreateBuffers(1, &_ssbo);
-
-    GLfloat vertices[] = {
-        0, 0, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
-        1, 0, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
-        0, 1, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
-        1, 1, 0, float(_position.x) * CHUNK_SIZE, 0, float(_position.y) * CHUNK_SIZE,
-    };
-
-    glBindVertexArray(_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
-    glEnableVertexAttribArray(1);
-	
-    // Instance data (instancePositions)
-	pushVerticesToOpenGL(false);
-	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-	glEnableVertexAttribArray(2);
-	glVertexAttribDivisor(2, 1); // Update once per instance
-
-
-	// glGenVertexArrays(1, &_transparentVao);
-	// glGenBuffers(1, &_transparentInstanceVBO);
-
-    // glBindVertexArray(_transparentVao);
-    // glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    // glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
-    // glEnableVertexAttribArray(0);
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
-    // glEnableVertexAttribArray(1);
-
-    // // Instance data (instancePositions)
-	// pushVerticesToOpenGL(true);
-
-	// glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-	// glEnableVertexAttribArray(2);
-	// glVertexAttribDivisor(2, 1); // Update once per instance
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-	_hasBufferInitialized = true;
-}
-
 SubChunk *Chunk::getSubChunk(int y)
 {
 	if (_isInit == false)
@@ -214,28 +136,6 @@ SubChunk *Chunk::getSubChunk(int y)
 bool Chunk::isReady()
 {
 	return _facesSent;
-}
-
-int Chunk::display(void)
-{
-	_subChunksMutex.lock();
-	if (_hasBufferInitialized == false)
-		initGLBuffer();
-	if (_needUpdate) {
-		pushVerticesToOpenGL(false);
-	}
-	long long size = _vertexData.size();
-
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
-	glBindVertexArray(_vao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _indirectBufferData.size(), 0);
-
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-	glBindVertexArray(0);
-	_subChunksMutex.unlock();
-	return (size * 2);
 }
 
 void Chunk::sendFacesToDisplay()
@@ -299,6 +199,20 @@ Chunk *Chunk::getWestChunk() {
 	return _west;
 }
 
+std::vector<int> Chunk::getVertices() {
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
+	return _vertexData;
+}
+
+std::vector<DrawArraysIndirectCommand> Chunk::getIndirectData() {
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
+	return _indirectBufferData;
+}
+
+std::vector<vec4> Chunk::getSSBO() {
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
+	return _ssboData;
+}
 
 // Load chunks: 0,203s
 // Load chunks: 0,256s

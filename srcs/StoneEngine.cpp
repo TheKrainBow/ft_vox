@@ -278,6 +278,7 @@ void StoneEngine::triangleMeshToggle()
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
+
 void StoneEngine::display()
 {
     // Init and clear buffers

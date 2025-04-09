@@ -1,7 +1,6 @@
 #version 460 core
 
-layout(location = 0) in vec3 aPos;      // Vertex position
-layout(location = 1) in vec3 worldPos;  // World position
+layout(location = 0) in ivec3 aPos;      // Vertex position
 layout(location = 2) in int instanceData; // Encoded instance data
 
 uniform mat4 model;

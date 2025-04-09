@@ -11,13 +11,6 @@
 class SubChunk;
 class World;
 
-typedef  struct {
-    uint  count;
-    uint  instanceCount;
-    uint  first;
-    uint  baseInstance;
-} DrawArraysIndirectCommand;
-
 class Chunk
 {
 	private:
@@ -57,7 +50,6 @@ class Chunk
 		SubChunk *getSubChunk(int y);
 		void sendFacesToDisplay();
 		bool isReady();
-		int display();
 		int displayTransparent();
 		ivec2 getPosition();
 		void setWestChunk(Chunk *chunk);
@@ -71,4 +63,8 @@ class Chunk
 		void initGLBuffer();
 		void pushVerticesToOpenGL(bool isTransparent);
 		void clearFaces();
+
+		std::vector<int> getVertices();
+		std::vector<DrawArraysIndirectCommand> getIndirectData();
+		std::vector<vec4> getSSBO();
 };

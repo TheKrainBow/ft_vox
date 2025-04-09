@@ -74,6 +74,17 @@ private:
 		std::atomic_bool							displayReady;
 		Chrono chronoHelper;
 		ThreadPool 									_threadPool;
+
+		bool 				_hasBufferInitialized;
+		GLuint									_ssbo;
+		std::vector<glm::vec4>					_ssboData;
+		GLuint									_vao;
+		GLuint									_vbo;
+		GLuint									_instanceVBO;
+		std::vector<int>						_vertexData;
+		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
+		GLuint									_indirectBuffer;
+		bool									_needUpdate;
 public:
 		std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera);
@@ -108,4 +119,9 @@ private:
 	void loadOrder();
 	void removeOrder();
 	void updateChunk(int x, int z, int render, ivec2 chunkPos);
+
+	void initGLBuffer();
+	void pushVerticesToOpenGL(bool isTransparent);
+	void clearFaces();
+	void sendFacesToDisplay();
 };
