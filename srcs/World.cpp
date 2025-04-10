@@ -212,7 +212,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 
 	int resolution = RESOLUTION;
-	_threshold = 20;
+	_threshold = 32;
 	std::vector<std::future<void>> retLst;
 	// loadChunk(0, 0, 1, chunkPos);
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
@@ -443,12 +443,6 @@ int World::display()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 	return (size * 2);
-	// int trianglesDrawn = 0;
-	// for (auto &activeChunk : _activeChunks)
-	// {
-	// 	trianglesDrawn += activeChunk.second->display();
-	// }
-	// return trianglesDrawn;
 }
 
 int	World::getCachedChunksNumber()
