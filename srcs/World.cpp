@@ -340,7 +340,7 @@ Chunk *World::getChunk(ivec2 position)
 void World::loadOrder()
 {
 	_chunksLoadMutex.lock();
-	while (!_chunksLoadOrder.empty())
+	while (getIsRunning() && !_chunksLoadOrder.empty())
 	{
 		_needUpdate = true;
 		Chunk *chunk = nullptr;
@@ -355,7 +355,7 @@ void World::loadOrder()
 void World::removeOrder()
 {
 	_chunksRemovalMutex.lock();
-	while (!_chunkRemovalOrder.empty())
+	while (getIsRunning() && !_chunkRemovalOrder.empty())
 	{
 		_needUpdate = true;
 		ivec2 pos;
