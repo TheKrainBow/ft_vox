@@ -16,7 +16,7 @@ ivec3 World::calculateBlockPos(ivec3 position) const
 	return { mod(position.x), mod(position.y), mod(position.z) };
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera) : _textureManager(textureManager), _camera(&camera), _threadPool(8), _perlinGenerator(seed)
+World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(&camera), _perlinGenerator(seed)
 {
 	_needUpdate = true;
 	_hasBufferInitialized = false;

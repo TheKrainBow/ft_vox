@@ -22,6 +22,7 @@ class StoneEngine {
 		mat4 projectionMatrix;
 		mat4 viewMatrix;
 		TextureManager _textureManager;
+		ThreadPool &_pool;
 
 		// Framebuffer data
 		GLuint fbo;
@@ -72,7 +73,7 @@ class StoneEngine {
 		vec3 sunPosition;
 		std::atomic_int timeValue;
 	public:
-		StoneEngine(int seed);
+		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
 		void run();
 	private:

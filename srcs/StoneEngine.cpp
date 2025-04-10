@@ -10,7 +10,7 @@ bool faceDisplayCondition(char blockToDisplay, char neighbourBlock)
 	return isTransparent(neighbourBlock) && blockToDisplay != neighbourBlock;
 }
 
-StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), noise_gen(seed)
+StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
 {
 	initData();
 	initGLFW();
@@ -40,7 +40,7 @@ void StoneEngine::run()
 {
 	// Main loop
 	_isRunning = true;
-	std::thread t1(&StoneEngine::updateChunkWorker, this);
+	std::future<void> chunkLoadThread = _pool.enqueue(&StoneEngine::updateChunkWorker, this);
 	while (!glfwWindowShouldClose(_window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -50,8 +50,7 @@ void StoneEngine::run()
 	_isRunningMutex.lock();
 	_isRunning = false;
 	_isRunningMutex.unlock();
-	// Terminate chunk thread
-	t1.join();
+	chunkLoadThread.get();
 }
 
 void StoneEngine::initData()

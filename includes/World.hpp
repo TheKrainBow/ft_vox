@@ -66,6 +66,7 @@ private:
 	std::queue<Chunk*>							_displayQueue;
 	std::mutex									_displayQueueMutex;
 	bool										_skipLoad;
+	ThreadPool 									&_threadPool;
 	TextureManager								&_textureManager;
 	
 	// Player related informations
@@ -76,7 +77,6 @@ private:
 	std::mutex									*_runningMutex;
 	std::atomic_bool							displayReady;
 	Chrono chronoHelper;
-	ThreadPool 									_threadPool;
 	bool 				_hasBufferInitialized;
 	GLuint									_ssbo;
 	std::vector<vec4>						_ssboData;
@@ -93,7 +93,7 @@ public:
 	NoiseGenerator								_perlinGenerator;
 	GLuint 										_shaderProgram;
 	std::mutex									_chunksMutex;
-	World(int seed, TextureManager &textureManager, Camera &camera);
+	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
 	void loadFirstChunks(ivec2 camPosition);
 	void init(GLuint shaderProgram, int renderDistance);

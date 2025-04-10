@@ -18,7 +18,8 @@ int main(int argc, char **argv)
 		std::cerr << "Failed to initialize GLFW" << std::endl;
 		return -1;
 	}
-	StoneEngine stone(seed);
+	ThreadPool pool(std::thread::hardware_concurrency());
+	StoneEngine stone(seed, pool);
 	stone.run();
 	return 0;
 }
