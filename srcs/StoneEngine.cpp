@@ -243,11 +243,6 @@ void StoneEngine::activateRenderShader()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	
-	if (showTriangleMesh)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	else
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
@@ -289,17 +284,18 @@ void StoneEngine::display()
 
 	// Render solid blocks
     activateRenderShader();
+	triangleMeshToggle();
     _world.updateActiveChunks();
     drawnTriangles = _world.display();
+	if (showTriangleMesh)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDisable(GL_CULL_FACE);
 
-    triangleMeshToggle();
-
+	
     // Fix holes in terrain with post process fbo.frag shader
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     activateFboShader();
-
     // Copy dbo from screen
     glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
