@@ -225,7 +225,7 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::activateRenderShader()
 {
-	glm::mat4 modelMatrix = glm::mat4(1.0f);
+	mat4 modelMatrix = mat4(1.0f);
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
@@ -278,6 +278,7 @@ void StoneEngine::triangleMeshToggle()
 	else
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
+
 void StoneEngine::display()
 {
     // Init and clear buffers
@@ -289,8 +290,6 @@ void StoneEngine::display()
 	// Render solid blocks
     activateRenderShader();
     _world.updateActiveChunks();
-    glCullFace(GL_FRONT);
-    glFrontFace(GL_CCW);
     drawnTriangles = _world.display();
     glDisable(GL_CULL_FACE);
 
@@ -317,6 +316,7 @@ void StoneEngine::display()
 
     activateRenderShader();
     drawnTriangles += _world.displayTransparent();
+	glDisable(GL_CULL_FACE);
 
     // Debug UI
     if (showDebugInfo)
