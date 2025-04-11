@@ -276,52 +276,55 @@ void StoneEngine::triangleMeshToggle()
 
 void StoneEngine::display()
 {
-    // Init and clear buffers
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	// Skip FBO, draw to screen
+    if (showTriangleMesh)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); 
+    else
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glMatrixMode(GL_MODELVIEW);
 
-	// Render solid blocks
+    // Render world
     activateRenderShader();
-	triangleMeshToggle();
+    triangleMeshToggle();
     _world.updateActiveChunks();
     drawnTriangles = _world.display();
-	if (showTriangleMesh)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDisable(GL_CULL_FACE);
 
-	
-    // Fix holes in terrain with post process fbo.frag shader
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    activateFboShader();
-    // Copy dbo from screen
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-                      0, 0, windowWidth, windowHeight,
-                      GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // Skip post-process only if not in wireframe
+    if (!showTriangleMesh)
+	{
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        activateFboShader();
 
-    // Transparent blocks draw
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+                        0, 0, windowWidth, windowHeight,
+                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    // Transparent & UI
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
 
     activateRenderShader();
-	glDisable(GL_CULL_FACE);
+    glDisable(GL_CULL_FACE);
     // drawnTriangles += _world.displayTransparent();
 
-    // Debug UI
     if (showDebugInfo)
         debugBox.render();
 
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
 
-    // Swap buffers
     calculateFps();
     glfwSwapBuffers(_window);
 }
