@@ -43,28 +43,25 @@ struct Compare {
     }
 };
 
+struct DisplayData
+{
+	std::vector<vec4>						ssboData;
+	std::vector<int>						vertexData;
+	std::vector<DrawArraysIndirectCommand>	indirectBufferData;
+};
+
 class World
 {
 private:
 	// World related informations
 	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
 	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
 
 	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
-	std::queue<ivec2>	_chunkRemovalOrder;
-	std::mutex			_chunksRemovalMutex;
-
-	std::queue<Chunk *>	_chunksLoadLoadOrder;
-	std::mutex			_chunksLoadLoadMutex;
-
-	std::queue<Chunk *>	_chunksLoadOrder;
-	std::mutex			_chunksLoadMutex;
 	
-	std::mutex									_displayChunkMutex;
-	std::queue<Chunk*>							_displayQueue;
-	std::mutex									_displayQueueMutex;
 	bool										_skipLoad;
 	ThreadPool 									&_threadPool;
 	TextureManager								&_textureManager;
@@ -79,14 +76,17 @@ private:
 	Chrono chronoHelper;
 	bool 				_hasBufferInitialized;
 	GLuint									_ssbo;
-	std::vector<vec4>						_ssboData;
+	DisplayData								*_drawData;
+	DisplayData								*_fillData;
+	DisplayData								*_stagingData;
+	std::mutex								_drawDataMutex;
+	std::atomic_bool _newDataReady = false;
+
 	size_t									_drawnSSBOSize;
+	GLuint									_instanceVBO;
+	GLuint									_indirectBuffer;
 	GLuint									_vao;
 	GLuint									_vbo;
-	GLuint									_instanceVBO;
-	std::vector<int>						_vertexData;
-	std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
-	GLuint									_indirectBuffer;
 	bool									_needUpdate;
 	std::atomic_int 							_threshold;
 public:
@@ -131,4 +131,6 @@ private:
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
 	void sendFacesToDisplay();
+	void updateSsbo();
+	void updateFillData();
 };

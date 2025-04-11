@@ -294,7 +294,7 @@ void StoneEngine::display()
 
 	// Render solid blocks
     activateRenderShader();
-    _world.updateActiveChunks();
+    // _world.updateActiveChunks();
     glCullFace(GL_FRONT);
     glFrontFace(GL_CCW);
     drawnTriangles = _world.display();
@@ -360,8 +360,8 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	// unLoadNextChunk.get();
 	if (getIsRunning())
 		_world.loadFirstChunks(newCamChunk);
-	if (getIsRunning())
-		_world.unLoadNextChunks(newCamChunk);
+	// if (getIsRunning())
+	// 	_world.unLoadNextChunks(newCamChunk);
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }

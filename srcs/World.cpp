@@ -22,6 +22,9 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	_hasBufferInitialized = false;
 	_renderDistance = RENDER_DISTANCE;
 	_drawnSSBOSize = 1;
+	_fillData = new DisplayData;
+	_drawData = new DisplayData;
+	_stagingData = new DisplayData;
 }
 
 void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
@@ -34,6 +37,9 @@ World::~World()
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 		delete it->second;
+	delete _fillData;
+	delete _drawData;
+	delete _stagingData;
 }
 
 NoiseGenerator &World::getNoiseGenerator(void)
@@ -162,10 +168,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 		chunk->getNeighbors();
 		_chunksMutex.unlock();
 	}
-	_chunksLoadLoadMutex.lock();
-	_chunksLoadLoadOrder.emplace(chunk);
+	_displayedChunksMutex.lock();
 	_displayedChunks[pos] = chunk;
-	_chunksLoadLoadMutex.unlock();
+	_displayedChunksMutex.unlock();
 	// unloadChunk();
 }
 
@@ -210,21 +215,27 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	int renderDistance = _renderDistance;
 	_skipLoad = false;
 
-
 	int resolution = RESOLUTION;
 	_threshold = 32;
-	std::vector<std::future<void>> retLst;
+	_displayedChunks.clear();
+	// std::vector<std::future<void>> retLst;
 	// loadChunk(0, 0, 1, chunkPos);
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
+		std::future<void> retTop;
+		std::future<void> retBot;
+		std::future<void> retRight;
+		std::future<void> retLeft;
+
 		// Load chunks
-		std::future<void> retTop = _threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution);
-		std::future<void> retRight = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution);
-		std::future<void> retBot = _threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution);
-		std::future<void> retLeft = _threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos, resolution);
+		retTop = _threadPool.enqueue(&World::loadTopChunks, this, render, chunkPos, resolution);
+		retBot = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution);
+		retRight = _threadPool.enqueue(&World::loadBotChunks, this, render, chunkPos, resolution);
+		retLeft = _threadPool.enqueue(&World::loadLeftChunks, this, render, chunkPos, resolution);
+
 		retTop.get();
-		retRight.get();
 		retBot.get();
+		retRight.get();
 		retLeft.get();
 
 		if (render >= _threshold)
@@ -232,20 +243,9 @@ void World::loadFirstChunks(ivec2 chunkPos)
 			resolution *= 2;
 			_threshold = _threshold * 2;
 		}
-		// _chunksLoadMutex.lock();
-		while (!_chunksLoadLoadOrder.empty())
-		{
-			_needUpdate = true;
-			Chunk *chunk = _chunksLoadLoadOrder.front();
-			_chunksLoadMutex.lock();
-			_chunksLoadOrder.emplace(chunk);
-			_chunksLoadMutex.unlock();
-			_chunksLoadLoadOrder.pop();
-		}
-		// _chunksLoadMutex.unlock();
-
 		if (hasMoved(chunkPos))
 			break;
+		updateFillData();
     }
 
 	// for (std::future<void> &ret : retLst)
@@ -255,29 +255,30 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	// retLst.clear();
 }
 
-void World::unLoadNextChunks(ivec2 newCamChunk)
+void World::updateFillData()
 {
-	ivec2 pos;
-	std::queue<ivec2> deleteQueue;
-	for (auto &it : _displayedChunks)
+	sendFacesToDisplay();
+	_drawDataMutex.lock();
+	std::swap(_fillData, _stagingData);
+	_newDataReady = true;
+	_drawDataMutex.unlock();
+}
+
+void World::sendFacesToDisplay()
+{
+	clearFaces();
+	for (auto &chunk : _displayedChunks)
 	{
-		Chunk *chunk = it.second;
-		ivec2 chunkPos = chunk->getPosition();
-		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
-		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
-		{
-			deleteQueue.emplace(chunkPos);
+		size_t size = _fillData->vertexData.size();
+		std::vector<int> &vertices = chunk.second->getVertices();
+		_fillData->vertexData.insert(_fillData->vertexData.end(), vertices.begin(), vertices.end());
+		std::vector<DrawArraysIndirectCommand> &indirectBufferData = chunk.second->getIndirectData();
+		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
+			tmp.baseInstance += size;
 		}
-	}
-	// std::cout << deleteQueue.size() << std::endl;
-	while (!deleteQueue.empty())
-	{
-		pos = deleteQueue.front();
-		_chunksRemovalMutex.lock();
-		_chunkRemovalOrder.emplace(pos);
-		_chunksRemovalMutex.unlock();
-		_displayedChunks.erase(pos);
-		deleteQueue.pop();
+		_fillData->indirectBufferData.insert(_fillData->indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
+		std::vector<vec4> &ssboData = chunk.second->getSSBO();
+		_fillData->ssboData.insert(_fillData->ssboData.end(), ssboData.begin(), ssboData.end());
 	}
 }
 
@@ -337,61 +338,22 @@ Chunk *World::getChunk(ivec2 position)
 	return nullptr;
 }
 
-void World::loadOrder()
+int World::displayTransparent()
 {
-	_chunksLoadMutex.lock();
-	while (getIsRunning() && !_chunksLoadOrder.empty())
-	{
-		_needUpdate = true;
-		Chunk *chunk = nullptr;
-		chunk = _chunksLoadOrder.front();
-		ivec2 chunkPos = chunk->getPosition();
-		_activeChunks[{chunkPos.x, chunkPos.y}] = chunk;
-		_chunksLoadOrder.pop();
-	}
-	_chunksLoadMutex.unlock();
+	int trianglesDrawn = 0;
+
+	// glDisable(GL_CULL_FACE);
+	// for (auto &activeChunk : _activeChunks)
+	// {
+	// 	trianglesDrawn += activeChunk.second->displayTransparent();
+	// }
+	return trianglesDrawn;
 }
 
-void World::removeOrder()
+void World::updateSsbo()
 {
-	_chunksRemovalMutex.lock();
-	while (getIsRunning() && !_chunkRemovalOrder.empty())
-	{
-		_needUpdate = true;
-		ivec2 pos;
-		pos = _chunkRemovalOrder.front();
-		_activeChunks.erase(pos);
-		_chunkRemovalOrder.pop();
-	}
-	_chunksRemovalMutex.unlock();
-}
-
-void World::updateActiveChunks()
-{
-	loadOrder();
-	removeOrder();
-	if (_needUpdate)
-		sendFacesToDisplay();
-}
-
-void World::sendFacesToDisplay()
-{
-	clearFaces();
-	for (auto &chunk : _activeChunks)
-	{
-		size_t size = _vertexData.size();
-		std::vector<int> vertices = chunk.second->getVertices();
-		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-		std::vector<DrawArraysIndirectCommand> indirectBufferData = chunk.second->getIndirectData();
-		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
-			tmp.baseInstance += size;
-		}
-		_indirectBufferData.insert(_indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
-		std::vector<vec4> ssboData = chunk.second->getSSBO();
-		_ssboData.insert(_ssboData.end(), ssboData.begin(), ssboData.end());
-	}
 	bool needUpdate = false;
-	size_t size = _ssboData.size() * 2;
+	size_t size = _drawData->ssboData.size() * 2;
 	while (size > _drawnSSBOSize) {
 		_drawnSSBOSize *= 2;
 		needUpdate = true;
@@ -406,42 +368,35 @@ void World::sendFacesToDisplay()
 		glNamedBufferSubData(
 			_ssbo,
 			0,
-			sizeof(ivec4) * _ssboData.size(),
-			_ssboData.data()
+			sizeof(ivec4) * _drawData->ssboData.size(),
+			_drawData->ssboData.data()
 		);
 	}
 }
 
-int World::displayTransparent()
-{
-	int trianglesDrawn = 0;
-
-	// glDisable(GL_CULL_FACE);
-	// for (auto &activeChunk : _activeChunks)
-	// {
-	// 	trianglesDrawn += activeChunk.second->displayTransparent();
-	// }
-	return trianglesDrawn;
-}
-
 int World::display()
 {
-	glEnable(GL_CULL_FACE);
+	_drawDataMutex.lock();
+	if (_newDataReady)
+	{
+		pushVerticesToOpenGL(false);
+		std::swap(_stagingData, _drawData);
+		_newDataReady = false;
+	}
 	if (_hasBufferInitialized == false)
 		initGLBuffer();
-	if (_needUpdate) {
-		pushVerticesToOpenGL(false);
-	}
-	long long size = _vertexData.size();
+	glEnable(GL_CULL_FACE);
+	long long size = _drawData->vertexData.size();
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
 
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _indirectBufferData.size(), 0);
-
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _drawData->indirectBufferData.size(), 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
+	updateSsbo();
+	_drawDataMutex.unlock();
 	return (size * 2);
 }
 
@@ -474,27 +429,28 @@ void World::pushVerticesToOpenGL(bool isTransparent) {
 	(void)isTransparent;
 
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
+	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _drawData->indirectBufferData.size(), _drawData->indirectBufferData.data(), GL_STATIC_DRAW);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
-	if (_ssboData.size() != 0) {
+	if (_drawData->ssboData.size() != 0) {
 		glNamedBufferSubData(
 			_ssbo,
 			0,
-			sizeof(ivec4) * _ssboData.size(),
-			_ssboData.data()
+			sizeof(ivec4) * _drawData->ssboData.size(),
+			_drawData->ssboData.data()
 		);
 	}
 
 	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _drawData->vertexData.size(), _drawData->vertexData.data(), GL_STATIC_DRAW);
 	_needUpdate = false;
 }
 
-void World::clearFaces() {
-	_vertexData.clear();
-	_ssboData.clear();
-	_indirectBufferData.clear();
+void World::clearFaces()
+{
+	_fillData->vertexData.clear();
+	_fillData->ssboData.clear();
+	_fillData->indirectBufferData.clear();
 	// _transparentVertexData.clear();
 	// _hasSentFaces = false;
 	// _needTransparentUpdate = true;
