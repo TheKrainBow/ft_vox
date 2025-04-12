@@ -20,6 +20,7 @@ StoneEngine::StoneEngine(int seed) : _world(seed, _textureManager, camera), nois
 	initDebugTextBox();
 	initFramebuffers();
 	initFboShaders();
+	initSunShaders();
 	updateFboWindowSize();
 	reshape(_window, windowWidth, windowHeight);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
@@ -146,9 +147,7 @@ void StoneEngine::initRenderShaders()
 	
 	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 10000000.0f);
 	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
-	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
 	glm::vec3 viewPos = camera.getWorldPosition();
-	sunPosition = {0.0f, 0.0f, 0.0f};
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
@@ -254,6 +253,74 @@ void StoneEngine::activateRenderShader()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
 
+void StoneEngine::initSunShaders()
+{
+    sunProgram = createShaderProgram("shaders/sun.vert", "shaders/sun.frag");
+    glm::vec3 sunColor(1.0f, 0.7f, 0.2f);  // Yellow-ish sun color
+    glm::vec3 viewPos = camera.getWorldPosition();
+
+    // Vertices for a square (two triangles)
+    GLfloat sunVertices[] = {
+        -0.1f,  0.1f, 0.0f, // Top-left
+        -0.1f, -0.1f, 0.0f, // Bottom-left
+        0.1f,  0.1f, 0.0f, // Top-right
+        0.1f, -0.1f, 0.0f  // Bottom-right
+    };
+
+    glUseProgram(sunProgram);
+    glUniform3fv(glGetUniformLocation(sunProgram, "sunColor"), 1, glm::value_ptr(sunColor));
+    glUniform3fv(glGetUniformLocation(sunProgram, "viewPos"), 1, glm::value_ptr(viewPos));
+
+    glGenVertexArrays(1, &sunVAO);
+    glBindVertexArray(sunVAO);
+
+    glGenBuffers(1, &sunVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, sunVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(sunVertices), sunVertices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GL_FLOAT), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);  // Unbind VAO
+}
+
+void StoneEngine::renderSun()
+{
+	glUseProgram(sunProgram);
+
+	// Compute the sun's position based on time
+	float sunAngle = (timeValue / 86400.0f) * (2 * M_PI); // Full circle over 24 hours
+	glm::vec3 sunPos(
+		100.0f * sin(sunAngle),  // X position
+		100.0f * sin(sunAngle),  // Y position (can be adjusted)
+		100.0f * cos(sunAngle)   // Z position
+	);
+
+	// Set the sun position uniform
+	glUniform3fv(glGetUniformLocation(sunProgram, "sunPos"), 1, glm::value_ptr(sunPos));
+
+	// Set up the model, view, and projection matrices
+	// Identity matrix for simple position
+	glm::mat4 model = glm::mat4(1.0f); 
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
+	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = glm::translate(viewMatrix, glm::vec3(camera.getPosition()));
+
+	glUniformMatrix4fv(glGetUniformLocation(sunProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+	glUniformMatrix4fv(glGetUniformLocation(sunProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(sunProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+	// Render the sun (as a simple quad in this case)
+	glBindVertexArray(sunVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);  // Draw the square
+	glBindVertexArray(0);
+}
+
+
 void StoneEngine::activateFboShader()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -293,8 +360,9 @@ void StoneEngine::display()
     glFrontFace(GL_CCW);
     drawnTriangles = _world.display();
     glDisable(GL_CULL_FACE);
-
     triangleMeshToggle();
+
+	renderSun();
 
     // Fix holes in terrain with post process fbo.frag shader
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -466,6 +534,8 @@ void StoneEngine::updateGameTick()
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
 		glUseProgram(fboShaderProgram);
 		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), timeValue);
+		// glUseProgram(sunProgram);
+		// glUniform1i(glGetUniformLocation(sunProgram, "timeValue"), timeValue);
 	}
 	else
 	{
@@ -474,6 +544,8 @@ void StoneEngine::updateGameTick()
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
 		glUseProgram(fboShaderProgram);
 		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), 58500);
+		// glUseProgram(sunProgram);
+		// glUniform1i(glGetUniformLocation(sunProgram, "timeValue"), 58500);
 	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }

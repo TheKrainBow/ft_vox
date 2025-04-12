@@ -13,7 +13,7 @@ uniform vec2 texelSize;
 const float skyOffsetY = 5.0;
 
 // tweak this based on how far your skybox is
-const float depthSkyThreshold = 0.9999;
+const float depthSkyThreshold = 1.0;
 
 vec3 computeSkyColor(float time)
 {

@@ -15,6 +15,8 @@ class StoneEngine {
 		GLFWwindow* _window;
 		GLuint shaderProgram;
 		GLuint sunProgram;
+		GLuint sunVAO;
+		GLuint sunVBO;
 		World _world;
 		int windowHeight;
 		int windowWidth;
@@ -94,6 +96,7 @@ class StoneEngine {
 		void	initGLEW();
 		int		initGLFW();
 		void	initTextures();
+		void	initSunShaders();
 		void	initRenderShaders();
 		void	initDebugTextBox();
 		void	initFramebuffers();
@@ -109,6 +112,7 @@ class StoneEngine {
 		void activateRenderShader();
 		void activateFboShader();
 		void triangleMeshToggle();
+		void renderSun();
 
 		// Multi thread methods
 		//void chunkUpdateWorker();
