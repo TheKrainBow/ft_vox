@@ -77,7 +77,8 @@ private:
 	std::mutex									*_runningMutex;
 	std::atomic_bool							displayReady;
 	Chrono chronoHelper;
-	bool 				_hasBufferInitialized;
+
+	bool 									_hasBufferInitialized;
 	GLuint									_ssbo;
 	std::vector<vec4>						_ssboData;
 	size_t									_drawnSSBOSize;
@@ -87,8 +88,17 @@ private:
 	std::vector<int>						_vertexData;
 	std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
 	GLuint									_indirectBuffer;
+
+	bool 									_hasTransparentBufferInitialized;
+	GLuint									_transparentVao;
+	GLuint									_transparentInstanceVBO;
+	std::vector<int>						_transparentVertexData;
+	std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
+	GLuint									_transparentIndirectBuffer;
+
 	bool									_needUpdate;
-	std::atomic_int 							_threshold;
+	bool									_needTransparentUpdate;
+	std::atomic_int 						_threshold;
 public:
 	NoiseGenerator								_perlinGenerator;
 	GLuint 										_shaderProgram;
@@ -129,5 +139,6 @@ private:
 	void initGLBuffer();
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
+	void clearTransparentFaces();
 	void sendFacesToDisplay();
 };

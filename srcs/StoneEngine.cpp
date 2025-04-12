@@ -276,27 +276,34 @@ void StoneEngine::triangleMeshToggle()
 
 void StoneEngine::display()
 {
-	// Skip FBO, draw to screen
+	// Skip FBO, draw to screen (wireframe dependant)
     if (showTriangleMesh)
         glBindFramebuffer(GL_FRAMEBUFFER, 0); 
     else
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
+	// Clear depth and color buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glMatrixMode(GL_MODELVIEW);
 
-    // Render world
+    // Render world ("better.vert/frag" shaders active)
     activateRenderShader();
+
+	// Wireframe mode
     triangleMeshToggle();
+
+	// Update and build vertices
     _world.updateActiveChunks();
+
+	// One draw call solid blocks
     drawnTriangles = _world.display();
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDisable(GL_CULL_FACE);
 
     // Skip post-process only if not in wireframe
     if (!showTriangleMesh)
 	{
+		// Post processing for T-junction holes ("fbo.vert/frag" shaders active )
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT);
         activateFboShader();
@@ -306,25 +313,29 @@ void StoneEngine::display()
         glBlitFramebuffer(0, 0, windowWidth, windowHeight,
                         0, 0, windowWidth, windowHeight,
                         GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+		// Deactivate post processing for water
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
-    // Transparent & UI
+    // Transparency settings & UI
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
-
+	
+    // Render transparent world ("better.vert/frag" shaders active)
     activateRenderShader();
-    glDisable(GL_CULL_FACE);
-    // drawnTriangles += _world.displayTransparent();
 
+	// One draw call transparent blocks
+    drawnTriangles += _world.displayTransparent();
+	glDisable(GL_CULL_FACE);
+
+	// Deactivating lines for debug console
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     if (showDebugInfo)
         debugBox.render();
-
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
-
     calculateFps();
     glfwSwapBuffers(_window);
 }

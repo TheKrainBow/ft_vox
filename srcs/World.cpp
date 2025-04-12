@@ -19,6 +19,7 @@ ivec3 World::calculateBlockPos(ivec3 position) const
 World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(&camera), _perlinGenerator(seed)
 {
 	_needUpdate = true;
+	_needTransparentUpdate = true;
 	_hasBufferInitialized = false;
 	_renderDistance = RENDER_DISTANCE;
 	_drawnSSBOSize = 1;
@@ -27,6 +28,7 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
 	_shaderProgram = shaderProgram;
 	_renderDistance = renderDistance;
+	initGLBuffer();
 }
 
 World::~World()
@@ -234,7 +236,6 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		// _chunksLoadMutex.lock();
 		while (!_chunksLoadLoadOrder.empty())
 		{
-			_needUpdate = true;
 			Chunk *chunk = _chunksLoadLoadOrder.front();
 			_chunksLoadMutex.lock();
 			_chunksLoadOrder.emplace(chunk);
@@ -316,8 +317,9 @@ void World::loadOrder()
 	_chunksLoadMutex.lock();
 	while (getIsRunning() && !_chunksLoadOrder.empty())
 	{
-		_needUpdate = true;
 		Chunk *chunk = nullptr;
+		_needUpdate = true;
+		_needTransparentUpdate = true;
 		chunk = _chunksLoadOrder.front();
 		ivec2 chunkPos = chunk->getPosition();
 		_activeChunks[{chunkPos.x, chunkPos.y}] = chunk;
@@ -331,7 +333,6 @@ void World::removeOrder()
 	_chunksRemovalMutex.lock();
 	while (getIsRunning() && !_chunkRemovalOrder.empty())
 	{
-		_needUpdate = true;
 		ivec2 pos;
 		pos = _chunkRemovalOrder.front();
 		_activeChunks.erase(pos);
@@ -353,17 +354,36 @@ void World::sendFacesToDisplay()
 	clearFaces();
 	for (auto &chunk : _activeChunks)
 	{
+		// Solid blocks vertex data
 		size_t size = _vertexData.size();
 		std::vector<int> vertices = chunk.second->getVertices();
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+		
+		// Solid blocks indirect buffer
 		std::vector<DrawArraysIndirectCommand> indirectBufferData = chunk.second->getIndirectData();
 		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
 			tmp.baseInstance += size;
 		}
 		_indirectBufferData.insert(_indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
+
+		// Transparent blocks vertex data
+		size_t transparentSize = _transparentVertexData.size();
+		std::vector<int> transparentVertices = chunk.second->getTransparentVertices();
+		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+		
+		// Transparent blocks indirect buffer
+		std::vector<DrawArraysIndirectCommand> transparentIndirectBuffer = chunk.second->getTransparentIndirectData();
+		for (DrawArraysIndirectCommand &tmp : transparentIndirectBuffer) {
+			tmp.baseInstance += transparentSize;
+		}
+		_transparentIndirectBufferData.insert(_transparentIndirectBufferData.end(), transparentIndirectBuffer.begin(), transparentIndirectBuffer.end());
+
+		// SSBO load
 		std::vector<vec4> ssboData = chunk.second->getSSBO();
 		_ssboData.insert(_ssboData.end(), ssboData.begin(), ssboData.end());
 	}
+
+	// SSBO Update
 	bool needUpdate = false;
 	size_t size = _ssboData.size() * 2;
 	while (size > _drawnSSBOSize) {
@@ -386,26 +406,11 @@ void World::sendFacesToDisplay()
 	}
 }
 
-int World::displayTransparent()
-{
-	int trianglesDrawn = 0;
-
-	// glDisable(GL_CULL_FACE);
-	// for (auto &activeChunk : _activeChunks)
-	// {
-	// 	trianglesDrawn += activeChunk.second->displayTransparent();
-	// }
-	return trianglesDrawn;
-}
-
 int World::display()
 {
 	glEnable(GL_CULL_FACE);
-	if (_hasBufferInitialized == false)
-		initGLBuffer();
-	if (_needUpdate) {
+	if (_needUpdate)
 		pushVerticesToOpenGL(false);
-	}
 	long long size = _vertexData.size();
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
@@ -413,6 +418,24 @@ int World::display()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
 
 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _indirectBufferData.size(), 0);
+
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	glBindVertexArray(0);
+	return (size * 2);
+}
+
+int World::displayTransparent()
+{
+	glDisable(GL_CULL_FACE);
+	if (_needTransparentUpdate)
+		pushVerticesToOpenGL(true);
+	long long size = _transparentVertexData.size();
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
+	glBindVertexArray(_transparentVao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transparentIndirectBufferData.size(), 0);
 
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
@@ -439,90 +462,108 @@ void World::decreaseRenderDistance()
 }
 
 void World::pushVerticesToOpenGL(bool isTransparent) {
-	// if (isTransparent) {
-	// 	glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
-	// 	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _transparentVertexData.size(), _transparentVertexData.data(), GL_STATIC_DRAW);
-	// 	_needTransparentUpdate = false;
-	// } else {
-	// }
-	(void)isTransparent;
+	if (isTransparent)
+	{
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+		glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _transparentIndirectBufferData.size(), _transparentIndirectBufferData.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-	glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+		if (_ssboData.size() != 0) {
+			glNamedBufferSubData(
+				_ssbo,
+				0,
+				sizeof(ivec4) * _ssboData.size(),
+				_ssboData.data()
+			);
+		}
 
-	if (_ssboData.size() != 0) {
-		glNamedBufferSubData(
-			_ssbo,
-			0,
-			sizeof(ivec4) * _ssboData.size(),
-			_ssboData.data()
-		);
+		glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _transparentVertexData.size(), _transparentVertexData.data(), GL_STATIC_DRAW);
+		_needTransparentUpdate = false;
 	}
+	else
+	{
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+		glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _indirectBufferData.size(), _indirectBufferData.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	
+		if (_ssboData.size() != 0) {
+			glNamedBufferSubData(
+				_ssbo,
+				0,
+				sizeof(ivec4) * _ssboData.size(),
+				_ssboData.data()
+			);
+		}
 
-	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
-	_needUpdate = false;
+		glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _vertexData.size(), _vertexData.data(), GL_STATIC_DRAW);
+		_needUpdate = false;
+	}
 }
 
 void World::clearFaces() {
 	_vertexData.clear();
-	_ssboData.clear();
 	_indirectBufferData.clear();
-	// _transparentVertexData.clear();
-	// _hasSentFaces = false;
-	// _needTransparentUpdate = true;
+	_transparentVertexData.clear();
+	_transparentIndirectBufferData.clear();
+	_ssboData.clear();
 }
 
 void World::initGLBuffer()
 {
 	if (_hasBufferInitialized == true)
 		return ;
+	
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
 	glGenBuffers(1, &_instanceVBO);
 	glGenBuffers(1, &_indirectBuffer);
 	glCreateBuffers(1, &_ssbo);
-
-    GLint vertices[] = {
-        0, 0, 0,
-        1, 0, 0,
-        0, 1, 0,
-        1, 1, 0,
-    };
-
-    glBindVertexArray(_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribIPointer(0, 3, GL_INT, 3 * sizeof(GLint), (void*)0); // Positions
-    glEnableVertexAttribArray(0);
 	
-    // Instance data (instancePositions)
-	pushVerticesToOpenGL(false);
-	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
+	// Static vertex data
+	GLint vertices[] = {
+		0, 0, 0,
+		1, 0, 0,
+		0, 1, 0,
+		1, 1, 0,
+	};
+	
+	// Setup solid VAO
+	glBindVertexArray(_vao);
+	
+	// Vertex positions
+	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glVertexAttribIPointer(0, 3, GL_INT, 3 * sizeof(GLint), (void*)0);
+	glEnableVertexAttribArray(0);
+	
+	// Instance data
+	glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0);
 	glEnableVertexAttribArray(2);
-	glVertexAttribDivisor(2, 1); // Update once per instance
-
-
-	// glGenVertexArrays(1, &_transparentVao);
-	// glGenBuffers(1, &_transparentInstanceVBO);
-
-    // glBindVertexArray(_transparentVao);
-    // glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    // glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)0); // Positions
-    // glEnableVertexAttribArray(0);
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat))); // Offset
-    // glEnableVertexAttribArray(1);
-
-    // // Instance data (instancePositions)
-	// pushVerticesToOpenGL(true);
-
-	// glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0); // Instance positions
-	// glEnableVertexAttribArray(2);
-	// glVertexAttribDivisor(2, 1); // Update once per instance
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glVertexAttribDivisor(2, 1);
+	
+	glBindVertexArray(0);
+	
+	// Setup transparent VAO
+	glGenVertexArrays(1, &_transparentVao);
+	glGenBuffers(1, &_transparentInstanceVBO);
+	glGenBuffers(1, &_transparentIndirectBuffer);
+	
+	glBindVertexArray(_transparentVao);
+	
+	// Vertex positions
+	glBindBuffer(GL_ARRAY_BUFFER, _vbo); // shared buffer, no need to re-upload
+	glVertexAttribIPointer(0, 3, GL_INT, 3 * sizeof(GLint), (void*)0);
+	glEnableVertexAttribArray(0);
+	
+	// Instance data
+	glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0);
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1);
+	
 	glBindVertexArray(0);
 	_hasBufferInitialized = true;
 }

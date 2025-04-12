@@ -39,6 +39,8 @@ class Chunk
 		GLuint									_vbo;
 		GLuint									_instanceVBO;
 		std::vector<int>						_vertexData;
+		std::vector<int>						_transparentVertexData;
+		std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
 		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
 		GLuint									_indirectBuffer;
 		bool									_needUpdate;
@@ -51,6 +53,7 @@ class Chunk
 		SubChunk *getSubChunk(int y);
 		void updateResolution(int newResolution, Direction dir);
 		void sendFacesToDisplay();
+		void sendTransparentFaces();
 		bool isReady();
 		ivec2 getPosition();
 		void setWestChunk(Chunk *chunk);
@@ -64,6 +67,8 @@ class Chunk
 		void clearFaces();
 
 		std::vector<int> &getVertices();
+		std::vector<int> &getTransparentVertices();
+		std::vector<DrawArraysIndirectCommand> &getTransparentIndirectData();
 		std::vector<DrawArraysIndirectCommand> &getIndirectData();
 		std::vector<vec4> &getSSBO();
 		void freeSubChunks();

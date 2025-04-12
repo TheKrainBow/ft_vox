@@ -309,7 +309,7 @@ void SubChunk::sendFacesToDisplay()
 		}
 	}
 	processFaces(false);
-	// processFaces(true);
+	processFaces(true);
 }
 
 void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
@@ -343,27 +343,33 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 
 void SubChunk::processFaces(bool isTransparent)
 {
-	(void)isTransparent;
-	// if (isTransparent)
-	// {
-	// 	processUpVertex(_transparentFaces, &_transparentVertexData);
-	// 	processDownVertex(_transparentFaces, &_transparentVertexData);
-	// 	processNorthVertex(_transparentFaces, &_transparentVertexData);
-	// 	processSouthVertex(_transparentFaces, &_transparentVertexData);
-	// 	processEastVertex(_transparentFaces, &_transparentVertexData);
-	// 	processWestVertex(_transparentFaces, &_transparentVertexData);
-	// } else {
-	processUpVertex(_faces, &_vertexData);
-	processDownVertex(_faces, &_vertexData);
-	processNorthVertex(_faces, &_vertexData);
-	processSouthVertex(_faces, &_vertexData);
-	processEastVertex(_faces, &_vertexData);
-	processWestVertex(_faces, &_vertexData);
-	// }
+	if (isTransparent)
+	{
+		processUpVertex(_transparentFaces, &_transparentVertexData);
+		processDownVertex(_transparentFaces, &_transparentVertexData);
+		processNorthVertex(_transparentFaces, &_transparentVertexData);
+		processSouthVertex(_transparentFaces, &_transparentVertexData);
+		processEastVertex(_transparentFaces, &_transparentVertexData);
+		processWestVertex(_transparentFaces, &_transparentVertexData);
+	}
+	else
+	{
+		processUpVertex(_faces, &_vertexData);
+		processDownVertex(_faces, &_vertexData);
+		processNorthVertex(_faces, &_vertexData);
+		processSouthVertex(_faces, &_vertexData);
+		processEastVertex(_faces, &_vertexData);
+		processWestVertex(_faces, &_vertexData);
+	}
 }
 
 std::vector<int> &SubChunk::getVertices() {
 	return _vertexData;
+}
+
+std::vector<int> &SubChunk::getTransparentVertices()
+{
+	return _transparentVertexData;
 }
 
 # define IS_TRANSPARENT true

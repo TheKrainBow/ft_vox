@@ -60,10 +60,10 @@ class SubChunk
 		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);
 		void setBlock(ivec3 position, char block);
 		void sendFacesToDisplay();
-		void pushVerticesToOpenGL(bool isTransparent);
 		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		void clearFaces();
 		std::vector<int> &getVertices();
+		std::vector<int> &getTransparentVertices();
 		void updateResolution(int resolution, PerlinMap *perlinMap);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
@@ -81,7 +81,6 @@ class SubChunk
 		void processSouthVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
 		void processEastVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
 		void processWestVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
-		void initGLBuffer();
 };
 
 bool compareUpFaces(const SubChunk::Face& a, const SubChunk::Face& b);

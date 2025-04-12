@@ -33,16 +33,6 @@ Chunk::~Chunk()
 	_subChunks.clear();
 }
 
-void Chunk::clearFaces() {
-	_vertexData.clear();
-	_ssboData.clear();
-	_indirectBufferData.clear();
-	// _transparentVertexData.clear();
-	// _hasSentFaces = false;
-	_needUpdate = true;
-	// _needTransparentUpdate = true;
-}
-
 void Chunk::getNeighbors()
 {
     _north = _world.getChunk({_position.x, _position.y - 1});
@@ -96,23 +86,33 @@ void Chunk::sendFacesToDisplay()
 	if (_facesSent == true)
 		return ;
 	_sendFacesMutex.lock();
-		// clearFaces();
-		// return ;
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
-		std::vector<int> vertices = subChunk.second->getVertices();
+		std::vector<int> &vertices = subChunk.second->getVertices();
+		std::vector<int> &transparentVertices = subChunk.second->getTransparentVertices();
+		
 		_indirectBufferData.push_back(DrawArraysIndirectCommand{
 			4,
 			uint(vertices.size()),
 			0,
 			uint(_vertexData.size()),
 		});
+
+		_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{
+			4,
+			uint(transparentVertices.size()),
+			0,
+			uint(_transparentVertexData.size()),
+		});
+
 		ivec3 pos = subChunk.second->getPosition();
 		_ssboData.push_back(ivec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
+
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 	}
 	_facesSent = true;
 	_sendFacesMutex.unlock();
@@ -174,6 +174,18 @@ std::vector<vec4> &Chunk::getSSBO()
 {
 	std::lock_guard<std::mutex> lock(_sendFacesMutex);
 	return _ssboData;
+}
+
+std::vector<int> &Chunk::getTransparentVertices()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentVertexData;
+}
+
+std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentIndirectBufferData;
 }
 
 void Chunk::freeSubChunks()
