@@ -57,6 +57,7 @@ class SubChunk
 		void loadMountain(int x, int z, size_t ground);
 		ivec3 getPosition(void);
 		char getBlock(ivec3 position);
+		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);
 		void setBlock(ivec3 position, char block);
 		void sendFacesToDisplay();
 		void pushVerticesToOpenGL(bool isTransparent);

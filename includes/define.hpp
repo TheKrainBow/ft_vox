@@ -5,7 +5,7 @@
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
 # define CAPTURE_MOUSE true
-# define SHOW_LIGHTING true
+# define SHOW_LIGHTING false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
@@ -14,6 +14,7 @@
 # define RENDER_DISTANCE 200
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
+# define LOD_THRESHOLD 32
 # define ROTATION_SPEED 1.0f
 # define NOT_FOUND 0
 # define CACHE_SIZE 2500

@@ -212,9 +212,8 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 
 	int resolution = RESOLUTION;
-	_threshold = 32;
+	_threshold = LOD_THRESHOLD;
 	std::vector<std::future<void>> retLst;
-	// loadChunk(0, 0, 1, chunkPos);
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		// Load chunks
@@ -227,7 +226,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		retBot.get();
 		retLeft.get();
 
-		if (render >= _threshold)
+		if (render >= _threshold && resolution < 32)
 		{
 			resolution *= 2;
 			_threshold = _threshold * 2;
@@ -288,31 +287,6 @@ bool World::hasMoved(ivec2 oldPos)
 	if (((floor(oldPos.x) != floor(camChunk.x) || floor(oldPos.y) != floor(camChunk.y))))
 		return true;
 	return false;
-}
-
-char World::getBlock(ivec3 position)
-{
-	// std::cout << "World::getBlock" << std::endl;
-	ivec3 chunkPos(position.x / CHUNK_SIZE, position.y / CHUNK_SIZE, position.z / CHUNK_SIZE);
-	chunkPos.x -= (position.x < 0 && abs(position.x) % CHUNK_SIZE != 0);
-	chunkPos.z -= (position.z < 0 && abs(position.z) % CHUNK_SIZE != 0);
-	chunkPos.y -= (position.y < 0 && abs(position.y) % CHUNK_SIZE != 0);
-
-	Chunk *chunk = getChunk(ivec2(chunkPos.x, chunkPos.z));
-	if (!chunk)
-	{
-		// std::cout << "No chunk (" << chunkPos.x << ", " << chunkPos.z << ")" << std::endl;
-		return 0;
-	}
-	SubChunk *subChunk = chunk->getSubChunk(chunkPos.y);
-	// SubChunk *chunk = getSubChunk(chunkPos);
-	if (!subChunk)
-	{
-		// std::cout << "No subchunk (" << chunkPos.y << ")" << std::endl;
-		//std::cout << "Couldn't get Subchunk in: " << chunkPos.x << " " << chunkPos.y << " " << chunkPos.z << std::endl;
-		return 0;
-	}
-	return subChunk->getBlock(calculateBlockPos(position));
 }
 
 SubChunk *World::getSubChunk(ivec3 position)

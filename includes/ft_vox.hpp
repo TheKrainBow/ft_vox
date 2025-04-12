@@ -61,7 +61,7 @@ GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentSha
 // void mouseCallback(GLFWwindow* window, double x, double y);
 // void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
 // void reshape(GLFWwindow* window, int width, int height);
-bool faceDisplayCondition(char blockToDisplay, char neighbourBlock);
+bool faceDisplayCondition(char blockToDisplay, char neighborBlock);
 
 struct ivec2_hash {
 	std::size_t operator () (const ivec2 vec) const {

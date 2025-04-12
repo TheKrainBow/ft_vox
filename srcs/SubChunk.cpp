@@ -153,98 +153,82 @@ void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture,
 
 void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
 	if (position.z != 0)
-		block = getBlock({position.x, position.y, position.z - _resolution});
-	else {
-		Chunk *chunk = _chunk.getNorthChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(position.x, position.y, CHUNK_SIZE - _resolution));
-				else
-					block = 0;
-			} else {
-				block = 1;
-			}
-		}
+	{
+		if (isNeighborTransparent(ivec3(position.x, position.y, position.z - _resolution), NORTH, current, _resolution))
+			return addFace(position, NORTH, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, NORTH, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getNorthChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
+		return ;
+
+	addFace(position, NORTH, texture, isTransparent);
 }
 
 void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
 	if (position.z != CHUNK_SIZE - _resolution)
-		block = getBlock({position.x, position.y, position.z + _resolution});
-	else
 	{
-		Chunk *chunk = _chunk.getSouthChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk)
-			{
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(position.x, position.y, 0));
-			}
-			else
-				block = 1;
-		}
+		if (isNeighborTransparent(ivec3(position.x, position.y, position.z + _resolution), SOUTH, current, _resolution))
+			return addFace(position, SOUTH, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, SOUTH, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getSouthChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
+		return ;
+
+	addFace(position, SOUTH, texture, isTransparent);
 }
 
 void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
 	if (position.x != 0)
-		block = getBlock({position.x - _resolution, position.y, position.z});
-	else {
-		Chunk *chunk = _chunk.getWestChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(CHUNK_SIZE - _resolution, position.y, position.z));
-				else
-					block = 0;
-			} else {
-				block = 1;
-			}
-		}
+	{
+		if (isNeighborTransparent(ivec3(position.x - _resolution, position.y, position.z), WEST, current, _resolution))
+			return addFace(position, WEST, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, WEST, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getWestChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
+		return ;
+
+	addFace(position, WEST, texture, isTransparent);
 }
 
 void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
 	if (position.x != CHUNK_SIZE - _resolution)
-		block = getBlock({position.x + _resolution, position.y, position.z});
-	else {
-		Chunk *chunk = _chunk.getEastChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(0, position.y, position.z));
-				else
-					block = 0;
-			} else {
-				block = 1;
-			}
-		}
+	{
+		if (isNeighborTransparent(ivec3(position.x + _resolution, position.y, position.z), EAST, current, _resolution))
+			return addFace(position, EAST, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, EAST, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getEastChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))
+		return ;
+
+	addFace(position, EAST, texture, isTransparent);
 }
 
 void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
@@ -380,4 +364,36 @@ void SubChunk::processFaces(bool isTransparent)
 
 std::vector<int> &SubChunk::getVertices() {
 	return _vertexData;
+}
+
+# define IS_TRANSPARENT true
+# define IS_SOLID false
+
+bool SubChunk::isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution) {
+	if (viewerResolution == _resolution)
+		return (faceDisplayCondition(viewerBlock, getBlock(position)));
+	if (viewerResolution < _resolution)
+		return (IS_SOLID); // Never render the face -> face culling
+	position /= _resolution;
+	position *= _resolution;
+	(void)position;
+	(void)dir;
+	(void)viewerBlock;
+	(void)viewerResolution;
+	int res2 = _resolution * 2;
+	for (int x = 0; x < res2; x += _resolution) {
+		for (int y = 0; y < res2; y += _resolution) {
+			for (int z = 0; z < res2; z += _resolution) {
+				if (faceDisplayCondition(viewerBlock, getBlock(ivec3(position.x + x, position.y + y, position.z + z))))
+					return IS_TRANSPARENT;
+				if (dir == NORTH || dir == SOUTH)
+					break ;
+				}
+				if (dir == UP || dir == DOWN)
+					break ;
+			}
+		if (dir == EAST || dir == WEST)
+			break ;
+	}
+	return IS_SOLID;
 }
