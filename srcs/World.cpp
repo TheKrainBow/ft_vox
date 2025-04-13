@@ -365,8 +365,6 @@ void World::sendFacesToDisplay()
 		std::vector<vec4> ssboData = chunk.second->getSSBO();
 		_fillData->ssboData.insert(_fillData->ssboData.end(), ssboData.begin(), ssboData.end());
 	}
-	_needTransparentUpdate = true;
-	_needUpdate = true;
 }
 
 void World::updateSSBO()
@@ -440,7 +438,7 @@ int World::displayTransparent()
 	glBindVertexArray(_transparentVao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
 
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transparentIndirectBufferData.size(), 0);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transparentDrawData->indirectBufferData.size(), 0);
 
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
