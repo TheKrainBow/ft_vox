@@ -294,7 +294,6 @@ void StoneEngine::display()
 
 	// Render solid blocks
     activateRenderShader();
-    // _world.updateActiveChunks();
     glCullFace(GL_FRONT);
     glFrontFace(GL_CCW);
     drawnTriangles = _world.display();
@@ -346,26 +345,11 @@ void StoneEngine::loadFirstChunks()
 
 void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 {
-	chronoHelper.startChrono(0, "Load chunks");
-
-	// Run both calls in parallel using std::async
-	// auto unLoadNextChunk = std::async(std::launch::async, 
-	// 	[&]() {_world.unLoadNextChunks(oldCamChunk, newCamChunk, worldPos); });
-
-	// auto loadNextChunk = std::async(std::launch::async, 
-	// 	[&]() { _world.loadFirstChunks(worldPos); });
-
-	// Ensure both complete before stopping the chrono
-	// loadNextChunk.get();
-	// unLoadNextChunk.get();
 	if (getIsRunning())
 		_world.loadFirstChunks(newCamChunk);
-	// if (getIsRunning())
-	// 	_world.unLoadNextChunks(newCamChunk);
-	chronoHelper.stopChrono(0);
-	chronoHelper.printChronos();
+	if (getIsRunning())
+		_world.unLoadNextChunks(newCamChunk);
 }
-
 
 void StoneEngine::findMoveRotationSpeed()
 {
