@@ -1,12 +1,15 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
 	_position = pos;
 	_facesSent = false;
-	getNeighbors();
+	_needUpdate = true;
+	_hasBufferInitialized = false;
+	_hasAllNeighbors = false;
+	_resolution = resolution;
 	int heighest = perlinMap->heighest;
 	int lowest = perlinMap->lowest;
 	if (heighest < OCEAN_HEIGHT) {
@@ -16,123 +19,48 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
 	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
 	{
-		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager);
+		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager, resolution);
 	}
 	_isInit = true;
-	sendFacesToDisplay();
-
-    if (_north) {
-		_north->sendFacesToDisplay();
-	}
-
-    // _south = retSouth.get();
-    if (_south) {
-		_south->sendFacesToDisplay();
-	}
-
-    // _east = retEast.get();
-    if (_east) {
-		_east->sendFacesToDisplay();
-	}
-
-    // _west = retWest.get();
-    if (_west) {
-		_west->sendFacesToDisplay();
-	}
+	// sendFacesToDisplay();
+	// getNeighbors();
 }
 
 Chunk::~Chunk()
 {
-	_subChunksMutex.lock();
 	for (auto &subchunk : _subChunks)
 		delete subchunk.second;
-	_subChunksMutex.unlock();
 	_subChunks.clear();
 }
 
 void Chunk::getNeighbors()
 {
-	// if (_isFullyLoaded)
-	// 	return ;
-	// _chrono.startChrono(2, "Getting chunks");
-    // std::future<Chunk *> retNorth = std::async(std::launch::async, [this]() {
-    //     return _world.getChunk({_position.x + 1, _position.y});
-    // });
-
-    // std::future<Chunk *> retSouth = std::async(std::launch::async, [this]() {
-    //     return _world.getChunk({_position.x - 1, _position.y});
-    // });
-
-    // std::future<Chunk *> retEast = std::async(std::launch::async, [this]() {
-    //     return _world.getChunk({_position.x, _position.y + 1});
-    // });
-
-    // std::future<Chunk *> retWest = std::async(std::launch::async, [this]() {
-    //     return _world.getChunk({_position.x, _position.y - 1});
-    // });
-
-    // Wait for all futures and assign the results
     _north = _world.getChunk({_position.x, _position.y - 1});
     _south = _world.getChunk({_position.x, _position.y + 1});
     _east = _world.getChunk({_position.x + 1, _position.y});
     _west = _world.getChunk({_position.x - 1, _position.y});
-    if (_north) {
-		_north->setSouthChunk(this);
-	}
 
-    // _south = retSouth.get();
+	if (_north) {
+		_north->setSouthChunk(this);
+		_north->sendFacesToDisplay();
+	}
     if (_south) {
 		_south->setNorthChunk(this);
+		_south->sendFacesToDisplay();
 	}
-
-    // _east = retEast.get();
     if (_east) {
 		_east->setWestChunk(this);
+		_east->sendFacesToDisplay();
 	}
-
-    // _west = retWest.get();
     if (_west) {
 		_west->setEastChunk(this);
+		_west->sendFacesToDisplay();
 	}
-
-	// _chrono.stopChrono(2);
-	// _chrono.startChrono(3, "Sending faces");
-	// _chrono.stopChrono(3);
-	// _chrono.printChronos();
 }
-
 
 ivec2 Chunk::getPosition()
 {
 	return _position;
-}
-
-int Chunk::displayTransparent()
-{
-	if (!_facesSent)
-		return (0);
-	int triangleDrawn = 0;
-	for (auto &subchunk : _subChunks)
-	{
-		_subChunksMutex.lock();
-		triangleDrawn += subchunk.second->displayTransparent();
-		_subChunksMutex.unlock();
-	}
-	return triangleDrawn;
-}
-
-int Chunk::display()
-{
-	if (!_facesSent)
-		return (0);
-	int triangleDrawn = 0;
-	for (auto &subchunk : _subChunks)
-	{
-		_subChunksMutex.lock();
-		triangleDrawn += subchunk.second->display();
-		_subChunksMutex.unlock();
-	}
-	return triangleDrawn;
 }
 
 SubChunk *Chunk::getSubChunk(int y)
@@ -151,34 +79,77 @@ bool Chunk::isReady()
 	return _facesSent;
 }
 
+void Chunk::clearFaces()
+{
+	_vertexData.clear();
+	_indirectBufferData.clear();
+	_transparentVertexData.clear();
+	_transparentIndirectBufferData.clear();
+	_ssboData.clear();
+}
+
 void Chunk::sendFacesToDisplay()
 {
-	_subChunksMutex.lock();
+	if (_hasAllNeighbors == false)
+		return ;
+	// if (_facesSent == true)
+	// 	return ;
+	_sendFacesMutex.lock();
+	clearFaces();
 	for (auto &subChunk : _subChunks)
+	{
 		subChunk.second->sendFacesToDisplay();
-	_subChunksMutex.unlock();
+		std::vector<int> &vertices = subChunk.second->getVertices();
+		std::vector<int> &transparentVertices = subChunk.second->getTransparentVertices();
+		
+		_indirectBufferData.push_back(DrawArraysIndirectCommand{
+			4,
+			uint(vertices.size()),
+			0,
+			uint(_vertexData.size()),
+		});
+
+		_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{
+			4,
+			uint(transparentVertices.size()),
+			0,
+			uint(_transparentVertexData.size()),
+		});
+
+		ivec3 pos = subChunk.second->getPosition();
+		_ssboData.push_back(ivec4{
+			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
+		});
+
+		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+	}
 	_facesSent = true;
-	_loads++;
+	_sendFacesMutex.unlock();
 }
 
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
+	_hasAllNeighbors = _north && _south && _east && _west;
 }
 
 Chunk *Chunk::getNorthChunk() {
@@ -197,9 +168,67 @@ Chunk *Chunk::getWestChunk() {
 	return _west;
 }
 
+std::vector<int> &Chunk::getVertices()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _vertexData;
+}
 
-// Load chunks: 0,203s
-// Load chunks: 0,256s
-// Load chunks: 0,245s
-// Load chunks: 0,235s
-// Load chunks: 0,208s
+std::vector<DrawArraysIndirectCommand> &Chunk::getIndirectData()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _indirectBufferData;
+}
+
+std::vector<vec4> &Chunk::getSSBO()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _ssboData;
+}
+
+std::vector<int> &Chunk::getTransparentVertices()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentVertexData;
+}
+
+std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentIndirectBufferData;
+}
+
+void Chunk::freeSubChunks()
+{
+	_subChunksMutex.lock();
+	for (auto &subchunk : _subChunks)
+		delete subchunk.second;
+	_subChunksMutex.unlock();
+	_subChunks.clear();
+}
+
+void	Chunk::updateResolution(int newResolution, Direction dir)
+{
+	(void)dir;
+	_perlinMap->resolution = newResolution;
+	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
+	_resolution = newResolution;
+
+	for (auto &subchunk : _subChunks)
+	{
+		_subChunksMutex.lock();
+		SubChunk *subChunk = subchunk.second;
+		subChunk->updateResolution(newResolution, _perlinMap);
+		_subChunksMutex.unlock();
+	}
+	_facesSent = false;
+	sendFacesToDisplay();
+	if (_north)
+		_north->sendFacesToDisplay();
+	if (_south)
+		_south->sendFacesToDisplay();
+	if (_east)
+		_east->sendFacesToDisplay();
+	if (_west)
+		_west->sendFacesToDisplay();
+}

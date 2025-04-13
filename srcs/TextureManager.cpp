@@ -63,7 +63,9 @@ void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::s
     // Load and upload textures
     for (int i = 0; i < N_TEXTURES; i++) {
         if (!data.empty()) {
-            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, loadTexturePPM(data[i].second, width, height));
+			unsigned char *tex = loadTexturePPM(data[i].second, width, height);
+            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, tex);
+			delete [] tex;
         }
     }
 

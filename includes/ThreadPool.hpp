@@ -24,6 +24,8 @@ public:
         return res;
     }
 
+	void joinThreads();
+
 private:
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;

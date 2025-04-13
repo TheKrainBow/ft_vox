@@ -5,21 +5,24 @@
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
 # define CAPTURE_MOUSE true
-# define SHOW_LIGHTING true
+# define SHOW_LIGHTING false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 31
+# define RENDER_DISTANCE 200
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
+# define LOD_THRESHOLD 25
 # define ROTATION_SPEED 1.0f
 # define NOT_FOUND 0
 # define CACHE_SIZE 2500
 # define MOVEMENT_SPEED 0.5f
 
-# define OCEAN_HEIGHT 120
+# define RESOLUTION 1
+
+# define OCEAN_HEIGHT 127
 # define MOUNT_HEIGHT 260
 
 # define AIR 0
@@ -29,3 +32,10 @@
 # define SAND 's'
 # define WATER 'W'
 # define SNOW 'w'
+
+typedef  struct {
+    uint  count;
+    uint  instanceCount;
+    uint  first;
+    uint  baseInstance;
+} DrawArraysIndirectCommand;
