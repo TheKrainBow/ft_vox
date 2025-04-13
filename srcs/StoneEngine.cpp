@@ -352,10 +352,13 @@ void StoneEngine::loadFirstChunks()
 
 void StoneEngine::loadNextChunks(vec2 newCamChunk)
 {
+	chronoHelper.startChrono(0, "Load chunks");
 	if (getIsRunning())
 		_world.loadFirstChunks(newCamChunk);
 	if (getIsRunning())
 		_world.unLoadNextChunks(newCamChunk);
+	chronoHelper.stopChrono(0);
+	chronoHelper.printChronos();
 }
 
 void StoneEngine::findMoveRotationSpeed()

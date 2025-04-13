@@ -287,7 +287,6 @@ void World::unLoadNextChunks(vec2 newCamChunk)
 		_displayedChunks.erase(pos);
 		deleteQueue.pop();
 	}
-	updateFillData();
 }
 
 void World::updateFillData()
