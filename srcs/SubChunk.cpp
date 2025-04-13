@@ -267,7 +267,6 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	std::fill(_blocks.begin(), _blocks.end(), 0);
 	loadHeight();
 	loadBiome();
-	sendFacesToDisplay();
 }
 
 void SubChunk::sendFacesToDisplay()

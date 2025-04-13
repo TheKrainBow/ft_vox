@@ -79,13 +79,23 @@ bool Chunk::isReady()
 	return _facesSent;
 }
 
+void Chunk::clearFaces()
+{
+	_vertexData.clear();
+	_indirectBufferData.clear();
+	_transparentVertexData.clear();
+	_transparentIndirectBufferData.clear();
+	_ssboData.clear();
+}
+
 void Chunk::sendFacesToDisplay()
 {
 	if (_hasAllNeighbors == false)
 		return ;
-	if (_facesSent == true)
-		return ;
+	// if (_facesSent == true)
+	// 	return ;
 	_sendFacesMutex.lock();
+	clearFaces();
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
@@ -199,6 +209,7 @@ void Chunk::freeSubChunks()
 
 void	Chunk::updateResolution(int newResolution, Direction dir)
 {
+	(void)dir;
 	_perlinMap->resolution = newResolution;
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
@@ -210,17 +221,14 @@ void	Chunk::updateResolution(int newResolution, Direction dir)
 		subChunk->updateResolution(newResolution, _perlinMap);
 		_subChunksMutex.unlock();
 	}
-	if (dir == NORTH && _north)
+	_facesSent = false;
+	sendFacesToDisplay();
+	if (_north)
 		_north->sendFacesToDisplay();
-	else if (dir == SOUTH && _south)
+	if (_south)
 		_south->sendFacesToDisplay();
-	else if (dir == EAST && _east)
+	if (_east)
 		_east->sendFacesToDisplay();
-	else if (dir == WEST && _west)
+	if (_west)
 		_west->sendFacesToDisplay();
 }
-// Load chunks: 0,203s
-// Load chunks: 0,256s
-// Load chunks: 0,245s
-// Load chunks: 0,235s
-// Load chunks: 0,208s
