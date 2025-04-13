@@ -14,7 +14,7 @@ class World;
 class Chunk
 {
 	private:
-		glm::vec2								_position;
+		vec2								_position;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
 		std::atomic_bool								_hasAllNeighbors;
@@ -34,7 +34,7 @@ class Chunk
 		bool 				_hasBufferInitialized;
 		
 		GLuint									_ssbo;
-		std::vector<glm::vec4>						_ssboData;
+		std::vector<vec4>						_ssboData;
 		GLuint									_vao;
 		GLuint									_vbo;
 		GLuint									_instanceVBO;
@@ -46,7 +46,7 @@ class Chunk
 		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
 	public:
-		Chunk(glm::vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
+		Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
 		std::atomic_int						_resolution;
@@ -55,7 +55,7 @@ class Chunk
 		void sendFacesToDisplay();
 		void sendTransparentFaces();
 		bool isReady();
-		glm::vec2 getPosition();
+		vec2 getPosition();
 		void setWestChunk(Chunk *chunk);
 		void setNorthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);
@@ -70,6 +70,6 @@ class Chunk
 		std::vector<int> &getTransparentVertices();
 		std::vector<DrawArraysIndirectCommand> &getTransparentIndirectData();
 		std::vector<DrawArraysIndirectCommand> &getIndirectData();
-		std::vector<glm::vec4> &getSSBO();
+		std::vector<vec4> &getSSBO();
 		void freeSubChunks();
 };

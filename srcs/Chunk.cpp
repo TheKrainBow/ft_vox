@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(glm::vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
@@ -58,7 +58,7 @@ void Chunk::getNeighbors()
 	}
 }
 
-glm::vec2 Chunk::getPosition()
+vec2 Chunk::getPosition()
 {
 	return _position;
 }
@@ -116,8 +116,8 @@ void Chunk::sendFacesToDisplay()
 			uint(_transparentVertexData.size()),
 		});
 
-		glm::ivec3 pos = subChunk.second->getPosition();
-		_ssboData.push_back(glm::vec4{
+		ivec3 pos = subChunk.second->getPosition();
+		_ssboData.push_back(vec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
 
@@ -180,7 +180,7 @@ std::vector<DrawArraysIndirectCommand> &Chunk::getIndirectData()
 	return _indirectBufferData;
 }
 
-std::vector<glm::vec4> &Chunk::getSSBO()
+std::vector<vec4> &Chunk::getSSBO()
 {
 	std::lock_guard<std::mutex> lock(_sendFacesMutex);
 	return _ssboData;

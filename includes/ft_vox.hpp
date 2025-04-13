@@ -30,6 +30,7 @@
 #include <future>
 #include <type_traits>
 
+using namespace glm;
 
 enum Direction {
 	NORTH,
@@ -63,7 +64,7 @@ GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentSha
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock);
 
 struct vec2_hash {
-	std::size_t operator () (const glm::vec2 vec) const {
+	std::size_t operator () (const vec2 vec) const {
 		auto h1 = std::hash<int>{}(vec.x);
 		auto h2 = std::hash<int>{}(vec.y);
 		return h1 ^ (h2 << 1);

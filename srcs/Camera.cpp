@@ -40,7 +40,7 @@ void Camera::move(float  forward, float  strafe, float up)
 void Camera::reset()
 {
 	_positionMutex.lock();
-	position = glm::vec3(0.0, 0.0, 0.0);
+	position = vec3(0.0, 0.0, 0.0);
 	_positionMutex.unlock();
 	angle.x = 0.0;
 	angle.y = 0.0;
@@ -48,37 +48,37 @@ void Camera::reset()
 	movementspeed = 50.0f;
 }
 
-glm::vec3 Camera::getWorldPosition(void)
+vec3 Camera::getWorldPosition(void)
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
-	return (glm::vec3(-position.x, -position.y, -position.z));
+	return (vec3(-position.x, -position.y, -position.z));
 }
 
-glm::vec2 Camera::getChunkPosition(int chunkSize) {
-	glm::vec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
+vec2 Camera::getChunkPosition(int chunkSize) {
+	vec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
 	if (-position.x < 0) camChunk.x--;
 	if (-position.z < 0) camChunk.y--;
 	return camChunk;
 }
 
-glm::vec3 Camera::getPosition()
+vec3 Camera::getPosition()
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
 	return position;
 }
 
-glm::vec2 Camera::getAngles()
+vec2 Camera::getAngles()
 {
 	return angle;
 }
 
-glm::vec3 *Camera::getPositionPtr()
+vec3 *Camera::getPositionPtr()
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
 	return &position;
 }
 
-glm::vec2 *Camera::getAnglesPtr()
+vec2 *Camera::getAnglesPtr()
 {
 	return &angle;
 }

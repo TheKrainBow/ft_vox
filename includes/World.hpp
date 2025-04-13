@@ -45,7 +45,7 @@ struct Compare {
 
 struct DisplayData
 {
-	std::vector<glm::vec4>						ssboData;
+	std::vector<vec4>						ssboData;
 	std::vector<int>						vertexData;
 	std::vector<DrawArraysIndirectCommand>	indirectBufferData;
 };
@@ -54,13 +54,13 @@ class World
 {
 private:
 	// World related informations
-	std::unordered_map<glm::vec2, Chunk*, vec2_hash>	_chunks;
-	std::unordered_map<glm::vec2, Chunk*, vec2_hash>	_displayedChunks;
+	std::unordered_map<vec2, Chunk*, vec2_hash>	_chunks;
+	std::unordered_map<vec2, Chunk*, vec2_hash>	_displayedChunks;
 	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
 
-	std::unordered_map<glm::vec2, Chunk*, vec2_hash> _activeChunks;
+	std::unordered_map<vec2, Chunk*, vec2_hash> _activeChunks;
 	
 	bool										_skipLoad;
 	ThreadPool 									&_threadPool;
@@ -87,7 +87,6 @@ private:
 	DisplayData								*_transparentStagingData;
 
 	std::mutex								_drawDataMutex;
-	std::atomic_bool _newDataReady = false;
 
 	size_t									_drawnSSBOSize;
 	GLuint									_instanceVBO;
@@ -113,16 +112,16 @@ public:
 	std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
-	void loadFirstChunks(glm::vec2 camPosition);
+	void loadFirstChunks(vec2 camPosition);
 	void init(GLuint shaderProgram, int renderDistance);
 	
-	void unLoadNextChunks(glm::vec2 newCamChunk);
-	void loadChunk(int x, int z, int render, glm::vec2 chunkPos, int resolution, Direction dir);
-	void loadPerlinMap(glm::vec3 camPosition);
+	void unLoadNextChunks(vec2 newCamChunk);
+	void loadChunk(int x, int z, int render, vec2 chunkPos, int resolution, Direction dir);
+	void loadPerlinMap(vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	int	getCachedChunksNumber();
-	Chunk* getChunk(glm::vec2 position);
-	SubChunk* getSubChunk(glm::ivec3 position);
+	Chunk* getChunk(vec2 position);
+	SubChunk* getSubChunk(ivec3 position);
 	void updateActiveChunks();
 	int display();
 	int displayTransparent();
@@ -130,25 +129,22 @@ public:
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
-private:
-	glm::ivec3 calculateBlockPos(glm::ivec3 position) const;
-	bool getIsRunning();
-	void loadTopChunks(int render, glm::vec2 camPosition, int resolution = 1);
-	void loadRightChunks(int render, glm::vec2 camPosition, int resolution = 1);
-	void loadBotChunks(int render, glm::vec2 camPosition, int resolution = 1);
-	void loadLeftChunks(int render, glm::vec2 camPosition, int resolution = 1);
-	void unloadChunk();
-	void generateSpiralOrder();
-	bool hasMoved(glm::vec2 oldPos);
-	void loadOrder();
-	void removeOrder();
-	void updateChunk(int x, int z, int render, glm::vec2 chunkPos);
-
 	void initGLBuffer();
+	void updateDrawData();
+private:
+	ivec3 calculateBlockPos(ivec3 position) const;
+	bool getIsRunning();
+	void loadTopChunks(int render, vec2 camPosition, int resolution = 1);
+	void loadRightChunks(int render, vec2 camPosition, int resolution = 1);
+	void loadBotChunks(int render, vec2 camPosition, int resolution = 1);
+	void loadLeftChunks(int render, vec2 camPosition, int resolution = 1);
+	void unloadChunk();
+	bool hasMoved(vec2 oldPos);
+
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
 	void clearTransparentFaces();
 	void sendFacesToDisplay();
-	void updateSsbo();
+	void updateSSBO();
 	void updateFillData();
 };
