@@ -352,6 +352,7 @@ void World::updateActiveChunks()
 void World::sendFacesToDisplay()
 {
 	clearFaces();
+	
 	for (auto &chunk : _activeChunks)
 	{
 		// Solid blocks vertex data
