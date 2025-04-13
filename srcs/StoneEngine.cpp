@@ -23,7 +23,6 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureMana
 	updateFboWindowSize();
 	reshape(_window, windowWidth, windowHeight);
 	_world.init(shaderProgram, RENDER_DISTANCE);
-	_world.initGLBuffer();
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 
@@ -354,9 +353,9 @@ void StoneEngine::loadNextChunks(vec2 newCamChunk)
 {
 	chronoHelper.startChrono(0, "Load chunks");
 	if (getIsRunning())
-		_world.loadFirstChunks(newCamChunk);
-	if (getIsRunning())
 		_world.unLoadNextChunks(newCamChunk);
+	if (getIsRunning())
+		_world.loadFirstChunks(newCamChunk);
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
@@ -429,25 +428,21 @@ void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
 	vec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
-	vec3 oldCamPos = camera.getPosition();
 
 	while (getIsRunning())
 	{
-		vec3 newCamPos = camera.getPosition();
-		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
+		vec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
+		if (oldCamChunk.x != camChunk.x || oldCamChunk.y != camChunk.y || firstIteration)
 		{
-			// Check new chunk position for necessary updates to chunks
-			vec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
 			if (firstIteration)
 			{
 				loadFirstChunks();
 				firstIteration = false;
 			}
-			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y)))
+			else
 			{
 				loadNextChunks(camChunk);
 			}
-			oldCamPos = newCamPos;
 			oldCamChunk = camChunk;
 		}
 	}

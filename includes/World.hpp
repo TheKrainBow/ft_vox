@@ -78,6 +78,8 @@ private:
 	bool 									_hasBufferInitialized;
 	GLuint									_ssbo;
 
+	// Display
+	std::mutex								_drawDataMutex;
 	DisplayData								*_drawData;
 	DisplayData								*_fillData;
 	DisplayData								*_stagingData;
@@ -86,21 +88,15 @@ private:
 	DisplayData								*_transparentFillData;
 	DisplayData								*_transparentStagingData;
 
-	std::mutex								_drawDataMutex;
-
 	size_t									_drawnSSBOSize;
 	GLuint									_instanceVBO;
 	GLuint									_indirectBuffer;
 	GLuint									_vao;
 	GLuint									_vbo;
-	std::vector<int>						_vertexData;
-	std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
 
 	bool 									_hasTransparentBufferInitialized;
 	GLuint									_transparentVao;
 	GLuint									_transparentInstanceVBO;
-	std::vector<int>						_transparentVertexData;
-	std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
 	GLuint									_transparentIndirectBuffer;
 
 	bool									_needUpdate;
@@ -129,7 +125,6 @@ public:
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
-	void initGLBuffer();
 	void updateDrawData();
 private:
 	ivec3 calculateBlockPos(ivec3 position) const;
@@ -147,4 +142,5 @@ private:
 	void sendFacesToDisplay();
 	void updateSSBO();
 	void updateFillData();
+	void initGLBuffer();
 };

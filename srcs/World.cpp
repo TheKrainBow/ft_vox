@@ -164,8 +164,9 @@ void World::loadChunk(int x, int z, int render, vec2 chunkPos, int resolution, D
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
-		if (chunk->_resolution != resolution)
-			chunk->updateResolution(resolution, dir);
+		// if (chunk->_resolution != resolution)
+		// 	chunk->updateResolution(resolution, dir);
+		(void)dir;
 	}
 	else
 	{
@@ -230,7 +231,6 @@ void World::loadFirstChunks(vec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	std::vector<std::future<void>> retLst;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
@@ -249,7 +249,7 @@ void World::loadFirstChunks(vec2 chunkPos)
 		retRight.get();
 		retLeft.get();
 
-		if (render >= _threshold && resolution < 32)
+		if (render >= _threshold && resolution < CHUNK_SIZE)
 		{
 			resolution *= 2;
 			_threshold = _threshold * 2;
@@ -258,6 +258,7 @@ void World::loadFirstChunks(vec2 chunkPos)
 		if (hasMoved(chunkPos))
 			break;
     }
+	// updateFillData();
 
 	// for (std::future<void> &ret : retLst)
 	// {
@@ -270,6 +271,7 @@ void World::unLoadNextChunks(vec2 newCamChunk)
 {
 	vec2 pos;
 	std::queue<vec2> deleteQueue;
+	_displayedChunksMutex.lock();
 	for (auto &it : _displayedChunks)
 	{
 		Chunk *chunk = it.second;
@@ -280,11 +282,14 @@ void World::unLoadNextChunks(vec2 newCamChunk)
 			deleteQueue.emplace(chunkPos);
 		}
 	}
+	_displayedChunksMutex.unlock();
 	// std::cout << deleteQueue.size() << std::endl;
 	while (!deleteQueue.empty())
 	{
 		pos = deleteQueue.front();
+		_displayedChunksMutex.lock();
 		_displayedChunks.erase(pos);
+		_displayedChunksMutex.unlock();
 		deleteQueue.pop();
 	}
 }
@@ -334,6 +339,7 @@ Chunk *World::getChunk(vec2 position)
 void World::sendFacesToDisplay()
 {
 	clearFaces();
+	_displayedChunksMutex.lock();
 	for (auto &chunk : _displayedChunks)
 	{
 		// Fill solid vertices
@@ -364,6 +370,7 @@ void World::sendFacesToDisplay()
 		std::vector<vec4> ssboData = chunk.second->getSSBO();
 		_fillData->ssboData.insert(_fillData->ssboData.end(), ssboData.begin(), ssboData.end());
 	}
+	_displayedChunksMutex.unlock();
 }
 
 void World::updateSSBO()
@@ -411,7 +418,7 @@ int World::display()
 		pushVerticesToOpenGL(false);
 		_needUpdate = false;
 	}
-	long long size = _vertexData.size();
+	long long size = _fillData->vertexData.size();
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
@@ -431,7 +438,7 @@ int World::displayTransparent()
 		_needTransparentUpdate = false;
 	}
 	glDisable(GL_CULL_FACE);
-	long long size = _transparentVertexData.size();
+	long long size = _transparentFillData->vertexData.size();
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_transparentVao);

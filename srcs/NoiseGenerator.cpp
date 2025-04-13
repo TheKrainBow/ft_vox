@@ -243,7 +243,6 @@ PerlinMap *NoiseGenerator::addPerlinMap(vec2 &pos, int size, int resolution)
 	return (newMap);
 }
 
-
 void NoiseGenerator::removePerlinMap(int x, int z)
 {
 	std::lock_guard<std::mutex> lock(_perlinMutex);

@@ -17,7 +17,7 @@
 # define LOD_THRESHOLD 32
 # define ROTATION_SPEED 1.0f
 # define NOT_FOUND 0
-# define CACHE_SIZE 2500
+# define CACHE_SIZE 50000
 # define MOVEMENT_SPEED 0.5f
 
 # define RESOLUTION 1
