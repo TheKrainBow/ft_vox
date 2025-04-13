@@ -5,9 +5,9 @@ bool isTransparent(char block)
 	return block == AIR || block == WATER;
 }
 
-bool faceDisplayCondition(char blockToDisplay, char neighbourBlock)
+bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 {
-	return isTransparent(neighbourBlock) && blockToDisplay != neighbourBlock;
+	return isTransparent(neighborBlock) && blockToDisplay != neighborBlock;
 }
 
 StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
@@ -144,17 +144,17 @@ void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
-	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 100000000000.0f);
-	vec3 lightColor(1.0f, 1.0f, 1.0f);
-	vec3 sunColor(1.0f, 0.7f, 1.0f);
-	vec3 viewPos = camera.getWorldPosition();
+	projectionMatrix = glm::perspective(glm::radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 100000000000.0f);
+	glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+	glm::vec3 sunColor(1.0f, 0.7f, 1.0f);
+	glm::vec3 viewPos = camera.getWorldPosition();
 	sunPosition = {0.0f, 0.0f, 0.0f};
 
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(lightColor));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(viewPos));
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 	glEnable(GL_DEPTH_TEST);
@@ -182,8 +182,8 @@ void StoneEngine::initFboShaders()
 
 void StoneEngine::initDebugTextBox()
 {
-	vec3 *camPos = camera.getPositionPtr();
-	vec2 *camAngle = camera.getAnglesPtr();
+	glm::vec3 *camPos = camera.getPositionPtr();
+	glm::vec2 *camAngle = camera.getAnglesPtr();
 	e_direction *facing_direction = camera.getDirectionPtr();
 
 	debugBox.initData(_window, 0, 0, 200, 200);
@@ -225,20 +225,15 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::activateRenderShader()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glMatrixMode(GL_MODELVIEW);
-
-	mat4 modelMatrix = mat4(1.0f);
+	glm::mat4 modelMatrix = glm::mat4(1.0f);
 	float radY, radX;
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	mat4 viewMatrix = mat4(1.0f);
-	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, glm::vec3(camera.getPosition()));
 
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -248,13 +243,8 @@ void StoneEngine::activateRenderShader()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
-	
-	if (showTriangleMesh)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	else
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	// glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);      // Cull back faces
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
@@ -286,51 +276,67 @@ void StoneEngine::triangleMeshToggle()
 
 void StoneEngine::display()
 {
-    // Init and clear buffers
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	// Skip FBO, draw to screen (wireframe dependant)
+    if (showTriangleMesh)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); 
+    else
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	// Clear depth and color buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glMatrixMode(GL_MODELVIEW);
 
-	// Render solid blocks
+    // Render world ("better.vert/frag" shaders active)
     activateRenderShader();
-    glCullFace(GL_FRONT);
-    glFrontFace(GL_CCW);
-    drawnTriangles = _world.display();
-    glDisable(GL_CULL_FACE);
 
+	// Wireframe mode
     triangleMeshToggle();
 
-    // Fix holes in terrain with post process fbo.frag shader
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-    activateFboShader();
+	// Update and build vertices
+    _world.updateActiveChunks();
 
-    // Copy dbo from screen
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-                      0, 0, windowWidth, windowHeight,
-                      GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	// One draw call solid blocks
+    drawnTriangles = _world.display();
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_CULL_FACE);
 
-    // Transparent blocks draw
+    // Skip post-process only if not in wireframe
+    if (!showTriangleMesh)
+	{
+		// Post processing for T-junction holes ("fbo.vert/frag" shaders active )
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        activateFboShader();
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+                        0, 0, windowWidth, windowHeight,
+                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+		// Deactivate post processing for water
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    // Transparency settings & UI
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
-
+	
+    // Render transparent world ("better.vert/frag" shaders active)
     activateRenderShader();
-    // drawnTriangles += _world.displayTransparent();
 
-    // Debug UI
+	// One draw call transparent blocks
+    // drawnTriangles += _world.displayTransparent();
+	glDisable(GL_CULL_FACE);
+
+	// Deactivating lines for debug console
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     if (showDebugInfo)
         debugBox.render();
-
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
-
-    // Swap buffers
     calculateFps();
     glfwSwapBuffers(_window);
 }
@@ -343,7 +349,7 @@ void StoneEngine::loadFirstChunks()
 	chronoHelper.printChronos();
 }
 
-void StoneEngine::loadNextChunks(ivec2 newCamChunk)
+void StoneEngine::loadNextChunks(glm::vec2 newCamChunk)
 {
 	if (getIsRunning())
 		_world.loadFirstChunks(newCamChunk);
@@ -383,14 +389,14 @@ void StoneEngine::findMoveRotationSpeed()
 void StoneEngine::updateMovement()
 {
 	// Camera movement
-	vec3 oldPos = camera.getWorldPosition(); // Old pos
+	glm::vec3 oldPos = camera.getWorldPosition(); // Old pos
 	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
-	vec3 viewPos = camera.getWorldPosition(); // New position
+	glm::vec3 viewPos = camera.getWorldPosition(); // New position
 
 	if (viewPos != oldPos)
 	{
@@ -418,16 +424,16 @@ void StoneEngine::updateMovement()
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
-	ivec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
-	vec3 oldCamPos = camera.getPosition();
+	glm::vec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
+	glm::vec3 oldCamPos = camera.getPosition();
 
 	while (getIsRunning())
 	{
-		vec3 newCamPos = camera.getPosition();
+		glm::vec3 newCamPos = camera.getPosition();
 		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
 		{
 			// Check new chunk position for necessary updates to chunks
-			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
+			glm::vec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
 			if (firstIteration)
 			{
 				loadFirstChunks();
@@ -521,9 +527,9 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	projectionMatrix = perspective(radians(80.0f), float(width) / float(height), 0.1f, 100000000000.0f);
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glLoadMatrixf(value_ptr(projectionMatrix));
+	projectionMatrix = glm::perspective(glm::radians(80.0f), float(width) / float(height), 0.1f, 100000000000.0f);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glLoadMatrixf(glm::value_ptr(projectionMatrix));
 }
 
 void StoneEngine::reshape(GLFWwindow* window, int width, int height)

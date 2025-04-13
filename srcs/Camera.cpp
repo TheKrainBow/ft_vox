@@ -1,6 +1,6 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{-908, -261, -1589}, angle(0, -90) {
+Camera::Camera() : position{-820, -131, -1379}, angle(0, 12) {
 	int test = int(angle.x) / 45;
 	_facing = e_direction(test);
 };
@@ -40,7 +40,7 @@ void Camera::move(float  forward, float  strafe, float up)
 void Camera::reset()
 {
 	_positionMutex.lock();
-	position = vec3(0.0, 0.0, 0.0);
+	position = glm::vec3(0.0, 0.0, 0.0);
 	_positionMutex.unlock();
 	angle.x = 0.0;
 	angle.y = 0.0;
@@ -48,37 +48,37 @@ void Camera::reset()
 	movementspeed = 50.0f;
 }
 
-vec3 Camera::getWorldPosition(void)
+glm::vec3 Camera::getWorldPosition(void)
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
-	return (vec3(-position.x, -position.y, -position.z));
+	return (glm::vec3(-position.x, -position.y, -position.z));
 }
 
-ivec2 Camera::getChunkPosition(int chunkSize) {
-	ivec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
+glm::vec2 Camera::getChunkPosition(int chunkSize) {
+	glm::vec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
 	if (-position.x < 0) camChunk.x--;
 	if (-position.z < 0) camChunk.y--;
 	return camChunk;
 }
 
-vec3 Camera::getPosition()
+glm::vec3 Camera::getPosition()
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
 	return position;
 }
 
-vec2 Camera::getAngles()
+glm::vec2 Camera::getAngles()
 {
 	return angle;
 }
 
-vec3 *Camera::getPositionPtr()
+glm::vec3 *Camera::getPositionPtr()
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
 	return &position;
 }
 
-vec2 *Camera::getAnglesPtr()
+glm::vec2 *Camera::getAnglesPtr()
 {
 	return &angle;
 }
@@ -88,7 +88,7 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 	//std::lock_guard<std::mutex> lock(angleMutex);
 	angle.x += xAngle * rotationSpeed;
 	angle.y += yAngle * rotationSpeed;
-	angle.y = clamp(angle.y, -90.0f, 90.0f);
+	angle.y = std::clamp(angle.y, -90.0f, 90.0f);
 	if (angle.x < 0)
 		angle.x = 360;
 	else if (angle.x > 360)

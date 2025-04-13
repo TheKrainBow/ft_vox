@@ -1,6 +1,6 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution) : _world(world), _chunk(chunk), _textManager(textManager)
+SubChunk::SubChunk(glm::ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution) : _world(world), _chunk(chunk), _textManager(textManager)
 {
 	_position = position;
 	_resolution = resolution;
@@ -27,11 +27,11 @@ void SubChunk::loadHeight()
 	}
 }
 
-vec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
+glm::vec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
 {
 	double noiseX = noise_gen.noise(x, z);
 	double noiseY = noise_gen.noise(z, x);
-	vec2 offset;
+	glm::vec2 offset;
 	offset.x = noiseX * 15.0;
 	offset.y = noiseY * 15.0;
 	return offset;
@@ -41,27 +41,27 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 {
 	int y;
 	for (y = OCEAN_HEIGHT; y > (int)ground; y--)
-		setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
-	setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
+		setBlock(glm::ivec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
+	setBlock(glm::ivec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
 	int i;
 	for (i = 0; i > -4 * _resolution; i--)
-		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
+		setBlock(glm::ivec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
 	for (; i > -8 * _resolution; i--)
-		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
+		setBlock(glm::ivec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
-	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
+	setBlock(glm::ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
 	for (int i = -1; i > -5 * _resolution; i--)
-		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
+		setBlock(glm::ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
-	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
+	setBlock(glm::ivec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
 	for (int i = -1; i > -4 * _resolution; i --)
-		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
+		setBlock(glm::ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
 }
 
 void SubChunk::loadBiome()
@@ -96,7 +96,7 @@ SubChunk::~SubChunk()
 	_loaded = false;
 }
 
-void SubChunk::setBlock(ivec3 position, char block)
+void SubChunk::setBlock(glm::ivec3 position, char block)
 {
 	int x = position.x;
 	int y = position.y;
@@ -107,7 +107,7 @@ void SubChunk::setBlock(ivec3 position, char block)
 	_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = block;
 }
 
-char SubChunk::getBlock(ivec3 position)
+char SubChunk::getBlock(glm::ivec3 position)
 {
 	int x = position.x;
 	int y = position.y;
@@ -118,7 +118,7 @@ char SubChunk::getBlock(ivec3 position)
 	return _blocks[x + (z * CHUNK_SIZE) + y * CHUNK_SIZE * CHUNK_SIZE];
 }
 
-void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addDownFace(BlockType current, glm::ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.y > 0)
@@ -136,7 +136,7 @@ void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType textur
 		addFace(position, DOWN, texture, isTransparent);
 }
 
-void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addUpFace(BlockType current, glm::ivec3 position, TextureType texture, bool isTransparent)
 {
 	char block = 0;
 	if (position.y != CHUNK_SIZE - _resolution)
@@ -151,103 +151,87 @@ void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture,
 		addFace(position, UP, texture, isTransparent);
 }
 
-void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addNorthFace(BlockType current, glm::ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
 	if (position.z != 0)
-		block = getBlock({position.x, position.y, position.z - _resolution});
-	else {
-		Chunk *chunk = _chunk.getNorthChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(position.x, position.y, CHUNK_SIZE - _resolution));
-				else
-					block = 0;
-			} else {
-				block = 1;
-			}
-		}
-	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, NORTH, texture, isTransparent);
-}
-
-void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
-{
-	char block = 0;
-	if (position.z != CHUNK_SIZE - _resolution)
-		block = getBlock({position.x, position.y, position.z + _resolution});
-	else
 	{
-		Chunk *chunk = _chunk.getSouthChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk)
-			{
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(position.x, position.y, 0));
-			}
-			else
-				block = 1;
-		}
+		if (isNeighborTransparent(glm::ivec3(position.x, position.y, position.z - _resolution), NORTH, current, _resolution))
+			return addFace(position, NORTH, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, SOUTH, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getNorthChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(glm::ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
+		return ;
+
+	addFace(position, NORTH, texture, isTransparent);
 }
 
-void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addSouthFace(BlockType current, glm::ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
+	if (position.z != CHUNK_SIZE - _resolution)
+	{
+		if (isNeighborTransparent(glm::ivec3(position.x, position.y, position.z + _resolution), SOUTH, current, _resolution))
+			return addFace(position, SOUTH, texture, isTransparent);
+		return ;
+	}
+	
+	Chunk *chunk = _chunk.getSouthChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(glm::ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
+		return ;
+
+	addFace(position, SOUTH, texture, isTransparent);
+}
+
+void SubChunk::addWestFace(BlockType current, glm::ivec3 position, TextureType texture, bool isTransparent)
+{
 	if (position.x != 0)
-		block = getBlock({position.x - _resolution, position.y, position.z});
-	else {
-		Chunk *chunk = _chunk.getWestChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(CHUNK_SIZE - _resolution, position.y, position.z));
-				else
-					block = 0;
-			} else {
-				block = 1;
-			}
-		}
+	{
+		if (isNeighborTransparent(glm::ivec3(position.x - _resolution, position.y, position.z), WEST, current, _resolution))
+			return addFace(position, WEST, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, WEST, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getWestChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(glm::ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
+		return ;
+
+	addFace(position, WEST, texture, isTransparent);
 }
 
-void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
+void SubChunk::addEastFace(BlockType current, glm::ivec3 position, TextureType texture, bool isTransparent)
 {
-	char block = 0;
 	if (position.x != CHUNK_SIZE - _resolution)
-		block = getBlock({position.x + _resolution, position.y, position.z});
-	else {
-		Chunk *chunk = _chunk.getEastChunk();
-		if (chunk)
-		{
-			SubChunk *subChunk = chunk->getSubChunk(_position.y);
-			if (subChunk) {
-				if (subChunk->_resolution == _resolution)
-					block = subChunk->getBlock(ivec3(0, position.y, position.z));
-				else
-					block = 0;
-			} else {
-				block = 1;
-			}
-		}
+	{
+		if (isNeighborTransparent(glm::ivec3(position.x + _resolution, position.y, position.z), EAST, current, _resolution))
+			return addFace(position, EAST, texture, isTransparent);
+		return ;
 	}
-	if (faceDisplayCondition(current, block))
-		addFace(position, EAST, texture, isTransparent);
+	
+	Chunk *chunk = _chunk.getEastChunk();
+	if (!chunk)
+		return ;
+
+	SubChunk *subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(glm::ivec3(0, position.y, position.z), EAST, current, _resolution))
+		return ;
+
+	addFace(position, EAST, texture, isTransparent);
 }
 
-void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
+void SubChunk::addBlock(BlockType block, glm::ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
 {
 	addUpFace(block, position, up, isTransparent);
 	addDownFace(block, position, down, isTransparent);
@@ -257,7 +241,7 @@ void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, Textu
 	addEastFace(block, position, east, isTransparent);
 }
 
-ivec3 SubChunk::getPosition()
+glm::ivec3 SubChunk::getPosition()
 {
 	return _position;
 }
@@ -283,7 +267,6 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	std::fill(_blocks.begin(), _blocks.end(), 0);
 	loadHeight();
 	loadBiome();
-	sendFacesToDisplay();
 }
 
 void SubChunk::sendFacesToDisplay()
@@ -301,22 +284,22 @@ void SubChunk::sendFacesToDisplay()
 					case 0:
 						break;
 					case DIRT:
-						addBlock(DIRT, ivec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
+						addBlock(DIRT, glm::ivec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
 						break;
 					case STONE:
-						addBlock(STONE, ivec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
+						addBlock(STONE, glm::ivec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);
 						break;
 					case GRASS:
-						addBlock(GRASS, ivec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
+						addBlock(GRASS, glm::ivec3(x, y, z), T_DIRT, T_GRASS_TOP, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE, T_GRASS_SIDE);
 						break;
 					case SAND:
-						addBlock(SAND, ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
+						addBlock(SAND, glm::ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
 						break;
 					case WATER:
-						addBlock(WATER, ivec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
+						addBlock(WATER, glm::ivec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
 						break;
 					case SNOW:
-						addBlock(SNOW, ivec3(x, y, z), T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW);
+						addBlock(SNOW, glm::ivec3(x, y, z), T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW, T_SNOW);
 						break;
 					default :
 						break;
@@ -325,7 +308,7 @@ void SubChunk::sendFacesToDisplay()
 		}
 	}
 	processFaces(false);
-	// processFaces(true);
+	processFaces(true);
 }
 
 void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
@@ -359,25 +342,63 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 
 void SubChunk::processFaces(bool isTransparent)
 {
-	(void)isTransparent;
-	// if (isTransparent)
-	// {
-	// 	processUpVertex(_transparentFaces, &_transparentVertexData);
-	// 	processDownVertex(_transparentFaces, &_transparentVertexData);
-	// 	processNorthVertex(_transparentFaces, &_transparentVertexData);
-	// 	processSouthVertex(_transparentFaces, &_transparentVertexData);
-	// 	processEastVertex(_transparentFaces, &_transparentVertexData);
-	// 	processWestVertex(_transparentFaces, &_transparentVertexData);
-	// } else {
-	processUpVertex(_faces, &_vertexData);
-	processDownVertex(_faces, &_vertexData);
-	processNorthVertex(_faces, &_vertexData);
-	processSouthVertex(_faces, &_vertexData);
-	processEastVertex(_faces, &_vertexData);
-	processWestVertex(_faces, &_vertexData);
-	// }
+	if (isTransparent)
+	{
+		processUpVertex(_transparentFaces, &_transparentVertexData);
+		processDownVertex(_transparentFaces, &_transparentVertexData);
+		processNorthVertex(_transparentFaces, &_transparentVertexData);
+		processSouthVertex(_transparentFaces, &_transparentVertexData);
+		processEastVertex(_transparentFaces, &_transparentVertexData);
+		processWestVertex(_transparentFaces, &_transparentVertexData);
+	}
+	else
+	{
+		processUpVertex(_faces, &_vertexData);
+		processDownVertex(_faces, &_vertexData);
+		processNorthVertex(_faces, &_vertexData);
+		processSouthVertex(_faces, &_vertexData);
+		processEastVertex(_faces, &_vertexData);
+		processWestVertex(_faces, &_vertexData);
+	}
 }
 
 std::vector<int> &SubChunk::getVertices() {
 	return _vertexData;
+}
+
+std::vector<int> &SubChunk::getTransparentVertices()
+{
+	return _transparentVertexData;
+}
+
+# define IS_TRANSPARENT true
+# define IS_SOLID false
+
+bool SubChunk::isNeighborTransparent(glm::ivec3 position, Direction dir, char viewerBlock, int viewerResolution) {
+	if (viewerResolution == _resolution)
+		return (faceDisplayCondition(viewerBlock, getBlock(position)));
+	if (viewerResolution < _resolution)
+		return (IS_SOLID); // Never render the face -> face culling
+	position /= _resolution;
+	position *= _resolution;
+	(void)position;
+	(void)dir;
+	(void)viewerBlock;
+	(void)viewerResolution;
+	int res2 = _resolution * 2;
+	for (int x = 0; x < res2; x += _resolution) {
+		for (int y = 0; y < res2; y += _resolution) {
+			for (int z = 0; z < res2; z += _resolution) {
+				if (faceDisplayCondition(viewerBlock, getBlock(glm::ivec3(position.x + x, position.y + y, position.z + z))))
+					return IS_TRANSPARENT;
+				if (dir == NORTH || dir == SOUTH)
+					break ;
+				}
+				if (dir == UP || dir == DOWN)
+					break ;
+			}
+		if (dir == EAST || dir == WEST)
+			break ;
+	}
+	return IS_SOLID;
 }

@@ -19,8 +19,8 @@ class StoneEngine {
 		int windowHeight;
 		int windowWidth;
 		Camera camera;
-		mat4 projectionMatrix;
-		mat4 viewMatrix;
+		glm::mat4 projectionMatrix;
+		glm::mat4 viewMatrix;
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 
@@ -70,7 +70,7 @@ class StoneEngine {
 		std::chrono::milliseconds delta;
 
 		// Game data
-		vec3 sunPosition;
+		glm::vec3 sunPosition;
 		std::atomic_int timeValue;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
@@ -103,7 +103,7 @@ class StoneEngine {
 		void calculateFps();
 		void display();
 		void loadFirstChunks();
-		void loadNextChunks(ivec2 newCamChunk);
+		void loadNextChunks(glm::vec2 newCamChunk);
 		void activateRenderShader();
 		void activateFboShader();
 		void triangleMeshToggle();

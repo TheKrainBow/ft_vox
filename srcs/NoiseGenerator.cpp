@@ -57,7 +57,7 @@ void NoiseGenerator::setNoiseData(const NoiseData &data)
 	_data = data;
 }
 
-double NoiseGenerator::getContinentalNoise(vec2 pos)
+double NoiseGenerator::getContinentalNoise(glm::vec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
@@ -74,7 +74,7 @@ double NoiseGenerator::getContinentalNoise(vec2 pos)
 	return _noise;
 }
 
-double NoiseGenerator::getErosionNoise(vec2 pos)
+double NoiseGenerator::getErosionNoise(glm::vec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
@@ -91,7 +91,7 @@ double NoiseGenerator::getErosionNoise(vec2 pos)
 	return _noise;
 }
 
-double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
+double NoiseGenerator::getPeaksValleysNoise(glm::vec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
@@ -108,7 +108,7 @@ double NoiseGenerator::getPeaksValleysNoise(vec2 pos)
 	return _noise;
 }
 
-double NoiseGenerator::getOceanNoise(vec2 pos)
+double NoiseGenerator::getOceanNoise(glm::vec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
@@ -125,7 +125,7 @@ double NoiseGenerator::getOceanNoise(vec2 pos)
 	return _noise;
 }
 
-vec2 NoiseGenerator::getBorderWarping(double x, double z)
+glm::vec2 NoiseGenerator::getBorderWarping(double x, double z)
 {
 	NoiseData nData = {
 		1.0,  // amplitude
@@ -139,7 +139,7 @@ vec2 NoiseGenerator::getBorderWarping(double x, double z)
 	double noiseX = noise(x, z);
 	double noiseY = noise(z, x);
 	setNoiseData(NoiseData());
-	vec2 offset;
+	glm::vec2 offset;
 	offset.x = x + (noiseX * CHUNK_SIZE);
 	offset.y = z + (noiseY * CHUNK_SIZE);
 	return offset;
@@ -152,7 +152,7 @@ double smoothBlend(double a, double b, double blendFactor)
 	return a * (1.0 - blendFactor) + b * blendFactor;
 }
 
-double NoiseGenerator::getHeight(vec2 pos)
+double NoiseGenerator::getHeight(glm::vec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
 	double continentalNoise = getContinentalNoise(pos);
@@ -219,7 +219,7 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int resolution)
 	_perlinMaps[map->position] = map;
 }
 
-PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
+PerlinMap *NoiseGenerator::addPerlinMap(glm::vec2 &pos, int size, int resolution)
 {
 	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
@@ -266,7 +266,7 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 	}
 }
 
-PerlinMap *NoiseGenerator::getPerlinMap(ivec2 &pos, int resolution)
+PerlinMap *NoiseGenerator::getPerlinMap(glm::vec2 &pos, int resolution)
 {
 	std::lock_guard<std::mutex> lock(_perlinMutex);
 	auto it = _perlinMaps.find(pos);

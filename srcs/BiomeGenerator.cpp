@@ -6,7 +6,7 @@
 /*   By: tmoragli <tmoragli@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/01/07 23:55:27 by tmoragli          #+#    #+#             */
-/*   Updated: 2025/04/02 12:05:52 by tmoragli         ###   ########.fr       */
+/*   Updated: 2025/04/13 23:08:00 by tmoragli         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,10 +21,10 @@ BiomeGenerator::~BiomeGenerator()
 {
 }
 
-void BiomeGenerator::findBiomeCenters(vec2 playerPos)
+void BiomeGenerator::findBiomeCenters(glm::vec2 playerPos)
 {
 	_biomes.clear();
-	vec2 pos {0.0f, 0.0f};
+	glm::vec2 pos {0.0f, 0.0f};
 
 	pos.x = floor(playerPos.x / BIOME_SIZE) * BIOME_SIZE;
 	pos.y = floor(playerPos.y / BIOME_SIZE) * BIOME_SIZE;
@@ -35,12 +35,12 @@ void BiomeGenerator::findBiomeCenters(vec2 playerPos)
 		pos.y = BIOME_SIZE;
 
 	// Generate raw centers
-	for (const vec2 &direction : directions)
+	for (const glm::vec2 &direction : directions)
 	{
-		vec2 newBiomePoint_1 = vec2(pos.x + direction.x * BIOME_SIZE, pos.y + direction.y * BIOME_SIZE);
-		vec2 newBiomePoint_2 = vec2(pos.x + direction.x * BIOME_SIZE, pos.y + direction.y * BIOME_SIZE * 2);
-		vec2 newBiomePoint_3 = vec2(pos.x - direction.x * 2 * BIOME_SIZE, pos.y - direction.y * BIOME_SIZE);
-		vec2 newBiomePoint_4 = vec2(pos.x - direction.x * 2 * BIOME_SIZE, pos.y - direction.y * BIOME_SIZE * 2);
+		glm::vec2 newBiomePoint_1 = glm::vec2(pos.x + direction.x * BIOME_SIZE, pos.y + direction.y * BIOME_SIZE);
+		glm::vec2 newBiomePoint_2 = glm::vec2(pos.x + direction.x * BIOME_SIZE, pos.y + direction.y * BIOME_SIZE * 2);
+		glm::vec2 newBiomePoint_3 = glm::vec2(pos.x - direction.x * 2 * BIOME_SIZE, pos.y - direction.y * BIOME_SIZE);
+		glm::vec2 newBiomePoint_4 = glm::vec2(pos.x - direction.x * 2 * BIOME_SIZE, pos.y - direction.y * BIOME_SIZE * 2);
 
 		_biomeCentersTemp.emplace(newBiomePoint_1.x, newBiomePoint_1.y);
 		_biomeCentersTemp.emplace(newBiomePoint_2.x, newBiomePoint_2.y);
@@ -49,7 +49,7 @@ void BiomeGenerator::findBiomeCenters(vec2 playerPos)
 	}
 
 	// Add offset and calculate temps
-	for (const ivec2 &vec : _biomeCentersTemp)
+	for (const glm::vec2 &vec : _biomeCentersTemp)
 	{
 		BiomeData data;
 
@@ -99,7 +99,7 @@ void BiomeGenerator::showBiomeCenters() const
 {
 	for (const BiomeData &data : _biomes)
 	{
-		vec2 pos = {data.center.x, data.center.y};
+		glm::vec2 pos = {data.center.x, data.center.y};
 
 		// Red color
 		glColor3f(1.0f, 0.0f, 0.0f);

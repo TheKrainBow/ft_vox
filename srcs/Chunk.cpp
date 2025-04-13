@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(glm::vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
 {
 	_isInit = false;
 	_perlinMap = perlinMap;
@@ -33,16 +33,6 @@ Chunk::~Chunk()
 	_subChunks.clear();
 }
 
-void Chunk::clearFaces() {
-	_vertexData.clear();
-	_ssboData.clear();
-	_indirectBufferData.clear();
-	// _transparentVertexData.clear();
-	// _hasSentFaces = false;
-	_needUpdate = true;
-	// _needTransparentUpdate = true;
-}
-
 void Chunk::getNeighbors()
 {
     _north = _world.getChunk({_position.x, _position.y - 1});
@@ -68,7 +58,7 @@ void Chunk::getNeighbors()
 	}
 }
 
-ivec2 Chunk::getPosition()
+glm::vec2 Chunk::getPosition()
 {
 	return _position;
 }
@@ -89,30 +79,50 @@ bool Chunk::isReady()
 	return _facesSent;
 }
 
+void Chunk::clearFaces()
+{
+	_vertexData.clear();
+	_indirectBufferData.clear();
+	_transparentVertexData.clear();
+	_transparentIndirectBufferData.clear();
+	_ssboData.clear();
+}
+
 void Chunk::sendFacesToDisplay()
 {
 	if (_hasAllNeighbors == false)
 		return ;
-	if (_facesSent == true)
-		return ;
+	// if (_facesSent == true)
+	// 	return ;
 	_sendFacesMutex.lock();
-		// clearFaces();
-		// return ;
+	clearFaces();
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
-		std::vector<int> vertices = subChunk.second->getVertices();
+		std::vector<int> &vertices = subChunk.second->getVertices();
+		std::vector<int> &transparentVertices = subChunk.second->getTransparentVertices();
+		
 		_indirectBufferData.push_back(DrawArraysIndirectCommand{
 			4,
 			uint(vertices.size()),
 			0,
 			uint(_vertexData.size()),
 		});
-		ivec3 pos = subChunk.second->getPosition();
-		_ssboData.push_back(ivec4{
+
+		_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{
+			4,
+			uint(transparentVertices.size()),
+			0,
+			uint(_transparentVertexData.size()),
+		});
+
+		glm::ivec3 pos = subChunk.second->getPosition();
+		_ssboData.push_back(glm::vec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
+
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 	}
 	_facesSent = true;
 	_sendFacesMutex.unlock();
@@ -170,10 +180,22 @@ std::vector<DrawArraysIndirectCommand> &Chunk::getIndirectData()
 	return _indirectBufferData;
 }
 
-std::vector<vec4> &Chunk::getSSBO()
+std::vector<glm::vec4> &Chunk::getSSBO()
 {
 	std::lock_guard<std::mutex> lock(_sendFacesMutex);
 	return _ssboData;
+}
+
+std::vector<int> &Chunk::getTransparentVertices()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentVertexData;
+}
+
+std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData()
+{
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentIndirectBufferData;
 }
 
 void Chunk::freeSubChunks()
@@ -187,6 +209,7 @@ void Chunk::freeSubChunks()
 
 void	Chunk::updateResolution(int newResolution, Direction dir)
 {
+	(void)dir;
 	_perlinMap->resolution = newResolution;
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
@@ -198,17 +221,14 @@ void	Chunk::updateResolution(int newResolution, Direction dir)
 		subChunk->updateResolution(newResolution, _perlinMap);
 		_subChunksMutex.unlock();
 	}
-	if (dir == NORTH && _north)
+	_facesSent = false;
+	sendFacesToDisplay();
+	if (_north)
 		_north->sendFacesToDisplay();
-	else if (dir == SOUTH && _south)
+	if (_south)
 		_south->sendFacesToDisplay();
-	else if (dir == EAST && _east)
+	if (_east)
 		_east->sendFacesToDisplay();
-	else if (dir == WEST && _west)
+	if (_west)
 		_west->sendFacesToDisplay();
 }
-// Load chunks: 0,203s
-// Load chunks: 0,256s
-// Load chunks: 0,245s
-// Load chunks: 0,235s
-// Load chunks: 0,208s

@@ -45,7 +45,7 @@ struct Compare {
 
 struct DisplayData
 {
-	std::vector<vec4>						ssboData;
+	std::vector<glm::vec4>						ssboData;
 	std::vector<int>						vertexData;
 	std::vector<DrawArraysIndirectCommand>	indirectBufferData;
 };
@@ -54,13 +54,13 @@ class World
 {
 private:
 	// World related informations
-	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
-	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+	std::unordered_map<glm::vec2, Chunk*, vec2_hash>	_chunks;
+	std::unordered_map<glm::vec2, Chunk*, vec2_hash>	_displayedChunks;
 	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
 
-	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
+	std::unordered_map<glm::vec2, Chunk*, vec2_hash> _activeChunks;
 	
 	bool										_skipLoad;
 	ThreadPool 									&_threadPool;
@@ -74,11 +74,18 @@ private:
 	std::mutex									*_runningMutex;
 	std::atomic_bool							displayReady;
 	Chrono chronoHelper;
-	bool 				_hasBufferInitialized;
+
+	bool 									_hasBufferInitialized;
 	GLuint									_ssbo;
+
 	DisplayData								*_drawData;
 	DisplayData								*_fillData;
 	DisplayData								*_stagingData;
+
+	DisplayData								*_transparentDrawData;
+	DisplayData								*_transparentFillData;
+	DisplayData								*_transparentStagingData;
+
 	std::mutex								_drawDataMutex;
 	std::atomic_bool _newDataReady = false;
 
@@ -87,25 +94,35 @@ private:
 	GLuint									_indirectBuffer;
 	GLuint									_vao;
 	GLuint									_vbo;
+	std::vector<int>						_vertexData;
+	std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
+
+	bool 									_hasTransparentBufferInitialized;
+	GLuint									_transparentVao;
+	GLuint									_transparentInstanceVBO;
+	std::vector<int>						_transparentVertexData;
+	std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
+	GLuint									_transparentIndirectBuffer;
+
 	bool									_needUpdate;
-	std::atomic_int 							_threshold;
+	bool									_needTransparentUpdate;
+	std::atomic_int 						_threshold;
 public:
 	NoiseGenerator								_perlinGenerator;
 	GLuint 										_shaderProgram;
 	std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
-	void loadFirstChunks(ivec2 camPosition);
+	void loadFirstChunks(glm::vec2 camPosition);
 	void init(GLuint shaderProgram, int renderDistance);
 	
-	void unLoadNextChunks(ivec2 newCamChunk);
-	void loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir);
-	void loadPerlinMap(vec3 camPosition);
+	void unLoadNextChunks(glm::vec2 newCamChunk);
+	void loadChunk(int x, int z, int render, glm::vec2 chunkPos, int resolution, Direction dir);
+	void loadPerlinMap(glm::vec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
-	char getBlock(ivec3 position);
 	int	getCachedChunksNumber();
-	Chunk* getChunk(ivec2 position);
-	SubChunk* getSubChunk(ivec3 position);
+	Chunk* getChunk(glm::vec2 position);
+	SubChunk* getSubChunk(glm::ivec3 position);
 	void updateActiveChunks();
 	int display();
 	int displayTransparent();
@@ -114,22 +131,23 @@ public:
 	int *getRenderDistancePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 private:
-	ivec3 calculateBlockPos(ivec3 position) const;
+	glm::ivec3 calculateBlockPos(glm::ivec3 position) const;
 	bool getIsRunning();
-	void loadTopChunks(int render, ivec2 camPosition, int resolution = 1);
-	void loadRightChunks(int render, ivec2 camPosition, int resolution = 1);
-	void loadBotChunks(int render, ivec2 camPosition, int resolution = 1);
-	void loadLeftChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadTopChunks(int render, glm::vec2 camPosition, int resolution = 1);
+	void loadRightChunks(int render, glm::vec2 camPosition, int resolution = 1);
+	void loadBotChunks(int render, glm::vec2 camPosition, int resolution = 1);
+	void loadLeftChunks(int render, glm::vec2 camPosition, int resolution = 1);
 	void unloadChunk();
 	void generateSpiralOrder();
-	bool hasMoved(ivec2 oldPos);
+	bool hasMoved(glm::vec2 oldPos);
 	void loadOrder();
 	void removeOrder();
-	void updateChunk(int x, int z, int render, ivec2 chunkPos);
+	void updateChunk(int x, int z, int render, glm::vec2 chunkPos);
 
 	void initGLBuffer();
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
+	void clearTransparentFaces();
 	void sendFacesToDisplay();
 	void updateSsbo();
 	void updateFillData();

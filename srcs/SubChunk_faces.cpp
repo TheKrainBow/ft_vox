@@ -335,11 +335,11 @@ void SubChunk::processWestVertex(std::vector<Face> *faces, std::vector<int> *ver
 }
 
 
-void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent) {
+void SubChunk::addFace(glm::ivec3 position, Direction dir, TextureType texture, bool isTransparent) {
     Face newFace;
     newFace.position = position;
-    newFace.size = ivec2(0, 0);
-    // newFace.size = ivec2(1, 1);
+    newFace.size = glm::vec2(0, 0);
+    // newFace.size = glm::vec2(1, 1);
     newFace.direction = dir;
     newFace.texture = texture;
     if (isTransparent)
