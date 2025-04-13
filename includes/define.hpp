@@ -22,7 +22,7 @@
 
 # define RESOLUTION 1
 
-# define OCEAN_HEIGHT 121
+# define OCEAN_HEIGHT 127
 # define MOUNT_HEIGHT 260
 
 # define AIR 0
