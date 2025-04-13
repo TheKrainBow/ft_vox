@@ -1,12 +1,15 @@
-#version 430 core
+#version 460 core
 
-layout(location = 0) in vec3 aPos;      // Vertex position
-layout(location = 1) in vec3 worldPos;  // World position
+layout(location = 0) in ivec3 aPos;      // Vertex position
 layout(location = 2) in int instanceData; // Encoded instance data
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+
+layout(binding = 3, std430) readonly buffer ssbo1 {
+    vec4 ssbo[];
+};
 
 out vec2 TexCoord;
 flat out int TextureID;
@@ -15,6 +18,8 @@ out vec3 FragPos; // Output fragment position for lighting
 
 void main()
 {
+    vec4 ssboValue = ssbo[gl_DrawID];
+    float res = ssboValue.w;
     // Decode instance data
     int x = (instanceData >> 0) & 0x1F;
     int y = (instanceData >> 5) & 0x1F;
@@ -31,9 +36,14 @@ void main()
     lengthX++;
     lengthY++;
     finalUV.y = 1.0 - finalUV.y;
+    finalUV /= res;
     basePos.x *= lengthX;
     basePos.y *= lengthY;
 
+    if (textureID == 6)
+    {
+        // res = 1;
+    }
     // Default normal
     vec3 normal = vec3(0.0, 0.0, 0.0);
 
@@ -53,7 +63,7 @@ void main()
     if (direction == 1) // -X
     {
         basePos.x = -basePos.x + lengthX;
-        basePos.z += 1;
+        basePos.z += res;
         normal = vec3(-1.0, 0.0, 0.0);
     }
     if (direction == 2) // -Y
@@ -64,7 +74,7 @@ void main()
     }
     if (direction == 3) // +X
     {
-        basePos.x += 1;
+        basePos.x += res;
         normal = vec3(1.0, 0.0, 0.0);
     }
     if (direction == 4) // -Z
@@ -74,7 +84,7 @@ void main()
     }
     if (direction == 5) // +Y
     {
-        basePos.y++;
+        basePos.y += res;
         normal = vec3(0.0, 1.0, 0.0);
     }
 
@@ -83,12 +93,11 @@ void main()
         basePos.y -= 0.1;
     }
     // Compute world position and transform normal to world space
-    vec3 worldPosition = worldPos + basePos + instancePos;
+    vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
-    
-    gl_Position = projection * view * model * vec4(worldPosition, 1.0);
 
+    gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;
     TextureID = textureID;
     Normal = mat3(transpose(inverse(model))) * normal; // Transform normal to world space

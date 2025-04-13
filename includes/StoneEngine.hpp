@@ -20,8 +20,9 @@ class StoneEngine {
 		int windowWidth;
 		Camera camera;
 		mat4 projectionMatrix;
-		glm::mat4 viewMatrix;
+		mat4 viewMatrix;
 		TextureManager _textureManager;
+		ThreadPool &_pool;
 
 		// Framebuffer data
 		GLuint fbo;
@@ -29,9 +30,6 @@ class StoneEngine {
 		GLuint dboTexture;
 		GLuint rectangleVao;
 		GLuint rectangleVbo;
-
-		// Render buffer data
-		// GLuint rbo;
 
 		// Fbo shaders data
 		GLuint fboShaderProgram;
@@ -72,10 +70,10 @@ class StoneEngine {
 		std::chrono::milliseconds delta;
 
 		// Game data
-		glm::vec3 sunPosition;
+		vec3 sunPosition;
 		std::atomic_int timeValue;
 	public:
-		StoneEngine(int seed);
+		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
 		void run();
 	private:

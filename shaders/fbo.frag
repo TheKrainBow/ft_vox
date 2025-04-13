@@ -12,12 +12,12 @@ uniform vec2 texelSize;
 // Offset to check for sky
 const float skyOffsetY = 5.0;
 
-// Skybox far
-const float depthSkyThreshold = 0.9999;
+// tweak this based on how far your skybox is
+const float depthSkyThreshold = 1;
 
 // Fog constants
-const float fogStart = 40.0;
-const float fogEnd = 500.0;
+const float fogStart = 900.0;
+const float fogEnd = 901.0;
 
 vec3 computeSkyColor(float time)
 {
@@ -53,9 +53,9 @@ vec3 computeSkyColor(float time)
 
 float calculateFogFactor(float depth)
 {
-	float linearDepth = (2.0 * 0.1 * 1000.0) / (1000.0 + 0.1 - depth * (1000.0 - 0.1));
+	float linearDepth = (2.0 * 0.1 * 10000.0) / (10000.0 + 0.1 - depth * (10000.0 - 0.1));
 
-	float fogFactor = clamp((linearDepth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
+	float fogFactor = clamp((linearDepth - fogStart) / (fogEnd - fogStart), 0.0, 0.5);
 	return fogFactor;
 }
 
@@ -64,30 +64,49 @@ void main()
 	vec3 currentColor = texture(screenTexture, texCoords).rgb;
 	float currentDepth = texture(depthTexture, texCoords).r;
 	bool isSkyDepth = currentDepth >= depthSkyThreshold;
-	vec3 fogColor = computeSkyColor(timeValue);
+	// vec3 fogColor = vec3(0.53f, 0.81f, 0.92f);
+	vec3 fogColor = vec3(0.1f, 0.1f, 0.1f);
 	float fogFactor;
 
 	if (isSkyDepth)
 	{
-		float skyCheckUpDepth = texture(depthTexture, texCoords + vec2(0.0, skyOffsetY * texelSize.y)).r;
-		bool isTrueSky = skyCheckUpDepth >= depthSkyThreshold;
+		vec3 up         = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
+		float upDepth    = texture(depthTexture, texCoords + vec2(0.0,  texelSize.y)).r;
 
-		if (isTrueSky)
-		{
-			FragColor = vec4(currentColor, 1.0);
-			return ;
+		vec3 down       = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
+		float downDepth  = texture(depthTexture, texCoords + vec2(0.0,  -texelSize.y)).r;
+
+		vec3 left       = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
+		float leftDepth  = texture(depthTexture, texCoords + vec2(-texelSize.x, 0.0)).r;
+
+		vec3 right      = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
+		float rightDepth = texture(depthTexture, texCoords + vec2( texelSize.x, 0.0)).r;
+
+		vec3 blended;
+		int n = 0;
+		if (upDepth != 1) {
+			blended += up;
+			n += 1;
 		}
-		else
-		{
-			vec3 up    = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
-			vec3 down  = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
-			vec3 left  = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
-			vec3 right = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
-			vec3 blended = (up + down + left + right) / 4.0;
-
-			float neighborDepth = texture(depthTexture, texCoords + vec2(texelSize.x, 0.0)).r;
-			fogFactor = calculateFogFactor(neighborDepth);
-			currentColor = mix(blended, fogColor, fogFactor);
+		if (downDepth != 1) {
+			blended += down;
+			n += 1;
+		}
+		if (rightDepth != 1) {
+			blended += right;
+			n += 1;
+		}
+		if (leftDepth != 1) {
+			blended += left;
+			n += 1;
+		}
+		
+		blended /= n;
+		if (n != 0) {
+			fogFactor = calculateFogFactor(rightDepth);
+			blended = mix(blended, fogColor, fogFactor);
+			FragColor = vec4(blended, 1.0);
+		} else {
 			FragColor = vec4(currentColor, 1.0);
 		}
 	}
@@ -96,5 +115,6 @@ void main()
 		fogFactor = calculateFogFactor(currentDepth);
 		currentColor = mix(currentColor, fogColor, fogFactor);
 		FragColor = vec4(currentColor, 1.0);
+
 	}
 }

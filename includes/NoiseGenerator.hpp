@@ -27,7 +27,7 @@ class NoiseGenerator {
 			double	heighest = std::numeric_limits<double>::min();
 			double	lowest = std::numeric_limits<double>::max();
 			double	resolution = 1;
-			double	size = CHUNK_SIZE;
+			int		size = CHUNK_SIZE;
 			~PerlinMap() {
 				if (heightMap) delete [] heightMap;
 				if (caveMap) delete [] caveMap;};
@@ -36,8 +36,9 @@ class NoiseGenerator {
 		NoiseGenerator(size_t seed);
 		~NoiseGenerator();
 		double noise(double x, double y) const;
+		void updatePerlinMapResolution(PerlinMap *map, int resolution);
 		PerlinMap *addPerlinMap(ivec2 &pos, int size, int resolution);
-		PerlinMap *getPerlinMap(ivec2 &pos);
+		PerlinMap *getPerlinMap(ivec2 &pos, int resolution = 1);
 		void clearPerlinMaps(void);
 		void setSeed(size_t seed);
 		const size_t &getSeed() const;
