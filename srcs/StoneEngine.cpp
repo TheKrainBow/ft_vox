@@ -21,7 +21,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureMana
 	initFramebuffers();
 	initFboShaders();
 	updateFboWindowSize();
-	reshape(_window, windowWidth, windowHeight);
+	reshapeAction(windowWidth, windowHeight);
 	_world.init(shaderProgram, RENDER_DISTANCE);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
@@ -542,7 +542,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	projectionMatrix = perspective(radians(80.0f), float(width) / float(height), 0.1f, 100000000000.0f);
+	projectionMatrix = perspective(radians(_fov), float(width) / float(height), 0.1f, 100000000000.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glLoadMatrixf(value_ptr(projectionMatrix));
 }
@@ -629,6 +629,21 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 	if (engine) engine->mouseAction(x, y);
 }
 
+void StoneEngine::scrollAction(double yoffset)
+{
+    _fov -= (float)yoffset;
+    _fov = std::clamp(_fov, 1.0f, 90.0f);
+	reshapeAction(windowWidth, windowHeight);
+}
+
+void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+	(void)xoffset;
+	StoneEngine *engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+
+	if (engine) engine->scrollAction(yoffset);
+}
+
 int StoneEngine::initGLFW()
 {	
 	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
@@ -643,6 +658,7 @@ int StoneEngine::initGLFW()
 	glfwSetWindowUserPointer(_window, this);
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
+	glfwSetScrollCallback(_window, scrollCallback);
 	glfwMakeContextCurrent(_window);
 	glfwSwapInterval(0);
 	if (!isWSL())

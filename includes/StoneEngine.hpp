@@ -23,6 +23,7 @@ class StoneEngine {
 		mat4 viewMatrix;
 		TextureManager _textureManager;
 		ThreadPool &_pool;
+		float _fov = 80.0f;
 
 		// Framebuffer data
 		GLuint fbo;
@@ -81,11 +82,13 @@ class StoneEngine {
 		void keyAction(int key, int scancode, int action, int mods);
 		void mouseAction(double x, double y);
 		void reshapeAction(int width, int height);
+		void scrollAction(double yoffset);
 
 		// Event hook callbacks
 		static void reshape(GLFWwindow* window, int width, int height); 
 		static void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
 		static void mouseCallback(GLFWwindow* window, double x, double y);
+		static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
 		// Init methods
 		void	initData();
