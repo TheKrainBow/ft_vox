@@ -42,7 +42,6 @@ void Chunk::loadBlocks()
 		subChunk->loadHeight();
 		subChunk->loadBiome();
 	}
-	_subChunksMutex.unlock();
 }
 
 Chunk::~Chunk()

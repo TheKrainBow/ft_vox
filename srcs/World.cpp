@@ -164,9 +164,9 @@ void World::loadChunk(int x, int z, int render, vec2 chunkPos, int resolution, D
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
-		(void)dir;
-		// if (chunk->_resolution != resolution)
-		// 	chunk->updateResolution(resolution, dir);
+		// (void)dir;
+		if (chunk->_resolution != resolution)
+			chunk->updateResolution(resolution, dir);
 	}
 	else
 	{
@@ -325,10 +325,10 @@ SubChunk *World::getSubChunk(ivec3 position)
 
 Chunk *World::getChunk(vec2 position)
 {
-	// _chunksMutex.lock();
+	_chunksMutex.lock();
 	auto it = _chunks.find({position.x, position.y});
 	auto itend = _chunks.end();
-	// _chunksMutex.unlock();
+	_chunksMutex.unlock();
 	if (it != itend)
 		return it->second;
 	return nullptr;
