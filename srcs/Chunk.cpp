@@ -26,6 +26,25 @@ Chunk::Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textu
 	// getNeighbors();
 }
 
+void Chunk::loadBlocks()
+{
+	int heighest = _perlinMap->heighest;
+	int lowest = _perlinMap->lowest;
+	if (heighest < OCEAN_HEIGHT) {
+		heighest = OCEAN_HEIGHT;
+	}
+	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
+	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
+	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
+	{
+		int index = y / CHUNK_SIZE;
+		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);
+		subChunk->loadHeight();
+		subChunk->loadBiome();
+	}
+	_subChunksMutex.unlock();
+}
+
 Chunk::~Chunk()
 {
 	for (auto &subchunk : _subChunks)
@@ -35,24 +54,24 @@ Chunk::~Chunk()
 
 void Chunk::getNeighbors()
 {
-    _north = _world.getChunk({_position.x, _position.y - 1});
-    _south = _world.getChunk({_position.x, _position.y + 1});
-    _east = _world.getChunk({_position.x + 1, _position.y});
-    _west = _world.getChunk({_position.x - 1, _position.y});
+	_north = _world.getChunk({_position.x, _position.y - 1});
+	_south = _world.getChunk({_position.x, _position.y + 1});
+	_east = _world.getChunk({_position.x + 1, _position.y});
+	_west = _world.getChunk({_position.x - 1, _position.y});
 
 	if (_north) {
 		_north->setSouthChunk(this);
 		_north->sendFacesToDisplay();
 	}
-    if (_south) {
+	if (_south) {
 		_south->setNorthChunk(this);
 		_south->sendFacesToDisplay();
 	}
-    if (_east) {
+	if (_east) {
 		_east->setWestChunk(this);
 		_east->sendFacesToDisplay();
 	}
-    if (_west) {
+	if (_west) {
 		_west->setEastChunk(this);
 		_west->sendFacesToDisplay();
 	}

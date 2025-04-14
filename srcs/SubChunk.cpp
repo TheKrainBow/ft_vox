@@ -7,8 +7,6 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 	std::fill(_blocks.begin(), _blocks.end(), 0);
 	_heightMap = &perlinMap->heightMap;
-	loadHeight();
-	loadBiome();
 }
 
 void SubChunk::loadHeight()

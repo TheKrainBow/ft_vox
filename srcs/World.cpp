@@ -164,23 +164,20 @@ void World::loadChunk(int x, int z, int render, vec2 chunkPos, int resolution, D
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
+		(void)dir;
 		// if (chunk->_resolution != resolution)
 		// 	chunk->updateResolution(resolution, dir);
-		(void)dir;
 	}
 	else
 	{
-		_chunksMutex.unlock();
 		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
-
+		_chunks[pos] = chunk;
+		_chunksMutex.unlock();
+		chunk->loadBlocks();
+		chunk->getNeighbors();
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
-
-		_chunksMutex.lock();
-		_chunks[pos] = chunk;
-		chunk->getNeighbors();
-		_chunksMutex.unlock();
 	}
 	_displayedChunksMutex.lock();
 	_displayedChunks[pos] = chunk;
@@ -302,6 +299,7 @@ void World::updateFillData()
 	std::swap(_transparentFillData, _transparentStagingData);
 	_needTransparentUpdate = true;
 	_needUpdate = true;
+	clearFaces();
 	_drawDataMutex.unlock();
 }
 
@@ -418,7 +416,7 @@ int World::display()
 		pushVerticesToOpenGL(false);
 		_needUpdate = false;
 	}
-	long long size = _fillData->vertexData.size();
+	long long size = _drawData->vertexData.size();
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
@@ -438,7 +436,7 @@ int World::displayTransparent()
 		_needTransparentUpdate = false;
 	}
 	glDisable(GL_CULL_FACE);
-	long long size = _transparentFillData->vertexData.size();
+	long long size = _transparentDrawData->vertexData.size();
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_transparentVao);

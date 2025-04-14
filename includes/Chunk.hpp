@@ -53,7 +53,6 @@ class Chunk
 		SubChunk *getSubChunk(int y);
 		void updateResolution(int newResolution, Direction dir);
 		void sendFacesToDisplay();
-		void sendTransparentFaces();
 		bool isReady();
 		vec2 getPosition();
 		void setWestChunk(Chunk *chunk);
@@ -65,6 +64,7 @@ class Chunk
 		Chunk *getWestChunk();
 		Chunk *getEastChunk();
 		void clearFaces();
+		void loadBlocks();
 
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();

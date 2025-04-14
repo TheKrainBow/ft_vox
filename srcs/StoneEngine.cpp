@@ -427,22 +427,26 @@ void StoneEngine::updateMovement()
 void StoneEngine::updateChunkWorker()
 {
 	bool firstIteration = true;
-	vec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
+	ivec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
+	vec3 oldCamPos = camera.getPosition();
 
 	while (getIsRunning())
 	{
-		vec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
-		if (oldCamChunk.x != camChunk.x || oldCamChunk.y != camChunk.y || firstIteration)
+		vec3 newCamPos = camera.getPosition();
+		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
 		{
+			// Check new chunk position for necessary updates to chunks
+			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
 			if (firstIteration)
 			{
 				loadFirstChunks();
 				firstIteration = false;
 			}
-			else
+			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y)))
 			{
 				loadNextChunks(camChunk);
 			}
+			oldCamPos = newCamPos;
 			oldCamChunk = camChunk;
 		}
 	}
