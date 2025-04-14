@@ -558,6 +558,11 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 {
 	(void)scancode;
 	(void)mods;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F)
+	{
+		_fov = 80.0f;
+		reshapeAction(windowWidth, windowHeight);
+	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
