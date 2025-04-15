@@ -39,8 +39,8 @@ void Chunk::loadBlocks()
 	{
 		int index = y / CHUNK_SIZE;
 		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);
-		subChunk->loadHeight();
-		subChunk->loadBiome();
+		subChunk->loadHeight(0);
+		subChunk->loadBiome(0);
 	}
 }
 
@@ -228,7 +228,6 @@ void Chunk::freeSubChunks()
 void	Chunk::updateResolution(int newResolution, Direction dir)
 {
 	(void)dir;
-	_perlinMap->resolution = newResolution;
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
 

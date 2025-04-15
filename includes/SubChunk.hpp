@@ -50,8 +50,8 @@ class SubChunk
 		~SubChunk();
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
-		void loadHeight();
-		void loadBiome();
+		void loadHeight(int prevResolution);
+		void loadBiome(int prevResolution);
 		void loadOcean(int x, int z, size_t ground);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);

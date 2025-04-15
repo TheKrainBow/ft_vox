@@ -8,7 +8,7 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 }
 
-void SubChunk::loadHeight()
+void SubChunk::loadHeight(int prevResolution)
 {
 	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 	{
@@ -16,12 +16,14 @@ void SubChunk::loadHeight()
 		{
 			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 			{
+				// If this position was already filled at the coarser resolution, skip
+				if (prevResolution && x % prevResolution == 0 && y % prevResolution == 0 && z % prevResolution == 0)
+					continue;
 				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
-				if (y + _position.y * CHUNK_SIZE <= maxHeight)
-					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = STONE;
-				else
-					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = AIR;
+				int globalY = y + _position.y * CHUNK_SIZE;
+				int idx = x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE);
 
+				_blocks[idx] = (globalY <= maxHeight) ? STONE : AIR;
 			}
 		}
 	}
@@ -64,27 +66,26 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
 }
 
-void SubChunk::loadBiome()
+void SubChunk::loadBiome(int prevResolution)
 {
-	NoiseGenerator &noisegen = _world.getNoiseGenerator();
+	(void)prevResolution
+;	NoiseGenerator &noisegen = _world.getNoiseGenerator();
 	noisegen.setNoiseData({
-		1.0,  // amplitude
-		0.9, // frequency
-		0.02,  // persistence
-		0.5,  // lacunarity
-		12     // nb_octaves
+		1.0, 0.9, 0.02, 0.5, 12
 	});
+
 	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
+			// Skip if already computed at previous resolution
 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
 			ground = ground - (int(ground) % _resolution);
+
 			if (ground <= OCEAN_HEIGHT)
 				loadOcean(x, z, ground + 2);
-			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15)) {
+			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
 				loadMountain(x, z, ground);
-			}
 			else if (ground)
 				loadPlaine(x, z, ground);
 		}
@@ -262,12 +263,16 @@ void SubChunk::clearFaces() {
 
 void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 {
+	int prevResolution = _resolution;
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
-	std::fill(_blocks.begin(), _blocks.end(), 0);
-	loadHeight();
-	loadBiome();
+
+	// Don't clear all blocks — just fill new gaps
+		// Fill new values only
+	loadHeight(prevResolution);
+	loadBiome(prevResolution);
 }
+
 
 void SubChunk::sendFacesToDisplay()
 {

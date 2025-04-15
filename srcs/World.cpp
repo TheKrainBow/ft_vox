@@ -30,6 +30,8 @@ World::~World()
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 		delete it->second;
+	if (_drawData)
+		delete _drawData;
 }
 
 NoiseGenerator &World::getNoiseGenerator(void)
@@ -141,7 +143,8 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
-		if (chunk->_resolution != resolution)
+		(void)dir;
+		if (chunk->_resolution > resolution)
 			chunk->updateResolution(resolution, dir);
 	}
 	else
@@ -204,7 +207,6 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	std::vector<std::future<void>> retLst;
 	chronoHelper.startChrono(1, "Loading of chunks");
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
@@ -229,17 +231,17 @@ void World::loadFirstChunks(ivec2 chunkPos)
 			resolution *= 2;
 			_threshold = _threshold * 2;
 		}
-		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
+		updateFillData();
 		if (hasMoved(chunkPos))
 			break;
     }
 	// updateFillData();
 
-	for (std::future<void> &ret : retLst)
-	{
-		ret.get();
-	}
-	retLst.clear();
+	// for (std::future<void> &ret : retLst)
+	// {
+	// 	ret.get();
+	// }
+	// retLst.clear();
 	chronoHelper.stopChrono(1);
 	chronoHelper.printChronos();
 }
@@ -269,6 +271,7 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 		_displayedChunksMutex.unlock();
 		deleteQueue.pop();
 	}
+	updateFillData();
 }
 
 void World::updateFillData()

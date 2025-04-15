@@ -187,37 +187,35 @@ double NoiseGenerator::getHeight(ivec2 pos)
 	return height;
 }
 
-void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int resolution)
+void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution)
 {
-	if (!map)
-		return ;
-	// Todo: Not recalculate height that already exist
-	// while (map->resolution > resolution)
-	// {
-	// 	for (int x = 0; x < map->size; x += map->resolution)
-	// 		for (int z = 0; z < map->size; z += map->resolution)
-	// 		{
-	// 			map->heightMap[z * map->size + x] = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
-	// 			if (map->heightMap[z * map->size + x] > map->heighest)
-	// 				map->heighest = map->heightMap[z * map->size + x];
-	// 			if (map->heightMap[z * map->size + x] < map->lowest)
-	// 				map->lowest = map->heightMap[z * map->size + x];
-	// 		}
-	// 	map->resolution /= 2;
-	// }
+	if (!map || newResolution >= map->resolution)
+		return;
 
-	for (int x = 0; x < map->size; x += resolution)
-		for (int z = 0; z < map->size; z += resolution)
+	int oldResolution = map->resolution;
+	map->resolution = newResolution;
+	for (int x = 0; x < map->size; x += newResolution)
+	{
+		for (int z = 0; z < map->size; z += newResolution)
 		{
-			map->heightMap[z * map->size + x] = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
-			if (map->heightMap[z * map->size + x] > map->heighest)
-				map->heighest = map->heightMap[z * map->size + x];
-			if (map->heightMap[z * map->size + x] < map->lowest)
-				map->lowest = map->heightMap[z * map->size + x];
+			// If this point was already computed at the previous resolution, skip
+			if (x % oldResolution == 0 && z % oldResolution == 0)
+				continue;
+
+			double height = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+			map->heightMap[z * map->size + x] = height;
+
+			if (height > map->heighest)
+				map->heighest = height;
+			if (height < map->lowest)
+				map->lowest = height;
 		}
-	map->resolution = resolution;
+	}
+
+	map->resolution = newResolution;
 	_perlinMaps[map->position] = map;
 }
+
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
