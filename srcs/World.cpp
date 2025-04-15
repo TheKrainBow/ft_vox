@@ -15,13 +15,8 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	_renderDistance = RENDER_DISTANCE;
 	_drawnSSBOSize = 1;
 
-	_fillData = new DisplayData;
-	_drawData = new DisplayData;
-	_stagingData = new DisplayData;
-
-	_transparentDrawData = new DisplayData;
-	_transparentFillData = new DisplayData;
-	_transparentStagingData = new DisplayData;
+	_drawData = nullptr;
+	_transparentDrawData = nullptr;
 }
 
 void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
@@ -35,15 +30,6 @@ World::~World()
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 		delete it->second;
-	// Free solid blocks data
-	delete _fillData;
-	delete _drawData;
-	delete _stagingData;
-	
-	// Free transparent blocks data
-	delete _transparentDrawData;
-	delete _transparentFillData;
-	delete _transparentStagingData;
 }
 
 NoiseGenerator &World::getNoiseGenerator(void)
@@ -154,9 +140,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	if (it != itend)
 	{
 		chunk = it->second;
+		_chunksMutex.unlock();
 		if (chunk->_resolution != resolution)
 			chunk->updateResolution(resolution, dir);
-		_chunksMutex.unlock();
 	}
 	else
 	{
@@ -219,6 +205,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
 	std::vector<std::future<void>> retLst;
+	chronoHelper.startChrono(1, "Loading of chunks");
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
@@ -253,6 +240,8 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		ret.get();
 	}
 	retLst.clear();
+	chronoHelper.stopChrono(1);
+	chronoHelper.printChronos();
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
@@ -284,6 +273,7 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
+	chronoHelper.startChrono(2, "Build faces");
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -291,6 +281,7 @@ void World::updateFillData()
 	_stagedDataQueue.emplace(fillData);
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
+	chronoHelper.stopChrono(2);
 }
 
 bool World::hasMoved(ivec2 oldPos)
@@ -326,7 +317,6 @@ Chunk *World::getChunk(ivec2 position)
 
 void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData)
 {
-	clearFaces();
 	// Copy of the unordered map of displayable chunks
 	std::unordered_map<ivec2, Chunk*, ivec2_hash> displayedChunks;
 	_displayedChunksMutex.lock();
@@ -421,6 +411,8 @@ void World::updateDrawData()
 
 int World::display()
 {
+	if (!_drawData)
+		return 0;
 	if (_needUpdate)
 	{
 		pushVerticesToOpenGL(false);
@@ -440,6 +432,8 @@ int World::display()
 
 int World::displayTransparent()
 {
+	if (!_transparentDrawData)
+		return 0;
 	if (_needTransparentUpdate)
 	{
 		pushVerticesToOpenGL(true);
@@ -522,18 +516,18 @@ void World::pushVerticesToOpenGL(bool isTransparent)
 	}
 }
 
-void World::clearFaces() {
-	// Clear solid data
-	_fillData->vertexData.clear();
-	_fillData->indirectBufferData.clear();
+// void World::clearFaces() {
+// 	// Clear solid data
+// 	_fillData->vertexData.clear();
+// 	_fillData->indirectBufferData.clear();
 
-	// Clear transparent data
-	_transparentFillData->vertexData.clear();
-	_transparentFillData->indirectBufferData.clear();
+// 	// Clear transparent data
+// 	_transparentFillData->vertexData.clear();
+// 	_transparentFillData->indirectBufferData.clear();
 
-	// Clear common ssbo
-	_fillData->ssboData.clear();
-}
+// 	// Clear common ssbo
+// 	_fillData->ssboData.clear();
+// }
 
 void World::initGLBuffer()
 {

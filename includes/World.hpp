@@ -72,8 +72,6 @@ private:
 	// Display
 	std::mutex								_drawDataMutex;
 	DisplayData								*_drawData;
-	DisplayData								*_fillData;
-	DisplayData								*_stagingData;
 
 	DisplayData								*_transparentDrawData;
 	DisplayData								*_transparentFillData;

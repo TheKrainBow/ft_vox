@@ -351,11 +351,15 @@ void StoneEngine::loadFirstChunks()
 
 void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 {
+	std::future<void> unloadRet;
+	std::future<void> loadRet;
 	chronoHelper.startChrono(0, "Load chunks");
 	if (getIsRunning())
-		_world.unLoadNextChunks(newCamChunk);
+		unloadRet = _pool.enqueue(&World::unLoadNextChunks, &_world, newCamChunk);
 	if (getIsRunning())
-		_world.loadFirstChunks(newCamChunk);
+		loadRet = _pool.enqueue(&World::loadFirstChunks, &_world, newCamChunk);
+	unloadRet.get();
+	loadRet.get();
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
