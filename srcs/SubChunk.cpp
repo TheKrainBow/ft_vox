@@ -27,11 +27,11 @@ void SubChunk::loadHeight()
 	}
 }
 
-vec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
+ivec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
 {
 	double noiseX = noise_gen.noise(x, z);
 	double noiseY = noise_gen.noise(z, x);
-	vec2 offset;
+	ivec2 offset;
 	offset.x = noiseX * 15.0;
 	offset.y = noiseY * 15.0;
 	return offset;

@@ -54,8 +54,8 @@ vec3 Camera::getWorldPosition(void)
 	return (vec3(-position.x, -position.y, -position.z));
 }
 
-vec2 Camera::getChunkPosition(int chunkSize) {
-	vec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
+ivec2 Camera::getChunkPosition(int chunkSize) {
+	ivec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
 	if (-position.x < 0) camChunk.x--;
 	if (-position.z < 0) camChunk.y--;
 	return camChunk;
@@ -67,7 +67,7 @@ vec3 Camera::getPosition()
 	return position;
 }
 
-vec2 Camera::getAngles()
+fvec2 Camera::getAngles()
 {
 	return angle;
 }
@@ -78,7 +78,7 @@ vec3 *Camera::getPositionPtr()
 	return &position;
 }
 
-vec2 *Camera::getAnglesPtr()
+fvec2 *Camera::getAnglesPtr()
 {
 	return &angle;
 }

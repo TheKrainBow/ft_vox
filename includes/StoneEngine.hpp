@@ -71,7 +71,7 @@ class StoneEngine {
 		std::chrono::milliseconds delta;
 
 		// Game data
-		vec3 sunPosition;
+		ivec3 sunPosition;
 		std::atomic_int timeValue;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
@@ -106,7 +106,7 @@ class StoneEngine {
 		void calculateFps();
 		void display();
 		void loadFirstChunks();
-		void loadNextChunks(vec2 newCamChunk);
+		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
 		void activateFboShader();
 		void triangleMeshToggle();

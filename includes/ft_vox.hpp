@@ -29,6 +29,15 @@
 #include <list>
 #include <future>
 #include <type_traits>
+#include "define.hpp"
+#include <cmath>
+#include <iostream>
+#include <memory>
+#include <map>
+#include <tuple>
+#include <iostream>
+#include <future>
+#include <thread>
 
 using namespace glm;
 
@@ -63,8 +72,8 @@ GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentSha
 // void reshape(GLFWwindow* window, int width, int height);
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock);
 
-struct vec2_hash {
-	std::size_t operator () (const vec2 vec) const {
+struct ivec2_hash {
+	std::size_t operator () (const ivec2 vec) const {
 		auto h1 = std::hash<int>{}(vec.x);
 		auto h2 = std::hash<int>{}(vec.y);
 		return h1 ^ (h2 << 1);

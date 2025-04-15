@@ -183,7 +183,7 @@ void StoneEngine::initFboShaders()
 void StoneEngine::initDebugTextBox()
 {
 	vec3 *camPos = camera.getPositionPtr();
-	vec2 *camAngle = camera.getAnglesPtr();
+	fvec2 *camAngle = camera.getAnglesPtr();
 	e_direction *facing_direction = camera.getDirectionPtr();
 
 	debugBox.initData(_window, 0, 0, 200, 200);
@@ -349,7 +349,7 @@ void StoneEngine::loadFirstChunks()
 	chronoHelper.printChronos();
 }
 
-void StoneEngine::loadNextChunks(vec2 newCamChunk)
+void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 {
 	chronoHelper.startChrono(0, "Load chunks");
 	if (getIsRunning())

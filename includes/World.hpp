@@ -54,13 +54,13 @@ class World
 {
 private:
 	// World related informations
-	std::unordered_map<vec2, Chunk*, vec2_hash>	_chunks;
-	std::unordered_map<vec2, Chunk*, vec2_hash>	_displayedChunks;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
 	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
 
-	std::unordered_map<vec2, Chunk*, vec2_hash> _activeChunks;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
 	
 	bool										_skipLoad;
 	ThreadPool 									&_threadPool;
@@ -108,15 +108,15 @@ public:
 	std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
-	void loadFirstChunks(vec2 camPosition);
+	void loadFirstChunks(ivec2 camPosition);
 	void init(GLuint shaderProgram, int renderDistance);
 	
-	void unLoadNextChunks(vec2 newCamChunk);
-	void loadChunk(int x, int z, int render, vec2 chunkPos, int resolution, Direction dir);
-	void loadPerlinMap(vec3 camPosition);
+	void unLoadNextChunks(ivec2 newCamChunk);
+	void loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir);
+	void loadPerlinMap(ivec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	int	getCachedChunksNumber();
-	Chunk* getChunk(vec2 position);
+	Chunk* getChunk(ivec2 position);
 	SubChunk* getSubChunk(ivec3 position);
 	void updateActiveChunks();
 	int display();
@@ -129,12 +129,12 @@ public:
 private:
 	ivec3 calculateBlockPos(ivec3 position) const;
 	bool getIsRunning();
-	void loadTopChunks(int render, vec2 camPosition, int resolution = 1);
-	void loadRightChunks(int render, vec2 camPosition, int resolution = 1);
-	void loadBotChunks(int render, vec2 camPosition, int resolution = 1);
-	void loadLeftChunks(int render, vec2 camPosition, int resolution = 1);
+	void loadTopChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadRightChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadBotChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadLeftChunks(int render, ivec2 camPosition, int resolution = 1);
 	void unloadChunk();
-	bool hasMoved(vec2 oldPos);
+	bool hasMoved(ivec2 oldPos);
 
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();

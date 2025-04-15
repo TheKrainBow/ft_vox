@@ -17,7 +17,7 @@ class SubChunk
 		typedef struct s_Face
 		{
 			ivec3	position;
-			vec2	size;
+			ivec2	size;
 			TextureType	texture;
 			Direction	direction;
 		} Face;
@@ -60,7 +60,7 @@ class SubChunk
 		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);
 		void setBlock(ivec3 position, char block);
 		void sendFacesToDisplay();
-		vec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
+		ivec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		void clearFaces();
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();

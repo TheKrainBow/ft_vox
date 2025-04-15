@@ -23,7 +23,7 @@ class NoiseGenerator {
 		struct PerlinMap {
 			double *heightMap = nullptr;
 			double *caveMap = nullptr;
-			vec2	position;
+			ivec2	position;
 			double	heighest = std::numeric_limits<double>::min();
 			double	lowest = std::numeric_limits<double>::max();
 			double	resolution = 1;
@@ -37,29 +37,29 @@ class NoiseGenerator {
 		~NoiseGenerator();
 		double noise(double x, double y) const;
 		void updatePerlinMapResolution(PerlinMap *map, int resolution);
-		PerlinMap *addPerlinMap(vec2 &pos, int size, int resolution);
-		PerlinMap *getPerlinMap(vec2 &pos, int resolution = 1);
+		PerlinMap *addPerlinMap(ivec2 &pos, int size, int resolution);
+		PerlinMap *getPerlinMap(ivec2 &pos, int resolution = 1);
 		void clearPerlinMaps(void);
 		void setSeed(size_t seed);
 		const size_t &getSeed() const;
 		void setNoiseData(const NoiseData &data);
 		void removePerlinMap(int x, int z);
-		vec2 getBorderWarping(double x, double z);
+		ivec2 getBorderWarping(double x, double z);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;
 		double lerp(double a, double b, double t) const;
 		double grad(int hash, double x, double y) const;
-		double getContinentalNoise(vec2 pos);
-		double getErosionNoise(vec2 pos);
-		double getOceanNoise(vec2 pos);
-		double getHeight(vec2 pos);
-		double getPeaksValleysNoise(vec2 pos);
+		double getContinentalNoise(ivec2 pos);
+		double getErosionNoise(ivec2 pos);
+		double getOceanNoise(ivec2 pos);
+		double getHeight(ivec2 pos);
+		double getPeaksValleysNoise(ivec2 pos);
 
 		size_t _seed;
 		NoiseData _data;
 		std::vector<int> _permutation;
-		std::unordered_map<vec2, PerlinMap*, vec2_hash>	_perlinMaps;
+		std::unordered_map<ivec2, PerlinMap*, ivec2_hash>	_perlinMaps;
 		std::mutex				_perlinMutex;
 		SplineData spline;
 };

@@ -14,7 +14,7 @@ class World;
 class Chunk
 {
 	private:
-		vec2								_position;
+		ivec2								_position;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
 		std::atomic_bool								_hasAllNeighbors;
@@ -46,7 +46,7 @@ class Chunk
 		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
 	public:
-		Chunk(vec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
 		std::atomic_int						_resolution;
@@ -54,7 +54,7 @@ class Chunk
 		void updateResolution(int newResolution, Direction dir);
 		void sendFacesToDisplay();
 		bool isReady();
-		vec2 getPosition();
+		ivec2 getPosition();
 		void setWestChunk(Chunk *chunk);
 		void setNorthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);
