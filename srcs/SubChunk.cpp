@@ -4,9 +4,8 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 {
 	_position = position;
 	_resolution = resolution;
-	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
-	std::fill(_blocks.begin(), _blocks.end(), 0);
 	_heightMap = &perlinMap->heightMap;
+	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 }
 
 void SubChunk::loadHeight()
@@ -20,6 +19,9 @@ void SubChunk::loadHeight()
 				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
 				if (y + _position.y * CHUNK_SIZE <= maxHeight)
 					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = STONE;
+				else
+					_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = AIR;
+
 			}
 		}
 	}

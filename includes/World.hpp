@@ -139,7 +139,7 @@ private:
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
 	void clearTransparentFaces();
-	void sendFacesToDisplay();
+	void buildFacesToDisplay();
 	void updateSSBO();
 	void updateFillData();
 	void initGLBuffer();

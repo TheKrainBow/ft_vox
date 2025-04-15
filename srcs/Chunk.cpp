@@ -117,8 +117,8 @@ void Chunk::sendFacesToDisplay()
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
-		std::vector<int> &vertices = subChunk.second->getVertices();
-		std::vector<int> &transparentVertices = subChunk.second->getTransparentVertices();
+		std::vector<int> vertices = subChunk.second->getVertices();
+		std::vector<int> transparentVertices = subChunk.second->getTransparentVertices();
 		
 		_indirectBufferData.push_back(DrawArraysIndirectCommand{
 			4,

@@ -163,10 +163,15 @@ void World::loadChunk(int x, int z, int render, vec2 chunkPos, int resolution, D
 	if (it != itend)
 	{
 		chunk = it->second;
-		_chunksMutex.unlock();
-		// (void)dir;
+		(void)dir;
 		if (chunk->_resolution != resolution)
+		{
 			chunk->updateResolution(resolution, dir);
+			_chunks[pos] = chunk;
+			_chunksMutex.unlock();
+		}
+		else
+			_chunksMutex.unlock();
 	}
 	else
 	{
@@ -293,13 +298,12 @@ void World::unLoadNextChunks(vec2 newCamChunk)
 
 void World::updateFillData()
 {
-	sendFacesToDisplay();
+	buildFacesToDisplay();
 	_drawDataMutex.lock();
 	std::swap(_fillData, _stagingData);
 	std::swap(_transparentFillData, _transparentStagingData);
 	_needTransparentUpdate = true;
 	_needUpdate = true;
-	clearFaces();
 	_drawDataMutex.unlock();
 }
 
@@ -334,7 +338,7 @@ Chunk *World::getChunk(vec2 position)
 	return nullptr;
 }
 
-void World::sendFacesToDisplay()
+void World::buildFacesToDisplay()
 {
 	clearFaces();
 	_displayedChunksMutex.lock();
@@ -404,7 +408,8 @@ void World::updateDrawData()
 		std::swap(_stagingData, _drawData);
 	if (_needTransparentUpdate)
 		std::swap(_transparentStagingData, _transparentDrawData);
-	updateSSBO();
+	if (_needUpdate || _needTransparentUpdate)
+		updateSSBO();
 }
 
 int World::display()
