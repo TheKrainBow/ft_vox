@@ -154,15 +154,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	if (it != itend)
 	{
 		chunk = it->second;
-		(void)dir;
 		if (chunk->_resolution != resolution)
-		{
 			chunk->updateResolution(resolution, dir);
-			_chunks[pos] = chunk;
-			_chunksMutex.unlock();
-		}
-		else
-			_chunksMutex.unlock();
+		_chunksMutex.unlock();
 	}
 	else
 	{
@@ -224,6 +218,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
+	std::vector<std::future<void>> retLst;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
@@ -247,17 +242,17 @@ void World::loadFirstChunks(ivec2 chunkPos)
 			resolution *= 2;
 			_threshold = _threshold * 2;
 		}
-		updateFillData();
+		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
 		if (hasMoved(chunkPos))
 			break;
     }
 	// updateFillData();
 
-	// for (std::future<void> &ret : retLst)
-	// {
-	// 	ret.get();
-	// }
-	// retLst.clear();
+	for (std::future<void> &ret : retLst)
+	{
+		ret.get();
+	}
+	retLst.clear();
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
@@ -289,12 +284,12 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
-	buildFacesToDisplay();
+	DisplayData *fillData = new DisplayData();
+	DisplayData *transparentData = new DisplayData();
+	buildFacesToDisplay(fillData, transparentData);
 	_drawDataMutex.lock();
-	std::swap(_fillData, _stagingData);
-	std::swap(_transparentFillData, _transparentStagingData);
-	_needUpdate = true;
-	_needTransparentUpdate = true;
+	_stagedDataQueue.emplace(fillData);
+	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
 }
 
@@ -329,41 +324,45 @@ Chunk *World::getChunk(ivec2 position)
 	return nullptr;
 }
 
-void World::buildFacesToDisplay()
+void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData)
 {
 	clearFaces();
+	// Copy of the unordered map of displayable chunks
+	std::unordered_map<ivec2, Chunk*, ivec2_hash> displayedChunks;
 	_displayedChunksMutex.lock();
-	for (auto &chunk : _displayedChunks)
+	displayedChunks = _displayedChunks;
+	_displayedChunksMutex.unlock();
+
+	for (auto &chunk : displayedChunks)
 	{
 		// Fill solid vertices
-		size_t size = _fillData->vertexData.size();
+		size_t size = fillData->vertexData.size();
 		std::vector<int> vertices = chunk.second->getVertices();
-		_fillData->vertexData.insert(_fillData->vertexData.end(), vertices.begin(), vertices.end());
+		fillData->vertexData.insert(fillData->vertexData.end(), vertices.begin(), vertices.end());
 
 		// Fill solid indirect buffers
 		std::vector<DrawArraysIndirectCommand> indirectBufferData = chunk.second->getIndirectData();
 		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
 			tmp.baseInstance += size;
 		}
-		_fillData->indirectBufferData.insert(_fillData->indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
+		fillData->indirectBufferData.insert(fillData->indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
 
 		// Fill transparent vertices
-		size_t transparentSize = _transparentFillData->vertexData.size();
+		size_t transparentSize = transparentFillData->vertexData.size();
 		std::vector<int> transparentVertices = chunk.second->getTransparentVertices();
-		_transparentFillData->vertexData.insert(_transparentFillData->vertexData.end(), transparentVertices.begin(), transparentVertices.end());
+		transparentFillData->vertexData.insert(transparentFillData->vertexData.end(), transparentVertices.begin(), transparentVertices.end());
 
 		// Fill transparent indirect buffers
 		std::vector<DrawArraysIndirectCommand> transparentIndirectBuffer = chunk.second->getTransparentIndirectData();
 		for (DrawArraysIndirectCommand &tmp : transparentIndirectBuffer) {
 			tmp.baseInstance += transparentSize;
 		}
-		_transparentFillData->indirectBufferData.insert(_transparentFillData->indirectBufferData.end(), transparentIndirectBuffer.begin(), transparentIndirectBuffer.end());
+		transparentFillData->indirectBufferData.insert(transparentFillData->indirectBufferData.end(), transparentIndirectBuffer.begin(), transparentIndirectBuffer.end());
 
-		// SSBO load (same for both solid and transparent we arbitrarily use _fillData)
+		// SSBO load (same for both solid and transparent we arbitrarily use _fillData/_drawData)
 		std::vector<vec4> ssboData = chunk.second->getSSBO();
-		_fillData->ssboData.insert(_fillData->ssboData.end(), ssboData.begin(), ssboData.end());
+		fillData->ssboData.insert(fillData->ssboData.end(), ssboData.begin(), ssboData.end());
 	}
-	_displayedChunksMutex.unlock();
 }
 
 void World::updateSSBO()
@@ -397,10 +396,25 @@ void World::updateDrawData()
 {
 	// Lock here
 	_drawDataMutex.lock();
-	if (_needUpdate)
-		std::swap(_stagingData, _drawData);
-	if (_needTransparentUpdate)
-		std::swap(_transparentStagingData, _transparentDrawData);
+	if (!_stagedDataQueue.empty())
+	{
+		DisplayData *stagedData = _stagedDataQueue.front();
+		std::swap(stagedData, _drawData);
+		delete stagedData;
+		stagedData = nullptr;
+		_stagedDataQueue.pop();
+		_needUpdate = true;
+	}
+	if (!_transparentStagedDataQueue.empty())
+	{
+		
+		DisplayData *stagedData = _transparentStagedDataQueue.front();
+		std::swap(stagedData, _transparentDrawData);
+		delete stagedData;
+		stagedData = nullptr;
+		_transparentStagedDataQueue.pop();
+		_needTransparentUpdate = true;
+	}
 	if (_needUpdate || _needTransparentUpdate)
 		updateSSBO();
 }

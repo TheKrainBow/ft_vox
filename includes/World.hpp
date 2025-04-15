@@ -6,21 +6,8 @@
 #include "Camera.hpp"
 #include "Chrono.hpp"
 #include "ThreadPool.hpp"
-#include <map>
-#include <atomic>
 
 class Chunk;
-
-namespace std {
-    template <>
-    struct hash<std::pair<int, int>> {
-        size_t operator()(const std::pair<int, int>& t) const {
-            size_t h1 = std::hash<int>{}(std::get<0>(t));
-            size_t h2 = std::hash<int>{}(std::get<1>(t));
-            return h1 ^ (h2 << 1);
-        }
-    };
-}
 
 struct ChunkSlot
 {
@@ -59,8 +46,12 @@ private:
 	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
-
+	
 	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
+	
+	
+	std::queue<DisplayData *>	_stagedDataQueue;
+	std::queue<DisplayData *>	_transparentStagedDataQueue;
 	
 	bool										_skipLoad;
 	ThreadPool 									&_threadPool;
@@ -139,7 +130,7 @@ private:
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
 	void clearTransparentFaces();
-	void buildFacesToDisplay();
+	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
 	void updateSSBO();
 	void updateFillData();
 	void initGLBuffer();
