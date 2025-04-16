@@ -39,8 +39,8 @@ void Chunk::loadBlocks()
 	{
 		int index = y / CHUNK_SIZE;
 		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);
-		subChunk->loadHeight(0);
-		subChunk->loadBiome(0);
+		subChunk->loadHeight();
+		subChunk->loadBiome();
 	}
 }
 
@@ -235,7 +235,7 @@ void	Chunk::updateResolution(int newResolution, Direction dir)
 	for (auto &subchunk : _subChunks)
 	{
 		SubChunk *subChunk = subchunk.second;
-		subChunk->updateResolution(newResolution, _perlinMap);
+		subChunk->updateResolution(newResolution);
 	}
 	_subChunksMutex.unlock();
 

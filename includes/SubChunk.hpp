@@ -50,8 +50,10 @@ class SubChunk
 		~SubChunk();
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
-		void loadHeight(int prevResolution);
-		void loadBiome(int prevResolution);
+		void loadHeight();
+		void updateHeight(int newResolution);
+		void loadBiome();
+		void updateBiome(int newResolution);
 		void loadOcean(int x, int z, size_t ground);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
@@ -64,7 +66,9 @@ class SubChunk
 		void clearFaces();
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();
-		void updateResolution(int resolution, PerlinMap *perlinMap);
+		void updateResolution(int resolution);
+		void setBlockHeight(int x, int y, int z);
+		void setBlockType(int x, int z, int res, int mountHeight);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);

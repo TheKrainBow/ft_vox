@@ -144,7 +144,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 		chunk = it->second;
 		_chunksMutex.unlock();
 		(void)dir;
-		if (chunk->_resolution > resolution)
+		if (chunk->_resolution != resolution)
 			chunk->updateResolution(resolution, dir);
 	}
 	else
@@ -226,7 +226,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		retRight.get();
 		retLeft.get();
 
-		if (render >= _threshold && resolution < CHUNK_SIZE)
+		if (render >= _threshold && resolution < CHUNK_SIZE / 2)
 		{
 			resolution *= 2;
 			_threshold = _threshold * 2;
@@ -277,11 +277,11 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 void World::updateFillData()
 {
 	chronoHelper.startChrono(2, "Build faces");
-	DisplayData *fillData = new DisplayData();
+	DisplayData *solidData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
-	buildFacesToDisplay(fillData, transparentData);
+	buildFacesToDisplay(solidData, transparentData);
 	_drawDataMutex.lock();
-	_stagedDataQueue.emplace(fillData);
+	_stagedDataQueue.emplace(solidData);
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
 	chronoHelper.stopChrono(2);
@@ -410,6 +410,7 @@ void World::updateDrawData()
 	}
 	if (_needUpdate || _needTransparentUpdate)
 		updateSSBO();
+	_drawDataMutex.unlock();
 }
 
 int World::display()
@@ -454,7 +455,6 @@ int World::displayTransparent()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 	// Unlock here
-	_drawDataMutex.unlock();
 	return (size * 2);
 }
 

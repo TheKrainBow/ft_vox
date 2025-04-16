@@ -8,27 +8,6 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 }
 
-void SubChunk::loadHeight(int prevResolution)
-{
-	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
-	{
-		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
-		{
-			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
-			{
-				// If this position was already filled at the coarser resolution, skip
-				if (prevResolution && x % prevResolution == 0 && y % prevResolution == 0 && z % prevResolution == 0)
-					continue;
-				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
-				int globalY = y + _position.y * CHUNK_SIZE;
-				int idx = x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE);
-
-				_blocks[idx] = (globalY <= maxHeight) ? STONE : AIR;
-			}
-		}
-	}
-}
-
 ivec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
 {
 	double noiseX = noise_gen.noise(x, z);
@@ -66,10 +45,23 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
 }
 
-void SubChunk::loadBiome(int prevResolution)
+
+void SubChunk::setBlockType(int x, int z, int res, int mountHeight) {
+	// Skip if already computed at previous resolution
+	double ground = (*_heightMap)[z * CHUNK_SIZE + x];
+	ground = ground - (int(ground) % res);
+
+	if (ground <= OCEAN_HEIGHT)
+		loadOcean(x, z, ground + 2);
+	else if (ground >= MOUNT_HEIGHT + (mountHeight))
+		loadMountain(x, z, ground);
+	else if (ground)
+		loadPlaine(x, z, ground);
+}
+
+void SubChunk::loadBiome()
 {
-	(void)prevResolution
-;	NoiseGenerator &noisegen = _world.getNoiseGenerator();
+	NoiseGenerator &noisegen = _world.getNoiseGenerator();
 	noisegen.setNoiseData({
 		1.0, 0.9, 0.02, 0.5, 12
 	});
@@ -78,17 +70,79 @@ void SubChunk::loadBiome(int prevResolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
-			// Skip if already computed at previous resolution
-			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
-			ground = ground - (int(ground) % _resolution);
-
-			if (ground <= OCEAN_HEIGHT)
-				loadOcean(x, z, ground + 2);
-			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
-				loadMountain(x, z, ground);
-			else if (ground)
-				loadPlaine(x, z, ground);
+			setBlockType(x, z, _resolution, noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15);
 		}
+	}
+}
+
+void SubChunk::setBlockHeight(int x, int y, int z) {
+	int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
+	int globalY = y + _position.y * CHUNK_SIZE;
+	int idx = x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE);
+
+	if (_blocks[idx] != AIR)
+		return ;
+	_blocks[idx] = (globalY <= maxHeight) ? STONE : AIR;
+}
+
+void SubChunk::loadHeight()
+{
+	return ;
+	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
+	{
+		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
+		{
+			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+			{
+				setBlockHeight(x, y, z);
+			}
+		}
+	}
+}
+
+void SubChunk::updateHeight(int newResolution)
+{
+	return ;
+	for (int y = 0; y < CHUNK_SIZE ; y += newResolution)
+	{
+		for (int z = 0; z < CHUNK_SIZE ; z += newResolution)
+		{
+			for (int x = 0; x < CHUNK_SIZE ; x += newResolution)
+			{
+				setBlockHeight(x, y, z);
+			}
+		}
+	}
+}
+
+void SubChunk::updateBiome(int newResolution)
+{
+	if (newResolution >= _resolution)
+		return;
+
+	NoiseGenerator &noisegen = _world.getNoiseGenerator();
+	noisegen.setNoiseData({
+		1.0, 0.9, 0.02, 0.5, 12
+	});
+
+
+	int oldResolution = _resolution;
+	int resolution = _resolution;
+
+	while (resolution != newResolution)
+	{
+		resolution /= 2;
+		for (int x = resolution; x < CHUNK_SIZE ; x += oldResolution)
+		{
+			for (int z = resolution; z < CHUNK_SIZE ; z += oldResolution)
+			{
+				setBlockType(x, z, resolution, noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15);
+				setBlockType(x - resolution, z - resolution, resolution, noisegen.noise((x - resolution) + _position.x * CHUNK_SIZE, (z - resolution) + _position.z * CHUNK_SIZE) * 15);
+				setBlockType(x - resolution, z, resolution, noisegen.noise((x - resolution) + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15);
+				setBlockType(x, z - resolution, resolution, noisegen.noise(x + _position.x * CHUNK_SIZE, (z - resolution) + _position.z * CHUNK_SIZE) * 15);
+			}
+		}
+		oldResolution = resolution;
 	}
 }
 
@@ -261,16 +315,14 @@ void SubChunk::clearFaces() {
 	_needTransparentUpdate = true;
 }
 
-void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
+void SubChunk::updateResolution(int newResolution)
 {
-	int prevResolution = _resolution;
-	_resolution = resolution;
-	_heightMap = &perlinMap->heightMap;
-
 	// Don't clear all blocks — just fill new gaps
-		// Fill new values only
-	loadHeight(prevResolution);
-	loadBiome(prevResolution);
+	// Fill new values only
+	// updateHeight(newResolution);
+	
+	updateBiome(newResolution);
+	_resolution = newResolution;
 }
 
 
