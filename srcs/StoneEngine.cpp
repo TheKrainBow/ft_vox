@@ -556,6 +556,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
+	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 
 	if (action == GLFW_PRESS) keyStates[key] = true;

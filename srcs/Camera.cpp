@@ -102,6 +102,13 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 	_facing = e_direction((int)test);
 }
 
+void Camera::invert()
+{
+	angle.x += 180.0f;
+	if (angle.x >= 360.0f)
+		angle.x -= 360.0f;
+}
+
 e_direction *Camera::getDirectionPtr()
 {
 	return &_facing;

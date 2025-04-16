@@ -32,6 +32,7 @@ class Camera {
 		fvec2 *getAnglesPtr();
 		e_direction *getDirectionPtr();
 		void rotate(float xAngle, float yAngle, double rotationSpeed);
+		void invert();
 
 	private:
 		vec3 position;

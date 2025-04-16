@@ -231,13 +231,14 @@ void	Chunk::updateResolution(int newResolution, Direction dir)
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
 
+	_subChunksMutex.lock();
 	for (auto &subchunk : _subChunks)
 	{
-		_subChunksMutex.lock();
 		SubChunk *subChunk = subchunk.second;
 		subChunk->updateResolution(newResolution, _perlinMap);
-		_subChunksMutex.unlock();
 	}
+	_subChunksMutex.unlock();
+
 	_facesSent = false;
 	sendFacesToDisplay();
 	if (_north)
