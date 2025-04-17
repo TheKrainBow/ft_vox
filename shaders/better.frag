@@ -81,7 +81,7 @@ void main() {
 		float minDistance = 20.0;
 		float maxDistance = 250.0;
 		float dist = distance(viewPos, FragPos);
-		float transparency = clamp(((dist - minDistance) / (maxDistance - minDistance)), 0.6, 1.0);
+		float transparency = clamp(((dist - minDistance) / (maxDistance - minDistance)), 0.6, 0.85);
 		texColor.a = texColor.a * transparency;
 	}
 
