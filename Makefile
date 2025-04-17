@@ -3,7 +3,7 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
-CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 #-g3 -fsanitize=address
+CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 -g3 -fsanitize=address
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
 
 OBJ_PATH		=	obj/
