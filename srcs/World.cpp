@@ -155,17 +155,14 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	}
 	else
 	{
-		_chunksMutex.unlock();
 		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
+		_chunks[pos] = chunk;
+		_chunksMutex.unlock();
+		chunk->getNeighbors();
 
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
-
-		_chunksMutex.lock();
-		_chunks[pos] = chunk;
-		chunk->getNeighbors();
-		_chunksMutex.unlock();
 	}
 	_chunksLoadLoadMutex.lock();
 	_chunksLoadLoadOrder.emplace(chunk);
