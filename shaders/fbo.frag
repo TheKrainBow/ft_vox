@@ -68,8 +68,9 @@ void main()
 		vec3 right      = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
 		float rightDepth = texture(depthTexture, texCoords + vec2( texelSize.x, 0.0)).r;
 
-		vec3 blended;
+		vec3 blended = vec3(0.0);
 		int n = 0;
+
 		if (upDepth != 1) {
 			blended += up;
 			n += 1;
@@ -86,10 +87,11 @@ void main()
 			blended += left;
 			n += 1;
 		}
-		
-		blended /= n;
-		FragColor = vec4(blended, 1.0);
-		if (n == 0) {
+
+		if (n > 0) {
+			blended /= n;
+			FragColor = vec4(blended, 1.0);
+		} else {
 			FragColor = vec4(currentColor, 1.0);
 		}
 	}
