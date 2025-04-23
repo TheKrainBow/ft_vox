@@ -87,7 +87,6 @@ void SubChunk::setBlockHeight(int x, int y, int z) {
 
 void SubChunk::loadHeight()
 {
-	return ;
 	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
@@ -102,17 +101,9 @@ void SubChunk::loadHeight()
 
 void SubChunk::updateHeight(int newResolution)
 {
-	return ;
-	for (int y = 0; y < CHUNK_SIZE ; y += newResolution)
-	{
-		for (int z = 0; z < CHUNK_SIZE ; z += newResolution)
-		{
-			for (int x = 0; x < CHUNK_SIZE ; x += newResolution)
-			{
-				setBlockHeight(x, y, z);
-			}
-		}
-	}
+	(void)newResolution;
+	std::fill(_blocks.begin(), _blocks.end(), 0);
+	loadHeight();
 }
 
 void SubChunk::updateBiome(int newResolution)
@@ -316,15 +307,12 @@ void SubChunk::clearFaces() {
 }
 
 void SubChunk::updateResolution(int newResolution)
-{
-	// Don't clear all blocks — just fill new gaps
-	// Fill new values only
-	// updateHeight(newResolution);
-	
-	updateBiome(newResolution);
+{	
+	// updateBiome(newResolution);
 	_resolution = newResolution;
+	updateHeight(newResolution);
+	loadBiome();
 }
-
 
 void SubChunk::sendFacesToDisplay()
 {

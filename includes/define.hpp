@@ -11,10 +11,10 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 121
+# define RENDER_DISTANCE 61
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
-# define LOD_THRESHOLD 5
+# define LOD_THRESHOLD 32
 # define ROTATION_SPEED 1.0f
 # define NOT_FOUND 0
 # define CACHE_SIZE 100000
@@ -34,8 +34,8 @@
 # define SNOW 'w'
 
 typedef  struct {
-    uint  count;
-    uint  instanceCount;
-    uint  first;
-    uint  baseInstance;
+	uint  count;
+	uint  instanceCount;
+	uint  first;
+	uint  baseInstance;
 } DrawArraysIndirectCommand;

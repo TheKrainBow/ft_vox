@@ -22,8 +22,6 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager, resolution);
 	}
 	_isInit = true;
-	// sendFacesToDisplay();
-	// getNeighbors();
 }
 
 void Chunk::loadBlocks()
@@ -240,7 +238,6 @@ void	Chunk::updateResolution(int newResolution, Direction dir)
 	_subChunksMutex.unlock();
 
 	_facesSent = false;
-	sendFacesToDisplay();
 	if (_north)
 		_north->sendFacesToDisplay();
 	if (_south)

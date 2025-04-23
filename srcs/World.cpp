@@ -142,10 +142,10 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	if (it != itend)
 	{
 		chunk = it->second;
-		_chunksMutex.unlock();
 		(void)dir;
 		if (chunk->_resolution != resolution)
-			chunk->updateResolution(resolution, dir);
+		chunk->updateResolution(resolution, dir);
+		_chunksMutex.unlock();
 	}
 	else
 	{
@@ -208,7 +208,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
 	chronoHelper.startChrono(1, "Loading of chunks");
-    for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
+	for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
 		std::future<void> retBot;
@@ -234,7 +234,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		updateFillData();
 		if (hasMoved(chunkPos))
 			break;
-    }
+	}
 	// updateFillData();
 
 	// for (std::future<void> &ret : retLst)
@@ -360,6 +360,8 @@ void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentF
 
 void World::updateSSBO()
 {
+	if (!_drawData)
+		return ;
 	// SSBO Update
 	bool needUpdate = false;
 	size_t size = _drawData->ssboData.size() * 2;
@@ -437,7 +439,10 @@ int World::display()
 int World::displayTransparent()
 {
 	if (!_transparentDrawData)
+	{
+		_drawDataMutex.unlock();
 		return 0;
+	}
 	if (_needTransparentUpdate)
 	{
 		pushVerticesToOpenGL(true);

@@ -277,68 +277,68 @@ void StoneEngine::triangleMeshToggle()
 void StoneEngine::display()
 {
 	// Skip FBO, draw to screen (wireframe dependant)
-    if (showTriangleMesh)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); 
-    else
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	if (showTriangleMesh)
+		glBindFramebuffer(GL_FRAMEBUFFER, 0); 
+	else
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
 	// Clear depth and color buffers
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glMatrixMode(GL_MODELVIEW);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glMatrixMode(GL_MODELVIEW);
 
-    // Render world ("better.vert/frag" shaders active)
-    activateRenderShader();
+	// Render world ("better.vert/frag" shaders active)
+	activateRenderShader();
 
 	// Wireframe mode
-    triangleMeshToggle();
+	triangleMeshToggle();
 
 	// Swap draw data with ready data
 	_world.updateDrawData();
 
 	// One draw call solid blocks
-    drawnTriangles = _world.display();
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDisable(GL_CULL_FACE);
+	drawnTriangles = _world.display();
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDisable(GL_CULL_FACE);
 
-    // Skip post-process only if not in wireframe
-    if (!showTriangleMesh)
+	// Skip post-process only if not in wireframe
+	if (!showTriangleMesh)
 	{
 		// Post processing for T-junction holes ("fbo.vert/frag" shaders active )
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        activateFboShader();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
+		activateFboShader();
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-                        0, 0, windowWidth, windowHeight,
-                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+						0, 0, windowWidth, windowHeight,
+						GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 		// Deactivate post processing for water
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
 
-    // Transparency settings & UI
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
-	
-    // Render transparent world ("better.vert/frag" shaders active)
-    activateRenderShader();
+	// Transparency settings & UI
+	glDepthMask(GL_FALSE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_DEPTH_TEST);
+
+	// Render transparent world ("better.vert/frag" shaders active)
+	activateRenderShader();
 
 	// One draw call transparent blocks
-    drawnTriangles += _world.displayTransparent();
+	drawnTriangles += _world.displayTransparent();
 	glDisable(GL_CULL_FACE);
 
 	// Deactivating lines for debug console
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    if (showDebugInfo)
-        debugBox.render();
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    calculateFps();
-    glfwSwapBuffers(_window);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	if (showDebugInfo)
+		debugBox.render();
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+	calculateFps();
+	glfwSwapBuffers(_window);
 }
 
 void StoneEngine::loadFirstChunks()
@@ -485,25 +485,25 @@ void StoneEngine::updateGameTick()
 
 void StoneEngine::update()
 {
-    // Check for delta and apply to move and rotation speeds
-    findMoveRotationSpeed();
+	// Check for delta and apply to move and rotation speeds
+	findMoveRotationSpeed();
 
-    // Get current time
-    end = std::chrono::steady_clock::now();
-    delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    start = end; // Reset start time for next frame
+	// Get current time
+	end = std::chrono::steady_clock::now();
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	start = end; // Reset start time for next frame
 
-    // Check if it's time to update the game tick (20 times per second)
-    static auto lastGameTick = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
-    {
-        updateGameTick();
-        lastGameTick = end; // Reset game tick timer
-    }
+	// Check if it's time to update the game tick (20 times per second)
+	static auto lastGameTick = std::chrono::steady_clock::now();
+	if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
+	{
+		updateGameTick();
+		lastGameTick = end; // Reset game tick timer
+	}
 
-    // Update player position and orientation
-    updateMovement();
-    display();
+	// Update player position and orientation
+	updateMovement();
+	display();
 }
 
 void StoneEngine::updateFboWindowSize()
@@ -624,8 +624,8 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 
 void StoneEngine::scrollAction(double yoffset)
 {
-    _fov -= (float)yoffset;
-    _fov = std::clamp(_fov, 1.0f, 90.0f);
+	_fov -= (float)yoffset;
+	_fov = std::clamp(_fov, 1.0f, 90.0f);
 	reshapeAction(windowWidth, windowHeight);
 }
 

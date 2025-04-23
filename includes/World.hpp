@@ -25,9 +25,9 @@ struct ChunkElement
 };
 
 struct Compare {
-    bool operator()(const ChunkElement& a, const ChunkElement& b) const {
-        return a.priority > b.priority;
-    }
+	bool operator()(const ChunkElement& a, const ChunkElement& b) const {
+		return a.priority > b.priority;
+	}
 };
 
 struct DisplayData
