@@ -22,9 +22,10 @@ private:
 	std::mutex	mic;
 	std::mutex chronosMutex;
 public:
-	Chrono();
-	~Chrono();
-	void startChrono(int index, std::string label);
-	void stopChrono(int index);
-	void printChronos(void);
+    Chrono();
+    ~Chrono();
+    void startChrono(int index, std::string label);
+    void stopChrono(int index);
+    void printChronos(void);
+	void printChrono(size_t index);
 };

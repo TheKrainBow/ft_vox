@@ -207,8 +207,9 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	chronoHelper.startChrono(1, "Loading of chunks");
-	for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
+	chronoHelper.startChrono(1, "Build chunks + loaded faces");
+	std::vector<std::future<void>> retLst;
+    for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
 		std::future<void> retBot;
@@ -231,19 +232,19 @@ void World::loadFirstChunks(ivec2 chunkPos)
 			resolution *= 2;
 			_threshold = _threshold * 2;
 		}
-		updateFillData();
+		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
 		if (hasMoved(chunkPos))
 			break;
 	}
 	// updateFillData();
 
-	// for (std::future<void> &ret : retLst)
-	// {
-	// 	ret.get();
-	// }
-	// retLst.clear();
+	for (std::future<void> &ret : retLst)
+	{
+		ret.get();
+	}
+	retLst.clear();
 	chronoHelper.stopChrono(1);
-	chronoHelper.printChronos();
+	chronoHelper.printChrono(1);
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
@@ -276,7 +277,7 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
-	chronoHelper.startChrono(2, "Build faces");
+	chronoHelper.startChrono(2, "Build loaded faces");
 	DisplayData *solidData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(solidData, transparentData);
@@ -285,6 +286,7 @@ void World::updateFillData()
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
 	chronoHelper.stopChrono(2);
+	chronoHelper.printChrono(2);
 }
 
 bool World::hasMoved(ivec2 oldPos)
@@ -318,7 +320,7 @@ Chunk *World::getChunk(ivec2 position)
 	return nullptr;
 }
 
-void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData)
+void World::buildFacesToDisplay(DisplayData *solidData, DisplayData *transparentFillData)
 {
 	// Copy of the unordered map of displayable chunks
 	std::unordered_map<ivec2, Chunk*, ivec2_hash> displayedChunks;
@@ -329,16 +331,16 @@ void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentF
 	for (auto &chunk : displayedChunks)
 	{
 		// Fill solid vertices
-		size_t size = fillData->vertexData.size();
+		size_t size = solidData->vertexData.size();
 		std::vector<int> vertices = chunk.second->getVertices();
-		fillData->vertexData.insert(fillData->vertexData.end(), vertices.begin(), vertices.end());
+		solidData->vertexData.insert(solidData->vertexData.end(), vertices.begin(), vertices.end());
 
 		// Fill solid indirect buffers
 		std::vector<DrawArraysIndirectCommand> indirectBufferData = chunk.second->getIndirectData();
 		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
 			tmp.baseInstance += size;
 		}
-		fillData->indirectBufferData.insert(fillData->indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
+		solidData->indirectBufferData.insert(solidData->indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
 
 		// Fill transparent vertices
 		size_t transparentSize = transparentFillData->vertexData.size();
@@ -352,9 +354,9 @@ void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentF
 		}
 		transparentFillData->indirectBufferData.insert(transparentFillData->indirectBufferData.end(), transparentIndirectBuffer.begin(), transparentIndirectBuffer.end());
 
-		// SSBO load (same for both solid and transparent we arbitrarily use _fillData/_drawData)
+		// SSBO load (same for both solid and transparent we arbitrarily use _solidData/_drawData)
 		std::vector<vec4> ssboData = chunk.second->getSSBO();
-		fillData->ssboData.insert(fillData->ssboData.end(), ssboData.begin(), ssboData.end());
+		solidData->ssboData.insert(solidData->ssboData.end(), ssboData.begin(), ssboData.end());
 	}
 }
 
@@ -410,7 +412,7 @@ void World::updateDrawData()
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
 	}
-	if (_needUpdate || _needTransparentUpdate)
+	if (_drawData && (_needUpdate || _needTransparentUpdate))
 		updateSSBO();
 	_drawDataMutex.unlock();
 }
