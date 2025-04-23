@@ -207,7 +207,8 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	chronoHelper.startChrono(1, "Loading of chunks");
+	chronoHelper.startChrono(1, "Build chunks + loaded faces");
+	std::vector<std::future<void>> retLst;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
@@ -231,19 +232,19 @@ void World::loadFirstChunks(ivec2 chunkPos)
 			resolution *= 2;
 			_threshold = _threshold * 2;
 		}
-		updateFillData();
+		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
 		if (hasMoved(chunkPos))
 			break;
     }
 	// updateFillData();
 
-	// for (std::future<void> &ret : retLst)
-	// {
-	// 	ret.get();
-	// }
-	// retLst.clear();
+	for (std::future<void> &ret : retLst)
+	{
+		ret.get();
+	}
+	retLst.clear();
 	chronoHelper.stopChrono(1);
-	chronoHelper.printChronos();
+	chronoHelper.printChrono(1);
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
@@ -276,7 +277,7 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
-	chronoHelper.startChrono(2, "Build faces");
+	chronoHelper.startChrono(2, "Build loaded faces");
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -285,6 +286,7 @@ void World::updateFillData()
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
 	chronoHelper.stopChrono(2);
+	chronoHelper.printChrono(2);
 }
 
 bool World::hasMoved(ivec2 oldPos)
@@ -408,7 +410,7 @@ void World::updateDrawData()
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
 	}
-	if (_needUpdate || _needTransparentUpdate)
+	if (_drawData && (_needUpdate || _needTransparentUpdate))
 		updateSSBO();
 }
 
@@ -436,7 +438,10 @@ int World::display()
 int World::displayTransparent()
 {
 	if (!_transparentDrawData)
+	{
+		_drawDataMutex.unlock();
 		return 0;
+	}
 	if (_needTransparentUpdate)
 	{
 		pushVerticesToOpenGL(true);
