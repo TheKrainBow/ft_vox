@@ -49,7 +49,7 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 void SubChunk::setBlockType(int x, int z, int res, int mountHeight) {
 	// Skip if already computed at previous resolution
 	double ground = (*_heightMap)[z * CHUNK_SIZE + x];
-	ground = ground - (int(ground) % res);
+	ground = ground - (int)ground % res;
 
 	if (ground <= OCEAN_HEIGHT)
 		loadOcean(x, z, ground + 2);
@@ -101,26 +101,49 @@ void SubChunk::loadHeight()
 
 void SubChunk::updateHeight(int newResolution)
 {
-	(void)newResolution;
-	std::fill(_blocks.begin(), _blocks.end(), 0);
-	loadHeight();
+	int resolution = _resolution;
+	int oldResolution = resolution;
+	while (resolution > newResolution)
+	{
+		resolution /= 2;
+		for (int y = resolution; y < CHUNK_SIZE ; y += oldResolution)
+		{
+			for (int z = resolution; z < CHUNK_SIZE ; z += oldResolution)
+			{
+				for (int x = resolution; x < CHUNK_SIZE ; x += oldResolution)
+				{
+					setBlockHeight(x - resolution, y, z);
+					setBlockHeight(x - resolution, y - resolution, z);
+					setBlockHeight(x - resolution, y, z - resolution);
+					setBlockHeight(x, y - resolution, z);
+					setBlockHeight(x, y - resolution, z - resolution);
+					setBlockHeight(x, y, z - resolution);
+					setBlockHeight(x, y, z);
+				}
+			}
+		}
+		oldResolution = resolution;
+	}
 }
 
 void SubChunk::updateBiome(int newResolution)
 {
-	if (newResolution >= _resolution)
+	if (newResolution > _resolution)
+	{
+		_resolution = newResolution;
+		loadBiome();
 		return;
+	}
 
 	NoiseGenerator &noisegen = _world.getNoiseGenerator();
 	noisegen.setNoiseData({
 		1.0, 0.9, 0.02, 0.5, 12
 	});
 
-
 	int oldResolution = _resolution;
 	int resolution = _resolution;
 
-	while (resolution != newResolution)
+	while (resolution > newResolution)
 	{
 		resolution /= 2;
 		for (int x = resolution; x < CHUNK_SIZE ; x += oldResolution)
@@ -307,11 +330,11 @@ void SubChunk::clearFaces() {
 }
 
 void SubChunk::updateResolution(int newResolution)
-{	
-	// updateBiome(newResolution);
-	_resolution = newResolution;
+{
 	updateHeight(newResolution);
-	loadBiome();
+	updateBiome(newResolution);
+	_resolution = newResolution;
+	// loadBiome();
 }
 
 void SubChunk::sendFacesToDisplay()

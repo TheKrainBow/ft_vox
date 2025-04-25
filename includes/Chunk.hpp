@@ -50,6 +50,7 @@ class Chunk
 		~Chunk();
 		void getNeighbors();
 		std::atomic_int						_resolution;
+		// std::atomic_int						_currentResolution;
 		SubChunk *getSubChunk(int y);
 		void updateResolution(int newResolution, Direction dir);
 		void sendFacesToDisplay();

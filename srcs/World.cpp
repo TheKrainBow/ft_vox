@@ -142,10 +142,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	if (it != itend)
 	{
 		chunk = it->second;
-		(void)dir;
-		if (chunk->_resolution != resolution)
-		chunk->updateResolution(resolution, dir);
 		_chunksMutex.unlock();
+		if (chunk->_resolution != resolution)
+			chunk->updateResolution(resolution, dir);
 	}
 	else
 	{
@@ -207,7 +206,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	chronoHelper.startChrono(1, "Build chunks + loaded faces");
+	// chronoHelper.startChrono(1, "Build chunks + loaded faces");
 	std::vector<std::future<void>> retLst;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
@@ -243,8 +242,8 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		ret.get();
 	}
 	retLst.clear();
-	chronoHelper.stopChrono(1);
-	chronoHelper.printChrono(1);
+	// chronoHelper.stopChrono(1);
+	// chronoHelper.printChrono(1);
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)
@@ -277,7 +276,7 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
-	chronoHelper.startChrono(2, "Build loaded faces");
+	// chronoHelper.startChrono(2, "Build loaded faces");
 	DisplayData *solidData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(solidData, transparentData);
@@ -285,8 +284,8 @@ void World::updateFillData()
 	_stagedDataQueue.emplace(solidData);
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
-	chronoHelper.stopChrono(2);
-	chronoHelper.printChrono(2);
+	// chronoHelper.stopChrono(2);
+	// chronoHelper.printChrono(2);
 }
 
 bool World::hasMoved(ivec2 oldPos)

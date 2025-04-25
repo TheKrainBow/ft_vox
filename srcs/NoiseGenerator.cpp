@@ -199,44 +199,26 @@ void NoiseGenerator::loadHeight(PerlinMap *map, int x, int z) {
 
 void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution)
 {
-	if (!map || newResolution > map->resolution)
+	if (!map || newResolution >= map->resolution)
 		return;
 
+	int oldResolution = map->resolution;
 	while (map->resolution != newResolution)
 	{
-		// int oldResolution = map->resolution;
 		map->resolution /= 2;
-
-		// Vertical
-		for (int x = map->resolution; x < map->size; x += map->resolution * 2)
+		for (int x = map->resolution; x < map->size; x += oldResolution)
 		{
-			for (int z = 0; z < map->size; z += map->resolution * 2)
+			for (int z = map->resolution; z < map->size; z += oldResolution)
 			{
 				loadHeight(map, x, z);
+				loadHeight(map, x - map->resolution, z);
+				loadHeight(map, x, z - map->resolution);
 			}
 		}
-
-		// Horizontal
-		for (int x = 0; x < map->size; x += map->resolution * 2)
-		{
-			for (int z = map->resolution; z < map->size; z += map->resolution * 2)
-			{
-				loadHeight(map, x, z);
-			}
-		}
-
-		// Center
-		for (int x = map->resolution; x < map->size; x += map->resolution * 2)
-		{
-			for (int z = map->resolution; z < map->size; z += map->resolution * 2)
-			{
-				loadHeight(map, x, z);
-			}
-		}
+		oldResolution = map->resolution;
 	}
 	_perlinMaps[map->position] = map;
 }
-
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
