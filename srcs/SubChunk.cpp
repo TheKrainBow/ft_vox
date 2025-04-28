@@ -20,6 +20,7 @@ ivec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) 
 
 void SubChunk::loadOcean(int x, int z, size_t ground)
 {
+	// loadPlaine(x, z, ground);
 	int y;
 	for (y = OCEAN_HEIGHT; y > (int)ground; y--)
 		setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
@@ -45,12 +46,25 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
 }
 
-
 void SubChunk::setBlockType(int x, int z, int res, int mountHeight) {
 	// Skip if already computed at previous resolution
-	double ground = (*_heightMap)[z * CHUNK_SIZE + x];
-	ground = ground - (int)ground % res;
+	int ground = (*_heightMap)[z * CHUNK_SIZE + x];
+	ground /= res;
+	ground *= res;
 
+	if (ground <= OCEAN_HEIGHT)
+		loadOcean(x, z, ground + 2);
+	else if (ground >= MOUNT_HEIGHT + (mountHeight))
+		loadMountain(x, z, ground);
+	else if (ground)
+		loadPlaine(x, z, ground);
+}
+
+void SubChunk::updateBlockType(int x, int z, int res, int mountHeight)
+{
+	// Skip if already computed at previous resolution
+	int ground = (*_heightMap)[z * CHUNK_SIZE + x];
+	(void)res;
 	if (ground <= OCEAN_HEIGHT)
 		loadOcean(x, z, ground + 2);
 	else if (ground >= MOUNT_HEIGHT + (mountHeight))
@@ -128,12 +142,8 @@ void SubChunk::updateHeight(int newResolution)
 
 void SubChunk::updateBiome(int newResolution)
 {
-	if (newResolution > _resolution)
-	{
-		_resolution = newResolution;
-		loadBiome();
-		return;
-	}
+	if (newResolution >= _resolution)
+		return ;
 
 	NoiseGenerator &noisegen = _world.getNoiseGenerator();
 	noisegen.setNoiseData({
@@ -141,22 +151,19 @@ void SubChunk::updateBiome(int newResolution)
 	});
 
 	int oldResolution = _resolution;
-	int resolution = _resolution;
-
-	while (resolution > newResolution)
+	while (_resolution != newResolution)
 	{
-		resolution /= 2;
-		for (int x = resolution; x < CHUNK_SIZE ; x += oldResolution)
+		_resolution /= 2;
+		for (int x = _resolution; x < CHUNK_SIZE ; x += oldResolution)
 		{
-			for (int z = resolution; z < CHUNK_SIZE ; z += oldResolution)
+			for (int z = _resolution; z < CHUNK_SIZE ; z += oldResolution)
 			{
-				setBlockType(x, z, resolution, noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15);
-				setBlockType(x - resolution, z - resolution, resolution, noisegen.noise((x - resolution) + _position.x * CHUNK_SIZE, (z - resolution) + _position.z * CHUNK_SIZE) * 15);
-				setBlockType(x - resolution, z, resolution, noisegen.noise((x - resolution) + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15);
-				setBlockType(x, z - resolution, resolution, noisegen.noise(x + _position.x * CHUNK_SIZE, (z - resolution) + _position.z * CHUNK_SIZE) * 15);
+				updateBlockType(x, z, _resolution, 0);
+				updateBlockType(x - _resolution, z, _resolution, 0);
+				updateBlockType(x, z - _resolution, _resolution, 0);
 			}
 		}
-		oldResolution = resolution;
+		oldResolution = _resolution;
 	}
 }
 

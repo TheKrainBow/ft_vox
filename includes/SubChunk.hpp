@@ -69,6 +69,7 @@ class SubChunk
 		void updateResolution(int resolution);
 		void setBlockHeight(int x, int y, int z);
 		void setBlockType(int x, int z, int res, int mountHeight);
+		void updateBlockType(int x, int z, int res, int mountHeight);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
 		void addUpFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
