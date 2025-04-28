@@ -67,7 +67,7 @@ vec3 Camera::getPosition()
 	return position;
 }
 
-vec2 Camera::getAngles()
+fvec2 Camera::getAngles()
 {
 	return angle;
 }
@@ -78,7 +78,7 @@ vec3 *Camera::getPositionPtr()
 	return &position;
 }
 
-vec2 *Camera::getAnglesPtr()
+fvec2 *Camera::getAnglesPtr()
 {
 	return &angle;
 }
@@ -88,7 +88,7 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 	//std::lock_guard<std::mutex> lock(angleMutex);
 	angle.x += xAngle * rotationSpeed;
 	angle.y += yAngle * rotationSpeed;
-	angle.y = clamp(angle.y, -90.0f, 90.0f);
+	angle.y = std::clamp(angle.y, -90.0f, 90.0f);
 	if (angle.x < 0)
 		angle.x = 360;
 	else if (angle.x > 360)
@@ -100,6 +100,13 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 		tmp = 0;
 	double test = int(tmp) / 45;
 	_facing = e_direction((int)test);
+}
+
+void Camera::invert()
+{
+	angle.x += 180.0f;
+	if (angle.x >= 360.0f)
+		angle.x -= 360.0f;
 }
 
 e_direction *Camera::getDirectionPtr()

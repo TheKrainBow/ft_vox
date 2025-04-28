@@ -6,21 +6,8 @@
 #include "Camera.hpp"
 #include "Chrono.hpp"
 #include "ThreadPool.hpp"
-#include <map>
-#include <atomic>
 
 class Chunk;
-
-namespace std {
-    template <>
-    struct hash<std::pair<int, int>> {
-        size_t operator()(const std::pair<int, int>& t) const {
-            size_t h1 = std::hash<int>{}(std::get<0>(t));
-            size_t h2 = std::hash<int>{}(std::get<1>(t));
-            return h1 ^ (h2 << 1);
-        }
-    };
-}
 
 struct ChunkSlot
 {
@@ -43,28 +30,29 @@ struct Compare {
     }
 };
 
+struct DisplayData
+{
+	std::vector<vec4>						ssboData;
+	std::vector<int>						vertexData;
+	std::vector<DrawArraysIndirectCommand>	indirectBufferData;
+};
+
 class World
 {
 private:
 	// World related informations
 	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
 	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
-
-	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
-	std::queue<ivec2>	_chunkRemovalOrder;
-	std::mutex			_chunksRemovalMutex;
-
-	std::queue<Chunk *>	_chunksLoadLoadOrder;
-	std::mutex			_chunksLoadLoadMutex;
-
-	std::queue<Chunk *>	_chunksLoadOrder;
-	std::mutex			_chunksLoadMutex;
 	
-	std::mutex									_displayChunkMutex;
-	std::queue<Chunk*>							_displayQueue;
-	std::mutex									_displayQueueMutex;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
+	
+	
+	std::queue<DisplayData *>	_stagedDataQueue;
+	std::queue<DisplayData *>	_transparentStagedDataQueue;
+	
 	bool										_skipLoad;
 	ThreadPool 									&_threadPool;
 	TextureManager								&_textureManager;
@@ -80,20 +68,24 @@ private:
 
 	bool 									_hasBufferInitialized;
 	GLuint									_ssbo;
-	std::vector<vec4>						_ssboData;
+
+	// Display
+	std::mutex								_drawDataMutex;
+	DisplayData								*_drawData;
+
+	DisplayData								*_transparentDrawData;
+	DisplayData								*_transparentFillData;
+	DisplayData								*_transparentStagingData;
+
 	size_t									_drawnSSBOSize;
+	GLuint									_instanceVBO;
+	GLuint									_indirectBuffer;
 	GLuint									_vao;
 	GLuint									_vbo;
-	GLuint									_instanceVBO;
-	std::vector<int>						_vertexData;
-	std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
-	GLuint									_indirectBuffer;
 
 	bool 									_hasTransparentBufferInitialized;
 	GLuint									_transparentVao;
 	GLuint									_transparentInstanceVBO;
-	std::vector<int>						_transparentVertexData;
-	std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
 	GLuint									_transparentIndirectBuffer;
 
 	bool									_needUpdate;
@@ -110,7 +102,7 @@ public:
 	
 	void unLoadNextChunks(ivec2 newCamChunk);
 	void loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir);
-	void loadPerlinMap(vec3 camPosition);
+	void loadPerlinMap(ivec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	int	getCachedChunksNumber();
 	Chunk* getChunk(ivec2 position);
@@ -122,6 +114,7 @@ public:
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
+	void updateDrawData();
 private:
 	ivec3 calculateBlockPos(ivec3 position) const;
 	bool getIsRunning();
@@ -130,15 +123,13 @@ private:
 	void loadBotChunks(int render, ivec2 camPosition, int resolution = 1);
 	void loadLeftChunks(int render, ivec2 camPosition, int resolution = 1);
 	void unloadChunk();
-	void generateSpiralOrder();
 	bool hasMoved(ivec2 oldPos);
-	void loadOrder();
-	void removeOrder();
-	void updateChunk(int x, int z, int render, ivec2 chunkPos);
 
-	void initGLBuffer();
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
 	void clearTransparentFaces();
-	void sendFacesToDisplay();
+	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
+	void updateSSBO();
+	void updateFillData();
+	void initGLBuffer();
 };

@@ -71,7 +71,7 @@ class StoneEngine {
 		std::chrono::milliseconds delta;
 
 		// Game data
-		vec3 sunPosition;
+		ivec3 sunPosition;
 		std::atomic_int timeValue;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);

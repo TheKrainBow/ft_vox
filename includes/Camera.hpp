@@ -27,19 +27,20 @@ class Camera {
 		vec3 getWorldPosition();
 		ivec2 getChunkPosition(int chunkSize);
 		vec3 getPosition();
-		vec2 getAngles();
+		fvec2 getAngles();
 		vec3 *getPositionPtr();
-		vec2 *getAnglesPtr();
+		fvec2 *getAnglesPtr();
 		e_direction *getDirectionPtr();
 		void rotate(float xAngle, float yAngle, double rotationSpeed);
+		void invert();
 
 	private:
 		vec3 position;
-		vec2 angle;
+		fvec2 angle;
 		float rotationspeed = 125.0f;
 		float movementspeed = 10.0f;
 		bool mouseRotation = false;
-		vec2 mousePos;
+		ivec2 mousePos;
 		std::mutex _positionMutex;
 		e_direction _facing;
 };

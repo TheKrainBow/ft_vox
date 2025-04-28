@@ -26,6 +26,24 @@ Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &text
 	// getNeighbors();
 }
 
+void Chunk::loadBlocks()
+{
+	int heighest = _perlinMap->heighest;
+	int lowest = _perlinMap->lowest;
+	if (heighest < OCEAN_HEIGHT) {
+		heighest = OCEAN_HEIGHT;
+	}
+	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
+	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
+	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
+	{
+		int index = y / CHUNK_SIZE;
+		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);
+		subChunk->loadHeight(0);
+		subChunk->loadBiome(0);
+	}
+}
+
 Chunk::~Chunk()
 {
 	for (auto &subchunk : _subChunks)
@@ -35,24 +53,24 @@ Chunk::~Chunk()
 
 void Chunk::getNeighbors()
 {
-    _north = _world.getChunk({_position.x, _position.y - 1});
-    _south = _world.getChunk({_position.x, _position.y + 1});
-    _east = _world.getChunk({_position.x + 1, _position.y});
-    _west = _world.getChunk({_position.x - 1, _position.y});
+	_north = _world.getChunk({_position.x, _position.y - 1});
+	_south = _world.getChunk({_position.x, _position.y + 1});
+	_east = _world.getChunk({_position.x + 1, _position.y});
+	_west = _world.getChunk({_position.x - 1, _position.y});
 
 	if (_north) {
 		_north->setSouthChunk(this);
 		_north->sendFacesToDisplay();
 	}
-    if (_south) {
+	if (_south) {
 		_south->setNorthChunk(this);
 		_south->sendFacesToDisplay();
 	}
-    if (_east) {
+	if (_east) {
 		_east->setWestChunk(this);
 		_east->sendFacesToDisplay();
 	}
-    if (_west) {
+	if (_west) {
 		_west->setEastChunk(this);
 		_west->sendFacesToDisplay();
 	}
@@ -99,8 +117,8 @@ void Chunk::sendFacesToDisplay()
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
-		std::vector<int> &vertices = subChunk.second->getVertices();
-		std::vector<int> &transparentVertices = subChunk.second->getTransparentVertices();
+		std::vector<int> vertices = subChunk.second->getVertices();
+		std::vector<int> transparentVertices = subChunk.second->getTransparentVertices();
 		
 		_indirectBufferData.push_back(DrawArraysIndirectCommand{
 			4,
@@ -117,7 +135,7 @@ void Chunk::sendFacesToDisplay()
 		});
 
 		ivec3 pos = subChunk.second->getPosition();
-		_ssboData.push_back(ivec4{
+		_ssboData.push_back(vec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
 
@@ -210,17 +228,17 @@ void Chunk::freeSubChunks()
 void	Chunk::updateResolution(int newResolution, Direction dir)
 {
 	(void)dir;
-	_perlinMap->resolution = newResolution;
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
 
+	_subChunksMutex.lock();
 	for (auto &subchunk : _subChunks)
 	{
-		_subChunksMutex.lock();
 		SubChunk *subChunk = subchunk.second;
 		subChunk->updateResolution(newResolution, _perlinMap);
-		_subChunksMutex.unlock();
 	}
+	_subChunksMutex.unlock();
+
 	_facesSent = false;
 	sendFacesToDisplay();
 	if (_north)

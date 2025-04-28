@@ -183,7 +183,7 @@ void StoneEngine::initFboShaders()
 void StoneEngine::initDebugTextBox()
 {
 	vec3 *camPos = camera.getPositionPtr();
-	vec2 *camAngle = camera.getAnglesPtr();
+	fvec2 *camAngle = camera.getAnglesPtr();
 	e_direction *facing_direction = camera.getDirectionPtr();
 
 	debugBox.initData(_window, 0, 0, 200, 200);
@@ -293,8 +293,8 @@ void StoneEngine::display()
 	// Wireframe mode
     triangleMeshToggle();
 
-	// Update and build vertices
-    _world.updateActiveChunks();
+	// Swap draw data with ready data
+	_world.updateDrawData();
 
 	// One draw call solid blocks
     drawnTriangles = _world.display();
@@ -351,26 +351,18 @@ void StoneEngine::loadFirstChunks()
 
 void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 {
+	std::future<void> unloadRet;
+	std::future<void> loadRet;
 	chronoHelper.startChrono(0, "Load chunks");
-
-	// Run both calls in parallel using std::async
-	// auto unLoadNextChunk = std::async(std::launch::async, 
-	// 	[&]() {_world.unLoadNextChunks(oldCamChunk, newCamChunk, worldPos); });
-
-	// auto loadNextChunk = std::async(std::launch::async, 
-	// 	[&]() { _world.loadFirstChunks(worldPos); });
-
-	// Ensure both complete before stopping the chrono
-	// loadNextChunk.get();
-	// unLoadNextChunk.get();
 	if (getIsRunning())
-		_world.loadFirstChunks(newCamChunk);
+		unloadRet = _pool.enqueue(&World::unLoadNextChunks, &_world, newCamChunk);
 	if (getIsRunning())
-		_world.unLoadNextChunks(newCamChunk);
+		loadRet = _pool.enqueue(&World::loadFirstChunks, &_world, newCamChunk);
+	unloadRet.get();
+	loadRet.get();
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
-
 
 void StoneEngine::findMoveRotationSpeed()
 {
@@ -569,6 +561,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
+	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 
 	if (action == GLFW_PRESS) keyStates[key] = true;

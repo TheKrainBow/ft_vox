@@ -44,17 +44,17 @@ class NoiseGenerator {
 		const size_t &getSeed() const;
 		void setNoiseData(const NoiseData &data);
 		void removePerlinMap(int x, int z);
-		vec2 getBorderWarping(double x, double z);
+		ivec2 getBorderWarping(double x, double z);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;
 		double lerp(double a, double b, double t) const;
 		double grad(int hash, double x, double y) const;
-		double getContinentalNoise(vec2 pos);
-		double getErosionNoise(vec2 pos);
-		double getOceanNoise(vec2 pos);
-		double getHeight(vec2 pos);
-		double getPeaksValleysNoise(vec2 pos);
+		double getContinentalNoise(ivec2 pos);
+		double getErosionNoise(ivec2 pos);
+		double getOceanNoise(ivec2 pos);
+		double getHeight(ivec2 pos);
+		double getPeaksValleysNoise(ivec2 pos);
 
 		size_t _seed;
 		NoiseData _data;

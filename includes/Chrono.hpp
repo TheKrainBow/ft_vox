@@ -27,4 +27,5 @@ public:
     void startChrono(int index, std::string label);
     void stopChrono(int index);
     void printChronos(void);
+	void printChrono(size_t index);
 };
