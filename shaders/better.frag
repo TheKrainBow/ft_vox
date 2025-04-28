@@ -68,12 +68,12 @@ void main() {
     }
 
     // Lighting strengths
-    float ambient = calculateAmbientLight(timeValue);     // ~[0.2 - 0.7]
-    float diffuse = calculateDiffuseLight(timeValue, lightDir); // ~[0.0 - 1.0]
-    float specular = calculateSpecularLight(timeValue, lightDir); // ~[0.0 - 0.2]
+    float ambient = calculateAmbientLight(timeValue);
+    float diffuse = calculateDiffuseLight(timeValue, lightDir);
+    float specular = calculateSpecularLight(timeValue, lightDir);
 
     // Control how strong each contribution is
-    float ambientWeight = 0.4;
+    float ambientWeight = 0.6;
     float diffuseWeight = 0.9;
     float specularWeight = 0.5;
 
