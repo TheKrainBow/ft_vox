@@ -29,7 +29,10 @@ World::~World()
 {
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
+	{
+		it->second->freeSubChunks();
 		delete it->second;
+	}
 	if (_drawData)
 		delete _drawData;
 }
