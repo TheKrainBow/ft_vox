@@ -24,6 +24,7 @@
 
 # define OCEAN_HEIGHT 127
 # define MOUNT_HEIGHT 260
+# define FOREST_HEIGHT 175
 
 # define AIR 0
 # define STONE 'S'

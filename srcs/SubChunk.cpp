@@ -52,9 +52,28 @@ void SubChunk::loadOcean(int x, int z, size_t ground)
 		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
 
-void SubChunk::loadPlaine(int x, int z, size_t ground)
+void SubChunk::loadPlaine(int x, int z, size_t ground, NoiseGenerator &tree_generator)
 {
-	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
+	// Has a tree
+	ivec2 worldPos = tree_generator.getBorderWarping(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE);
+	NoiseData nData = {
+		0.9, // amplitude
+		0.01, // frequency
+		0.5, // persistance
+		2.0, // lacunarity
+		6 // nb_octaves
+	};
+	tree_generator.setNoiseData(nData);
+
+	double treeVal = tree_generator.noise(worldPos.x, worldPos.y);
+	// std::cout << treeVal << std::endl;
+	if (ground < FOREST_HEIGHT && treeVal > 0.1 && treeVal < 0.11)
+	{
+		// Tree generation
+		setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), DIRT);
+	}
+	else
+		setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
 	for (int i = -1; i > -5 * _resolution; i--)
 		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
 }
@@ -87,7 +106,7 @@ void SubChunk::loadBiome(int prevResolution)
 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
 				loadMountain(x, z, ground);
 			else if (ground)
-				loadPlaine(x, z, ground);
+				loadPlaine(x, z, ground, noisegen);
 		}
 	}
 }

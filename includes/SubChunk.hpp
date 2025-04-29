@@ -53,7 +53,7 @@ class SubChunk
 		void loadHeight(int prevResolution);
 		void loadBiome(int prevResolution);
 		void loadOcean(int x, int z, size_t ground);
-		void loadPlaine(int x, int z, size_t ground);
+		void loadPlaine(int x, int z, size_t ground, NoiseGenerator &tree_generator);
 		void loadMountain(int x, int z, size_t ground);
 		ivec3 getPosition(void);
 		char getBlock(ivec3 position);
