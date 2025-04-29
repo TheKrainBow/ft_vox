@@ -24,7 +24,7 @@ class SubChunk
 	private:
 		ivec3				_position;
 		int					_resolution;
-		std::vector<char>	_blocks;
+		std::array<uint8_t, 32 * 32 * 32>	_blocks;
 		double				**_heightMap;
 		World				&_world;
 		Chunk				&_chunk;

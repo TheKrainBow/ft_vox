@@ -5,7 +5,6 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_position = position;
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
-	_blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE);
 }
 
 void SubChunk::loadHeight(int prevResolution)
