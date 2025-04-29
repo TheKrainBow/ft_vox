@@ -1,29 +1,18 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution) : _world(world), _textureManager(textureManager)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution)
+:
+_position(pos),
+_facesSent(false),
+_hasAllNeighbors(false),
+_isInit(false),
+_world(world),
+_textureManager(textureManager),
+_perlinMap(perlinMap),
+_hasBufferInitialized(false),
+_needUpdate(true),
+_resolution(resolution)
 {
-	_isInit = false;
-	_perlinMap = perlinMap;
-	_position = pos;
-	_facesSent = false;
-	_needUpdate = true;
-	_hasBufferInitialized = false;
-	_hasAllNeighbors = false;
-	_resolution = resolution;
-	int heighest = perlinMap->heighest;
-	int lowest = perlinMap->lowest;
-	if (heighest < OCEAN_HEIGHT) {
-		heighest = OCEAN_HEIGHT;
-	}
-	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
-	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
-	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
-	{
-		_subChunks[y / CHUNK_SIZE] = new SubChunk({pos.x, int(y / CHUNK_SIZE), pos.y}, perlinMap, *this, world, textureManager, resolution);
-	}
-	_isInit = true;
-	// sendFacesToDisplay();
-	// getNeighbors();
 }
 
 void Chunk::loadBlocks()
@@ -42,6 +31,7 @@ void Chunk::loadBlocks()
 		subChunk->loadHeight(0);
 		subChunk->loadBiome(0);
 	}
+    _isInit = true;
 }
 
 Chunk::~Chunk()
