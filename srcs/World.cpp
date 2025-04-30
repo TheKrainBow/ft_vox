@@ -434,6 +434,8 @@ int World::display()
 		_needUpdate = false;
 	}
 	long long size = _drawData->vertexData.size();
+	if (size == 0)
+		return 0;
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
@@ -459,6 +461,10 @@ int World::displayTransparent()
 	}
 	glDisable(GL_CULL_FACE);
 	long long size = _transparentDrawData->vertexData.size();
+	if (size == 0) {
+		_drawDataMutex.unlock();
+		return 0;
+	}
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_transparentVao);

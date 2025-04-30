@@ -5,24 +5,30 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_position = position;
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
+	_chunkSize = CHUNK_SIZE / resolution;
+	size_t size = _chunkSize * _chunkSize * _chunkSize;
+	_blocks = std::make_unique<uint8_t[]>(size);
+	_memorySize = sizeof(*this) + size;
+}
+
+size_t SubChunk::getMemorySize() {
+	return _memorySize;
 }
 
 void SubChunk::loadHeight(int prevResolution)
 {
+	(void)prevResolution;
 	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
 			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 			{
-				// If this position was already filled at the coarser resolution, skip
-				if (prevResolution && x % prevResolution == 0 && y % prevResolution == 0 && z % prevResolution == 0)
-					continue;
+				// if (prevResolution && x % prevResolution == 0 && y % prevResolution == 0 && z % prevResolution == 0)
+				// 	continue;
 				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
 				int globalY = y + _position.y * CHUNK_SIZE;
-				int idx = x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE);
-
-				_blocks[idx] = (globalY <= maxHeight) ? STONE : AIR;
+				setBlock(x, y, z, (globalY <= maxHeight) ? STONE : AIR);
 			}
 		}
 	}
@@ -38,31 +44,35 @@ ivec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) 
 	return offset;
 }
 
-void SubChunk::loadOcean(int x, int z, size_t ground)
+void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)
 {
 	int y;
-	for (y = OCEAN_HEIGHT; y > (int)ground; y--)
-		setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), WATER);
-	setBlock(ivec3(x, y - _position.y * CHUNK_SIZE, z), SAND);
+
+	for (y = adjustOceanHeight; y > (int)ground; y--)
+		setBlock(x, y - _position.y * CHUNK_SIZE, z, WATER);
+	setBlock(x, y - _position.y * CHUNK_SIZE, z, SAND);
 	int i;
 	for (i = 0; i > -4 * _resolution; i--)
-		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), SAND);
+		setBlock(x, y + i - _position.y * CHUNK_SIZE, z, SAND);
 	for (; i > -8 * _resolution; i--)
-		setBlock(ivec3(x, y + i - _position.y * CHUNK_SIZE, z), DIRT);
+		setBlock(x, y + i - _position.y * CHUNK_SIZE, z, DIRT);
 }
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
-	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), GRASS);
-	for (int i = -1; i > -5 * _resolution; i--)
-		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), DIRT);
-}
+	int y = ground - _position.y * CHUNK_SIZE;
 
+	setBlock(x, y, z, GRASS);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, DIRT);
+}
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
-	setBlock(ivec3(x, ground - _position.y * CHUNK_SIZE, z), SNOW);
-	for (int i = -1; i > -4 * _resolution; i --)
-		setBlock(ivec3(x, ground + i - _position.y * CHUNK_SIZE, z), SNOW);
+	int y = ground - _position.y * CHUNK_SIZE;
+
+	setBlock(x, y, z, SNOW);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
 void SubChunk::loadBiome(int prevResolution)
@@ -77,12 +87,12 @@ void SubChunk::loadBiome(int prevResolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
-			// Skip if already computed at previous resolution
 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
 			ground = ground - (int(ground) % _resolution);
-
+			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+		
 			if (ground <= OCEAN_HEIGHT)
-				loadOcean(x, z, ground + 2);
+				loadOcean(x, z, ground + 3, adjustOceanHeight);
 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
 				loadMountain(x, z, ground);
 			else if (ground)
@@ -96,15 +106,14 @@ SubChunk::~SubChunk()
 	_loaded = false;
 }
 
-void SubChunk::setBlock(ivec3 position, char block)
+void SubChunk::setBlock(int x, int y, int z, char block)
 {
-	int x = position.x;
-	int y = position.y;
-	int z = position.z;
-
-	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
+	x /= _resolution;
+	y /= _resolution;
+	z /= _resolution;
+	if (x >= _chunkSize || y >= _chunkSize || z >= _chunkSize || x < 0 || y < 0 || z < 0)
 		return ;
-	_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)] = block;
+	_blocks[x + (z * _chunkSize) + (y * _chunkSize * _chunkSize)] = block;
 }
 
 char SubChunk::getBlock(ivec3 position)
@@ -113,9 +122,12 @@ char SubChunk::getBlock(ivec3 position)
 	int y = position.y;
 	int z = position.z;
 
-	if (x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || x < 0 || y < 0 || z < 0)
+	x /= _resolution;
+	y /= _resolution;
+	z /= _resolution;
+	if (x >= _chunkSize || y >= _chunkSize || z >= _chunkSize || x < 0 || y < 0 || z < 0)
 		return 0;
-	return _blocks[x + (z * CHUNK_SIZE) + y * CHUNK_SIZE * CHUNK_SIZE];
+	return _blocks[x + (z * _chunkSize) + (y * _chunkSize * _chunkSize)];
 }
 
 void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
@@ -266,6 +278,9 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
 
+	_chunkSize = CHUNK_SIZE / resolution;
+	size_t size = _chunkSize * _chunkSize * _chunkSize;
+	_blocks = std::make_unique<uint8_t[]>(size);
 	// Don't clear all blocks — just fill new gaps
 		// Fill new values only
 	loadHeight(prevResolution);
@@ -283,7 +298,7 @@ void SubChunk::sendFacesToDisplay()
 		{
 			for (int z = 0; z < CHUNK_SIZE; z += _resolution)
 			{
-				switch (_blocks[x + (z * CHUNK_SIZE) + (y * CHUNK_SIZE * CHUNK_SIZE)])
+				switch (getBlock({x, y, z}))
 				{
 					case 0:
 						break;

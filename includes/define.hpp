@@ -11,7 +11,7 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 200
+# define RENDER_DISTANCE 121
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define LOD_THRESHOLD 32
@@ -22,7 +22,7 @@
 
 # define RESOLUTION 1
 
-# define OCEAN_HEIGHT 127
+# define OCEAN_HEIGHT 111
 # define MOUNT_HEIGHT 260
 
 # define AIR 0

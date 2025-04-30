@@ -22,29 +22,31 @@ class SubChunk
 			Direction	direction;
 		} Face;
 	private:
-		ivec3				_position;
-		int					_resolution;
-		std::array<uint8_t, 32 * 32 * 32>	_blocks;
-		double				**_heightMap;
-		World				&_world;
-		Chunk				&_chunk;
+		ivec3						_position;
+		int							_resolution;
+		size_t						_memorySize = 0;
+		int							_chunkSize;
+		std::unique_ptr<uint8_t[]>	_blocks;
+		// std::array<uint8_t, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE>	_blocks;
+		double						**_heightMap;
+		World						&_world;
+		Chunk						&_chunk;
 
-		bool				_loaded = false;
-		bool				_hasSentFaces = false;
-		bool				_isFullyLoaded = true;
-		bool				_hasBufferInitialized = false;
+		bool						_loaded = false;
+		bool						_hasSentFaces = false;
+		bool						_isFullyLoaded = true;
+		bool						_hasBufferInitialized = false;
 
-		std::vector<Face>	_faces[6];
+		std::vector<Face>			_faces[6];
 		
-		std::vector<int>	_vertexData;
+		std::vector<int>			_vertexData;
 
-		std::vector<Face>	_transparentFaces[6];
-		std::vector<int>	_transparentVertexData;
+		std::vector<Face>			_transparentFaces[6];
+		std::vector<int>			_transparentVertexData;
 
-		TextureManager		&_textManager;
-		bool				_needUpdate;
-		bool				_needTransparentUpdate;
-		Chrono chrono;
+		TextureManager				&_textManager;
+		bool						_needUpdate;
+		bool						_needTransparentUpdate;
 	public:
 		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();
@@ -52,15 +54,16 @@ class SubChunk
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight(int prevResolution);
 		void loadBiome(int prevResolution);
-		void loadOcean(int x, int z, size_t ground);
+		void loadOcean(int x, int z, size_t ground, size_t adjustedOceanHeight);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
 		ivec3 getPosition(void);
 		char getBlock(ivec3 position);
 		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);
-		void setBlock(ivec3 position, char block);
+		void setBlock(int x, int y, int z, char block);
 		void sendFacesToDisplay();
 		ivec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
+		size_t getMemorySize();
 		void clearFaces();
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();
