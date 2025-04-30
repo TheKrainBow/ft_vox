@@ -1,12 +1,5 @@
 #include "World.hpp"
 
-// Helper function to calculate block position within a chunk
-ivec3 World::calculateBlockPos(ivec3 position) const
-{
-	auto mod = [](int value) { return (value >= 0) ? value % CHUNK_SIZE : (CHUNK_SIZE + (value % CHUNK_SIZE)) % CHUNK_SIZE; };
-	return { mod(position.x), mod(position.y), mod(position.z) };
-}
-
 World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(&camera), _perlinGenerator(seed)
 {
 	_needUpdate = true;
@@ -14,6 +7,9 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	_hasBufferInitialized = false;
 	_renderDistance = RENDER_DISTANCE;
 	_drawnSSBOSize = 1;
+	_currentRender = 0;
+
+	_memorySize = 0;
 
 	_drawData = nullptr;
 	_transparentDrawData = nullptr;
@@ -157,6 +153,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 		_chunksMutex.unlock();
 		chunk->loadBlocks();
 		chunk->getNeighbors();
+		_memorySize += chunk->getMemorySize();
 		_chunksListMutex.lock();
 		_chunkList.emplace_back(chunk);
 		_chunksListMutex.unlock();
@@ -212,6 +209,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	_threshold = LOD_THRESHOLD;
 	chronoHelper.startChrono(1, "Build chunks + loaded faces");
 	std::vector<std::future<void>> retLst;
+	_currentRender = 0;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
@@ -238,6 +236,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
 		if (hasMoved(chunkPos))
 			break;
+		_currentRender = render + 2;
     }
 	// updateFillData();
 
@@ -248,6 +247,14 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	retLst.clear();
 	chronoHelper.stopChrono(1);
 	chronoHelper.printChrono(1);
+}
+
+int *World::getCurrentRenderPtr() {
+	return &_currentRender;
+}
+
+size_t *World::getMemorySizePtr() {
+	return &_memorySize;
 }
 
 void World::unLoadNextChunks(ivec2 newCamChunk)

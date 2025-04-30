@@ -32,7 +32,8 @@ public:
         DOUBLE,
         INT,
         FLOAT,
-		DIRECTION
+		DIRECTION,
+        SIZE_T
     };
 private:
     struct Line {

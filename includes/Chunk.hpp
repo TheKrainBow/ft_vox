@@ -15,9 +15,10 @@ class Chunk
 {
 	private:
 		ivec2								_position;
+		size_t								_memorySize = 0;
 		std::atomic_bool					_isFullyLoaded;
 		std::atomic_bool					_facesSent;
-		std::atomic_bool								_hasAllNeighbors;
+		std::atomic_bool					_hasAllNeighbors;
 		std::unordered_map<int, SubChunk *>	_subChunks;
 		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
@@ -55,6 +56,7 @@ class Chunk
 		void sendFacesToDisplay();
 		bool isReady();
 		ivec2 getPosition();
+		size_t getMemorySize();
 		void setWestChunk(Chunk *chunk);
 		void setNorthChunk(Chunk *chunk);
 		void setEastChunk(Chunk *chunk);

@@ -35,7 +35,7 @@ class SubChunk
 		bool				_hasBufferInitialized = false;
 
 		std::vector<Face>	_faces[6];
-	
+		
 		std::vector<int>	_vertexData;
 
 		std::vector<Face>	_transparentFaces[6];

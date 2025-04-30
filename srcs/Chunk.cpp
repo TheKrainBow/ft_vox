@@ -30,8 +30,14 @@ void Chunk::loadBlocks()
 		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);
 		subChunk->loadHeight(0);
 		subChunk->loadBiome(0);
+		_memorySize += sizeof(*subChunk);
 	}
     _isInit = true;
+	_memorySize += sizeof(*this);
+}
+
+size_t Chunk::getMemorySize() {
+	return _memorySize;
 }
 
 Chunk::~Chunk()

@@ -46,6 +46,7 @@ private:
 	std::mutex _displayedChunksMutex;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
+	size_t										_memorySize;
 	
 	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
 	
@@ -60,11 +61,12 @@ private:
 	// Player related informations
 	Camera										*_camera;
 	int											_renderDistance;
+	int											_currentRender;
 	int											_maxRender = 1000;
 	bool										*_isRunning;
 	std::mutex									*_runningMutex;
 	std::atomic_bool							displayReady;
-	Chrono chronoHelper;
+	Chrono										chronoHelper;
 
 	bool 									_hasBufferInitialized;
 	GLuint									_ssbo;
@@ -113,10 +115,11 @@ public:
 	void increaseRenderDistance();
 	void decreaseRenderDistance();
 	int *getRenderDistancePtr();
+	int *getCurrentRenderPtr();
+	size_t *getMemorySizePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 	void updateDrawData();
 private:
-	ivec3 calculateBlockPos(ivec3 position) const;
 	bool getIsRunning();
 	void loadTopChunks(int render, ivec2 camPosition, int resolution = 1);
 	void loadRightChunks(int render, ivec2 camPosition, int resolution = 1);

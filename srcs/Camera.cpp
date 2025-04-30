@@ -1,8 +1,7 @@
 #include "Camera.hpp"
 
 Camera::Camera() : position{-820, -131, -1379}, angle(0, 12) {
-	int test = int(angle.x) / 45;
-	_facing = e_direction(test);
+	_facing = e_direction(int(angle.x) / 45);
 };
 
 Camera::~Camera() {};
@@ -90,16 +89,10 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 	angle.y += yAngle * rotationSpeed;
 	angle.y = std::clamp(angle.y, -90.0f, 90.0f);
 	if (angle.x < 0)
-		angle.x = 360;
+		angle.x += 360;
 	else if (angle.x > 360)
-		angle.x = 0;
-	double tmp = angle.x + 45/2;
-	if (tmp < 0)
-		tmp = 360;
-	else if (tmp > 360)
-		tmp = 0;
-	double test = int(tmp) / 45;
-	_facing = e_direction((int)test);
+		angle.x -= 360;
+	_facing = e_direction((((int)angle.x + 45/2) % 360) / 45);
 }
 
 void Camera::invert()

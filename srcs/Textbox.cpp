@@ -67,6 +67,26 @@ std::string to_string_with_precision(double value, int precision) {
 	return oss.str();
 }
 
+std::string printMemory(size_t memory) {
+	std::string sizes[4] {
+		"B",
+		"KB",
+		"MB",
+		"GB",
+	};
+	int i = 0;
+	size_t rest;
+	while (memory > 1000 && i < 3) {
+		rest = memory;
+		memory /= 1000;
+		i++;
+	}
+	if (!i)
+		return std::to_string(memory) + sizes[i];
+	else
+		return std::to_string(memory) + "." + std::to_string(rest % 1000) + sizes[i];
+}
+
 void Textbox::render() {
 	if (!fontLoaded) {
 		std::cerr << "Font not loaded. Cannot render text." << std::endl;
@@ -93,15 +113,22 @@ void Textbox::render() {
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White color for text
 	for (const auto& line : lines) {
 		std::string text;
-		if (line.type == DOUBLE)
-			text = line.label + to_string_with_precision(*((double *)(line.value)), 1);
-		else if (line.type == FLOAT)
+		switch (line.type) {
+			case DOUBLE:
+				text = line.label + to_string_with_precision(*((double *)(line.value)), 1);
+				break;
+			case FLOAT:
 			text = line.label + std::to_string(*((float *)(line.value)));
-		else if (line.type == INT)
+				break;
+			case INT:
 			text = line.label + std::to_string(*((int *)(line.value)));
-		else if (line.type == DIRECTION)
-		{
+				break;
+			case DIRECTION:
 			text = line.label + directionTab[std::clamp(*(int *)(line.value), 0, 7)].name;
+				break;
+			case SIZE_T:
+			text = line.label + printMemory(*((size_t *)(line.value)));
+				break;
 		}
 		float startX = positionX + 5;
 		for (const char& ch : text) {
