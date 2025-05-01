@@ -18,15 +18,13 @@ size_t SubChunk::getMemorySize() {
 void SubChunk::loadHeight(int prevResolution)
 {
 	(void)prevResolution;
-	for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
+	for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 	{
-		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
+		for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 		{
-			for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+			int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
+			for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 			{
-				// if (prevResolution && x % prevResolution == 0 && y % prevResolution == 0 && z % prevResolution == 0)
-				// 	continue;
-				int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
 				int globalY = y + _position.y * CHUNK_SIZE;
 				setBlock(x, y, z, (globalY <= maxHeight) ? STONE : AIR);
 			}
