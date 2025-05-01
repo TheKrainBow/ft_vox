@@ -158,6 +158,7 @@ void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture,
 		SubChunk *overChunk = _chunk.getSubChunk(_position.y + 1);
 		if (overChunk)
 			block = overChunk->getBlock({position.x, 0, position.z});
+
 	}
 	if (faceDisplayCondition(current, block))
 		addFace(position, UP, texture, isTransparent);
@@ -171,7 +172,6 @@ void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType textu
 			return addFace(position, NORTH, texture, isTransparent);
 		return ;
 	}
-	
 	Chunk *chunk = _chunk.getNorthChunk();
 	if (!chunk)
 		return ;

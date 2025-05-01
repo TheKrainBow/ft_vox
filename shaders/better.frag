@@ -50,19 +50,26 @@ float calculateSpecularLight(float time, vec3 lightDir) {
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.1), 0.8);
-	float specular = specularStrength * spec;
-	return specular;
+    float specular = specularStrength * spec;
+    return specular;
 }
 
 void main() {
     vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
     vec3 lightDir = normalize(FragPos - computeSunPosition(timeValue));
 
-    // Transparency for water
+    // Calculate the distance from the camera to the fragment
+    float dist = distance(viewPos, FragPos);
+
+    // Fade the texture based on distance (smooth fade between 40 and 100 units)
+    float fadeStart = 40.0;
+    float fadeEnd = 100.0;
+    float t = smoothstep(fadeStart, fadeEnd, dist);
+
+    // Optionally, apply transparency for water (TextureID 6)
     if (TextureID == 6) {
         float minDistance = 20.0;
         float maxDistance = 250.0;
-        float dist = distance(viewPos, FragPos);
         float transparency = clamp((dist - minDistance) / (maxDistance - minDistance), 0.6, 0.85);
         texColor.a *= transparency;
     }
@@ -94,6 +101,10 @@ void main() {
 
     float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular, 0.0, 1.0);
     vec3 result = totalLight * lightColor * texColor.rgb;
+
+    // // Blend the texture color with a flat color (e.g., green) based on the fade factor (t)
+    // vec3 flatColor = vec3(0.1, 0.1, 0.1); // Adjust to your preferred flat color (e.g., grass color)
+    // result = mix(result, flatColor, t); // Apply the distance fade
 
     FragColor = vec4(result, texColor.a);
 }

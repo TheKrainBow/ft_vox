@@ -24,7 +24,7 @@ void Chunk::loadBlocks()
 	}
 	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
 	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
-	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2); y += CHUNK_SIZE)
+	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2 + (_resolution == CHUNK_SIZE)); y += CHUNK_SIZE)
 	{
 		int index = y / CHUNK_SIZE;
 		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);

@@ -144,7 +144,7 @@ void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
 	
-	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 100000000000.0f);
+	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
 	vec3 lightColor(1.0f, 1.0f, 1.0f);
 	vec3 sunColor(1.0f, 0.7f, 1.0f);
 	vec3 viewPos = camera.getWorldPosition();
@@ -528,6 +528,15 @@ void StoneEngine::resetFrameBuffers()
 	updateFboWindowSize();
 }
 
+float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {
+    return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
+}
+
+float mapExpo(float x, float in_min, float in_max, float out_min, float out_max) {
+    float t = (x - in_min) / (in_max - in_min); // normalize to [0, 1]
+    return out_min * std::pow(out_max / out_min, t); // exponential interpolation
+}
+
 void StoneEngine::reshapeAction(int width, int height)
 {
 	glViewport(0, 0, width, height);
@@ -536,9 +545,9 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	projectionMatrix = perspective(radians(_fov), float(width) / float(height), 0.1f, 100000000000.0f);
+	float y = mapExpo(_fov, 1.0f, 90.0f, 10.0f, 0.1f);
+	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, 9600.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glLoadMatrixf(value_ptr(projectionMatrix));
 }
 
 void StoneEngine::reshape(GLFWwindow* window, int width, int height)

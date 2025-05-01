@@ -9,9 +9,6 @@ uniform int timeValue;
 
 uniform vec2 texelSize;
 
-// how far up to look for confirmation
-const float skyOffsetY = 5.0;
-
 // tweak this based on how far your skybox is
 const float depthSkyThreshold = 1;
 
