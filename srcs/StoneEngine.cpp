@@ -299,6 +299,9 @@ void StoneEngine::activateTransparentShader()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);      // Cull back faces
+	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
 
 void StoneEngine::activateFboShader()
@@ -328,65 +331,72 @@ void StoneEngine::triangleMeshToggle()
 
 void StoneEngine::display()
 {
-	// Skip FBO, draw to screen (wireframe dependant)
-    if (showTriangleMesh)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); 
-    else
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	// Framebuffer binding
+	if (showTriangleMesh)
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	else
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-	// Clear depth and color buffers
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glMatrixMode(GL_MODELVIEW);
+	// Clear buffers
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glMatrixMode(GL_MODELVIEW);
 
-    // Render world ("better.vert/frag" shaders active)
-    activateRenderShader();
+	// Activate solid rendering shader
+	activateRenderShader();
 
 	// Wireframe mode
-    triangleMeshToggle();
+	triangleMeshToggle();
 
-	// Swap draw data with ready data
+	// Update world draw data
 	_world.updateDrawData();
 
-	// One draw call solid blocks
-    drawnTriangles = _world.display();
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDisable(GL_CULL_FACE);
+	// Draw opaque blocks
+	drawnTriangles = _world.display();
 
-    // Skip post-process only if not in wireframe
-    if (!showTriangleMesh)
+	// Skip post-process in wireframe mode
+	if (!showTriangleMesh)
 	{
-		// Post processing for T-junction holes ("fbo.vert/frag" shaders active )
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        activateFboShader();
+		// Post-processing: screen-space correction
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
+		activateFboShader();
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-                        0, 0, windowWidth, windowHeight,
-                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-		// Deactivate post processing for water
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-	
+		// Copy depth from FBO to default framebuffer
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+						  0, 0, windowWidth, windowHeight,
+						  GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+		// Prepare for water rendering
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	// Render transparent (water) geometry
 	activateTransparentShader();
+	drawnTriangles += _world.displayTransparent();
 
-	// One draw call transparent blocks (water)
-    drawnTriangles += _world.displayTransparent();
-
+	// Restore render shader for textbox
+	activateRenderShader();
 	glDisable(GL_CULL_FACE);
 
-	// Deactivating lines for debug console
+	// Disable wireframe for textBox
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    if (showDebugInfo)
-        debugBox.render();
 
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    calculateFps();
-    glfwSwapBuffers(_window);
+	// Debug UI
+	if (showDebugInfo)
+		debugBox.render();
+
+	// Cleanup and finalization
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+
+	calculateFps();
+	glfwSwapBuffers(_window);
 }
+
 
 void StoneEngine::loadFirstChunks()
 {
