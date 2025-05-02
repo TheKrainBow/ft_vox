@@ -2,7 +2,8 @@
 
 uniform vec3 lightColor;
 uniform int timeValue;
-uniform vec3 viewPos;
+// uniform vec3 viewPos;
+uniform mat4 view;
 uniform sampler2DArray textureArray;
 
 in vec2 TexCoord;
@@ -45,6 +46,7 @@ float calculateAmbientLight(float time) {
 }
 
 float calculateSpecularLight(float time, vec3 lightDir) {
+    vec3 viewPos = vec3(inverse(view)[3]);
     vec3 norm = normalize(Normal);
     float specularStrength = (TextureID == 6) ? 0.1 : 0.2;
     vec3 viewDir = normalize(viewPos - FragPos);
@@ -55,24 +57,20 @@ float calculateSpecularLight(float time, vec3 lightDir) {
 }
 
 void main() {
+    vec3 viewPos = vec3(inverse(view)[3]);
     vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
     vec3 lightDir = normalize(FragPos - computeSunPosition(timeValue));
 
     // Calculate the distance from the camera to the fragment
     float dist = distance(viewPos, FragPos);
 
-    // Fade the texture based on distance (smooth fade between 40 and 100 units)
-    float fadeStart = 40.0;
-    float fadeEnd = 100.0;
-    float t = smoothstep(fadeStart, fadeEnd, dist);
-
     // Optionally, apply transparency for water (TextureID 6)
-    if (TextureID == 6) {
-        float minDistance = 20.0;
-        float maxDistance = 250.0;
-        float transparency = clamp((dist - minDistance) / (maxDistance - minDistance), 0.6, 0.85);
-        texColor.a *= transparency;
-    }
+    // if (TextureID == 6) {
+    //     float minDistance = 20.0;
+    //     float maxDistance = 250.0;
+    //     float transparency = clamp((dist - minDistance) / (maxDistance - minDistance), 0.6, 0.85);
+    //     texColor.a *= transparency;
+    // }
 
     // Lighting strengths
     float ambient = calculateAmbientLight(timeValue);
@@ -101,10 +99,6 @@ void main() {
 
     float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular, 0.0, 1.0);
     vec3 result = totalLight * lightColor * texColor.rgb;
-
-    // // Blend the texture color with a flat color (e.g., green) based on the fade factor (t)
-    // vec3 flatColor = vec3(0.1, 0.1, 0.1); // Adjust to your preferred flat color (e.g., grass color)
-    // result = mix(result, flatColor, t); // Apply the distance fade
 
     FragColor = vec4(result, texColor.a);
 }

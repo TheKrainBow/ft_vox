@@ -296,7 +296,7 @@ void World::updateFillData()
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
 	chronoHelper.stopChrono(2);
-	chronoHelper.printChrono(2);
+	// chronoHelper.printChrono(2);
 }
 
 bool World::hasMoved(ivec2 oldPos)

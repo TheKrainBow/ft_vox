@@ -14,6 +14,7 @@ class StoneEngine {
 		// Display
 		GLFWwindow* _window;
 		GLuint shaderProgram;
+		GLuint waterShaderProgram;
 		GLuint sunProgram;
 		World _world;
 		int windowHeight;
@@ -108,6 +109,7 @@ class StoneEngine {
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
+		void activateTransparentShader();
 		void activateFboShader();
 		void triangleMeshToggle();
 

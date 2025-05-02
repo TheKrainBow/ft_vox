@@ -143,6 +143,7 @@ void StoneEngine::initTextures()
 void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
+	waterShaderProgram = createShaderProgram("shaders/water.vert", "shaders/water.frag");
 	
 	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
 	vec3 lightColor(1.0f, 1.0f, 1.0f);
@@ -156,7 +157,14 @@ void StoneEngine::initRenderShaders()
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(lightColor));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
 
+	glUseProgram(waterShaderProgram);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(waterShaderProgram, "lightColor"), 1, value_ptr(lightColor));
+	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
+
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
+
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 }
@@ -251,6 +259,48 @@ void StoneEngine::activateRenderShader()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
 
+void StoneEngine::activateTransparentShader()
+{
+	mat4 modelMatrix = mat4(1.0f);
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
+
+	mat4 viewMatrix = mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+
+	glUseProgram(waterShaderProgram);
+
+	// Required for vertex shader
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
+	vec3 viewPos = camera.getWorldPosition();
+	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
+
+	// Required for SSR
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "inverseProjection"), 1, GL_FALSE, value_ptr(inverse(projectionMatrix)));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "inverseView"), 1, GL_FALSE, value_ptr(inverse(viewMatrix)));
+	glUniform2fv(glGetUniformLocation(waterShaderProgram, "screenSize"), 1, glm::value_ptr(glm::vec2(windowWidth, windowHeight)));
+	
+	// Bind screen color texture (screenTexture)
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, fboTexture); // FBO color attachment
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 1);
+	
+	// You may also need this if your water shader still samples from the depth buffer:
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, dboTexture); // FBO depth attachment
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 2);
+
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+}
+
 void StoneEngine::activateFboShader()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -319,24 +369,19 @@ void StoneEngine::display()
 		// Deactivate post processing for water
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
-
-    // Transparency settings & UI
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
 	
-    // Render transparent world ("better.vert/frag" shaders active)
-    activateRenderShader();
+	activateTransparentShader();
 
-	// One draw call transparent blocks
+	// One draw call transparent blocks (water)
     drawnTriangles += _world.displayTransparent();
+
 	glDisable(GL_CULL_FACE);
 
 	// Deactivating lines for debug console
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     if (showDebugInfo)
         debugBox.render();
+
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
     calculateFps();
