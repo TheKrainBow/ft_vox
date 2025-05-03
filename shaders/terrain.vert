@@ -29,6 +29,10 @@ void main()
     int lengthY = (instanceData >> 23) & 0x1F;
     int textureID = (instanceData >> 28) & 0x0F;
 
+    if (textureID == 6)
+    {
+        return ;
+    }
     vec3 instancePos = vec3(float(x), float(y), float(z));
     vec3 basePos = aPos;
     vec2 finalUV = aPos.xy;
@@ -82,11 +86,6 @@ void main()
     {
         basePos.y += res;
         normal = vec3(0.0, 1.0, 0.0);
-    }
-
-    if (textureID == 6)
-    {
-        basePos.y -= 0.1;
     }
     // Compute world position and transform normal to world space
     vec3 worldPosition = ssboValue.xyz + basePos + instancePos;

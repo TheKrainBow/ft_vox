@@ -162,7 +162,7 @@ void StoneEngine::initTextures()
 
 void StoneEngine::initRenderShaders()
 {
-	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
+	shaderProgram = createShaderProgram("shaders/terrain.vert", "shaders/terrain.frag");
 	waterShaderProgram = createShaderProgram("shaders/water.vert", "shaders/water.frag");
 	
 	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
