@@ -6,6 +6,9 @@ in vec2 texCoords;
 uniform sampler2D screenTexture;
 uniform sampler2D depthTexture;
 uniform int timeValue;
+uniform int isUnderwater;
+uniform float waterHeight;
+uniform vec3 viewPos;
 
 uniform vec2 texelSize;
 
@@ -108,6 +111,12 @@ void main()
 		// }
 	} else {
 		finalColor = mix(finalColor, fogColor, fogFactor);
+	}
+
+    if (isUnderwater == 1) {
+		float depthUnder = clamp((waterHeight - viewPos.y) / 30.0, 0.4, 0.6);
+    	vec3 deepBlue = vec3(0.0, 0.1, 0.3);
+		finalColor = mix(finalColor, deepBlue, 0.6);
 	}
 	FragColor = vec4(finalColor, 1.0);
 }

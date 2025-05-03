@@ -318,9 +318,8 @@ void StoneEngine::activateTransparentShader()
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 3);
-
-
 	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
 
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
@@ -346,6 +345,10 @@ void StoneEngine::activateFboShader()
 	glBindTexture(GL_TEXTURE_2D, dboTexture);
 	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glUniform1i(glGetUniformLocation(fboShaderProgram, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+	glUniform1f(glGetUniformLocation(fboShaderProgram, "waterHeight"), OCEAN_HEIGHT + 2);
+	glUniform3fv(glGetUniformLocation(fboShaderProgram, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
 }
 
 void StoneEngine::triangleMeshToggle()

@@ -10,6 +10,7 @@ uniform float waterHeight;
 uniform float time;
 uniform mat4 view;
 uniform mat4 projection;
+uniform int isUnderwater;
 
 out vec4 FragColor;
 
@@ -44,10 +45,10 @@ void main()
     vec3 reflectedPoint = waveFragPos + reflectedDir * 100.0;
     vec4 clip = projection * view * vec4(reflectedPoint, 1.0);
 
-    if (clip.w <= 0.0) {
-        FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-        return;
-    }
+    // if (clip.w <= 0.0) {
+    //     FragColor = vec4(0.1, 0.2, 0.5, 1.0);
+    //     return;
+    // }
 
     vec3 ndc = clip.xyz / clip.w;
     vec2 uv = ndc.xy * 0.5 + 0.5;
@@ -68,13 +69,18 @@ void main()
 
     // Height fade
     float cameraHeight = viewPos.y - waveFragPos.y;
-    float heightFade = clamp(1.0 - (cameraHeight / 130.0), 0.0, 1.0);
+    float heightFade = clamp(1.0 - (cameraHeight / 25.0), 0.0, 1.0);
 
     // Final color blending
     vec3 blueTint = vec3(0.1, 0.2, 0.5);
-    vec3 reflection = mix(reflectedColor, blueTint, 0.2 * fresnel);
-    vec3 finalColor = mix(blueTint, reflection, heightFade);
-    float alpha = mix(0.3, 0.7, fresnel);
+    vec3 finalColor;
 
+    if (isUnderwater == 1) {
+        finalColor = vec3(0.0, 0.1, 0.3); // no reflection underwater
+    } else {
+        vec3 reflection = mix(reflectedColor, blueTint, 0.2 * fresnel);
+        finalColor = mix(blueTint, reflection, heightFade);
+    }
+    float alpha = mix(0.3, 0.7, fresnel);
     FragColor = vec4(finalColor, alpha);
 }
