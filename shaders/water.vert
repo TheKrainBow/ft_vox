@@ -6,6 +6,7 @@ layout(location = 2) in int instanceData; // Encoded instance data
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform float time;
 
 layout(binding = 3, std430) readonly buffer ssbo1 {
     vec4 ssbo[];
@@ -28,6 +29,10 @@ void main()
     int lengthX = (instanceData >> 18) & 0x1F;
     int lengthY = (instanceData >> 23) & 0x1F;
     int textureID = (instanceData >> 28) & 0x0F;
+
+    if (textureID != 6) {
+        return ;
+    }
 
     vec3 instancePos = vec3(float(x), float(y), float(z));
     vec3 basePos = aPos;
@@ -92,6 +97,16 @@ void main()
     vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
+
+    float waveFreq = 0.001;
+    float waveAmp = 0.03;
+    float waveSpeed = 0.01;
+
+    float wave =
+        sin(worldPosition.x * waveFreq + time * waveSpeed) +
+        cos(worldPosition.z * waveFreq + time * waveSpeed * 0.8);
+
+    worldPosition.y += wave * 0.5 * waveAmp;
 
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;

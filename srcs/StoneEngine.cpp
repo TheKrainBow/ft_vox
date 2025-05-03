@@ -138,6 +138,26 @@ void StoneEngine::initTextures()
 		{ T_WATER, "textures/water.ppm" },
 		{ T_SNOW, "textures/snow.ppm" },
 	});
+
+	glGenTextures(1, &waterNormalMap);
+	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
+
+	// Load your image here (example uses stb_image)
+	int width, height, nrChannels;
+	unsigned char* data = stbi_load("textures/water_normal.jpg", &width, &height, &nrChannels, 0);
+
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+					GL_RGB, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	} else {
+		std::cerr << "Failed to load water normal map!" << std::endl;
+	}
+	stbi_image_free(data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 void StoneEngine::initRenderShaders()
@@ -294,6 +314,13 @@ void StoneEngine::activateTransparentShader()
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, dboTexture); // FBO depth attachment
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 2);
+
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 3);
+
+
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
 
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);

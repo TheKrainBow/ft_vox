@@ -16,6 +16,7 @@ class StoneEngine {
 		GLuint shaderProgram;
 		GLuint waterShaderProgram;
 		GLuint sunProgram;
+		GLuint waterNormalMap;
 		World _world;
 		int windowHeight;
 		int windowWidth;
