@@ -160,10 +160,51 @@ void StoneEngine::initTextures()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
+glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& cameraPos)
+{
+    const float pi = 3.14159265f;
+    const float radius = 1500.0f;
+
+    float angle = (timeValue / 86400.0f) * 2.0f * pi;
+
+    // Orbit above the player (east-to-west arc)
+    float x = radius * cos(angle);
+    float y = -radius * sin(angle);
+    float z = 0.0f;
+
+    // Center the sun arc around the player
+    return cameraPos + glm::vec3(x, y, z);
+}
+
+void initSunQuad(GLuint &vao, GLuint &vbo)
+{
+    // Quad corners in NDC [-1, 1] (used as offset in clip space)
+    float quadVertices[] = {
+        -1.0f, -1.0f,
+         1.0f, -1.0f,
+        -1.0f,  1.0f,
+         1.0f,  1.0f
+    };
+
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+    // Attribute 0 = vec2 aPos
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+}
+
 void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/terrain.vert", "shaders/terrain.frag");
 	waterShaderProgram = createShaderProgram("shaders/water.vert", "shaders/water.frag");
+	sunShaderProgram = createShaderProgram("shaders/sun.vert", "shaders/sun.frag");
 	
 	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
 	vec3 lightColor(1.0f, 1.0f, 1.0f);
@@ -185,8 +226,64 @@ void StoneEngine::initRenderShaders()
 
 	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
 
+	glUseProgram(sunShaderProgram);
+
+	// Send view/projection matrices (same as the rest of your world)
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	
+	// Send sun world position (where the sun is in your sky)
+	glm::vec3 sunPosition = computeSunPosition(timeValue, camera.getWorldPosition());
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, value_ptr(sunPosition));
+	
+	// Send sun color and intensity
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, value_ptr(sunColor));
+	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);  // adjust as needed
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
+	initSunQuad(sunVAO, sunVBO);
+}
+
+void StoneEngine::displaySun()
+{
+	vec3 camPos = camera.getWorldPosition();
+	// Compute current sun position based on time
+	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+
+	// Update view matrix
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+
+	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
+
+	// Use sun shader
+	glUseProgram(sunShaderProgram);
+
+	// Set uniforms
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
+
+	glm::vec3 sunColor(1.0, 0.6, 0.2); // warm sun
+	float height = clamp((sunPos.y - camPos.y) / 1500, 0.0f, 1.0f);
+	sunColor = mix(sunColor, vec3(1.0f), height);
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
+	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
+
+	// Render glowing quad
+	glBindVertexArray(sunVAO);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);  // additive blending
+	glDisable(GL_DEPTH_TEST);     // draw over everything
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	glBindVertexArray(0);
 }
 
 void StoneEngine::initFboShaders()
@@ -349,6 +446,10 @@ void StoneEngine::activateFboShader()
 	glUniform1i(glGetUniformLocation(fboShaderProgram, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
 	glUniform1f(glGetUniformLocation(fboShaderProgram, "waterHeight"), OCEAN_HEIGHT + 2);
 	glUniform3fv(glGetUniformLocation(fboShaderProgram, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+
+	// Send sun world position (where the sun is in your sky)
+	glm::vec3 sunPosition = computeSunPosition(timeValue, camera.getWorldPosition());
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, value_ptr(sunPosition));
 }
 
 void StoneEngine::triangleMeshToggle()
@@ -371,6 +472,8 @@ void StoneEngine::display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
 	glMatrixMode(GL_MODELVIEW);
+
+	displaySun();
 
 	// Activate solid rendering shader
 	activateRenderShader();

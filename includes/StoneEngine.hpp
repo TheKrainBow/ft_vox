@@ -13,10 +13,16 @@ class StoneEngine {
 	private:
 		// Display
 		GLFWwindow* _window;
+
 		GLuint shaderProgram;
+
+		GLuint sunShaderProgram;
+		GLuint sunVAO;
+		GLuint sunVBO;
+
 		GLuint waterShaderProgram;
-		GLuint sunProgram;
 		GLuint waterNormalMap;
+
 		World _world;
 		int windowHeight;
 		int windowWidth;
@@ -107,12 +113,15 @@ class StoneEngine {
 		// Runtime methods
 		void calculateFps();
 		void display();
+		void displaySun();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
 		void activateTransparentShader();
 		void activateFboShader();
 		void triangleMeshToggle();
+
+		vec3 computeSunPosition(int timeValue, const glm::vec3& cameraPos);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();

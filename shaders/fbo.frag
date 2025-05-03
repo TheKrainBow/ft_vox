@@ -9,42 +9,38 @@ uniform int timeValue;
 uniform int isUnderwater;
 uniform float waterHeight;
 uniform vec3 viewPos;
+uniform vec3 sunPosition;
 
 uniform vec2 texelSize;
 
 // tweak this based on how far your skybox is
 const float depthSkyThreshold = 1;
 
-vec3 computeSkyColor(float time)
-{
-    float t = mod(time, 86400.0); // Ensure wraparound
+vec3 computeSkyColor()
+{// Normalize sun height from -radius to +radius
+	float h = clamp(sunPosition.y / 1500.0, -1.0, 1.0);
 
-    vec3 nightColor   = vec3(0.05, 0.07, 0.2);
-    vec3 dawnColor    = vec3(0.8, 0.5, 0.3);
-    vec3 dayColor     = vec3(0.53, 0.81, 0.92);
-    vec3 duskColor    = vec3(0.8, 0.4, 0.2);
+	// Map [-1, 1] to [0, 1] range for blending
+	float t = h * 0.5 + 0.5;
 
-    vec3 skyColor;
+	// Key colors
+	vec3 nightColor = vec3(0.02, 0.03, 0.1);
+	vec3 dawnColor  = vec3(0.8, 0.4, 0.2);
+	vec3 dayColor   = vec3(0.53, 0.81, 0.92);
+	vec3 duskColor  = vec3(0.9, 0.5, 0.2);
 
-    if (t < 21600.0) {
-        // Night → Dawn (0–6h)
-        float f = t / 21600.0;
-        skyColor = mix(nightColor, dawnColor, f);
-    } else if (t < 43200.0) {
-        // Dawn → Day (6–12h)
-        float f = (t - 21600.0) / 21600.0;
-        skyColor = mix(dawnColor, dayColor, f);
-    } else if (t < 64800.0) {
-        // Day → Dusk (12–18h)
-        float f = (t - 43200.0) / 21600.0;
-        skyColor = mix(dayColor, duskColor, f);
-    } else {
-        // Dusk → Night (18–24h)
-        float f = (t - 64800.0) / 21600.0;
-        skyColor = mix(duskColor, nightColor, f);
-    }
-
-    return skyColor;
+	// Blend logic
+	vec3 skyColor;
+	if (t < 0.25) {
+		skyColor = mix(nightColor, dawnColor, t / 0.25);
+	} else if (t < 0.5) {
+		skyColor = mix(dawnColor, dayColor, (t - 0.25) / 0.25);
+	} else if (t < 0.75) {
+		skyColor = mix(dayColor, duskColor, (t - 0.5) / 0.25);
+	} else {
+		skyColor = mix(duskColor, nightColor, (t - 0.75) / 0.25);
+	}
+	return skyColor;
 }
 
 void main()
