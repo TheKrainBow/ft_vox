@@ -76,7 +76,6 @@ void World::unloadChunk()
 	//(Add a isModified boolean in Chunk or SubChunk class)
 	_chunksListMutex.lock();
 	size_t chunksNb = _chunkList.size();
-	std::cout << chunksNb << std::endl;
 	_chunksListMutex.unlock();
 
 	if (chunksNb <= CACHE_SIZE)
