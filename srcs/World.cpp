@@ -74,14 +74,11 @@ void World::unloadChunk()
 {
 	//TODO Save or do not unload modified chunks (delete block)
 	//(Add a isModified boolean in Chunk or SubChunk class)
-	//TODO Protect from display segv when cache_size is smaller than double the surface
-	// (defines to change to reproduce: CACHE_SIZE 2500 RENDER_DISTANCE 61)
 	_chunksListMutex.lock();
-	if (_chunkList.size() < CACHE_SIZE)
-	{
-		_chunksListMutex.unlock();
-		return;
-	}
+	size_t chunksNb = _chunkList.size();
+	_chunksListMutex.unlock();
+	if (chunksNb <= CACHE_SIZE)
+		return ;
 
 	// Get player position in chunk coordinates
 	ivec3 playerPos = _camera->getWorldPosition();
@@ -91,6 +88,7 @@ void World::unloadChunk()
 	if (playerPos.z < 0) playerChunkZ--;
 
 	// Find the farthest chunk
+	_chunksListMutex.lock();
 	auto farthestChunkIt = _chunkList.end();
 	float maxDistance = -1.0f;
 	for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it)
@@ -161,7 +159,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	_displayedChunksMutex.lock();
 	_displayedChunks[pos] = chunk;
 	_displayedChunksMutex.unlock();
-	// unloadChunk();
+	unloadChunk();
 }
 
 void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)
@@ -185,7 +183,7 @@ void World::loadBotChunks(int render, ivec2 chunkPos, int resolution)
 void World::loadRightChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int x = render - 1;
-	for (int z = 0; z < render && getIsRunning(); z++)
+	for (int z = 1; z < render - 1 && getIsRunning(); z++) // avoid corners
 	{
 		loadChunk(x, z, render, chunkPos, resolution, EAST);
 	}
@@ -194,7 +192,7 @@ void World::loadRightChunks(int render, ivec2 chunkPos, int resolution)
 void World::loadLeftChunks(int render, ivec2 chunkPos, int resolution)
 {
 	int x = 0;
-	for (int z = render - 1; getIsRunning() && z >= 0; z--)
+	for (int z = render - 2; getIsRunning() && z > 0; z--) // avoid corners
 	{
 		loadChunk(x, z, render, chunkPos, resolution, WEST);
 	}
@@ -207,7 +205,9 @@ void World::loadFirstChunks(ivec2 chunkPos)
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	chronoHelper.startChrono(1, "Build chunks + loaded faces");
+	// chronoHelper.startChrono(1, "Build chunks + loaded faces");
+	// chronoHelper.stopChrono(1);
+	// chronoHelper.printChrono(1);
 	std::vector<std::future<void>> retLst;
 	_currentRender = 0;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
@@ -245,8 +245,6 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		ret.get();
 	}
 	retLst.clear();
-	chronoHelper.stopChrono(1);
-	chronoHelper.printChrono(1);
 }
 
 int *World::getCurrentRenderPtr() {
@@ -287,7 +285,9 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
-	chronoHelper.startChrono(2, "Build loaded faces");
+	// chronoHelper.startChrono(2, "Build loaded faces");
+	// chronoHelper.stopChrono(2);
+	// chronoHelper.printChrono(2);
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -295,8 +295,6 @@ void World::updateFillData()
 	_stagedDataQueue.emplace(fillData);
 	_transparentStagedDataQueue.emplace(transparentData);
 	_drawDataMutex.unlock();
-	chronoHelper.stopChrono(2);
-	chronoHelper.printChrono(2);
 }
 
 bool World::hasMoved(ivec2 oldPos)

@@ -216,7 +216,10 @@ void Chunk::freeSubChunks()
 {
 	_subChunksMutex.lock();
 	for (auto &subchunk : _subChunks)
+	{
 		delete subchunk.second;
+		subchunk.second = nullptr;
+	}
 	_subChunksMutex.unlock();
 	_subChunks.clear();
 }
