@@ -257,24 +257,24 @@ void StoneEngine::displaySun()
 	glDepthMask(GL_TRUE);
 }
 
-void StoneEngine::initFramebuffers(FBODatas &pingFBO, int width, int height)
+void StoneEngine::initFramebuffers(FBODatas &fboData, int width, int height)
 {
 	// Init framebuffer
-	glGenFramebuffers(1, &pingFBO.fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, pingFBO.fbo);
+	glGenFramebuffers(1, &fboData.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboData.fbo);
 
 	// Init framebuffer color texture
-	glGenTextures(1, &pingFBO.texture);
-	glBindTexture(GL_TEXTURE_2D, pingFBO.texture);
+	glGenTextures(1, &fboData.texture);
+	glBindTexture(GL_TEXTURE_2D, fboData.texture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingFBO.texture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboData.texture, 0);
 
-	glGenTextures(1, &pingFBO.depth);
-	glBindTexture(GL_TEXTURE_2D, pingFBO.depth);
+	glGenTextures(1, &fboData.depth);
+	glBindTexture(GL_TEXTURE_2D, fboData.depth);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -282,7 +282,7 @@ void StoneEngine::initFramebuffers(FBODatas &pingFBO, int width, int height)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 	// Attach to framebuffer
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, pingFBO.depth, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, fboData.depth, 0);
 
 	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
@@ -472,6 +472,7 @@ void StoneEngine::postProcessFog()
 	PostProcessShader& shader = postProcessShaders[FOG];
 
 	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glClear(GL_COLOR_BUFFER_BIT);
 	glUseProgram(shader.program);
 	glBindVertexArray(shader.vao);
 	glDisable(GL_DEPTH_TEST);
