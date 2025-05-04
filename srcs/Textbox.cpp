@@ -109,6 +109,9 @@ void Textbox::render() {
 
 	glBindTexture(GL_TEXTURE_2D, fontTexture);
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	float startY = positionY - (windowHeight - 512 - 20); // Adjust for font alignment
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White color for text
 	for (const auto& line : lines) {
@@ -159,7 +162,6 @@ void Textbox::render() {
 	glPopMatrix(); // Restore modelview for 3D world
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix(); // Restore projection for 3D world
-
 	glMatrixMode(GL_MODELVIEW);
 }
 

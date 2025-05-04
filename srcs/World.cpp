@@ -440,7 +440,7 @@ int World::display()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-
+	
 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _drawData->indirectBufferData.size(), 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
@@ -449,6 +449,8 @@ int World::display()
 
 int World::displayTransparent()
 {
+	// _drawDataMutex.unlock();
+	// return 0;
 	if (!_transparentDrawData)
 	{
 		_drawDataMutex.unlock();

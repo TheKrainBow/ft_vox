@@ -54,11 +54,13 @@ void main()
     vec2 uv = ndc.xy * 0.5 + 0.5;
 
     // Reflection distortion (sync with wave)
-    float waveX = sin(FragPos.x * waveFreq + time * waveSpeed);
-    float waveY = cos(FragPos.z * waveFreq + time * waveSpeed * 0.8);
-    uv += vec2(waveX, waveY) * 0.005;
+    // float waveX = sin(FragPos.x * waveFreq + time * waveSpeed);
+    // float waveY = cos(FragPos.z * waveFreq + time * waveSpeed * 0.8);
+    // uv += vec2(waveX, waveY) * 0.005;
 
     // Sample reflection or fallback to sky
+    // vec2 safeUV = clamp(uv, vec2(0.001), vec2(0.999));
+    // vec3 reflectedColor = texture(screenTexture, safeUV).rgb;
     bool outOfBounds = any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)));
     vec3 skyColor = vec3(0.53f, 0.81f, 0.92f);
     vec3 reflectedColor = outOfBounds ? skyColor : texture(screenTexture, uv).rgb;
@@ -78,9 +80,9 @@ void main()
     if (isUnderwater == 1) {
         finalColor = vec3(0.0, 0.1, 0.3); // no reflection underwater
     } else {
-        vec3 reflection = mix(reflectedColor, blueTint, 0.2 * fresnel);
+        vec3 reflection = mix(reflectedColor, blueTint, 0.3);
         finalColor = mix(blueTint, reflection, heightFade);
     }
     float alpha = mix(0.3, 0.7, fresnel);
-    FragColor = vec4(finalColor, alpha);
+    FragColor = vec4(finalColor, 0.7);
 }

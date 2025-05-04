@@ -29,10 +29,10 @@ void main()
     int lengthY = (instanceData >> 23) & 0x1F;
     int textureID = (instanceData >> 28) & 0x0F;
 
-    if (textureID == 6)
-    {
-        return ;
-    }
+    // if (textureID == 6)
+    // {
+    //     return ;
+    // }
     vec3 instancePos = vec3(float(x), float(y), float(z));
     vec3 basePos = aPos;
     vec2 finalUV = aPos.xy;

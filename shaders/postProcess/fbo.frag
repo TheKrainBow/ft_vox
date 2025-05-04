@@ -48,63 +48,45 @@ void main()
 	vec3 currentColor = texture(screenTexture, texCoords).rgb;
 	float currentDepth = texture(depthTexture, texCoords).r;
 	vec3 finalColor = currentColor;
+	float finalDepth = currentDepth;
 
     vec3 fogColor = vec3(0.53f, 0.81f, 0.92f); // your fog color
     float fogStart = 1000.0;
     float fogEnd   = 3000.0;
 	float near = 0.1f;
 	float far = 5000.0f;
-	
-	float z = currentDepth * 2.0 - 1.0; // NDC to clip space
-	float linearDepth = (2.0 * near * far) / (far + near - z * (far - near));
-
-	float fogFactor = clamp((linearDepth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
-	fogFactor = smoothstep(0.0, 1.0, fogFactor);
 
 	bool isSkyDepth = currentDepth >= depthSkyThreshold;
 
 	if (isSkyDepth)
 	{
-		vec3 up         = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
+		vec3 upColor     = texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
 		float upDepth    = texture(depthTexture, texCoords + vec2(0.0,  texelSize.y)).r;
 
-		vec3 down       = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
+		vec3 downColor       = texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
 		float downDepth  = texture(depthTexture, texCoords + vec2(0.0,  -texelSize.y)).r;
 
-		vec3 left       = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
+		vec3 leftColor       = texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
 		float leftDepth  = texture(depthTexture, texCoords + vec2(-texelSize.x, 0.0)).r;
 
-		vec3 right      = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
+		vec3 rightColor      = texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
 		float rightDepth = texture(depthTexture, texCoords + vec2( texelSize.x, 0.0)).r;
 
-		vec3 blended = vec3(0.0);
-		int n = 0;
+		vec3 bColor = (upColor + downColor + rightColor + leftColor) / 4;
+		float bDepth = (upDepth + downDepth + leftDepth + rightDepth) / 4;
 
-		if (upDepth != 1) {
-			blended += up;
-			n += 1;
-		}
-		if (downDepth != 1) {
-			blended += down;
-			n += 1;
-		}
-		if (rightDepth != 1) {
-			blended += right;
-			n += 1;
-		}
-		if (leftDepth != 1) {
-			blended += left;
-			n += 1;
-		}
-
-		if (n > 0) {
-			blended /= n;
-			finalColor = blended;
-		} else {
-			finalColor = currentColor;
-		}
+		// bColor += up;
+		// bColor += down;
+		// bColor += right;
+		// bColor += left;
+		// bColor /= 4;
+		finalColor = bColor;
+		finalDepth = bDepth;
+		// finalColor = mix(finalColor, fogColor, fogFactor);
 	} else {
-		finalColor = mix(finalColor, fogColor, fogFactor);
+		finalColor = currentColor;
+		finalDepth = currentDepth;
+    	// gl_FragDepth = currentDepth; // or linearDepth mapped back to [0,1]
 	}
 
     if (isUnderwater == 1) {
@@ -112,5 +94,14 @@ void main()
     	vec3 deepBlue = vec3(0.0, 0.1, 0.3);
 		finalColor = mix(finalColor, deepBlue, 0.6);
 	}
+
+	float z = finalDepth * 2.0 - 1.0; // NDC to clip space
+	float linearDepth = (2.0 * near * far) / (far + near - z * (far - near));
+
+	float fogFactor = clamp((linearDepth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
+	fogFactor = smoothstep(0.0, 1.0, fogFactor);
+
+	finalColor = mix(finalColor, fogColor, fogFactor);
 	FragColor = vec4(finalColor, 1.0);
+	// FragColor = finalColor;
 }

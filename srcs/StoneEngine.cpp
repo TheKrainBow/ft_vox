@@ -10,6 +10,34 @@ bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 	return isTransparent(neighborBlock) && blockToDisplay != neighborBlock;
 }
 
+const char* getShaderVertPath(StoneEngine::ShaderType type)
+{
+	switch (type) {
+	case StoneEngine::GREEDYFIX: return "shaders/postProcess/fbo.vert";
+	case StoneEngine::GODRAYS:   return "shaders/postProcess/godrays.vert";
+	default:        return "";
+	}
+}
+
+const char* getShaderFragPath(StoneEngine::ShaderType type)
+{
+	switch (type) {
+	case StoneEngine::GREEDYFIX: return "shaders/postProcess/fbo.frag";
+	case StoneEngine::GODRAYS:   return "shaders/postProcess/godrays.frag";
+	default:        return "";
+	}
+}
+
+void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
+{
+	float texelX = 1.0f / windowWidth;
+	float texelY = 1.0f / windowHeight;
+
+	GLint texelSizeLoc = glGetUniformLocation(shader.program, "texelSize");
+	glUseProgram(shader.program);
+	glUniform2f(texelSizeLoc, texelX, texelY);
+}
+
 StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
 {
 	initData();
@@ -18,9 +46,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureMana
 	initTextures();
 	initRenderShaders();
 	initDebugTextBox();
-	initFramebuffers();
 	initFboShaders();
-	updateFboWindowSize();
 	reshapeAction(windowWidth, windowHeight);
 	_world.init(shaderProgram, RENDER_DISTANCE);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
@@ -29,13 +55,29 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureMana
 StoneEngine::~StoneEngine()
 {
 	glDeleteProgram(shaderProgram);
-	glDeleteFramebuffers(1, &fbo);
-	glDeleteTextures(1, &fboTexture);
-	glDeleteTextures(1, &dboTexture);
+	glDeleteProgram(waterShaderProgram);
+	glDeleteProgram(sunShaderProgram);
+
+	// Clean up post-process shaders
+	for (auto& [type, shader] : postProcessShaders)
+	{
+		glDeleteProgram(shader.program);
+		glDeleteVertexArrays(1, &shader.vao);
+		glDeleteBuffers(1, &shader.vbo);
+	}
+	postProcessShaders.clear();
+
+
+	glDeleteTextures(1, &pingFBO.texture);
+	glDeleteTextures(1, &pingFBO.depth);
+	glDeleteFramebuffers(1, &pingFBO.fbo);
+	glDeleteTextures(1, &pongFBO.texture);
+	glDeleteTextures(1, &pongFBO.depth);
+	glDeleteFramebuffers(1, &pongFBO.fbo);
+	// Terminate GLFW
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 }
-
 void StoneEngine::run()
 {
 	// Main loop
@@ -84,45 +126,6 @@ void StoneEngine::initData()
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
 	timeValue = 39800;
-}
-
-void StoneEngine::initFramebuffers()
-{
-	// Init framebuffer
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-	// Init framebuffer color texture
-	glGenTextures(1, &fboTexture);
-	glBindTexture(GL_TEXTURE_2D, fboTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
-
-	// Init render buffer
-	// glGenRenderbuffers(1, &rbo);
-	// glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-	// glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth, windowHeight);
-	// glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-
-	glGenTextures(1, &dboTexture);
-	glBindTexture(GL_TEXTURE_2D, dboTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, windowWidth, windowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// Attach to framebuffer
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dboTexture, 0);
-
-	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "Framebuffer error: " << fboStatus << std::endl;
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void StoneEngine::initTextures()
@@ -181,8 +184,8 @@ void initSunQuad(GLuint &vao, GLuint &vbo)
     // Quad corners in NDC [-1, 1] (used as offset in clip space)
     float quadVertices[] = {
         -1.0f, -1.0f,
-         1.0f, -1.0f,
         -1.0f,  1.0f,
+         1.0f, -1.0f,
          1.0f,  1.0f
     };
 
@@ -202,45 +205,9 @@ void initSunQuad(GLuint &vao, GLuint &vbo)
 
 void StoneEngine::initRenderShaders()
 {
-	shaderProgram = createShaderProgram("shaders/terrain.vert", "shaders/terrain.frag");
-	waterShaderProgram = createShaderProgram("shaders/water.vert", "shaders/water.frag");
-	sunShaderProgram = createShaderProgram("shaders/sun.vert", "shaders/sun.frag");
-	
-	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
-	vec3 lightColor(1.0f, 1.0f, 1.0f);
-	vec3 sunColor(1.0f, 0.7f, 1.0f);
-	vec3 viewPos = camera.getWorldPosition();
-	sunPosition = {0.0f, 0.0f, 0.0f};
-
-	glUseProgram(shaderProgram);
-	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
-
-	glUseProgram(waterShaderProgram);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glUniform3fv(glGetUniformLocation(waterShaderProgram, "lightColor"), 1, value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
-
-	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
-
-	glUseProgram(sunShaderProgram);
-
-	// Send view/projection matrices (same as the rest of your world)
-	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	
-	// Send sun world position (where the sun is in your sky)
-	glm::vec3 sunPosition = computeSunPosition(timeValue, camera.getWorldPosition());
-	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, value_ptr(sunPosition));
-	
-	// Send sun color and intensity
-	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, value_ptr(sunColor));
-	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);  // adjust as needed
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+	shaderProgram = createShaderProgram("shaders/render/terrain.vert", "shaders/render/terrain.frag");
+	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
+	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
 	initSunQuad(sunVAO, sunVBO);
 }
 
@@ -274,35 +241,82 @@ void StoneEngine::displaySun()
 	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
 
 	// Render glowing quad
-	glBindVertexArray(sunVAO);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE);  // additive blending
-	glDisable(GL_DEPTH_TEST);     // draw over everything
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
 	glEnable(GL_DEPTH_TEST);
-	glDisable(GL_BLEND);
+	glDepthMask(GL_TRUE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE); 
+	
+	glBindVertexArray(sunVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glBindVertexArray(0);
+	
+	glDisable(GL_BLEND);
 }
 
-void StoneEngine::initFboShaders()
+void StoneEngine::initFramebuffers(PingPongFBO &pingFBO, int width, int height)
 {
-	// Vao and Vbo that covers the whole screen basically a big rectangle of screen size
-	glGenVertexArrays(1, &rectangleVao);
-	glGenBuffers(1, &rectangleVbo);
-	glBindVertexArray(rectangleVao);
-	glBindBuffer(GL_ARRAY_BUFFER, rectangleVbo);
+	// Init framebuffer
+	glGenFramebuffers(1, &pingFBO.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, pingFBO.fbo);
+
+	// Init framebuffer color texture
+	glGenTextures(1, &pingFBO.texture);
+	glBindTexture(GL_TEXTURE_2D, pingFBO.texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingFBO.texture, 0);
+
+	glGenTextures(1, &pingFBO.depth);
+	glBindTexture(GL_TEXTURE_2D, pingFBO.depth);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// Attach to framebuffer
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, pingFBO.depth, 0);
+
+	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "Framebuffer error: " << fboStatus << std::endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+StoneEngine::PostProcessShader StoneEngine::createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath)
+{
+	glGenVertexArrays(1, &shader.vao);
+	glGenBuffers(1, &shader.vbo);
+	glBindVertexArray(shader.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, shader.vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(rectangleVertices), &rectangleVertices, GL_STATIC_DRAW);
+
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
 
-	fboShaderProgram = createShaderProgram("shaders/fbo.vert", "shaders/fbo.frag");
-	glUseProgram(fboShaderProgram);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
+
+	// Load shader
+	shader.program = createShaderProgram(vertPath.c_str(), fragPath.c_str());
+	glUseProgram(shader.program);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+	updateFboWindowSize(shader);
+	return shader;
+}
+
+void StoneEngine::initFboShaders()
+{
+	initFramebuffers(pingFBO, windowWidth, windowHeight);
+	initFramebuffers(pongFBO, windowWidth, windowHeight);
+	readFBO = &pingFBO;
+	writeFBO = &pongFBO;
+	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/fbo.vert", "shaders/postProcess/fbo.frag");
 }
 
 void StoneEngine::initDebugTextBox()
@@ -366,6 +380,7 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -379,157 +394,165 @@ void StoneEngine::activateRenderShader()
 void StoneEngine::activateTransparentShader()
 {
 	mat4 modelMatrix = mat4(1.0f);
-	float radY, radX;
-	radX = camera.getAngles().x * (M_PI / 180.0);
-	radY = camera.getAngles().y * (M_PI / 180.0);
+	mat4 viewMatrix = lookAt(
+		camera.getWorldPosition(),                         // eye
+		camera.getWorldPosition() + camera.getDirection(), // center
+		vec3(0.0f, 1.0f, 0.0f)                         // up
+	);
 
-	mat4 viewMatrix = mat4(1.0f);
-	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+	vec3 viewPos = camera.getWorldPosition();
 
 	glUseProgram(waterShaderProgram);
 
-	// Required for vertex shader
+	// Uniforms for rendering
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
-	vec3 viewPos = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), viewPos.y <= OCEAN_HEIGHT + 1 ? 1 : 0);
 
-	// Required for SSR
+	// SSR-related matrices
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "inverseProjection"), 1, GL_FALSE, value_ptr(inverse(projectionMatrix)));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "inverseView"), 1, GL_FALSE, value_ptr(inverse(viewMatrix)));
-	glUniform2fv(glGetUniformLocation(waterShaderProgram, "screenSize"), 1, glm::value_ptr(glm::vec2(windowWidth, windowHeight)));
-	
-	// Bind screen color texture (screenTexture)
+	glUniform2fv(glGetUniformLocation(waterShaderProgram, "screenSize"), 1, value_ptr(glm::vec2(windowWidth, windowHeight)));
+
+	// TEXTURES
+	// Bind screen color texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO->texture);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
+
+	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, fboTexture); // FBO color attachment
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 1);
-	
-	// You may also need this if your water shader still samples from the depth buffer:
+	glBindTexture(GL_TEXTURE_2D, readFBO->depth);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
+
+	// Bind normal map
 	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, dboTexture); // FBO depth attachment
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 2);
-
-	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 3);
-	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
 
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
+	// Blending and depth settings
+	glDepthMask(GL_FALSE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);      // Cull back faces
-	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
+	glCullFace(GL_FRONT);
+	glFrontFace(GL_CCW);
 }
 
-void StoneEngine::activateFboShader()
+void StoneEngine::display() {
+    prepareRenderPipeline();
+    renderSceneToFBO();
+    postProcessGreedyMeshingFix();
+	sendPostProcessFBOToDispay();
+    renderTransparentObjects();
+    renderOverlayAndUI();
+    finalizeFrame();
+}
+
+void StoneEngine::postProcessGreedyFix()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glUseProgram(fboShaderProgram);
-	glBindVertexArray(rectangleVao);
+	PostProcessShader& shader = postProcessShaders[GREEDYFIX];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO->fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
 	glDisable(GL_DEPTH_TEST);
 
+	// Bind screen texture (color)
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fboTexture);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
-	
+	glBindTexture(GL_TEXTURE_2D, readFBO->texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	// Bind depth texture (you may need to track this separately or store it in the struct)
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, dboTexture);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindTexture(GL_TEXTURE_2D, readFBO->depth);  // If shared, keep using dboTexture
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
-	glUniform1f(glGetUniformLocation(fboShaderProgram, "waterHeight"), OCEAN_HEIGHT + 2);
-	glUniform3fv(glGetUniformLocation(fboShaderProgram, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+	// Set uniforms (after glUseProgram!)
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
+	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
 
-	// Send sun world position (where the sun is in your sky)
 	glm::vec3 sunPosition = computeSunPosition(timeValue, camera.getWorldPosition());
-	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, value_ptr(sunPosition));
+	glUniform3fv(glGetUniformLocation(shader.program, "sunPosition"), 1, glm::value_ptr(sunPosition));
+	
+	glClear(GL_COLOR_BUFFER_BIT);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-void StoneEngine::triangleMeshToggle()
-{
-	if (showTriangleMesh)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	else
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+void StoneEngine::prepareRenderPipeline() {
+    if (showTriangleMesh) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    } else {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glBindFramebuffer(GL_FRAMEBUFFER, writeFBO->fbo);
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    glMatrixMode(GL_MODELVIEW);
 }
 
-void StoneEngine::display()
-{
-	// Framebuffer binding
+void StoneEngine::renderSceneToFBO() {
+    activateRenderShader();
+    _world.updateDrawData();
+    drawnTriangles = _world.display();
+}
+
+void StoneEngine::postProcessGreedyMeshingFix() {
 	if (showTriangleMesh)
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	else
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		return ;
 
-	// Clear buffers
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glMatrixMode(GL_MODELVIEW);
+	std::swap(readFBO, writeFBO);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, readFBO->fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO->fbo);
+	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+						0, 0, windowWidth, windowHeight,
+						GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
-	displaySun();
+	postProcessGreedyFix();
+    displaySun();
+}
 
-	// Activate solid rendering shader
-	activateRenderShader();
+void StoneEngine::sendPostProcessFBOToDispay() {
+	std::swap(readFBO, writeFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, readFBO->fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+						0, 0, windowWidth, windowHeight,
+						GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+}
 
-	// Wireframe mode
-	triangleMeshToggle();
+void StoneEngine::renderTransparentObjects() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    activateTransparentShader();
+    drawnTriangles += _world.displayTransparent();
+}
 
-	// Update world draw data
-	_world.updateDrawData();
-
-	// Draw opaque blocks
-	drawnTriangles = _world.display();
-
-	// Skip post-process in wireframe mode
-	if (!showTriangleMesh)
-	{
-		// Post-processing: screen-space correction
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glClear(GL_COLOR_BUFFER_BIT);
-		activateFboShader();
-
-		// Copy depth from FBO to default framebuffer
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-						  0, 0, windowWidth, windowHeight,
-						  GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-
-		// Prepare for water rendering
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-
-	// Render transparent (water) geometry
-	activateTransparentShader();
-	drawnTriangles += _world.displayTransparent();
-
-	// Restore render shader for textbox
-	activateRenderShader();
-	glDisable(GL_CULL_FACE);
-
-	// Disable wireframe for textBox
+void StoneEngine::renderOverlayAndUI() {
+    activateRenderShader();  // For UI rendering
+    glDisable(GL_CULL_FACE);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	// Debug UI
-	if (showDebugInfo)
-		debugBox.render();
-
-	// Cleanup and finalization
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glDepthMask(GL_TRUE);
-	glDisable(GL_BLEND);
-
-	calculateFps();
-	glfwSwapBuffers(_window);
+    if (showDebugInfo)
+        debugBox.render();
 }
 
+void StoneEngine::finalizeFrame() {
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    calculateFps();
+    glfwSwapBuffers(_window);
+}
 
 void StoneEngine::loadFirstChunks()
 {
@@ -659,16 +682,16 @@ void StoneEngine::updateGameTick()
 	{
 		glUseProgram(shaderProgram);
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
-		glUseProgram(fboShaderProgram);
-		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), timeValue);
+		glUseProgram(postProcessShaders[GREEDYFIX].program);
+		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), timeValue);
 	}
 	else
 	{
 		// Always daytime
 		glUseProgram(shaderProgram);
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
-		glUseProgram(fboShaderProgram);
-		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), 58500);
+		glUseProgram(postProcessShaders[GREEDYFIX].program);
+		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 58500);
 	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }
@@ -696,24 +719,16 @@ void StoneEngine::update()
     display();
 }
 
-void StoneEngine::updateFboWindowSize()
-{
-	float texelX = 1.0f / windowWidth;
-	float texelY = 1.0f / windowHeight;
-
-	GLint texelSizeLoc = glGetUniformLocation(fboShaderProgram, "texelSize");
-	glUseProgram(fboShaderProgram);
-	glUniform2f(texelSizeLoc, texelX, texelY);
-}
-
 void StoneEngine::resetFrameBuffers()
 {
-	// Delete old framebuffer and attachments
-	glDeleteFramebuffers(1, &fbo);
-	glDeleteTextures(1, &fboTexture);
-	glDeleteTextures(1, &dboTexture);
-	initFramebuffers();
-	updateFboWindowSize();
+	glDeleteFramebuffers(1, &pingFBO.fbo);
+	glDeleteTextures(1, &pingFBO.texture);
+	glDeleteTextures(1, &pingFBO.depth);
+	glDeleteFramebuffers(1, &pongFBO.fbo);
+	glDeleteTextures(1, &pongFBO.texture);
+	glDeleteTextures(1, &pongFBO.depth);
+	initFramebuffers(pingFBO, windowWidth, windowHeight);
+	initFramebuffers(pongFBO, windowWidth, windowHeight);
 }
 
 float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {

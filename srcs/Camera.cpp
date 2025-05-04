@@ -82,6 +82,17 @@ fvec2 *Camera::getAnglesPtr()
 	return &angle;
 }
 
+vec3 Camera::getDirection() const {
+    float pitch = radians(angle.y); // vertical
+    float yaw   = radians(angle.x); // horizontal
+
+    vec3 dir;
+    dir.z = -cos(pitch) * cos(yaw);
+    dir.y = sin(pitch);
+    dir.x = -cos(pitch) * sin(yaw);
+    return normalize(dir);
+}
+
 void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 {
 	//std::lock_guard<std::mutex> lock(angleMutex);

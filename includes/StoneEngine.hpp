@@ -10,6 +10,23 @@
 #include "Chrono.hpp"
 
 class StoneEngine {
+	public:
+	typedef struct s_PostProcessShader {
+		GLuint vao;
+		GLuint vbo;
+		GLuint program;
+	} PostProcessShader;
+
+	typedef struct s_PingPongFBO {
+		GLuint fbo;
+		GLuint texture;
+		GLuint depth;
+	} PingPongFBO;
+
+	typedef enum {
+		GREEDYFIX = 0,
+		GODRAYS = 1,
+	} ShaderType;
 	private:
 		// Display
 		GLFWwindow* _window;
@@ -23,6 +40,14 @@ class StoneEngine {
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
 
+		std::map<ShaderType, PostProcessShader> postProcessShaders;
+
+		PingPongFBO pingFBO;
+		PingPongFBO pongFBO;
+		
+		PingPongFBO* readFBO;
+		PingPongFBO* writeFBO;
+
 		World _world;
 		int windowHeight;
 		int windowWidth;
@@ -32,16 +57,6 @@ class StoneEngine {
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 		float _fov = 80.0f;
-
-		// Framebuffer data
-		GLuint fbo;
-		GLuint fboTexture;
-		GLuint dboTexture;
-		GLuint rectangleVao;
-		GLuint rectangleVbo;
-
-		// Fbo shaders data
-		GLuint fboShaderProgram;
 
 		std::mutex		_isRunningMutex;
 		bool			_isRunning = false;
@@ -105,21 +120,28 @@ class StoneEngine {
 		void	initTextures();
 		void	initRenderShaders();
 		void	initDebugTextBox();
-		void	initFramebuffers();
+		void	initFramebuffers(PingPongFBO &pingFBO, int w, int h);
 		void	initFboShaders();
 		void	resetFrameBuffers();
-		void	updateFboWindowSize();
+		void	updateFboWindowSize(PostProcessShader &shader);
 
 		// Runtime methods
 		void calculateFps();
 		void display();
+		void renderOverlayAndUI();
+		void finalizeFrame();
+		void renderTransparentObjects();
+		void postProcessGreedyMeshingFix();
+		void renderSceneToFBO();
+		void prepareRenderPipeline();
 		void displaySun();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
 		void activateTransparentShader();
-		void activateFboShader();
-		void triangleMeshToggle();
+		void postProcessGreedyFix();
+		void sendPostProcessFBOToDispay();
+		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
 
 		vec3 computeSunPosition(int timeValue, const glm::vec3& cameraPos);
 
