@@ -67,6 +67,8 @@ class Chunk
 		Chunk *getEastChunk();
 		void clearFaces();
 		void loadBlocks();
+		void unloadNeighbor(Direction dir);
+		void unloadNeighbors();
 
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();

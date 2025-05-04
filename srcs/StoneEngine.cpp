@@ -363,7 +363,7 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	unloadRet.get();
 	loadRet.get();
 	chronoHelper.stopChrono(0);
-	chronoHelper.printChronos();
+	chronoHelper.printChrono(0);
 }
 
 void StoneEngine::findMoveRotationSpeed()

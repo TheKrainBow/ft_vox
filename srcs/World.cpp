@@ -76,7 +76,9 @@ void World::unloadChunk()
 	//(Add a isModified boolean in Chunk or SubChunk class)
 	_chunksListMutex.lock();
 	size_t chunksNb = _chunkList.size();
+	std::cout << chunksNb << std::endl;
 	_chunksListMutex.unlock();
+
 	if (chunksNb <= CACHE_SIZE)
 		return ;
 
@@ -110,8 +112,18 @@ void World::unloadChunk()
 		// Remove from _chunkList
 		_chunkList.erase(farthestChunkIt);
 		_chunksListMutex.unlock();
-
+		
 		ivec2 pos = chunkToRemove->getPosition();
+		
+		// Check if chunk is being displayed
+		_displayedChunksMutex.lock();
+		bool isDisplayed = false;
+		auto endDisplay = _displayedChunks.end();
+		auto displayIt = _displayedChunks.find(pos);
+		isDisplayed = endDisplay != displayIt;
+		_displayedChunksMutex.unlock();
+		if (isDisplayed)
+			return ;
 
 		// Remove from _chunks
 		_chunksMutex.lock();
@@ -120,6 +132,7 @@ void World::unloadChunk()
 
 		// Clean up memory
 		_perlinGenerator.removePerlinMap(pos.x, pos.y);
+		chunkToRemove->unloadNeighbors();
 		chunkToRemove->freeSubChunks();
 		delete chunkToRemove;
 	}
@@ -133,6 +146,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 {
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
+
 	_chunksMutex.lock();
 	auto it = _chunks.find(pos);
 	auto itend = _chunks.end();

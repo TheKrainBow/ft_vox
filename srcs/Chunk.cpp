@@ -72,6 +72,40 @@ void Chunk::getNeighbors()
 	}
 }
 
+void Chunk::unloadNeighbors()
+{
+	if (_north)
+		_north->unloadNeighbor(SOUTH);
+	if (_south)
+		_south->unloadNeighbor(NORTH);
+	if (_east)
+		_east->unloadNeighbor(WEST);
+	if (_west)
+		_west->unloadNeighbor(EAST);
+}
+
+void Chunk::unloadNeighbor(Direction dir)
+{
+	switch (dir) {
+		case NORTH:
+			_north = nullptr;
+			break;
+		case SOUTH:
+			_south = nullptr;
+			break;
+		case EAST:
+			_east = nullptr;
+			break;
+		case WEST:
+			_west = nullptr;
+			break;
+		case DOWN:
+			break;
+		case UP:
+			break;
+	}
+}
+
 ivec2 Chunk::getPosition()
 {
 	return _position;
