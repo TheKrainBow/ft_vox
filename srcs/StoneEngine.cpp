@@ -13,7 +13,8 @@ bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 const char* getShaderVertPath(StoneEngine::ShaderType type)
 {
 	switch (type) {
-	case StoneEngine::GREEDYFIX: return "shaders/postProcess/fbo.vert";
+	case StoneEngine::GREEDYFIX: return "shaders/postProcess/greedyMeshing.vert";
+	case StoneEngine::FOG: return "shaders/postProcess/fog.vert";
 	case StoneEngine::GODRAYS:   return "shaders/postProcess/godrays.vert";
 	default:        return "";
 	}
@@ -22,7 +23,8 @@ const char* getShaderVertPath(StoneEngine::ShaderType type)
 const char* getShaderFragPath(StoneEngine::ShaderType type)
 {
 	switch (type) {
-	case StoneEngine::GREEDYFIX: return "shaders/postProcess/fbo.frag";
+	case StoneEngine::GREEDYFIX: return "shaders/postProcess/greedyMeshing.frag";
+	case StoneEngine::FOG: return "shaders/postProcess/fog.frag";
 	case StoneEngine::GODRAYS:   return "shaders/postProcess/godrays.frag";
 	default:        return "";
 	}
@@ -68,12 +70,12 @@ StoneEngine::~StoneEngine()
 	postProcessShaders.clear();
 
 
-	glDeleteTextures(1, &pingFBO.texture);
-	glDeleteTextures(1, &pingFBO.depth);
-	glDeleteFramebuffers(1, &pingFBO.fbo);
-	glDeleteTextures(1, &pongFBO.texture);
-	glDeleteTextures(1, &pongFBO.depth);
-	glDeleteFramebuffers(1, &pongFBO.fbo);
+	glDeleteTextures(1, &readFBO.texture);
+	glDeleteTextures(1, &readFBO.depth);
+	glDeleteFramebuffers(1, &readFBO.fbo);
+	glDeleteTextures(1, &writeFBO.texture);
+	glDeleteTextures(1, &writeFBO.depth);
+	glDeleteFramebuffers(1, &writeFBO.fbo);
 	// Terminate GLFW
 	glfwDestroyWindow(_window);
 	glfwTerminate();
@@ -166,7 +168,7 @@ void StoneEngine::initTextures()
 glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& cameraPos)
 {
     const float pi = 3.14159265f;
-    const float radius = 1500.0f;
+    const float radius = 6000.0f;
 
     float angle = (timeValue / 86400.0f) * 2.0f * pi;
 
@@ -213,6 +215,8 @@ void StoneEngine::initRenderShaders()
 
 void StoneEngine::displaySun()
 {
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	// glDepthFunc(GL_LESS);
 	vec3 camPos = camera.getWorldPosition();
 	// Compute current sun position based on time
 	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
@@ -235,25 +239,25 @@ void StoneEngine::displaySun()
 	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
 
 	glm::vec3 sunColor(1.0, 0.6, 0.2); // warm sun
-	float height = clamp((sunPos.y - camPos.y) / 1500, 0.0f, 1.0f);
+	float height = clamp((sunPos.y - camPos.y) / 6000, 0.0f, 1.0f);
 	sunColor = mix(sunColor, vec3(1.0f), height);
 	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
 	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
 
-	// Render glowing quad
-	glEnable(GL_DEPTH_TEST);
-	glDepthMask(GL_TRUE);
+	glEnable(GL_DEPTH_TEST);      // allow occlusion by terrain
+	glDepthMask(GL_FALSE);        // prevent writing depth
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE); 
+	glBlendFunc(GL_ONE, GL_ONE);  // additive glow
 	
 	glBindVertexArray(sunVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glBindVertexArray(0);
 	
 	glDisable(GL_BLEND);
+	glDepthMask(GL_TRUE);
 }
 
-void StoneEngine::initFramebuffers(PingPongFBO &pingFBO, int width, int height)
+void StoneEngine::initFramebuffers(FBODatas &pingFBO, int width, int height)
 {
 	// Init framebuffer
 	glGenFramebuffers(1, &pingFBO.fbo);
@@ -312,11 +316,10 @@ StoneEngine::PostProcessShader StoneEngine::createPostProcessShader(PostProcessS
 
 void StoneEngine::initFboShaders()
 {
-	initFramebuffers(pingFBO, windowWidth, windowHeight);
-	initFramebuffers(pongFBO, windowWidth, windowHeight);
-	readFBO = &pingFBO;
-	writeFBO = &pongFBO;
-	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/fbo.vert", "shaders/postProcess/fbo.frag");
+	initFramebuffers(readFBO, windowWidth, windowHeight);
+	initFramebuffers(writeFBO, windowWidth, windowHeight);
+	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/greedyMeshing.vert", "shaders/postProcess/greedyMeshing.frag");
+	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/fog.vert", "shaders/postProcess/fog.frag");
 }
 
 void StoneEngine::initDebugTextBox()
@@ -420,12 +423,12 @@ void StoneEngine::activateTransparentShader()
 	// TEXTURES
 	// Bind screen color texture
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, readFBO->texture);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
 
 	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO->depth);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
 
 	// Bind normal map
@@ -445,31 +448,70 @@ void StoneEngine::activateTransparentShader()
 
 void StoneEngine::display() {
     prepareRenderPipeline();
+
     renderSceneToFBO();
-    postProcessGreedyMeshingFix();
-	sendPostProcessFBOToDispay();
+	screenshotFBOBuffer();
+
+    postProcessGreedyFix();
+    displaySun();
+    screenshotFBOBuffer();
+
     renderTransparentObjects();
+    screenshotFBOBuffer();
+
+    postProcessFog();
+    displaySun(); // Redisplay sun because FOG erased it
+
+    sendPostProcessFBOToDispay();
     renderOverlayAndUI();
     finalizeFrame();
 }
 
-void StoneEngine::postProcessGreedyFix()
+void StoneEngine::postProcessFog()
 {
-	PostProcessShader& shader = postProcessShaders[GREEDYFIX];
+	PostProcessShader& shader = postProcessShaders[FOG];
 
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO->fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
 	glUseProgram(shader.program);
 	glBindVertexArray(shader.vao);
 	glDisable(GL_DEPTH_TEST);
 
 	// Bind screen texture (color)
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, readFBO->texture);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
 	// Bind depth texture (you may need to track this separately or store it in the struct)
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO->depth);  // If shared, keep using dboTexture
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+	glClear(GL_COLOR_BUFFER_BIT);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void StoneEngine::postProcessGreedyFix()
+{
+	if (showTriangleMesh)
+		return ;
+
+	PostProcessShader& shader = postProcessShaders[GREEDYFIX];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_ALWAYS);
+
+	// Bind screen texture (color)
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	// Bind depth texture (you may need to track this separately or store it in the struct)
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
 	// Set uniforms (after glUseProgram!)
@@ -480,8 +522,9 @@ void StoneEngine::postProcessGreedyFix()
 	glm::vec3 sunPosition = computeSunPosition(timeValue, camera.getWorldPosition());
 	glUniform3fv(glGetUniformLocation(shader.program, "sunPosition"), 1, glm::value_ptr(sunPosition));
 	
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDepthFunc(GL_LESS);
 }
 
 void StoneEngine::prepareRenderPipeline() {
@@ -490,7 +533,7 @@ void StoneEngine::prepareRenderPipeline() {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     } else {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glBindFramebuffer(GL_FRAMEBUFFER, writeFBO->fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -506,25 +549,26 @@ void StoneEngine::renderSceneToFBO() {
     drawnTriangles = _world.display();
 }
 
-void StoneEngine::postProcessGreedyMeshingFix() {
-	if (showTriangleMesh)
-		return ;
-
-	std::swap(readFBO, writeFBO);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, readFBO->fbo);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO->fbo);
+void StoneEngine::screenshotFBOBuffer() {
+	// Copy from current write to current read
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, readFBO.fbo);
 	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-						0, 0, windowWidth, windowHeight,
-						GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+					  0, 0, windowWidth, windowHeight,
+					  GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 
-	postProcessGreedyFix();
-    displaySun();
+	// Now swap the pointers
+	// std::swap(readFBO, writeFBO);
+
+	// Clear the new write buffer
+	// glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void StoneEngine::sendPostProcessFBOToDispay() {
-	std::swap(readFBO, writeFBO);
+	// std::swap(readFBO, writeFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, readFBO->fbo);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
 						0, 0, windowWidth, windowHeight,
@@ -532,7 +576,7 @@ void StoneEngine::sendPostProcessFBOToDispay() {
 }
 
 void StoneEngine::renderTransparentObjects() {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
     activateTransparentShader();
     drawnTriangles += _world.displayTransparent();
 }
@@ -721,14 +765,14 @@ void StoneEngine::update()
 
 void StoneEngine::resetFrameBuffers()
 {
-	glDeleteFramebuffers(1, &pingFBO.fbo);
-	glDeleteTextures(1, &pingFBO.texture);
-	glDeleteTextures(1, &pingFBO.depth);
-	glDeleteFramebuffers(1, &pongFBO.fbo);
-	glDeleteTextures(1, &pongFBO.texture);
-	glDeleteTextures(1, &pongFBO.depth);
-	initFramebuffers(pingFBO, windowWidth, windowHeight);
-	initFramebuffers(pongFBO, windowWidth, windowHeight);
+	glDeleteFramebuffers(1, &readFBO.fbo);
+	glDeleteTextures(1, &readFBO.texture);
+	glDeleteTextures(1, &readFBO.depth);
+	glDeleteFramebuffers(1, &writeFBO.fbo);
+	glDeleteTextures(1, &writeFBO.texture);
+	glDeleteTextures(1, &writeFBO.depth);
+	initFramebuffers(readFBO, windowWidth, windowHeight);
+	initFramebuffers(writeFBO, windowWidth, windowHeight);
 }
 
 float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {

@@ -17,15 +17,16 @@ class StoneEngine {
 		GLuint program;
 	} PostProcessShader;
 
-	typedef struct s_PingPongFBO {
+	typedef struct s_FBODatas {
 		GLuint fbo;
 		GLuint texture;
 		GLuint depth;
-	} PingPongFBO;
+	} FBODatas;
 
 	typedef enum {
 		GREEDYFIX = 0,
 		GODRAYS = 1,
+		FOG = 2,
 	} ShaderType;
 	private:
 		// Display
@@ -41,12 +42,9 @@ class StoneEngine {
 		GLuint waterNormalMap;
 
 		std::map<ShaderType, PostProcessShader> postProcessShaders;
-
-		PingPongFBO pingFBO;
-		PingPongFBO pongFBO;
 		
-		PingPongFBO* readFBO;
-		PingPongFBO* writeFBO;
+		FBODatas readFBO;
+		FBODatas writeFBO;
 
 		World _world;
 		int windowHeight;
@@ -120,7 +118,7 @@ class StoneEngine {
 		void	initTextures();
 		void	initRenderShaders();
 		void	initDebugTextBox();
-		void	initFramebuffers(PingPongFBO &pingFBO, int w, int h);
+		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
 		void	initFboShaders();
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
@@ -139,8 +137,12 @@ class StoneEngine {
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
 		void activateTransparentShader();
+	
+		void screenshotFBOBuffer();
 		void postProcessGreedyFix();
+		void postProcessFog();
 		void sendPostProcessFBOToDispay();
+	
 		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
 
 		vec3 computeSunPosition(int timeValue, const glm::vec3& cameraPos);

@@ -15,7 +15,7 @@ out vec4 FragColor;
 
 vec3 computeSunPosition(float time) {
     float pi = 3.14159265359;
-    float radius = 1500.0;
+    float radius = 6000.0;
     float angle = (time / 86400.0) * (2.0 * pi);
     float tiltAngle = radians(30.0);
 

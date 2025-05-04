@@ -71,7 +71,7 @@ void main()
 
     // Height fade
     float cameraHeight = viewPos.y - waveFragPos.y;
-    float heightFade = clamp(1.0 - (cameraHeight / 25.0), 0.0, 1.0);
+    float heightFade = clamp(1.0 - (cameraHeight / 25.0), 0.0, 0.8);
 
     // Final color blending
     vec3 blueTint = vec3(0.1, 0.2, 0.5);
@@ -80,7 +80,7 @@ void main()
     if (isUnderwater == 1) {
         finalColor = vec3(0.0, 0.1, 0.3); // no reflection underwater
     } else {
-        vec3 reflection = mix(reflectedColor, blueTint, 0.3);
+        vec3 reflection = mix(reflectedColor, blueTint, 0.8);
         finalColor = mix(blueTint, reflection, heightFade);
     }
     float alpha = mix(0.3, 0.7, fresnel);
