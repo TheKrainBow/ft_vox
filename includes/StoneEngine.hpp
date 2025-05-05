@@ -27,6 +27,8 @@ class StoneEngine {
 		GREEDYFIX = 0,
 		GODRAYS = 1,
 		FOG = 2,
+		BRIGHNESSMASK = 3,
+		GODRAYS_BLEND = 4,
 	} ShaderType;
 	private:
 		// Display
@@ -45,6 +47,7 @@ class StoneEngine {
 		
 		FBODatas readFBO;
 		FBODatas writeFBO;
+		FBODatas tmpFBO;
 
 		World _world;
 		int windowHeight;
@@ -129,7 +132,6 @@ class StoneEngine {
 		void renderOverlayAndUI();
 		void finalizeFrame();
 		void renderTransparentObjects();
-		void postProcessGreedyMeshingFix();
 		void renderSceneToFBO();
 		void prepareRenderPipeline();
 		void displaySun();
@@ -138,9 +140,12 @@ class StoneEngine {
 		void activateRenderShader();
 		void activateTransparentShader();
 	
-		void screenshotFBOBuffer();
+		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
+		void postProcessBrightnessMask();
 		void postProcessFog();
+		void postProcessGodRays();
+		void postProcessGodRaysBlend();
 		void sendPostProcessFBOToDispay();
 	
 		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);

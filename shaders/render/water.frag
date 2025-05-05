@@ -38,19 +38,12 @@ void main()
     float rippleStrength = 0.05;
     normal = normalize(mix(vec3(0.0, 1.0, 0.0), normal, rippleStrength));
     normal.z *= 0.1;
-    // normal = vec3(0.0, 1.0, 0.0); 
 
     vec3 reflectedDir = reflect(viewDir, normal);
     vec3 reflectedPoint = waveFragPos + reflectedDir * 5000.0;
     vec4 clip = projection * view * vec4(reflectedPoint, 1.0);
-    // Multiply reflection by fade factor
-    
 
     vec3 skyColor = vec3(0.53f, 0.81f, 0.92f);
-    // if (clip.w <= 0.0) {
-    //     FragColor = vec4(0.1, 0.2, 0.5, 1.0);
-    //     return;
-    // }
 
     // Height fade
     float cameraHeight = viewPos.y - waveFragPos.y;
