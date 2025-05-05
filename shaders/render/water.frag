@@ -40,16 +40,31 @@ void main()
     float rippleStrength = 0.05;
     normal = normalize(mix(vec3(0.0, 1.0, 0.0), normal, rippleStrength));
 
-    // Reflect with perturbed normal
     vec3 reflectedDir = reflect(viewDir, normal);
     vec3 reflectedPoint = waveFragPos + reflectedDir * 100.0;
     vec4 clip = projection * view * vec4(reflectedPoint, 1.0);
+    // Multiply reflection by fade factor
+    
 
+    vec3 skyColor = vec3(0.53f, 0.81f, 0.92f);
     // if (clip.w <= 0.0) {
     //     FragColor = vec4(0.1, 0.2, 0.5, 1.0);
     //     return;
     // }
 
+    // Height fade
+    float cameraHeight = viewPos.y - waveFragPos.y;
+    float heightFade = clamp(1.0 - (cameraHeight / 25.0), 0.0, 0.8);
+    float normalOffset = (sampledNormal.b - 0.5) * 0.2;
+
+    if (clip.w <= 0.0) {
+        vec3 blueTint = vec3(0.1, 0.2, 0.5);
+        vec3 finalColor = mix(blueTint, mix(skyColor, blueTint, 0.2), heightFade);
+        finalColor += normalOffset;
+        // finalColor.b = clamp(finalColor.b, 0.0, 1.0);
+        FragColor = vec4(finalColor, 0.5f);
+        return;
+    }
     vec3 ndc = clip.xyz / clip.w;
     vec2 uv = ndc.xy * 0.5 + 0.5;
 
@@ -62,16 +77,9 @@ void main()
     // vec2 safeUV = clamp(uv, vec2(0.001), vec2(0.999));
     // vec3 reflectedColor = texture(screenTexture, safeUV).rgb;
     bool outOfBounds = any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)));
-    vec3 skyColor = vec3(0.53f, 0.81f, 0.92f);
+    // vec3 skyColor = vec3(1.0f, 0.0f, 0.0f);
     vec3 reflectedColor = outOfBounds ? skyColor : texture(screenTexture, uv).rgb;
 
-    // Fresnel
-    float facingRatio = max(dot(viewDir, normal), 0.0);
-    float fresnel = pow(1.0 - facingRatio, 3.0);
-
-    // Height fade
-    float cameraHeight = viewPos.y - waveFragPos.y;
-    float heightFade = clamp(1.0 - (cameraHeight / 25.0), 0.2, 0.8);
 
     // Final color blending
     vec3 blueTint = vec3(0.1, 0.2, 0.5);
@@ -82,7 +90,8 @@ void main()
     } else {
         vec3 reflection = mix(reflectedColor, blueTint, 0.2);
         finalColor = mix(blueTint, reflection, heightFade);
+        finalColor += normalOffset;
+        finalColor = clamp(finalColor, 0.0, 1.0);
     }
-    float alpha = mix(0.3, 0.7, fresnel);
     FragColor = vec4(finalColor, 0.5);
 }

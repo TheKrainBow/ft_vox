@@ -215,7 +215,8 @@ void StoneEngine::initRenderShaders()
 
 void StoneEngine::displaySun()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	if (showTriangleMesh)
+		return ;
 	// glDepthFunc(GL_LESS);
 	vec3 camPos = camera.getWorldPosition();
 	// Compute current sun position based on time
@@ -229,7 +230,7 @@ void StoneEngine::displaySun()
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
-
+	// glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), camera.getPosition());
 	// Use sun shader
 	glUseProgram(sunShaderProgram);
 
@@ -451,7 +452,7 @@ void StoneEngine::display() {
 
     renderSceneToFBO();
 	screenshotFBOBuffer();
-
+	
     postProcessGreedyFix();
     displaySun();
     screenshotFBOBuffer();
@@ -469,6 +470,8 @@ void StoneEngine::display() {
 
 void StoneEngine::postProcessFog()
 {
+	if (showTriangleMesh)
+		return ;
 	PostProcessShader& shader = postProcessShaders[FOG];
 
 	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
@@ -551,12 +554,16 @@ void StoneEngine::renderSceneToFBO() {
 }
 
 void StoneEngine::screenshotFBOBuffer() {
+	if (showTriangleMesh)
+		return ;
 	// Copy from current write to current read
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, readFBO.fbo);
 	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
 					  0, 0, windowWidth, windowHeight,
 					  GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
 
 	// Now swap the pointers
 	// std::swap(readFBO, writeFBO);
@@ -567,6 +574,8 @@ void StoneEngine::screenshotFBOBuffer() {
 }
 
 void StoneEngine::sendPostProcessFBOToDispay() {
+	if (showTriangleMesh)
+		return ;
 	// std::swap(readFBO, writeFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
@@ -577,7 +586,6 @@ void StoneEngine::sendPostProcessFBOToDispay() {
 }
 
 void StoneEngine::renderTransparentObjects() {
-    glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
     activateTransparentShader();
     drawnTriangles += _world.displayTransparent();
 }
@@ -753,7 +761,7 @@ void StoneEngine::update()
 
     // Check if it's time to update the game tick (20 times per second)
     static auto lastGameTick = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 60))
     {
         updateGameTick();
         lastGameTick = end; // Reset game tick timer

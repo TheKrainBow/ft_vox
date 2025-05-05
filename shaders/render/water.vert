@@ -106,7 +106,8 @@ void main()
         sin(worldPosition.x * waveFreq + time * waveSpeed) +
         cos(worldPosition.z * waveFreq + time * waveSpeed * 0.8);
 
-    worldPosition.y += wave * 0.5 * waveAmp;
+    float offset = clamp(wave * 0.5 * waveAmp, -0.1, 0.1);
+    worldPosition.y += offset;
 
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;

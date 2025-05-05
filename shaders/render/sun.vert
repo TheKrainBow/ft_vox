@@ -12,7 +12,7 @@ void main()
 {
     // Remove camera rotation from view matrix
     mat4 rotView = mat4(mat3(view)); // strip translation
-    vec4 billboardCenter = projection * view * vec4(sunPosition, 1.0);
+    vec4 billboardCenter = projection * rotView * vec4(sunPosition, 1.0);
 
     // Scale billboard size in screen space
     float size = 0.15; // screen size
