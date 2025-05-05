@@ -98,16 +98,16 @@ void main()
     finalUV.x *= lengthX;
     finalUV.y *= lengthY;
 
-    float waveFreq = 0.001;
-    float waveAmp = 0.03;
-    float waveSpeed = 0.01;
+    // float waveFreq = 0.001;
+    // float waveAmp = 0.03;
+    // float waveSpeed = 0.01;
 
-    float wave =
-        sin(worldPosition.x * waveFreq + time * waveSpeed) +
-        cos(worldPosition.z * waveFreq + time * waveSpeed * 0.8);
+    // float wave =
+    //     sin(worldPosition.x * waveFreq + time * waveSpeed) +
+    //     cos(worldPosition.z * waveFreq + time * waveSpeed * 0.8);
 
-    float offset = clamp(wave * 0.5 * waveAmp, -0.1, 0.1);
-    worldPosition.y += offset;
+    // float offset = clamp(wave * 0.5 * waveAmp, -0.1, 0.1);
+    // worldPosition.y += offset;
 
     gl_Position = projection * view * model * vec4(worldPosition, 1.0);
     TexCoord = finalUV;

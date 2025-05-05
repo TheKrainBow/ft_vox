@@ -398,11 +398,15 @@ void StoneEngine::activateRenderShader()
 void StoneEngine::activateTransparentShader()
 {
 	mat4 modelMatrix = mat4(1.0f);
-	mat4 viewMatrix = lookAt(
-		camera.getWorldPosition(),                         // eye
-		camera.getWorldPosition() + camera.getDirection(), // center
-		vec3(0.0f, 1.0f, 0.0f)                         // up
-	);
+	
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
+
+	mat4 viewMatrix = mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
 	vec3 viewPos = camera.getWorldPosition();
 
@@ -415,11 +419,6 @@ void StoneEngine::activateTransparentShader()
 	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
 	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), viewPos.y <= OCEAN_HEIGHT + 1 ? 1 : 0);
-
-	// SSR-related matrices
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "inverseProjection"), 1, GL_FALSE, value_ptr(inverse(projectionMatrix)));
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "inverseView"), 1, GL_FALSE, value_ptr(inverse(viewMatrix)));
-	glUniform2fv(glGetUniformLocation(waterShaderProgram, "screenSize"), 1, value_ptr(glm::vec2(windowWidth, windowHeight)));
 
 	// TEXTURES
 	// Bind screen color texture

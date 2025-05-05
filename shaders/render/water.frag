@@ -4,7 +4,6 @@ in vec3 FragPos;
 
 uniform sampler2D screenTexture;
 uniform sampler2D normalMap;
-uniform vec2 screenSize;
 uniform vec3 viewPos;
 uniform float waterHeight;
 uniform float time;
@@ -26,7 +25,7 @@ void main()
     wave *= 0.5 * waveAmp;
 
     vec3 waveFragPos = FragPos;
-    waveFragPos.y += wave;
+    // waveFragPos.y += wave;
 
     // View direction
     vec3 viewDir = normalize(waveFragPos - viewPos);
@@ -35,13 +34,14 @@ void main()
     vec2 rippleUV = FragPos.xz * 0.05 + vec2(time * 0.0002, time * 0.00015);
     vec3 sampledNormal = texture(normalMap, rippleUV).rgb;
     vec3 normal = normalize(sampledNormal * 2.0 - 1.0);
-
     // Blend with flat up vector to soften effect
     float rippleStrength = 0.05;
     normal = normalize(mix(vec3(0.0, 1.0, 0.0), normal, rippleStrength));
+    normal.z *= 0.1;
+    // normal = vec3(0.0, 1.0, 0.0); 
 
     vec3 reflectedDir = reflect(viewDir, normal);
-    vec3 reflectedPoint = waveFragPos + reflectedDir * 100.0;
+    vec3 reflectedPoint = waveFragPos + reflectedDir * 5000.0;
     vec4 clip = projection * view * vec4(reflectedPoint, 1.0);
     // Multiply reflection by fade factor
     
