@@ -14,9 +14,9 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	// Continentalness: Base terrain height with plateaux
 	// Erosion: Erosion simili for somewhat smoothed out areas
 	// Peaks: High height values for mountains and peaks generation
-	std::vector<Point> continentalPoints = {{-1.0, -10.0}, {-0.4, -10.0}, {-0.3, 50.0}, {-0.1, 50.0}, {-0.05, 100.0}, {0, 100.0}, {0.1, 115}, {0.3, 125.0}, {1.0, 145.0}};
+	std::vector<Point> continentalPoints = {{-1.0, 1.0}, {-0.4, 1.0}, {-0.3, 50.0}, {-0.1, 50.0}, {-0.05, 75.0}, {0, 100.0}, {0.1, 115}, {0.3, 125.0}, {1.0, 145.0}};
 	std::vector<Point> erosionPoints = {{-1.0, 150.0}, {-0.8, 100.0}, {-0.5, 75.0}, {0.0, 25.0}, {0.3, 22.5}, {0.4, 20.0}, {0.5, 10.0}, {0.6, 15.0}, {0.7, 20.0}, {1.0, 10.0}};
-	std::vector<Point> peaksPoints = {{-1.0, -15.0}, {-0.8, 25.0}, {-0.4, 75.0}, {0.0, 125.0}, {0.4, 225.0}, {1.0, 350.0}};
+	std::vector<Point> peaksPoints = {{-1.0, 1.0}, {-0.8, 25.0}, {-0.4, 75.0}, {0.0, 125.0}, {0.4, 225.0}, {1.0, 350.0}};
 
 	spline.continentalSpline.setPoints(continentalPoints);
 	spline.erosionSpline.setPoints(erosionPoints);
@@ -183,7 +183,7 @@ double NoiseGenerator::getHeight(ivec2 pos)
 	// 	height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
 	// }
 
-	//height = pow(height, 1.05); // Slightly bias towards higher values
+	height = pow(height, 1.05); // Slightly bias towards higher values
 	return height;
 }
 
