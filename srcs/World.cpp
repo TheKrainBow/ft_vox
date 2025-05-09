@@ -172,7 +172,7 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	_displayedChunksMutex.lock();
 	_displayedChunks[pos] = chunk;
 	_displayedChunksMutex.unlock();
-	unloadChunk();
+	// unloadChunk();
 }
 
 void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)

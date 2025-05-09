@@ -55,6 +55,7 @@ class NoiseGenerator {
 		double getOceanNoise(ivec2 pos);
 		double getHeight(ivec2 pos);
 		double getPeaksValleysNoise(ivec2 pos);
+		double getBiomeNoise(ivec2 pos);
 
 		size_t _seed;
 		NoiseData _data;

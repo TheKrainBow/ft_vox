@@ -62,7 +62,7 @@ double NoiseGenerator::getContinentalNoise(ivec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.9, // amplitude
-		0.002, // frequency
+		0.001, // frequency
 		0.5, // persistance
 		2.0, // lacunarity
 		6 // nb_octaves
@@ -95,9 +95,9 @@ double NoiseGenerator::getPeaksValleysNoise(ivec2 pos)
 {
 	double _noise = 0.0;
 	NoiseData nData = {
-		0.7, // amplitude
-		0.00099, // frequency
-		0.5, // persistance
+		0.4, // amplitude
+		0.0005, // frequency
+		0.4, // persistance
 		2.0, // lacunarity
 		5 // nb_octaves
 	};
@@ -152,6 +152,25 @@ double smoothBlend(double a, double b, double blendFactor)
 	return a * (1.0 - blendFactor) + b * blendFactor;
 }
 
+double tripleSmoothBlend(double a, double b, double c, double blendAB, double blendAC)
+{
+	// Smoothstep on blend factors
+	blendAB = blendAB * blendAB * (3.0 - 2.0 * blendAB);
+	blendAC = blendAC * blendAC * (3.0 - 2.0 * blendAC);
+
+	// Normalize weights to sum to 1
+	double weightA = (1.0 - blendAB) * (1.0 - blendAC);
+	double weightB = blendAB * (1.0 - blendAC);
+	double weightC = blendAC;
+
+	double totalWeight = weightA + weightB + weightC;
+	weightA /= totalWeight;
+	weightB /= totalWeight;
+	weightC /= totalWeight;
+
+	return a * weightA + b * weightB + c * weightC;
+}
+
 double NoiseGenerator::getHeight(ivec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
@@ -162,7 +181,9 @@ double NoiseGenerator::getHeight(ivec2 pos)
 	double erosionMask = (erosionNoise + 1.0) * 0.5;
 	double peaksNoise = getPeaksValleysNoise(pos);
 	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
-	double peaksMask = (peaksNoise + 1.0) * 0.5;
+	// if (peaksNoise < -0.2)
+    // 	peaksHeight = 0.0;
+	double peaksMask = pow((peaksNoise + 1.0) * 0.5, 3.0);
 
 	// Calculate ocean noise and mask
 	// double oceanNoise = 0.2 * getOceanNoise(pos);
@@ -170,9 +191,7 @@ double NoiseGenerator::getHeight(ivec2 pos)
 	// double oceanThreshold = 0.48;  // Controls ocean frequency (lower = more oceans)
 
 	// Base terrain height
-	double height;
-	height = smoothBlend(surfaceHeight, erosionHeight, erosionMask);
-	height = smoothBlend(height, peaksHeight, peaksMask);
+	double height = tripleSmoothBlend(surfaceHeight, erosionHeight, peaksHeight, erosionMask, peaksMask);
 
 	// // Apply ocean mask
 	// if (oceanMask < oceanThreshold)
@@ -183,7 +202,7 @@ double NoiseGenerator::getHeight(ivec2 pos)
 	// 	height = smoothBlend(height, -50.0, blendFactor); // 50.0 is the ocean level
 	// }
 
-	height = pow(height, 1.05); // Slightly bias towards higher values
+	height = pow(height, 1.2); // Slightly bias towards higher values
 	return height;
 }
 
