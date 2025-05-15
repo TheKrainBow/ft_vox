@@ -84,6 +84,7 @@ void StoneEngine::initData()
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
 	timeValue = 39800;
+	_biome = 0;
 }
 
 void StoneEngine::initFramebuffers()

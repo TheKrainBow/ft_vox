@@ -173,6 +173,7 @@ double tripleSmoothBlend(double a, double b, double c, double blendAB, double bl
 
 Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 {
+	pos = getBorderWarping(pos.x, pos.y);
     double temp = (getTemperatureNoise(pos) + 1.0) * 0.5;
     double humidity = (getHumidityNoise(pos) + 1.0) * 0.5;
 
