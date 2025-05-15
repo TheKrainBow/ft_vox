@@ -4,7 +4,6 @@
 #include "World.hpp"
 #include "Camera.hpp"
 #include "NoiseGenerator.hpp"
-#include "BiomeGenerator.hpp"
 #include "Textbox.hpp"
 #include "define.hpp"
 #include "Chrono.hpp"
@@ -61,6 +60,7 @@ class StoneEngine {
 		Chrono chronoHelper;
 		double drawnTriangles;
 		Textbox debugBox;
+		int _biome;
 	
 		// World gen
 		NoiseGenerator noise_gen;

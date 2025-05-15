@@ -200,6 +200,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
 	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	debugBox.addLine("Facing: ", Textbox::DIRECTION, facing_direction);
+	debugBox.addLine("Biome: ", Textbox::BIOME, &_biome);
 
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
@@ -406,9 +407,10 @@ void StoneEngine::updateMovement()
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
 	vec3 viewPos = camera.getWorldPosition(); // New position
-
 	if (viewPos != oldPos)
 	{
+		ivec2 blockPos = {int(viewPos.x), int(viewPos.z)};
+		_biome = int(noise_gen.getBiome(blockPos, noise_gen.getHeight(blockPos)));
 		glUseProgram(shaderProgram);
 		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
 	}

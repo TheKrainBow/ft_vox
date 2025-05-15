@@ -5,6 +5,7 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_position = position;
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
+	_biomeMap = &perlinMap->biomeMap;
 	_chunkSize = CHUNK_SIZE / resolution;
 	size_t size = _chunkSize * _chunkSize * _chunkSize;
 	_blocks = std::make_unique<uint8_t[]>(size);
@@ -64,6 +65,16 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 	for (int i = 1; i <= 4; i++)
 		setBlock(x, y - (i * _resolution), z, DIRT);
 }
+
+void SubChunk::loadDesert(int x, int z, size_t ground)
+{
+	int y = ground - _position.y * CHUNK_SIZE;
+
+	setBlock(x, y, z, SAND);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, SAND);
+}
+
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -73,28 +84,60 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 		setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
+// void SubChunk::loadBiome(int prevResolution)
+// {
+// 	(void)prevResolution;
+// 	NoiseGenerator &noisegen = _world.getNoiseGenerator();
+// 	noisegen.setNoiseData({
+// 		1.0, 0.9, 0.02, 0.5, 12
+// 	});
+
+// 	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+// 	{
+// 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
+// 		{
+// 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
+// 			ground = ground - (int(ground) % _resolution);
+// 			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+		
+// 			if (ground <= OCEAN_HEIGHT)
+// 				loadOcean(x, z, ground + 3, adjustOceanHeight);
+// 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
+// 				loadMountain(x, z, ground);
+// 			else if (ground)
+// 				loadPlaine(x, z, ground);
+// 		}
+// 	}
+// }
+
 void SubChunk::loadBiome(int prevResolution)
 {
-	(void)prevResolution
-;	NoiseGenerator &noisegen = _world.getNoiseGenerator();
-	noisegen.setNoiseData({
-		1.0, 0.9, 0.02, 0.5, 12
-	});
-
+	(void)prevResolution;
 	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
-			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
-			ground = ground - (int(ground) % _resolution);
-			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
-		
-			if (ground <= OCEAN_HEIGHT)
-				loadOcean(x, z, ground + 3, adjustOceanHeight);
-			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
-				loadMountain(x, z, ground);
-			else if (ground)
-				loadPlaine(x, z, ground);
+			Biome biome = (*_biomeMap)[z * CHUNK_SIZE + x];
+			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
+			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
+
+			switch (biome)
+			{
+				case PLAINS:
+					loadPlaine(x, z, surfaceLevel);
+					break;
+				case DESERT:
+					loadDesert(x, z, surfaceLevel);
+					break;
+				default :
+					break;
+			}
+			// if (biome = OCEAN_HEIGHT)
+			// 	loadOcean(x, z, ground + 3, adjustOceanHeight);
+			// else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
+			// 	loadMountain(x, z, ground);
+			// else if (ground)
+			// 	loadPlaine(x, z, ground);
 		}
 	}
 }

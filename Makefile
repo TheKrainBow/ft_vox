@@ -23,7 +23,6 @@ SRC_NAME	=	stb_truetype.cpp		\
 				SubChunk_faces.cpp		\
 				NoiseGenerator.cpp		\
 				Textbox.cpp				\
-				BiomeGenerator.cpp		\
 				SplineInterpolator.cpp	\
 				World.cpp				\
 				Chrono.cpp				\

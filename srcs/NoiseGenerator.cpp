@@ -171,6 +171,22 @@ double tripleSmoothBlend(double a, double b, double c, double blendAB, double bl
 	return a * weightA + b * weightB + c * weightC;
 }
 
+Biome NoiseGenerator::getBiome(ivec2 pos, double height)
+{
+    double temp = (getTemperatureNoise(pos) + 1.0) * 0.5;
+    double humidity = (getHumidityNoise(pos) + 1.0) * 0.5;
+
+    // Normalize height
+    double normalizedHeight = clamp(height / 100.0, 0.0, 1.0);
+
+    // Desert: low humidity, high temp, mid/low height
+    if (humidity < 0.5 && temp > 0.4 && normalizedHeight < 0.6) {
+        return Biome::DESERT;
+    }
+
+    return Biome::PLAINS; // Default for now
+}
+
 double NoiseGenerator::getHeight(ivec2 pos)
 {
 	pos = getBorderWarping(pos.x, pos.y);
@@ -222,7 +238,9 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 				continue;
 
 			double height = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+			Biome biome = getBiome({(map->position.x * map->size) + x, (map->position.y * map->size) + z}, height);
 			map->heightMap[z * map->size + x] = height;
+			map->biomeMap[z * map->size + x] = biome;
 
 			if (height > map->heighest)
 				map->heighest = height;
@@ -235,27 +253,61 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 	_perlinMaps[map->position] = map;
 }
 
+double NoiseGenerator::getTemperatureNoise(ivec2 pos)
+{
+    NoiseData tempData = {
+        1.0, // amplitude
+        0.001, // frequency (higher = more variation)
+        0.5,
+        2.0,
+        4
+    };
+    _data = tempData;
+    double tempNoise = noise(pos.x, pos.y);
+    setNoiseData(NoiseData());
+    return tempNoise;
+}
+
+double NoiseGenerator::getHumidityNoise(ivec2 pos)
+{
+    NoiseData humidData = {
+        1.0,
+        0.001,
+        0.5,
+        2.0,
+        4
+    };
+    _data = humidData;
+    double humidNoise = noise(pos.x, pos.y);
+    setNoiseData(NoiseData());
+    return humidNoise;
+}
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
 	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
 	newMap->heightMap = new double[size * size];
-	newMap->caveMap = new double[size * size * size];
+	newMap->biomeMap = new Biome[size * size];
 	newMap->resolution = resolution;
 	newMap->position = pos;
 	newMap->heighest = 0;
 	newMap->lowest = 256;
 
 	for (int x = 0; x < size; x += resolution)
+	{
 		for (int z = 0; z < size; z += resolution)
 		{
-			newMap->heightMap[z * size + x] = getHeight({(pos.x * size) + x, (pos.y * size) + z});
-			if (newMap->heightMap[z * size + x] > newMap->heighest)
-				newMap->heighest = newMap->heightMap[z * size + x];
-			if (newMap->heightMap[z * size + x] < newMap->lowest)
-				newMap->lowest = newMap->heightMap[z * size + x];
+			int index = z * size + x;
+			ivec2 worldPos = {(pos.x * size) + x, (pos.y * size) + z};
+			newMap->heightMap[index] = getHeight(worldPos);
+			newMap->biomeMap[index] = getBiome(worldPos, newMap->heightMap[index]);
+			if (newMap->heightMap[index] > newMap->heighest)
+				newMap->heighest = newMap->heightMap[index];
+			if (newMap->heightMap[index] < newMap->lowest)
+				newMap->lowest = newMap->heightMap[index];
 		}
+	}
 	_perlinMaps[pos] = newMap;
 	return (newMap);
 }
