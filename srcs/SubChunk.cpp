@@ -43,12 +43,26 @@ ivec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) 
 	return offset;
 }
 
-void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)
+void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustedOceanHeight)
 {
 	int y;
 
-	for (y = adjustOceanHeight; y > (int)ground; y--)
+	for (y = adjustedOceanHeight; y > (int)ground; y--)
 		setBlock(x, y - _position.y * CHUNK_SIZE, z, WATER);
+	setBlock(x, y - _position.y * CHUNK_SIZE, z, SAND);
+	int i;
+	for (i = 0; i > -4 * _resolution; i--)
+		setBlock(x, y + i - _position.y * CHUNK_SIZE, z, SAND);
+	for (; i > -8 * _resolution; i--)
+		setBlock(x, y + i - _position.y * CHUNK_SIZE, z, DIRT);
+}
+
+void SubChunk::loadBeach(int x, int z, size_t ground, size_t adjustedOceanHeight)
+{
+	int y;
+
+	for (y = adjustedOceanHeight; y > (int)ground; y--)
+		setBlock(x, y - _position.y * CHUNK_SIZE, z, SAND);
 	setBlock(x, y - _position.y * CHUNK_SIZE, z, SAND);
 	int i;
 	for (i = 0; i > -4 * _resolution; i--)
@@ -76,6 +90,15 @@ void SubChunk::loadDesert(int x, int z, size_t ground)
 }
 
 void SubChunk::loadMountain(int x, int z, size_t ground)
+{
+	int y = ground - _position.y * CHUNK_SIZE;
+
+	setBlock(x, y, z, STONE);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, STONE);
+}
+
+void SubChunk::loadSnow(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
@@ -120,6 +143,7 @@ void SubChunk::loadBiome(int prevResolution)
 			Biome biome = (*_biomeMap)[z * CHUNK_SIZE + x];
 			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
 			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
+			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
 
 			switch (biome)
 			{
@@ -129,15 +153,21 @@ void SubChunk::loadBiome(int prevResolution)
 				case DESERT:
 					loadDesert(x, z, surfaceLevel);
 					break;
+				case MOUNTAINS:
+					loadMountain(x, z, surfaceLevel);
+					break;
+				case SNOWY:
+					loadSnow(x, z, surfaceLevel);
+					break;
+				case OCEAN:
+					loadOcean(x, z, surfaceLevel + 3, adjustOceanHeight);
+					break;
+				case BEACH:
+					loadBeach(x, z, surfaceLevel + 3, adjustOceanHeight);
+					break;
 				default :
 					break;
 			}
-			// if (biome = OCEAN_HEIGHT)
-			// 	loadOcean(x, z, ground + 3, adjustOceanHeight);
-			// else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
-			// 	loadMountain(x, z, ground);
-			// else if (ground)
-			// 	loadPlaine(x, z, ground);
 		}
 	}
 }

@@ -19,13 +19,15 @@ struct SplineData {
 };
 
 // Update nb_biomes when adding a new one for debug box
-#define NB_BIOMES 5
+#define NB_BIOMES 7
 enum Biome {
 	PLAINS,
 	DESERT,
 	SNOWY,
 	MOUNTAINS,
-	FOREST
+	FOREST,
+	OCEAN,
+	BEACH
 };
 
 class NoiseGenerator {
@@ -56,8 +58,11 @@ class NoiseGenerator {
 		void setNoiseData(const NoiseData &data);
 		void removePerlinMap(int x, int z);
 		ivec2 getBorderWarping(double x, double z);
+		ivec2 getBiomeBorderWarping(int x, int z);
 		Biome getBiome(ivec2 pos, double height);
 		double getHeight(ivec2 pos);
+		double getTemperatureNoise(ivec2 pos);
+		double getHumidityNoise(ivec2 pos);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;
@@ -67,8 +72,6 @@ class NoiseGenerator {
 		double getErosionNoise(ivec2 pos);
 		double getOceanNoise(ivec2 pos);
 		double getPeaksValleysNoise(ivec2 pos);
-		double getTemperatureNoise(ivec2 pos);
-		double getHumidityNoise(ivec2 pos);
 
 		size_t _seed;
 		NoiseData _data;

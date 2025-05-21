@@ -61,6 +61,8 @@ class StoneEngine {
 		double drawnTriangles;
 		Textbox debugBox;
 		int _biome;
+		double _humidity;
+		double _temperature;
 	
 		// World gen
 		NoiseGenerator noise_gen;

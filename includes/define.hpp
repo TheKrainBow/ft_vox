@@ -17,7 +17,7 @@
 # define LOD_THRESHOLD 32
 # define ROTATION_SPEED 1.0f
 # define CACHE_SIZE NB_CHUNKS * 2
-# define MOVEMENT_SPEED 2.0f
+# define MOVEMENT_SPEED 4.0f
 
 # define RESOLUTION 1
 

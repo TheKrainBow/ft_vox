@@ -84,7 +84,11 @@ void StoneEngine::initData()
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
 	timeValue = 39800;
+
+	// Biome debug
 	_biome = 0;
+	_humidity = 0;
+	_temperature = 0;
 }
 
 void StoneEngine::initFramebuffers()
@@ -202,6 +206,8 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	debugBox.addLine("Facing: ", Textbox::DIRECTION, facing_direction);
 	debugBox.addLine("Biome: ", Textbox::BIOME, &_biome);
+	debugBox.addLine("humidity: ", Textbox::DOUBLE, &_humidity);
+	debugBox.addLine("temp: ", Textbox::DOUBLE, &_temperature);
 
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
@@ -412,6 +418,8 @@ void StoneEngine::updateMovement()
 	{
 		ivec2 blockPos = {int(viewPos.x), int(viewPos.z)};
 		_biome = int(noise_gen.getBiome(blockPos, noise_gen.getHeight(blockPos)));
+		_humidity = noise_gen.getHumidityNoise(noise_gen.getBiomeBorderWarping(blockPos.x, blockPos.y));
+		_temperature = noise_gen.getTemperatureNoise(blockPos);
 		glUseProgram(shaderProgram);
 		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
 	}

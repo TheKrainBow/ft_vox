@@ -83,8 +83,10 @@ class SubChunk
 		void processWestVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
 
 		void loadOcean(int x, int z, size_t ground, size_t adjustedOceanHeight);
+		void loadBeach(int x, int z, size_t ground, size_t adjustedOceanHeight);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
+		void loadSnow(int x, int z, size_t ground);
 		void loadDesert(int x, int z, size_t ground);
 };
 

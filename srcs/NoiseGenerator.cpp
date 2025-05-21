@@ -145,6 +145,26 @@ ivec2 NoiseGenerator::getBorderWarping(double x, double z)
 	return offset;
 }
 
+ivec2 NoiseGenerator::getBiomeBorderWarping(int x, int z)
+{
+	NoiseData nData = {
+		1.0,  // amplitude
+		0.1, // frequency
+		0.5,  // persistence
+		2.5,  // lacunarity
+		5     // nb_octaves
+	};
+
+	setNoiseData(nData);
+	double noiseX = noise(x, z);
+	double noiseY = noise(z, x);
+	setNoiseData(NoiseData());
+	ivec2 offset;
+	offset.x = x + (noiseX * CHUNK_SIZE);
+	offset.y = z + (noiseY * CHUNK_SIZE);
+	return offset;
+}
+
 double smoothBlend(double a, double b, double blendFactor)
 {
 	// Smoothstep
@@ -171,21 +191,53 @@ double tripleSmoothBlend(double a, double b, double c, double blendAB, double bl
 	return a * weightA + b * weightB + c * weightC;
 }
 
+double NoiseGenerator::getTemperatureNoise(ivec2 pos)
+{
+	NoiseData tempData = {
+		1.0,
+		0.0001,
+		0.5,
+		2.5,
+		4
+	};
+
+	_data = tempData;
+	double tempNoise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return tempNoise;
+}
+
+double NoiseGenerator::getHumidityNoise(ivec2 pos)
+{
+	NoiseData humidData = {
+		1.0,
+		0.0003,
+		0.4,
+		2.5,
+		4
+	};
+
+	_data = humidData;
+	double humidNoise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return humidNoise;
+}
+
 Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 {
-	pos = getBorderWarping(pos.x, pos.y);
-    double temp = (getTemperatureNoise(pos) + 1.0) * 0.5;
-    double humidity = (getHumidityNoise(pos) + 1.0) * 0.5;
+	pos = getBiomeBorderWarping(pos.x, pos.y);
+	double temp = getTemperatureNoise(pos);
+	double humidity = getHumidityNoise(pos);
 
-    // Normalize height
-    double normalizedHeight = clamp(height / 100.0, 0.0, 1.0);
-
-    // Desert: low humidity, high temp, mid/low height
-    if (humidity < 0.5 && temp > 0.4 && normalizedHeight < 0.6) {
-        return Biome::DESERT;
-    }
-
-    return Biome::PLAINS; // Default for now
+	if (height >= MOUNT_HEIGHT)
+		return Biome::MOUNTAINS;
+	// Desert: low humidity, high temp, mid/low height
+	if (humidity < 0.3 && temp > 0.4)
+		return Biome::DESERT;
+	// Mountains: High height
+	if (temp < -0.2)
+		return Biome::SNOWY;
+	return Biome::PLAINS;
 }
 
 double NoiseGenerator::getHeight(ivec2 pos)
@@ -254,35 +306,6 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 	_perlinMaps[map->position] = map;
 }
 
-double NoiseGenerator::getTemperatureNoise(ivec2 pos)
-{
-    NoiseData tempData = {
-        1.0, // amplitude
-        0.001, // frequency (higher = more variation)
-        0.5,
-        2.0,
-        4
-    };
-    _data = tempData;
-    double tempNoise = noise(pos.x, pos.y);
-    setNoiseData(NoiseData());
-    return tempNoise;
-}
-
-double NoiseGenerator::getHumidityNoise(ivec2 pos)
-{
-    NoiseData humidData = {
-        1.0,
-        0.001,
-        0.5,
-        2.0,
-        4
-    };
-    _data = humidData;
-    double humidNoise = noise(pos.x, pos.y);
-    setNoiseData(NoiseData());
-    return humidNoise;
-}
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
