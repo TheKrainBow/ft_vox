@@ -1,12 +1,12 @@
 #include "StoneEngine.hpp"
 
 float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {
-    return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
+	return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
 }
 
 float mapExpo(float x, float in_min, float in_max, float out_min, float out_max) {
-    float t = (x - in_min) / (in_max - in_min); // normalize to [0, 1]
-    return out_min * std::pow(out_max / out_min, t); // exponential interpolation
+	float t = (x - in_min) / (in_max - in_min); // normalize to [0, 1]
+	return out_min * std::pow(out_max / out_min, t); // exponential interpolation
 }
 
 bool isTransparent(char block)
@@ -69,6 +69,7 @@ StoneEngine::~StoneEngine()
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 }
+
 void StoneEngine::run()
 {
 	// Main loop
@@ -144,7 +145,8 @@ void StoneEngine::initTextures()
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
 					GL_RGB, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
-	} else {
+	}
+	else {
 		std::cerr << "Failed to load water normal map!" << std::endl;
 	}
 	stbi_image_free(data);
@@ -248,6 +250,36 @@ void StoneEngine::displaySun()
 	glDepthMask(GL_TRUE);
 }
 
+void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
+{
+	// Checks for number of samples
+	GLint maxSamples = 0;
+	glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+	std::cout << "Samples available for MSAA: " << maxSamples << std::endl;
+
+	// Init MSAA framebuffer
+	glGenFramebuffers(1, &fboData.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboData.fbo);
+
+	// Color renderbuffer
+	glGenRenderbuffers(1, &fboData.texture);
+	glBindRenderbuffer(GL_RENDERBUFFER, fboData.texture);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, maxSamples, GL_RGB8, width, height);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, fboData.texture);
+
+	// Depth renderbuffer
+	glGenRenderbuffers(1, &fboData.depth);
+	glBindRenderbuffer(GL_RENDERBUFFER, fboData.depth);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, maxSamples, GL_DEPTH_COMPONENT24, width, height);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboData.depth);
+
+	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "Multisampled Framebuffer error: " << fboStatus << std::endl;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 void StoneEngine::initFramebuffers(FBODatas &fboData, int width, int height)
 {
 	// Init framebuffer
@@ -310,6 +342,7 @@ void StoneEngine::initFboShaders()
 	initFramebuffers(readFBO, windowWidth, windowHeight);
 	initFramebuffers(writeFBO, windowWidth, windowHeight);
 	initFramebuffers(tmpFBO, windowWidth, windowHeight);
+	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
 	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
 	createPostProcessShader(postProcessShaders[BRIGHNESSMASK], "shaders/postProcess/postProcess.vert", "shaders/postProcess/brightness.frag");
@@ -441,13 +474,40 @@ void StoneEngine::activateTransparentShader()
 	glFrontFace(GL_CCW);
 }
 
-void StoneEngine::display() {
-    prepareRenderPipeline();
+void StoneEngine::resolveMsaaToFbo()
+{
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);    // Source: MSAA
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO.fbo);  // Destination: regular FBO
 
-    renderSceneToFBO();
+    // Blit COLOR
+    glBlitFramebuffer(
+        0, 0, windowWidth, windowHeight,
+        0, 0, windowWidth, windowHeight,
+        GL_COLOR_BUFFER_BIT,
+        GL_NEAREST // or GL_LINEAR if you want smooth scaling
+    );
+
+    // Resolve DEPTH
+    glBlitFramebuffer(
+        0, 0, windowWidth, windowHeight,
+        0, 0, windowWidth, windowHeight,
+        GL_DEPTH_BUFFER_BIT,
+        GL_NEAREST
+    );
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void StoneEngine::display() {
+	prepareRenderPipeline();
+
+	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
+	renderSceneToFBO();
+	resolveMsaaToFbo();
+
 	screenshotFBOBuffer(writeFBO, readFBO);
 
-    postProcessGreedyFix();
+	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
 	screenshotFBOBuffer(writeFBO, tmpFBO);
 	postProcessBrightnessMask();
@@ -455,20 +515,20 @@ void StoneEngine::display() {
 	postProcessGodRays();
 	screenshotFBOBuffer(writeFBO, readFBO);
 	postProcessGodRaysBlend();
-    screenshotFBOBuffer(writeFBO, readFBO);
-
-    displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
-    renderTransparentObjects();
-    screenshotFBOBuffer(writeFBO, readFBO);
 
-    // postProcessFog();
-    // displaySun(); // Redisplay sun because FOG erased it
-    screenshotFBOBuffer(writeFBO, readFBO);
+	displaySun();
+	screenshotFBOBuffer(writeFBO, readFBO);
+	renderTransparentObjects();
+	screenshotFBOBuffer(writeFBO, readFBO);
 
-    sendPostProcessFBOToDispay();
-    renderOverlayAndUI();
-    finalizeFrame();
+	// postProcessFog();
+	// displaySun(); // Redisplay sun because FOG erased it
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	sendPostProcessFBOToDispay();
+	renderOverlayAndUI();
+	finalizeFrame();
 }
 
 void StoneEngine::postProcessFog()
@@ -643,25 +703,25 @@ void StoneEngine::postProcessBrightnessMask()
 }
 
 void StoneEngine::prepareRenderPipeline() {
-    if (showTriangleMesh) {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    } else {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-    }
+	if (showTriangleMesh) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	} else {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+	}
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-    glDepthMask(GL_TRUE);
-    glMatrixMode(GL_MODELVIEW);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	glDepthMask(GL_TRUE);
+	glMatrixMode(GL_MODELVIEW);
 }
 
 void StoneEngine::renderSceneToFBO() {
-    activateRenderShader();
-    _world.updateDrawData();
-    drawnTriangles = _world.display();
+	activateRenderShader();
+	_world.updateDrawData();
+	drawnTriangles = _world.display();
 }
 
 void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {

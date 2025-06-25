@@ -45,6 +45,7 @@ class StoneEngine {
 
 		std::map<ShaderType, PostProcessShader> postProcessShaders;
 		
+		FBODatas msaaFBO;
 		FBODatas readFBO;
 		FBODatas writeFBO;
 		FBODatas tmpFBO;
@@ -125,6 +126,7 @@ class StoneEngine {
 		void	initFboShaders();
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
+		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
 
 		// Runtime methods
 		void calculateFps();
@@ -133,6 +135,7 @@ class StoneEngine {
 		void finalizeFrame();
 		void renderTransparentObjects();
 		void renderSceneToFBO();
+		void resolveMsaaToFbo();
 		void prepareRenderPipeline();
 		void displaySun();
 		void loadFirstChunks();
