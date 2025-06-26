@@ -22,7 +22,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureMana
 	initFboShaders();
 	updateFboWindowSize();
 	reshapeAction(windowWidth, windowHeight);
-	_world.init(shaderProgram, RENDER_DISTANCE);
+	_world.init(RENDER_DISTANCE);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 

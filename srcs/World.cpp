@@ -15,8 +15,7 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	_transparentDrawData = nullptr;
 }
 
-void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
-	_shaderProgram = shaderProgram;
+void World::init(int renderDistance = RENDER_DISTANCE) {
 	_renderDistance = renderDistance;
 	initGLBuffer();
 }
@@ -36,21 +35,6 @@ World::~World()
 NoiseGenerator &World::getNoiseGenerator()
 {
 	return (_perlinGenerator);
-}
-
-void World::loadPerlinMap(ivec3 &camPosition)
-{
-	_perlinGenerator.clearPerlinMaps();
-	ivec2 position;
-	for (int x = -RENDER_DISTANCE; x < RENDER_DISTANCE; x++)
-	{
-		for (int z = -RENDER_DISTANCE; z < RENDER_DISTANCE; z++)
-		{
-			position.x = trunc(camPosition.x / CHUNK_SIZE) + x;
-			position.y = trunc(camPosition.z / CHUNK_SIZE) + z;
-			_perlinGenerator.addPerlinMap(position, CHUNK_SIZE, 1);
-		}
-	}
 }
 
 int *World::getRenderDistancePtr()
@@ -214,13 +198,12 @@ void World::loadLeftChunks(int render, ivec2 &chunkPos, int resolution)
 void World::loadFirstChunks(ivec2 &chunkPos)
 {
 	int renderDistance = _renderDistance;
-	_skipLoad = false;
 
 	int resolution = RESOLUTION;
 	_threshold = LOD_THRESHOLD;
-	// chronoHelper.startChrono(1, "Build chunks + loaded faces");
-	// chronoHelper.stopChrono(1);
-	// chronoHelper.printChrono(1);
+	// _chronoHelper.startChrono(1, "Build chunks + loaded faces");
+	// _chronoHelper.stopChrono(1);
+	// _chronoHelper.printChrono(1);
 	std::vector<std::future<void>> retLst;
 	_currentRender = 0;
     for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
@@ -483,25 +466,6 @@ int World::displayTransparent()
 	// Unlock here
 	_drawDataMutex.unlock();
 	return (size * 2);
-}
-
-int	World::getCachedChunksNumber()
-{
-	return _chunks.size();
-}
-
-void World::increaseRenderDistance()
-{
-	_renderDistance += 2;
-	if (_renderDistance > _maxRender)
-		_renderDistance = _maxRender;
-}
-
-void World::decreaseRenderDistance()
-{
-	_renderDistance -= 2;
-	if (_renderDistance < 1)
-		_renderDistance = 1;
 }
 
 void World::pushVerticesToOpenGL(bool isTransparent)

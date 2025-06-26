@@ -40,24 +40,20 @@ struct DisplayData
 class World
 {
 private:
-	// World related informations
-	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
-	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
-	std::mutex _displayedChunksMutex;
+	// Chunk loading info
+	std::queue<DisplayData *>	_stagedDataQueue;
+	std::queue<DisplayData *>	_transparentStagedDataQueue;
 	std::list<Chunk *>							_chunkList;
 	std::mutex									_chunksListMutex;
 	size_t										_memorySize;
-	
-	std::unordered_map<ivec2, Chunk*, ivec2_hash> _activeChunks;
-	
-	
-	std::queue<DisplayData *>	_stagedDataQueue;
-	std::queue<DisplayData *>	_transparentStagedDataQueue;
-	
-	bool										_skipLoad;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
+	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+	std::mutex										_displayedChunksMutex;
+
+	// Chunk loading utils
 	ThreadPool 									&_threadPool;
 	TextureManager								&_textureManager;
-	
+
 	// Player related informations
 	Camera										&_camera;
 	int											_renderDistance;
@@ -65,15 +61,14 @@ private:
 	int											_maxRender = 1000;
 	bool										*_isRunning;
 	std::mutex									*_runningMutex;
-	std::atomic_bool							displayReady;
-	Chrono										chronoHelper;
+	Chrono										_chronoHelper;
 
-	bool 									_hasBufferInitialized;
-	GLuint									_ssbo;
 
-	// Display
+	// Display / Runtime data
 	std::mutex								_drawDataMutex;
 	DisplayData								*_drawData;
+	GLuint									_ssbo;
+	bool 									_hasBufferInitialized;
 
 	DisplayData								*_transparentDrawData;
 	DisplayData								*_transparentFillData;
@@ -85,7 +80,6 @@ private:
 	GLuint									_vao;
 	GLuint									_vbo;
 
-	bool 									_hasTransparentBufferInitialized;
 	GLuint									_transparentVao;
 	GLuint									_transparentInstanceVBO;
 	GLuint									_transparentIndirectBuffer;
@@ -93,45 +87,52 @@ private:
 	bool									_needUpdate;
 	bool									_needTransparentUpdate;
 	std::atomic_int 						_threshold;
-	NoiseGenerator								_perlinGenerator;
-	GLuint 										_shaderProgram;
-	std::mutex									_chunksMutex;
+	NoiseGenerator							_perlinGenerator;
+	std::mutex								_chunksMutex;
 public:
+	// Init
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
+	void init(int renderDistance);
+	void setRunning(std::mutex *runningMutex, bool *isRunning);
 	
-	void init(GLuint shaderProgram, int renderDistance);
-	void loadFirstChunks(ivec2 &camPosition);
-	void unLoadNextChunks(ivec2 &newCamChunk);
-	void loadPerlinMap(ivec3 &camPosition);
-	NoiseGenerator &getNoiseGenerator(void);
-	int	getCachedChunksNumber();
-	Chunk* getChunk(ivec2 &position);
-	SubChunk* getSubChunk(ivec3 &position);
+	// Display
 	int display();
 	int displayTransparent();
-	void increaseRenderDistance();
-	void decreaseRenderDistance();
+
+	// Runtime update
+	void updatePerlinMapResolution(PerlinMap *pMap, int newResolution);
+	void updateDrawData();
+	
+	// Runtime chunk loading/unloading
+	void loadFirstChunks(ivec2 &camPosition);
+	void unLoadNextChunks(ivec2 &newCamChunk);
+	
+	// Shared data getters
+	NoiseGenerator &getNoiseGenerator(void);
+	Chunk* getChunk(ivec2 &position);
+	SubChunk* getSubChunk(ivec3 &position);
+	size_t *getMemorySizePtr();
 	int *getRenderDistancePtr();
 	int *getCurrentRenderPtr();
-	size_t *getMemorySizePtr();
-	void setRunning(std::mutex *runningMutex, bool *isRunning);
-	void updateDrawData();
-	void updatePerlinMapResolution(PerlinMap *pMap, int newResolution);
 private:
-	bool getIsRunning();
+	// Chunk loading
 	void loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
 	void loadTopChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadRightChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadLeftChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void unloadChunk();
-	bool hasMoved(ivec2 &oldPos);
 
+	// Runtime info
+	bool hasMoved(ivec2 &oldPos);
+	bool getIsRunning();
+
+	// Display
+	void initGLBuffer();
 	void pushVerticesToOpenGL(bool isTransparent);
-	void clearFaces();
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
+	void clearFaces();
 	void updateSSBO();
 	void updateFillData();
-	void initGLBuffer();
 };
