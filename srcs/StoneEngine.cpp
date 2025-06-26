@@ -945,6 +945,12 @@ void StoneEngine::resetFrameBuffers()
 	glDeleteFramebuffers(1, &writeFBO.fbo);
 	glDeleteTextures(1, &writeFBO.texture);
 	glDeleteTextures(1, &writeFBO.depth);
+	// TODO: Figure out why this does not work
+	// glDeleteFramebuffers(1, &msaaFBO.fbo);
+	// glDeleteTextures(1, &msaaFBO.texture);
+	// glDeleteTextures(1, &msaaFBO.depth);
+
+
 	initFramebuffers(readFBO, windowWidth, windowHeight);
 	initFramebuffers(tmpFBO, windowWidth, windowHeight);
 	initFramebuffers(writeFBO, windowWidth, windowHeight);
