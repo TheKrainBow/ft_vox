@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "ft_vox.hpp"
@@ -8,8 +9,8 @@
 #include "Chrono.hpp"
 #include <future>
 
-class SubChunk;
 class World;
+class SubChunk;
 
 class Chunk
 {
@@ -47,8 +48,11 @@ class Chunk
 		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
 	public:
+		Chunk(World &world, TextureManager &textureManager);
 		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
+		void init(ivec2 pos, PerlinMap *perlinMap, int resolution);
+		void reset();
 		void getNeighbors();
 		std::atomic_int						_resolution;
 		SubChunk *getSubChunk(int y);

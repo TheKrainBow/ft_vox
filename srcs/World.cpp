@@ -1,5 +1,5 @@
 #include "World.hpp"
-
+#include "ChunkPool.hpp"
 World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(&camera), _perlinGenerator(seed)
 {
 	_needUpdate = true;
@@ -18,6 +18,7 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 void World::init(GLuint shaderProgram, int renderDistance = RENDER_DISTANCE) {
 	_shaderProgram = shaderProgram;
 	_renderDistance = renderDistance;
+	_chunkPool = new ChunkPool(*this, _textureManager, _renderDistance * _renderDistance);
 	initGLBuffer();
 }
 
@@ -131,9 +132,9 @@ void World::unloadChunk()
 
 		// Clean up memory
 		_perlinGenerator.removePerlinMap(pos.x, pos.y);
-		chunkToRemove->unloadNeighbors();
-		chunkToRemove->freeSubChunks();
-		delete chunkToRemove;
+		chunkToRemove->reset();
+		// delete chunkToRemove;
+		_chunkPool->release(chunkToRemove);
 	}
 	else
 	{
@@ -159,7 +160,9 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	}
 	else
 	{
-		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
+		chunk = _chunkPool->acquire();
+		chunk->init(pos, _perlinGenerator.getPerlinMap(pos, resolution), resolution);
+		//new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
 		_chunks[pos] = chunk;
 		_chunksMutex.unlock();
 		chunk->loadBlocks();

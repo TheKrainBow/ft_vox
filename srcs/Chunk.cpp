@@ -15,6 +15,88 @@ _resolution(resolution)
 {
 }
 
+Chunk::Chunk(World &world, TextureManager &textureManager): 
+_world(world),
+_textureManager(textureManager)
+{
+}
+
+void Chunk::init(ivec2 pos, PerlinMap *perlinMap, int resolution)
+{
+	_position = pos;
+	_facesSent = false;
+	_hasAllNeighbors = false;
+	_isInit = false;
+	_perlinMap = perlinMap;
+	_hasBufferInitialized = false;
+	_needUpdate = true;
+	_resolution = resolution;
+}
+
+void Chunk::reset()
+{
+	// Reset logical state
+	_position = {0, 0};
+	_memorySize = 0;
+	_isFullyLoaded.store(false);
+	_facesSent.store(false);
+	_hasAllNeighbors.store(false);
+	_isInit.store(false);
+	_hasBufferInitialized = false;
+	_needUpdate = false;
+
+	// Reset neighbors
+	unloadNeighbors();
+	_north = nullptr;
+	_south = nullptr;
+	_east  = nullptr;
+	_west  = nullptr;
+
+	// Clear perlin map if owned (careful!)
+	if (_perlinMap) {
+		delete _perlinMap;
+		_perlinMap = nullptr;
+	}
+
+	// Clear subchunks
+	{
+		std::lock_guard<std::mutex> lock(_subChunksMutex);
+		for (auto& [_, subchunk] : _subChunks) {
+			delete subchunk;
+		}
+		_subChunks.clear();
+	}
+
+	// Clear CPU-side geometry data
+	_vertexData.clear();
+	_transparentVertexData.clear();
+	_indirectBufferData.clear();
+	_transparentIndirectBufferData.clear();
+	_ssboData.clear();
+
+	// Clean up GPU buffers
+	if (_vao) {
+		glDeleteVertexArrays(1, &_vao);
+		_vao = 0;
+	}
+	if (_vbo) {
+		glDeleteBuffers(1, &_vbo);
+		_vbo = 0;
+	}
+	if (_instanceVBO) {
+		glDeleteBuffers(1, &_instanceVBO);
+		_instanceVBO = 0;
+	}
+	if (_indirectBuffer) {
+		glDeleteBuffers(1, &_indirectBuffer);
+		_indirectBuffer = 0;
+	}
+	if (_ssbo) {
+		glDeleteBuffers(1, &_ssbo);
+		_ssbo = 0;
+	}
+}
+
 void Chunk::loadBlocks()
 {
 	int heighest = _perlinMap->heighest;
@@ -42,9 +124,7 @@ size_t Chunk::getMemorySize() {
 
 Chunk::~Chunk()
 {
-	for (auto &subchunk : _subChunks)
-		delete subchunk.second;
-	_subChunks.clear();
+	reset();
 }
 
 void Chunk::getNeighbors()

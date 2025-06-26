@@ -6,8 +6,10 @@
 #include "Camera.hpp"
 #include "Chrono.hpp"
 #include "ThreadPool.hpp"
+#include "ChunkPool.hpp"
 
-class Chunk;
+class SubChunk;
+class ChunkPool;
 
 struct ChunkSlot
 {
@@ -15,7 +17,6 @@ struct ChunkSlot
 	std::mutex mutex;
 };
 
-class SubChunk;
 
 struct ChunkElement
 {
@@ -93,6 +94,7 @@ private:
 	bool									_needUpdate;
 	bool									_needTransparentUpdate;
 	std::atomic_int 						_threshold;
+	ChunkPool								*_chunkPool;
 public:
 	NoiseGenerator								_perlinGenerator;
 	GLuint 										_shaderProgram;

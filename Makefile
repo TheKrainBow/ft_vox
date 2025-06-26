@@ -18,9 +18,9 @@ SRC_NAME	=	stb_truetype.cpp		\
 				StoneEngine.cpp			\
 				Camera.cpp				\
 				TextureManager.cpp		\
-				Chunk.cpp				\
 				SubChunk.cpp			\
 				SubChunk_faces.cpp		\
+				Chunk.cpp				\
 				NoiseGenerator.cpp		\
 				Textbox.cpp				\
 				BiomeGenerator.cpp		\
@@ -28,7 +28,8 @@ SRC_NAME	=	stb_truetype.cpp		\
 				World.cpp				\
 				Chrono.cpp				\
 				Shader.cpp				\
-				ThreadPool.cpp
+				ThreadPool.cpp			\
+				ChunkPool.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))
