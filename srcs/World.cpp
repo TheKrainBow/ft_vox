@@ -1,6 +1,6 @@
 #include "World.hpp"
 
-World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(&camera), _perlinGenerator(seed)
+World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(camera), _perlinGenerator(seed)
 {
 	_needUpdate = true;
 	_needTransparentUpdate = true;
@@ -33,12 +33,12 @@ World::~World()
 		delete _drawData;
 }
 
-NoiseGenerator &World::getNoiseGenerator(void)
+NoiseGenerator &World::getNoiseGenerator()
 {
 	return (_perlinGenerator);
 }
 
-void World::loadPerlinMap(ivec3 camPosition)
+void World::loadPerlinMap(ivec3 &camPosition)
 {
 	_perlinGenerator.clearPerlinMaps();
 	ivec2 position;
@@ -82,7 +82,7 @@ void World::unloadChunk()
 		return ;
 
 	// Get player position in chunk coordinates
-	ivec3 playerPos = _camera->getWorldPosition();
+	ivec3 playerPos = _camera.getWorldPosition();
 	int playerChunkX = playerPos.x / CHUNK_SIZE;
 	int playerChunkZ = playerPos.z / CHUNK_SIZE;
 	if (playerPos.x < 0) playerChunkX--;
@@ -158,7 +158,8 @@ void World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
 	}
 	else
 	{
-		chunk = new Chunk(pos, _perlinGenerator.getPerlinMap(pos, resolution), *this, _textureManager, resolution);
+		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
+		chunk = new Chunk(pos, pMap, *this, _textureManager, resolution);
 		_chunks[pos] = chunk;
 		_chunksMutex.unlock();
 		chunk->loadBlocks();
@@ -250,7 +251,6 @@ void World::loadFirstChunks(ivec2 &chunkPos)
 			break;
 		_currentRender = render + 2;
     }
-	// updateFillData();
 
 	for (std::future<void> &ret : retLst)
 	{
@@ -267,7 +267,7 @@ size_t *World::getMemorySizePtr() {
 	return &_memorySize;
 }
 
-void World::unLoadNextChunks(ivec2 newCamChunk)
+void World::unLoadNextChunks(ivec2 &newCamChunk)
 {
 	ivec2 pos;
 	std::queue<ivec2> deleteQueue;
@@ -283,7 +283,6 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 		}
 	}
 	_displayedChunksMutex.unlock();
-	// std::cout << deleteQueue.size() << std::endl;
 	while (!deleteQueue.empty())
 	{
 		pos = deleteQueue.front();
@@ -297,9 +296,6 @@ void World::unLoadNextChunks(ivec2 newCamChunk)
 
 void World::updateFillData()
 {
-	// chronoHelper.startChrono(2, "Build loaded faces");
-	// chronoHelper.stopChrono(2);
-	// chronoHelper.printChrono(2);
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -309,16 +305,16 @@ void World::updateFillData()
 	_drawDataMutex.unlock();
 }
 
-bool World::hasMoved(ivec2 oldPos)
+bool World::hasMoved(ivec2 &oldPos)
 {
-	ivec2 camChunk = _camera->getChunkPosition(CHUNK_SIZE);
+	ivec2 camChunk = _camera.getChunkPosition(CHUNK_SIZE);
 
 	if (((floor(oldPos.x) != floor(camChunk.x) || floor(oldPos.y) != floor(camChunk.y))))
 		return true;
 	return false;
 }
 
-SubChunk *World::getSubChunk(ivec3 position)
+SubChunk *World::getSubChunk(ivec3 &position)
 {
 	_chunksMutex.lock();
 	auto it = _chunks.find(ivec2(position.x, position.z));
@@ -329,7 +325,7 @@ SubChunk *World::getSubChunk(ivec3 position)
 	return nullptr;
 }
 
-Chunk *World::getChunk(ivec2 position)
+Chunk *World::getChunk(ivec2 &position)
 {
 	_chunksMutex.lock();
 	auto it = _chunks.find({position.x, position.y});

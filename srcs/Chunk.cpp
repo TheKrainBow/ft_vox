@@ -49,10 +49,14 @@ Chunk::~Chunk()
 
 void Chunk::getNeighbors()
 {
-	_north = _world.getChunk({_position.x, _position.y - 1});
-	_south = _world.getChunk({_position.x, _position.y + 1});
-	_east = _world.getChunk({_position.x + 1, _position.y});
-	_west = _world.getChunk({_position.x - 1, _position.y});
+	ivec2 northPos{_position.x, _position.y - 1};
+	ivec2 southPos{_position.x, _position.y + 1};
+	ivec2 eastPos{_position.x + 1, _position.y};
+	ivec2 westPos{_position.x - 1, _position.y};
+	_north = _world.getChunk(northPos);
+	_south = _world.getChunk(southPos);
+	_east = _world.getChunk(eastPos);
+	_west = _world.getChunk(westPos);
 
 	if (_north) {
 		_north->setSouthChunk(this);

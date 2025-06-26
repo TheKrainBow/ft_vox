@@ -59,7 +59,7 @@ private:
 	TextureManager								&_textureManager;
 	
 	// Player related informations
-	Camera										*_camera;
+	Camera										&_camera;
 	int											_renderDistance;
 	int											_currentRender;
 	int											_maxRender = 1000;
@@ -102,12 +102,12 @@ public:
 	void loadFirstChunks(ivec2 &camPosition);
 	void init(GLuint shaderProgram, int renderDistance);
 	
-	void unLoadNextChunks(ivec2 newCamChunk);
-	void loadPerlinMap(ivec3 camPosition);
+	void unLoadNextChunks(ivec2 &newCamChunk);
+	void loadPerlinMap(ivec3 &camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	int	getCachedChunksNumber();
-	Chunk* getChunk(ivec2 position);
-	SubChunk* getSubChunk(ivec3 position);
+	Chunk* getChunk(ivec2 &position);
+	SubChunk* getSubChunk(ivec3 &position);
 	void updateActiveChunks();
 	int display();
 	int displayTransparent();
@@ -126,7 +126,7 @@ private:
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadLeftChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void unloadChunk();
-	bool hasMoved(ivec2 oldPos);
+	bool hasMoved(ivec2 &oldPos);
 
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
