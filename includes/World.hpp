@@ -93,22 +93,21 @@ private:
 	bool									_needUpdate;
 	bool									_needTransparentUpdate;
 	std::atomic_int 						_threshold;
-public:
 	NoiseGenerator								_perlinGenerator;
 	GLuint 										_shaderProgram;
 	std::mutex									_chunksMutex;
+public:
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
-	void loadFirstChunks(ivec2 &camPosition);
-	void init(GLuint shaderProgram, int renderDistance);
 	
+	void init(GLuint shaderProgram, int renderDistance);
+	void loadFirstChunks(ivec2 &camPosition);
 	void unLoadNextChunks(ivec2 &newCamChunk);
 	void loadPerlinMap(ivec3 &camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	int	getCachedChunksNumber();
 	Chunk* getChunk(ivec2 &position);
 	SubChunk* getSubChunk(ivec3 &position);
-	void updateActiveChunks();
 	int display();
 	int displayTransparent();
 	void increaseRenderDistance();
@@ -118,6 +117,7 @@ public:
 	size_t *getMemorySizePtr();
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 	void updateDrawData();
+	void updatePerlinMapResolution(PerlinMap *pMap, int newResolution);
 private:
 	bool getIsRunning();
 	void loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
@@ -130,7 +130,6 @@ private:
 
 	void pushVerticesToOpenGL(bool isTransparent);
 	void clearFaces();
-	void clearTransparentFaces();
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
 	void updateSSBO();
 	void updateFillData();

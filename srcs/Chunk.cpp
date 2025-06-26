@@ -264,7 +264,7 @@ void Chunk::freeSubChunks()
 
 void	Chunk::updateResolution(int newResolution)
 {
-	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
+	_world.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
 
 	_subChunksMutex.lock();

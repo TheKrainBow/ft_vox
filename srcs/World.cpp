@@ -616,3 +616,7 @@ void World::initGLBuffer()
 	_hasBufferInitialized = true;
 }
 
+void World::updatePerlinMapResolution(PerlinMap *pMap, int newResolution)
+{
+	_perlinGenerator.updatePerlinMapResolution(pMap, newResolution);
+}
