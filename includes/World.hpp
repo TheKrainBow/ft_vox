@@ -99,11 +99,10 @@ public:
 	std::mutex									_chunksMutex;
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
 	~World();
-	void loadFirstChunks(ivec2 camPosition);
+	void loadFirstChunks(ivec2 &camPosition);
 	void init(GLuint shaderProgram, int renderDistance);
 	
 	void unLoadNextChunks(ivec2 newCamChunk);
-	void loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir);
 	void loadPerlinMap(ivec3 camPosition);
 	NoiseGenerator &getNoiseGenerator(void);
 	int	getCachedChunksNumber();
@@ -121,10 +120,11 @@ public:
 	void updateDrawData();
 private:
 	bool getIsRunning();
-	void loadTopChunks(int render, ivec2 camPosition, int resolution = 1);
-	void loadRightChunks(int render, ivec2 camPosition, int resolution = 1);
-	void loadBotChunks(int render, ivec2 camPosition, int resolution = 1);
-	void loadLeftChunks(int render, ivec2 camPosition, int resolution = 1);
+	void loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
+	void loadTopChunks(int render, ivec2 &camPosition, int resolution = 1);
+	void loadRightChunks(int render, ivec2 &camPosition, int resolution = 1);
+	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
+	void loadLeftChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void unloadChunk();
 	bool hasMoved(ivec2 oldPos);
 

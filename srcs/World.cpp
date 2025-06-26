@@ -141,7 +141,7 @@ void World::unloadChunk()
 	}
 }
 
-void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, Direction dir)
+void World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
 {
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
@@ -153,9 +153,8 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
-		(void)dir;
 		if (chunk->_resolution > resolution)
-			chunk->updateResolution(resolution, dir);
+			chunk->updateResolution(resolution);
 	}
 	else
 	{
@@ -175,43 +174,43 @@ void World::loadChunk(int x, int z, int render, ivec2 chunkPos, int resolution, 
 	unloadChunk();
 }
 
-void World::loadTopChunks(int render, ivec2 chunkPos, int resolution)
+void World::loadTopChunks(int render, ivec2 &chunkPos, int resolution)
 {
 	int z = 0;
 	for (int x = 0; x < render && getIsRunning(); x++)
 	{
-		loadChunk(x, z, render, chunkPos, resolution, NORTH);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadBotChunks(int render, ivec2 chunkPos, int resolution)
+void World::loadBotChunks(int render, ivec2 &chunkPos, int resolution)
 {
 	int z = render - 1;
 	for (int x = render - 1; getIsRunning() && x >= 0; x--)
 	{
-		loadChunk(x, z, render, chunkPos, resolution, SOUTH);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadRightChunks(int render, ivec2 chunkPos, int resolution)
+void World::loadRightChunks(int render, ivec2 &chunkPos, int resolution)
 {
 	int x = render - 1;
 	for (int z = 1; z < render - 1 && getIsRunning(); z++) // avoid corners
 	{
-		loadChunk(x, z, render, chunkPos, resolution, EAST);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadLeftChunks(int render, ivec2 chunkPos, int resolution)
+void World::loadLeftChunks(int render, ivec2 &chunkPos, int resolution)
 {
 	int x = 0;
 	for (int z = render - 2; getIsRunning() && z > 0; z--) // avoid corners
 	{
-		loadChunk(x, z, render, chunkPos, resolution, WEST);
+		loadChunk(x, z, render, chunkPos, resolution);
 	}
 }
 
-void World::loadFirstChunks(ivec2 chunkPos)
+void World::loadFirstChunks(ivec2 &chunkPos)
 {
 	int renderDistance = _renderDistance;
 	_skipLoad = false;

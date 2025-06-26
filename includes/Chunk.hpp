@@ -52,7 +52,7 @@ class Chunk
 		void getNeighbors();
 		std::atomic_int						_resolution;
 		SubChunk *getSubChunk(int y);
-		void updateResolution(int newResolution, Direction dir);
+		void updateResolution(int newResolution);
 		void sendFacesToDisplay();
 		bool isReady();
 		ivec2 getPosition();

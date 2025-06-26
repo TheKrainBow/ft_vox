@@ -258,9 +258,8 @@ void Chunk::freeSubChunks()
 	_subChunks.clear();
 }
 
-void	Chunk::updateResolution(int newResolution, Direction dir)
+void	Chunk::updateResolution(int newResolution)
 {
-	(void)dir;
 	_world._perlinGenerator.updatePerlinMapResolution(_perlinMap, newResolution);
 	_resolution = newResolution;
 

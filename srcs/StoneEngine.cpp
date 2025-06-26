@@ -345,8 +345,9 @@ void StoneEngine::display()
 
 void StoneEngine::loadFirstChunks()
 {
+	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
 	chronoHelper.startChrono(0, "Load chunks");
-	_world.loadFirstChunks(camera.getChunkPosition(CHUNK_SIZE));
+	_world.loadFirstChunks(chunkPos);
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
