@@ -7,7 +7,7 @@
 #include "World.hpp"
 #include "Chrono.hpp"
 
-class BiomeGenerator;
+class ator;
 class World;
 class Chunk;
 

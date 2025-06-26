@@ -4,7 +4,6 @@
 #include "World.hpp"
 #include "Camera.hpp"
 #include "NoiseGenerator.hpp"
-#include "BiomeGenerator.hpp"
 #include "Textbox.hpp"
 #include "define.hpp"
 #include "Chrono.hpp"
