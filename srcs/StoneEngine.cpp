@@ -948,6 +948,7 @@ void StoneEngine::resetFrameBuffers()
 	initFramebuffers(readFBO, windowWidth, windowHeight);
 	initFramebuffers(tmpFBO, windowWidth, windowHeight);
 	initFramebuffers(writeFBO, windowWidth, windowHeight);
+	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 }
 
 
