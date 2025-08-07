@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ft_vox.hpp"
+#include "CaveGenerator.hpp"
 #include "define.hpp"
 #include "SplineInterpolator.hpp"
 
@@ -44,7 +45,8 @@ class NoiseGenerator {
 		const size_t &getSeed() const;
 		void setNoiseData(const NoiseData &data);
 		void removePerlinMap(int x, int z);
-		ivec2 getBorderWarping(double x, double z);
+		ivec2 getBorderWarping(int x, int z);
+		bool isCave(ivec3 pos, double threshold);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;
@@ -63,6 +65,7 @@ class NoiseGenerator {
 		std::unordered_map<ivec2, PerlinMap*, ivec2_hash>	_perlinMaps;
 		std::mutex				_perlinMutex;
 		SplineData spline;
+		CaveGenerator _caveGen;
 };
 
 typedef NoiseGenerator::PerlinMap PerlinMap;

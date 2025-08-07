@@ -1,6 +1,6 @@
 #include "NoiseGenerator.hpp"
 
-NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
+NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed), _caveGen(seed)
 {
 	// Initialize permutation table
 	std::mt19937 generator(seed);
@@ -17,6 +17,16 @@ NoiseGenerator::NoiseGenerator(size_t seed): _seed(seed)
 	std::vector<Point> continentalPoints = {{-1.0, 1.0}, {-0.4, 1.0}, {-0.3, 50.0}, {-0.1, 50.0}, {-0.05, 75.0}, {0, 100.0}, {0.1, 115}, {0.3, 125.0}, {1.0, 145.0}};
 	std::vector<Point> erosionPoints = {{-1.0, 150.0}, {-0.8, 100.0}, {-0.5, 75.0}, {0.0, 25.0}, {0.3, 22.5}, {0.4, 20.0}, {0.5, 10.0}, {0.6, 15.0}, {0.7, 20.0}, {1.0, 10.0}};
 	std::vector<Point> peaksPoints = {{-1.0, 1.0}, {-0.8, 25.0}, {-0.4, 75.0}, {0.0, 125.0}, {0.4, 225.0}, {1.0, 350.0}};
+
+	CaveNoiseData nData = {
+		1.0, // amplitude
+		0.0001, // frequency
+		0.5, // persistance
+		2.0, // lacunarity
+		4 // nb_octaves
+	};
+
+	_caveGen.setNoiseData(nData);
 
 	spline.continentalSpline.setPoints(continentalPoints);
 	spline.erosionSpline.setPoints(erosionPoints);
@@ -96,7 +106,7 @@ double NoiseGenerator::getPeaksValleysNoise(ivec2 pos)
 	double _noise = 0.0;
 	NoiseData nData = {
 		0.4, // amplitude
-		0.0005, // frequency
+		0.005, // frequency
 		0.4, // persistance
 		2.0, // lacunarity
 		5 // nb_octaves
@@ -125,14 +135,14 @@ double NoiseGenerator::getOceanNoise(ivec2 pos)
 	return _noise;
 }
 
-ivec2 NoiseGenerator::getBorderWarping(double x, double z)
+ivec2 NoiseGenerator::getBorderWarping(int x, int z)
 {
 	NoiseData nData = {
 		1.0,  // amplitude
 		0.0005, // frequency
-		0.6,  // persistence
+		0.5,  // persistence
 		2.5,  // lacunarity
-		5     // nb_octaves
+		4     // nb_octaves
 	};
 
 	setNoiseData(nData);
@@ -235,13 +245,17 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 	_perlinMaps[map->position] = map;
 }
 
+bool NoiseGenerator::isCave(ivec3 pos, double threshold)
+{
+	return _caveGen.getCaveNoise(pos) < threshold;
+}
+
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
 	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
 	newMap->heightMap = new double[size * size];
-	newMap->caveMap = new double[size * size * size];
 	newMap->resolution = resolution;
 	newMap->position = pos;
 	newMap->heighest = 0;

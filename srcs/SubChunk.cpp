@@ -17,6 +17,7 @@ size_t SubChunk::getMemorySize() {
 
 void SubChunk::loadHeight(int prevResolution)
 {
+	NoiseGenerator &noiseGen = _world.getNoiseGenerator();
 	(void)prevResolution;
 	for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 	{
@@ -25,8 +26,15 @@ void SubChunk::loadHeight(int prevResolution)
 			int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
 			for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 			{
+				int globalX = x + _position.x * CHUNK_SIZE;
 				int globalY = y + _position.y * CHUNK_SIZE;
-				setBlock(x, y, z, (globalY <= maxHeight) ? STONE : AIR);
+				int globalZ = z + _position.z * CHUNK_SIZE;
+				if (globalY < maxHeight)
+					setBlock(x, y, z, AIR);
+				else if (noiseGen.isCave({globalX, globalY, globalZ}, 0))
+					setBlock(x, y, z, AIR);
+				else
+					setBlock(x, y, z, STONE);
 			}
 		}
 	}
@@ -56,14 +64,26 @@ void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)
 		setBlock(x, y + i - _position.y * CHUNK_SIZE, z, DIRT);
 }
 
+void SubChunk::loadDesert(int x, int z, size_t ground)
+{
+	int y = ground - _position.y * CHUNK_SIZE;
+
+	// Place the blocks
+	setBlock(x, y, z, SAND);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, SAND);
+}
+
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
+	// Place the blocks
 	setBlock(x, y, z, GRASS);
 	for (int i = 1; i <= 4; i++)
 		setBlock(x, y - (i * _resolution), z, DIRT);
 }
+
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -93,6 +113,8 @@ void SubChunk::loadBiome(int prevResolution)
 				loadOcean(x, z, ground + 3, adjustOceanHeight);
 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
 				loadMountain(x, z, ground);
+			// else if (ground <= 180)
+			// 	loadDesert(x, z, ground);
 			else if (ground)
 				loadPlaine(x, z, ground);
 		}
@@ -282,7 +304,7 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	// Don't clear all blocks — just fill new gaps
 		// Fill new values only
 	loadHeight(prevResolution);
-	loadBiome(prevResolution);
+	// loadBiome(prevResolution);
 }
 
 
