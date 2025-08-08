@@ -33,7 +33,7 @@ class StoneEngine {
 	private:
 		// Display
 		GLFWwindow* _window;
-
+		GLint _maxSamples;
 		GLuint shaderProgram;
 
 		GLuint sunShaderProgram;

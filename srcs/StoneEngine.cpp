@@ -97,6 +97,10 @@ void StoneEngine::initData()
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
 	showLight			= SHOW_LIGHTING;
+	
+	// Gets the max MSAA (anti aliasing) samples
+	_maxSamples = 0;
+	glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -252,10 +256,7 @@ void StoneEngine::displaySun()
 
 void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
 {
-	// Checks for number of samples
-	GLint maxSamples = 0;
-	glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-	std::cout << "Samples available for MSAA: " << maxSamples << std::endl;
+	// std::cout << "Samples available for MSAA: " << maxSamples << std::endl;
 
 	// Init MSAA framebuffer
 	glGenFramebuffers(1, &fboData.fbo);
@@ -264,13 +265,13 @@ void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
 	// Color renderbuffer
 	glGenRenderbuffers(1, &fboData.texture);
 	glBindRenderbuffer(GL_RENDERBUFFER, fboData.texture);
-	glRenderbufferStorageMultisample(GL_RENDERBUFFER, maxSamples, GL_RGB8, width, height);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, _maxSamples, GL_RGB8, width, height);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, fboData.texture);
 
 	// Depth renderbuffer
 	glGenRenderbuffers(1, &fboData.depth);
 	glBindRenderbuffer(GL_RENDERBUFFER, fboData.depth);
-	glRenderbufferStorageMultisample(GL_RENDERBUFFER, maxSamples, GL_DEPTH_COMPONENT24, width, height);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, _maxSamples, GL_DEPTH_COMPONENT24, width, height);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboData.depth);
 
 	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -936,6 +937,7 @@ void StoneEngine::update()
 
 void StoneEngine::resetFrameBuffers()
 {
+	// Read/Write/Tmp framebuffers memory free
 	glDeleteFramebuffers(1, &readFBO.fbo);
 	glDeleteTextures(1, &readFBO.texture);
 	glDeleteTextures(1, &readFBO.depth);
@@ -945,12 +947,13 @@ void StoneEngine::resetFrameBuffers()
 	glDeleteFramebuffers(1, &writeFBO.fbo);
 	glDeleteTextures(1, &writeFBO.texture);
 	glDeleteTextures(1, &writeFBO.depth);
-	// TODO: Figure out why this does not work
-	// glDeleteFramebuffers(1, &msaaFBO.fbo);
-	// glDeleteTextures(1, &msaaFBO.texture);
-	// glDeleteTextures(1, &msaaFBO.depth);
 
+	// Msaa renderbuffers and framebuffer memory free
+	glDeleteFramebuffers(1, &msaaFBO.fbo);
+	glDeleteRenderbuffers(1, &msaaFBO.texture);
+	glDeleteRenderbuffers(1, &msaaFBO.depth);
 
+	// Init second time
 	initFramebuffers(readFBO, windowWidth, windowHeight);
 	initFramebuffers(tmpFBO, windowWidth, windowHeight);
 	initFramebuffers(writeFBO, windowWidth, windowHeight);
