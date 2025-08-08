@@ -58,7 +58,7 @@ int Chunk::getTopBlock(int localX, int localZ)
 		for (int y = CHUNK_SIZE - 1; y >= 0; --y)
         {
             uint8_t block = subchunk->getBlock({localX, y, localZ});
-            if (block != AIR)
+            if (block != AIR && block != WATER)
 			{
                 return subY * CHUNK_SIZE + y;
             }
