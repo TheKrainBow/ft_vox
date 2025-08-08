@@ -14,10 +14,10 @@ class StoneEngine {
 		GLFWwindow* _window;
 		GLuint shaderProgram;
 		GLuint sunProgram;
+		Camera camera;
 		World _world;
 		int windowHeight;
 		int windowWidth;
-		Camera camera;
 		mat4 projectionMatrix;
 		mat4 viewMatrix;
 		TextureManager _textureManager;
@@ -45,6 +45,7 @@ class StoneEngine {
 		bool mouseCaptureToggle;
 		bool showDebugInfo;
 		bool showLight;
+		bool gravity;
 
 		// Player speed
 		float moveSpeed;

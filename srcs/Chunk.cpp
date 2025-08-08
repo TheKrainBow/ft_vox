@@ -32,12 +32,39 @@ void Chunk::loadBlocks()
 		subChunk->loadBiome(0);
 		_memorySize += subChunk->getMemorySize();
 	}
-    _isInit = true;
+	_isInit = true;
 	_memorySize += sizeof(*this);
 }
 
 size_t Chunk::getMemorySize() {
 	return _memorySize;
+}
+
+int Chunk::getTopBlock(int localX, int localZ)
+{
+	int index = std::numeric_limits<int>::min();
+	for (auto &elem : _subChunks)
+	{
+		if (elem.first > index)
+			index = elem.first;
+	}
+
+	for (int subY = index; subY >= 0; subY--)
+	{
+		SubChunk *subchunk = _subChunks[subY];
+		if (!subchunk)
+			continue ;
+
+		for (int y = CHUNK_SIZE - 1; y >= 0; --y)
+        {
+            uint8_t block = subchunk->getBlock({localX, y, localZ});
+            if (block != AIR)
+			{
+                return subY * CHUNK_SIZE + y;
+            }
+        }
+	}
+	return -1;
 }
 
 Chunk::~Chunk()

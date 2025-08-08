@@ -10,7 +10,7 @@ bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 	return isTransparent(neighborBlock) && blockToDisplay != neighborBlock;
 }
 
-StoneEngine::StoneEngine(int seed, ThreadPool &pool) : _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
+StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
 {
 	initData();
 	initGLFW();
@@ -63,6 +63,7 @@ void StoneEngine::initData()
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
 	showLight			= SHOW_LIGHTING;
+	gravity				= GRAVITY;
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -400,6 +401,8 @@ void StoneEngine::updateMovement()
 {
 	// Camera movement
 	vec3 oldPos = camera.getWorldPosition(); // Old pos
+	int blockHeight = _world.findTopBlockY(camera.getChunkPosition(CHUNK_SIZE), {oldPos.x, oldPos.z});
+
 	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
 	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
 	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
@@ -407,6 +410,11 @@ void StoneEngine::updateMovement()
 	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
 	vec3 viewPos = camera.getWorldPosition(); // New position
+
+	// Move the player up if they're under the ground and move the player down if they're above
+	// (gravity + collision with ground)
+	if (gravity && viewPos.y < blockHeight + 2) camera.move(0.0, 0.0, -moveSpeed);
+	else if (gravity && viewPos.y > blockHeight + 2) camera.move(0.0, 0.0, moveSpeed);
 
 	if (viewPos != oldPos)
 	{
@@ -568,6 +576,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		reshapeAction(windowWidth, windowHeight);
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
+	if (action == GLFW_PRESS && key == GLFW_KEY_G) gravity = !gravity;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;

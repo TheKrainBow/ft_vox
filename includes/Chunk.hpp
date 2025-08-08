@@ -65,10 +65,12 @@ class Chunk
 		Chunk *getSouthChunk();
 		Chunk *getWestChunk();
 		Chunk *getEastChunk();
+		int getTopBlock(int localX, int localY);
 		void clearFaces();
 		void loadBlocks();
 		void unloadNeighbor(Direction dir);
 		void unloadNeighbors();
+		int getTopBlock();
 
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();

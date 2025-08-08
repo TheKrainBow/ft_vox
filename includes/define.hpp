@@ -6,12 +6,13 @@
 # define RUNNING false
 # define CAPTURE_MOUSE true
 # define SHOW_LIGHTING false
+# define GRAVITY false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 121
+# define RENDER_DISTANCE 11
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define LOD_THRESHOLD 32

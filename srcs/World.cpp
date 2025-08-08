@@ -13,6 +13,22 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 
 	_drawData = nullptr;
 	_transparentDrawData = nullptr;
+
+	// Load first chunk under the player, and pop their position on top of it
+	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
+	vec3 worldPos = camera.getWorldPosition();
+	loadChunk(0, 0, 0, chunkPos, 1);
+	int height = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	const vec3 &camPos = camera.getPosition();
+	camera.setPos({camPos.x, -(height+4), camPos.z});
+}
+
+int World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
+	Chunk* chunk = _chunks[{chunkPos.x, chunkPos.y}];
+	if (!chunk) return 0;
+	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    return chunk->getTopBlock(localX, localZ);
 }
 
 void World::init(int renderDistance = RENDER_DISTANCE) {
@@ -125,7 +141,7 @@ void World::unloadChunk()
 	}
 }
 
-void World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
+Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
 {
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
@@ -157,6 +173,7 @@ void World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
 	_displayedChunks[pos] = chunk;
 	_displayedChunksMutex.unlock();
 	unloadChunk();
+	return chunk;
 }
 
 void World::loadTopChunks(int render, ivec2 &chunkPos, int resolution)

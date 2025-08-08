@@ -251,6 +251,18 @@ void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, Textu
 	addEastFace(block, position, east, isTransparent);
 }
 
+// Show all faces
+// void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
+// {
+// 	(void)block;
+// 	addFace(position, NORTH, north, isTransparent);
+// 	addFace(position, SOUTH, south, isTransparent);
+// 	addFace(position, WEST, west, isTransparent);
+// 	addFace(position, UP, up, isTransparent);
+// 	addFace(position, DOWN, down, isTransparent);
+// 	addFace(position, EAST, east, isTransparent);
+// }
+
 ivec3 SubChunk::getPosition()
 {
 	return _position;
@@ -279,8 +291,6 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	_chunkSize = CHUNK_SIZE / resolution;
 	size_t size = _chunkSize * _chunkSize * _chunkSize;
 	_blocks = std::make_unique<uint8_t[]>(size);
-	// Don't clear all blocks — just fill new gaps
-		// Fill new values only
 	loadHeight(prevResolution);
 	loadBiome(prevResolution);
 }
@@ -395,7 +405,7 @@ bool SubChunk::isNeighborTransparent(ivec3 position, Direction dir, char viewerB
 	if (viewerResolution == _resolution)
 		return (faceDisplayCondition(viewerBlock, getBlock(position)));
 	if (viewerResolution < _resolution)
-		return (IS_SOLID); // Never render the face -> face culling
+		return (IS_SOLID);
 	position /= _resolution;
 	position *= _resolution;
 	(void)position;

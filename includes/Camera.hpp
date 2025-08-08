@@ -33,6 +33,8 @@ class Camera {
 		e_direction *getDirectionPtr();
 		void rotate(float xAngle, float yAngle, double rotationSpeed);
 		void invert();
+		void setPos(const float &x, const float &y, const float &z);
+		void setPos(const vec3&newPos);
 
 	private:
 		vec3 position;

@@ -112,3 +112,14 @@ void Camera::updateMousePos(int x, int y)
 	mousePos.x = static_cast<float>(x);
 	mousePos.y = static_cast<float>(y);
 }
+
+void Camera::setPos(const float &x, const float &y, const float &z)
+{
+	position = {x, y, z};
+}
+
+void Camera::setPos(const vec3 &newPos)
+{
+	position = newPos;
+
+}

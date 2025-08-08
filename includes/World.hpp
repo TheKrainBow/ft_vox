@@ -115,9 +115,10 @@ public:
 	size_t *getMemorySizePtr();
 	int *getRenderDistancePtr();
 	int *getCurrentRenderPtr();
+	int findTopBlockY(ivec2 chunkPos, ivec2 worldPos);
 private:
 	// Chunk loading
-	void loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
+	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
 	void loadTopChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadRightChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
