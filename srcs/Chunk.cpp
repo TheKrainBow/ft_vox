@@ -56,13 +56,13 @@ int Chunk::getTopBlock(int localX, int localZ)
 			continue ;
 
 		for (int y = CHUNK_SIZE - 1; y >= 0; --y)
-        {
-            uint8_t block = subchunk->getBlock({localX, y, localZ});
-            if (block != AIR && block != WATER)
+		{
+			uint8_t block = subchunk->getBlock({localX, y, localZ});
+			if (block != AIR && block != WATER)
 			{
-                return subY * CHUNK_SIZE + y;
-            }
-        }
+				return subY * CHUNK_SIZE + y;
+			}
+		}
 	}
 	return -1;
 }

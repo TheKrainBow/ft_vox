@@ -28,7 +28,7 @@ int World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
 	if (!chunk) return 0;
 	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    return chunk->getTopBlock(localX, localZ);
+	return chunk->getTopBlock(localX, localZ);
 }
 
 void World::init(int renderDistance = RENDER_DISTANCE) {
