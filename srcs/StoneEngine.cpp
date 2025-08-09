@@ -431,6 +431,7 @@ bool StoneEngine::canMove(const movedir& dir, float offset)
 	BlockType block  = _world.getBlock(chunkPos, worldPos);
 	return block == AIR || block == WATER;
 }
+
 void StoneEngine::updateMovement()
 {
 	// Camera movement
@@ -447,13 +448,29 @@ void StoneEngine::updateMovement()
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) dir.up += moveSpeed;
 
 	// Checks to be able to move
-	if (!gravity) camera.move(dir);
-	else if (canMove(dir, 0.05)) camera.move(dir);
+	if (gravity)
+	{
+		// 1. Try forward/back movement separately
+		movedir forwardMove = {dir.forward, 0.0f, 0.0f};
+		if (forwardMove.forward != 0.0f && canMove(forwardMove, 0.05))
+			camera.move(forwardMove);
+
+		// 2. Try strafe movement separately
+		movedir strafeMove = {0.0f, dir.strafe, 0.0f};
+		if (strafeMove.strafe != 0.0f && canMove(strafeMove, 0.05))
+			camera.move(strafeMove);
+
+		// 3. Try vertical movement separately
+		movedir upMove = {0.0f, 0.0f, dir.up};
+		if (upMove.up != 0.0f && canMove(upMove, 0.05))
+			camera.move(upMove);
+	}
+	else camera.move(dir);
 	vec3 viewPos = camera.getWorldPosition(); // New position
 
 	// Move the player up if they're under the ground and move the player down if they're above
 	// (gravity + collision with ground)
-	if (gravity && viewPos.y < blockHeight + 3) camera.move({0.0, 0.0, -moveSpeed});
+	// if (gravity && viewPos.y < blockHeight + 3) camera.move({0.0, 0.0, -moveSpeed});
 	if (gravity && viewPos.y > blockHeight + 3) camera.move({0.0, 0.0, moveSpeed});
 
 	if (viewPos != oldPos)
