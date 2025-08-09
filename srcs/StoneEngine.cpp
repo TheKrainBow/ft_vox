@@ -421,6 +421,11 @@ bool StoneEngine::canMove(const movedir& dir, float offset)
 	}
 
 	ivec3 nextCamPos = camera.movecheck(probeDir);
+	ivec3 camPos = camera.getPosition();
+	if (nextCamPos.x == camPos.x
+		&& nextCamPos.y == camPos.y
+		&& nextCamPos.z == camPos.z)
+		return true;
 	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 1), -nextCamPos.z};
 	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
 	BlockType block  = _world.getBlock(chunkPos, worldPos);
