@@ -110,6 +110,8 @@ class StoneEngine {
 		void activateRenderShader();
 		void activateFboShader();
 		void triangleMeshToggle();
+		ivec2 getChunkPos(ivec2 pos);
+		bool canMove(const movedir& dir, float offset);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();

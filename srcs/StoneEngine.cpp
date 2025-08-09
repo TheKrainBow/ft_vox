@@ -397,24 +397,59 @@ void StoneEngine::findMoveRotationSpeed()
 	start = std::chrono::steady_clock::now();
 }
 
+ivec2 StoneEngine::getChunkPos(ivec2 pos)
+{
+	ivec2 camChunk(-pos.x / CHUNK_SIZE, -pos.y / CHUNK_SIZE);
+	if (-pos.x < 0) camChunk.x--;
+	if (-pos.y < 0) camChunk.y--;
+	return camChunk;
+}
+
+bool StoneEngine::canMove(const movedir& dir, float offset)
+{
+	// Check direction with offset
+	movedir probeDir = dir;
+	float len = std::sqrt(dir.forward * dir.forward + 
+							dir.strafe  * dir.strafe  + 
+							dir.up      * dir.up);
+
+	if (len > 0.0f) {
+		float scale = (len + offset) / len;
+		probeDir.forward *= scale;
+		probeDir.strafe  *= scale;
+		probeDir.up      *= scale;
+	}
+
+	ivec3 nextCamPos = camera.movecheck(probeDir);
+	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 1), -nextCamPos.z};
+	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
+	BlockType block  = _world.getBlock(chunkPos, worldPos);
+	return block == AIR || block == WATER;
+}
 void StoneEngine::updateMovement()
 {
 	// Camera movement
 	vec3 oldPos = camera.getWorldPosition(); // Old pos
 	int blockHeight = _world.findTopBlockY(camera.getChunkPosition(CHUNK_SIZE), {oldPos.x, oldPos.z});
 
-	if (keyStates[GLFW_KEY_W]) camera.move(moveSpeed, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_A]) camera.move(0.0, moveSpeed, 0.0);
-	if (keyStates[GLFW_KEY_S]) camera.move(-moveSpeed, 0.0, 0.0);
-	if (keyStates[GLFW_KEY_D]) camera.move(0.0, -moveSpeed, 0.0);
-	if (keyStates[GLFW_KEY_SPACE]) camera.move(0.0, 0.0, -moveSpeed);
-	if (keyStates[GLFW_KEY_LEFT_SHIFT]) camera.move(0.0, 0.0, moveSpeed);
+	// Build direction once
+	movedir dir = {0.0, 0.0, 0.0};
+	if (keyStates[GLFW_KEY_W]) dir.forward += moveSpeed;
+	if (keyStates[GLFW_KEY_A]) dir.strafe += moveSpeed;
+	if (keyStates[GLFW_KEY_S]) dir.forward += -moveSpeed;
+	if (keyStates[GLFW_KEY_D]) dir.strafe += -moveSpeed;
+	if (keyStates[GLFW_KEY_SPACE]) dir.up += -moveSpeed;
+	if (keyStates[GLFW_KEY_LEFT_SHIFT]) dir.up += moveSpeed;
+
+	// Checks to be able to move
+	if (!gravity) camera.move(dir);
+	else if (canMove(dir, 0.05)) camera.move(dir);
 	vec3 viewPos = camera.getWorldPosition(); // New position
 
 	// Move the player up if they're under the ground and move the player down if they're above
 	// (gravity + collision with ground)
-	if (gravity && viewPos.y < blockHeight + 2) camera.move(0.0, 0.0, -moveSpeed);
-	else if (gravity && viewPos.y > blockHeight + 2) camera.move(0.0, 0.0, moveSpeed);
+	if (gravity && viewPos.y < blockHeight + 3) camera.move({0.0, 0.0, -moveSpeed});
+	if (gravity && viewPos.y > blockHeight + 3) camera.move({0.0, 0.0, moveSpeed});
 
 	if (viewPos != oldPos)
 	{

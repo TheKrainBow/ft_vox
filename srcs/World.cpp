@@ -20,7 +20,7 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	loadChunk(0, 0, 0, chunkPos, 1);
 	int height = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
 	const vec3 &camPos = camera.getPosition();
-	camera.setPos({camPos.x, -(height+4), camPos.z});
+	camera.setPos({camPos.x, -(height+3), camPos.z});
 }
 
 int World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
@@ -56,6 +56,22 @@ NoiseGenerator &World::getNoiseGenerator()
 int *World::getRenderDistancePtr()
 {
 	return &_renderDistance;
+}
+
+BlockType World::getBlock(ivec2 &chunkPos, ivec3 &worldPos)
+{
+	std::lock_guard<std::mutex> lock(_chunksMutex);
+	Chunk *chunk = _chunks[{chunkPos.x, chunkPos.y}];
+	if (!chunk)
+		return AIR;
+	int subChunkIndex = static_cast<int>(floor(worldPos.y / CHUNK_SIZE));
+	SubChunk *subchunk = chunk->getSubChunk(subChunkIndex);
+	if (!subchunk)
+		return AIR;
+	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	return subchunk->getBlock({localX, localY, localZ});
 }
 
 void World::setRunning(std::mutex *runningMutex, bool *isRunning)

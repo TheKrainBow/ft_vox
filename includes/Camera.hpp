@@ -16,12 +16,20 @@ enum e_direction
 	NE
 };
 
+struct movedir
+{
+	float forward;
+	float strafe;
+	float up;
+};
+
 class Camera {
 	public:
 		Camera();
 		// Camera() : position{0.0, -30.0, 0.0}, center{0.0f, 0.0f, 10.0f} {};
 		~Camera();
-		void move(float forward, float strafe, float up);
+		void move(movedir direction);
+		vec3 movecheck(movedir direction);
 		void reset();
 		void updateMousePos(int x, int y);
 		vec3 getWorldPosition();
@@ -35,7 +43,6 @@ class Camera {
 		void invert();
 		void setPos(const float &x, const float &y, const float &z);
 		void setPos(const vec3&newPos);
-
 	private:
 		vec3 position;
 		fvec2 angle;

@@ -9,9 +9,12 @@ Camera::~Camera() {};
 /*
 	Moving the camera around (first person view)
 */
-void Camera::move(float  forward, float  strafe, float up)
+void Camera::move(movedir direction)
 {
-	//std::lock_guard<std::mutex> lock(positionMutex);
+	float forward = direction.forward;
+	float strafe = direction.strafe;
+	float up = direction.up;
+
 	// Calculate the direction based on the current angles
 	float radiansX = angle.x * (M_PI / 180.0);
 
@@ -32,6 +35,41 @@ void Camera::move(float  forward, float  strafe, float up)
 	position.y += movementspeed * up;
 	_positionMutex.unlock();
 }
+
+/*
+	Determine next position of camera without moving
+*/
+vec3 Camera::movecheck(movedir direction)
+{
+	float forward = direction.forward;
+	float strafe = direction.strafe;
+	float up = direction.up;
+
+	// Copy current position in destination position
+	_positionMutex.lock();
+	vec3 nextPos = position;
+	_positionMutex.unlock();
+
+	// Calculate the direction based on the current angles
+	float radiansX = angle.x * (M_PI / 180.0);
+
+	//float scaleForward = forward * cos(radiansY);
+
+	// Determine the forward movement vector
+	float forwardX = cos(radiansX) * forward;
+	float forwardZ = sin(radiansX) * forward;
+
+	// Determine the strafe movement vector (perpendicular to forward)
+	float strafeX = cos(radiansX + M_PI / 2) * strafe;
+	float strafeZ = sin(radiansX + M_PI / 2) * strafe;
+
+	// Update the nextPos position
+	nextPos.z += (forwardX + strafeX) * movementspeed;
+	nextPos.x += (forwardZ + strafeZ) * movementspeed;
+	nextPos.y += movementspeed * up;
+	return nextPos;
+}
+
 
 /*
 	Reset the camera position
