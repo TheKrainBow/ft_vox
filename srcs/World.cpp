@@ -46,6 +46,12 @@ World::~World()
 	}
 	if (_drawData)
 		delete _drawData;
+	if (_transparentDrawData)
+		delete _transparentDrawData;
+	if (_transparentFillData)
+		delete _transparentFillData;
+	if (_transparentStagingData)
+		delete _transparentStagingData;
 }
 
 NoiseGenerator &World::getNoiseGenerator()
