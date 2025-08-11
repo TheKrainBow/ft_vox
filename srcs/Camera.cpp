@@ -7,71 +7,6 @@ Camera::Camera() : position{-820, -131, -1379}, angle(0, 12) {
 Camera::~Camera() {};
 
 /*
-	Moving the camera around (first person view)
-*/
-void Camera::move(movedir direction)
-{
-	float forward = direction.forward;
-	float strafe = direction.strafe;
-	float up = direction.up;
-
-	// Calculate the direction based on the current angles
-	float radiansX = angle.x * (M_PI / 180.0);
-
-	//float scaleForward = forward * cos(radiansY);
-
-	// Determine the forward movement vector
-	float forwardX = cos(radiansX) * forward;
-	float forwardZ = sin(radiansX) * forward;
-
-	// Determine the strafe movement vector (perpendicular to forward)
-	float strafeX = cos(radiansX + M_PI / 2) * strafe;
-	float strafeZ = sin(radiansX + M_PI / 2) * strafe;
-
-	// Update theCcamera position
-	_positionMutex.lock();
-	position.z += (forwardX + strafeX) * movementspeed;
-	position.x += (forwardZ + strafeZ) * movementspeed;
-	position.y += movementspeed * up;
-	_positionMutex.unlock();
-}
-
-/*
-	Determine next position of camera without moving
-*/
-vec3 Camera::movecheck(movedir direction)
-{
-	float forward = direction.forward;
-	float strafe = direction.strafe;
-	float up = direction.up;
-
-	// Copy current position in destination position
-	_positionMutex.lock();
-	vec3 nextPos = position;
-	_positionMutex.unlock();
-
-	// Calculate the direction based on the current angles
-	float radiansX = angle.x * (M_PI / 180.0);
-
-	//float scaleForward = forward * cos(radiansY);
-
-	// Determine the forward movement vector
-	float forwardX = cos(radiansX) * forward;
-	float forwardZ = sin(radiansX) * forward;
-
-	// Determine the strafe movement vector (perpendicular to forward)
-	float strafeX = cos(radiansX + M_PI / 2) * strafe;
-	float strafeZ = sin(radiansX + M_PI / 2) * strafe;
-
-	// Update the nextPos position
-	nextPos.z += (forwardX + strafeX) * movementspeed;
-	nextPos.x += (forwardZ + strafeZ) * movementspeed;
-	nextPos.y += movementspeed * up;
-	return nextPos;
-}
-
-
-/*
 	Reset the camera position
 */
 void Camera::reset()
@@ -160,4 +95,53 @@ void Camera::setPos(const vec3 &newPos)
 {
 	position = newPos;
 
+}
+
+vec3 Camera::getForwardVector() const
+{
+	float yawRad = angle.x * (M_PI / 180.0f);
+	return vec3(
+		sin(yawRad),   // X axis in your system
+		0.0f,
+		cos(yawRad)    // Z axis in your system
+	);
+}
+
+vec3 Camera::getStrafeVector() const
+{
+	float yawRad = (angle.x + 90.0f) * (M_PI / 180.0f);
+	return vec3(
+		sin(yawRad),
+		0.0f,
+		cos(yawRad)
+	);
+}
+
+/*
+	Moving the camera around (first person view)
+*/
+void Camera::move(const vec3 offset)
+{
+	std::lock_guard<std::mutex> lock(_positionMutex);
+	position.x += offset.x * movementspeed;
+	position.y += offset.y * movementspeed;
+	position.z += offset.z * movementspeed;
+}
+
+/*
+	Send the potential position if we move
+*/
+vec3 Camera::moveCheck(const vec3 offset)
+{
+	// Copy current position
+	_positionMutex.lock();
+	vec3 nextPos = position;
+	_positionMutex.unlock();
+
+	// Apply world-space offset
+	nextPos.x += offset.x * movementspeed;
+	nextPos.y += offset.y * movementspeed;
+	nextPos.z += offset.z * movementspeed;
+
+	return nextPos;
 }

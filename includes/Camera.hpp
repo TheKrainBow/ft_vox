@@ -28,8 +28,8 @@ class Camera {
 		Camera();
 		// Camera() : position{0.0, -30.0, 0.0}, center{0.0f, 0.0f, 10.0f} {};
 		~Camera();
-		void move(movedir direction);
-		vec3 movecheck(movedir direction);
+		void move(const vec3 offset);
+		vec3 moveCheck(const vec3 offset);
 		void reset();
 		void updateMousePos(int x, int y);
 		vec3 getWorldPosition();
@@ -43,6 +43,8 @@ class Camera {
 		void invert();
 		void setPos(const float &x, const float &y, const float &z);
 		void setPos(const vec3&newPos);
+		vec3 getForwardVector() const;
+		vec3 getStrafeVector() const;
 	private:
 		vec3 position;
 		fvec2 angle;

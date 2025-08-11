@@ -111,7 +111,7 @@ class StoneEngine {
 		void activateFboShader();
 		void triangleMeshToggle();
 		ivec2 getChunkPos(ivec2 pos);
-		bool canMove(const movedir& dir, float offset);
+		bool canMove(const glm::vec3& offset, float extra);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();
