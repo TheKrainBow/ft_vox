@@ -46,10 +46,12 @@ class StoneEngine {
 		bool showDebugInfo;
 		bool showLight;
 		bool gravity;
+		bool falling;
 
 		// Player speed
 		float moveSpeed;
 		float rotationSpeed;
+		float fallSpeed = 0.0f;
 
 		// FPS counter
 		int frameCount;
@@ -69,6 +71,7 @@ class StoneEngine {
 		std::chrono::steady_clock::time_point start;
 		std::chrono::steady_clock::time_point end;
 		std::chrono::milliseconds delta;
+		float deltaTime;
 
 		// Game data
 		ivec3 sunPosition;

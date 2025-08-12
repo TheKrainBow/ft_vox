@@ -19,6 +19,7 @@
 # define ROTATION_SPEED 1.0f
 # define CACHE_SIZE NB_CHUNKS * 2
 # define MOVEMENT_SPEED 0.5f
+# define FALL_SPEED 0.8
 
 # define RESOLUTION 1
 

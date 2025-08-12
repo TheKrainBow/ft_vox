@@ -64,6 +64,7 @@ void StoneEngine::initData()
 	mouseCaptureToggle	= CAPTURE_MOUSE;
 	showLight			= SHOW_LIGHTING;
 	gravity				= GRAVITY;
+	falling				= false;
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -374,7 +375,7 @@ void StoneEngine::findMoveRotationSpeed()
 	static auto lastTime = std::chrono::steady_clock::now();
 	auto currentTime = std::chrono::steady_clock::now();
 	std::chrono::duration<float> elapsedTime = currentTime - lastTime;
-	float deltaTime = std::min(elapsedTime.count(), 0.1f);
+	deltaTime = std::min(elapsedTime.count(), 0.1f);
 	lastTime = currentTime;
 
 
@@ -393,7 +394,6 @@ void StoneEngine::findMoveRotationSpeed()
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
 	else
 		rotationSpeed = ROTATION_SPEED * deltaTime;
-
 	start = std::chrono::steady_clock::now();
 }
 
@@ -458,10 +458,22 @@ void StoneEngine::updateMovement()
 	else camera.move(moveVec);
 	vec3 viewPos = camera.getWorldPosition();
 
-	// Move the player up if they're under the ground and move the player down if they're above
-	// (gravity + collision with ground)
-	// if (gravity && viewPos.y < blockHeight + 3) camera.move({0.0, 0.0, -moveSpeed});
-	if (gravity && viewPos.y > blockHeight + 3) camera.move({0.0, moveSpeed, 0.0});
+	// Update gravity and falling values
+	if (gravity && falling)
+	{
+		fallSpeed -= FALL_SPEED;
+		fallSpeed *= 0.98;
+		if (fallSpeed < -20.0) fallSpeed = -20.0;
+		std::cout << fallSpeed << std::endl;
+	}
+
+	if (!falling && viewPos.y > blockHeight + 3) falling = true;
+	if (!(falling && viewPos.y > blockHeight + 3))
+	{
+		falling = false;
+		fallSpeed = 0.0;
+	}
+	camera.move({0.0, -(fallSpeed * deltaTime), 0.0});
 
 	if (viewPos != oldPos)
 	{
@@ -543,25 +555,25 @@ void StoneEngine::updateGameTick()
 
 void StoneEngine::update()
 {
-    // Check for delta and apply to move and rotation speeds
-    findMoveRotationSpeed();
+	// Check for delta and apply to move and rotation speeds
+	findMoveRotationSpeed();
 
-    // Get current time
-    end = std::chrono::steady_clock::now();
-    delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    start = end; // Reset start time for next frame
+	// Get current time
+	end = std::chrono::steady_clock::now();
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	start = end; // Reset start time for next frame
 
-    // Check if it's time to update the game tick (20 times per second)
-    static auto lastGameTick = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
-    {
-        updateGameTick();
-        lastGameTick = end; // Reset game tick timer
-    }
+	// Check if it's time to update the game tick (20 times per second)
+	static auto lastGameTick = std::chrono::steady_clock::now();
+	if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
+	{
+		updateGameTick();
+		lastGameTick = end; // Reset game tick timer
+	}
 
-    // Update player position and orientation
-    updateMovement();
-    display();
+	// Update player position and orientation
+	updateMovement();
+	display();
 }
 
 void StoneEngine::updateFboWindowSize()
