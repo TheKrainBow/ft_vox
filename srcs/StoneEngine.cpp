@@ -65,6 +65,7 @@ void StoneEngine::initData()
 	showLight			= SHOW_LIGHTING;
 	gravity				= GRAVITY;
 	falling				= false;
+	_jumpCooldown		= std::chrono::steady_clock::now();
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -381,7 +382,7 @@ void StoneEngine::findMoveRotationSpeed()
 
 	// Apply delta to rotation and movespeed
 	if (keyStates[GLFW_KEY_LEFT_CONTROL])
-		moveSpeed = (MOVEMENT_SPEED * 20.0) * deltaTime;
+		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	
@@ -412,7 +413,7 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 		probe = glm::normalize(probe) * (glm::length(probe) + extra);
 
 	ivec3 nextCamPos = camera.moveCheck(probe);
-	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 1), -nextCamPos.z};
+	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 2), -nextCamPos.z};
 	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
 	BlockType block  = _world.getBlock(chunkPos, worldPos);
 	return block == AIR || block == WATER;
@@ -423,6 +424,7 @@ void StoneEngine::updateMovement()
 	// Camera movement
 	vec3 oldPos = camera.getWorldPosition(); // Old pos
 	int blockHeight = _world.findTopBlockY(camera.getChunkPosition(CHUNK_SIZE), {oldPos.x, oldPos.z});
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 
 	// Build direction once
 	movedir dir = {0.0, 0.0, 0.0};
@@ -430,8 +432,19 @@ void StoneEngine::updateMovement()
 	if (keyStates[GLFW_KEY_A]) dir.strafe += moveSpeed;
 	if (keyStates[GLFW_KEY_S]) dir.forward += -moveSpeed;
 	if (keyStates[GLFW_KEY_D]) dir.strafe += -moveSpeed;
-	if (keyStates[GLFW_KEY_SPACE]) dir.up += -moveSpeed;
+	if (!gravity && keyStates[GLFW_KEY_SPACE]) dir.up += -moveSpeed;
+
 	if (keyStates[GLFW_KEY_LEFT_SHIFT]) dir.up += moveSpeed;
+	auto remaining = _jumpCooldown - now;
+
+	// auto remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+	// std::cout << "Jump cooldown remaining: " << remainingMs << " ms\n";
+	if (gravity && !falling && keyStates[GLFW_KEY_SPACE] && now > _jumpCooldown)
+	{
+		fallSpeed = 1.2f;
+		dir.up -= moveSpeed;
+		_jumpCooldown = now + std::chrono::milliseconds(500);
+	}
 
 	glm::vec3 moveVec = camera.getForwardVector() * dir.forward
 					+ camera.getStrafeVector()   * dir.strafe
@@ -458,20 +471,12 @@ void StoneEngine::updateMovement()
 	else camera.move(moveVec);
 	vec3 viewPos = camera.getWorldPosition();
 
-	// Update gravity and falling values
-	if (gravity && falling)
-	{
-		fallSpeed -= FALL_SPEED;
-		fallSpeed *= 0.98;
-		if (fallSpeed < -20.0) fallSpeed = -20.0;
-		std::cout << fallSpeed << std::endl;
-	}
-
 	if (!falling && viewPos.y > blockHeight + 3) falling = true;
-	if (!(falling && viewPos.y > blockHeight + 3))
+	if (falling && viewPos.y <= blockHeight + 3)
 	{
 		falling = false;
 		fallSpeed = 0.0;
+		camera.setPos({-viewPos.x, -(blockHeight + 3), -viewPos.z});
 	}
 	camera.move({0.0, -(fallSpeed * deltaTime), 0.0});
 
@@ -549,6 +554,13 @@ void StoneEngine::updateGameTick()
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
 		glUseProgram(fboShaderProgram);
 		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), 58500);
+	}
+	// Update gravity and falling values
+	if (gravity && falling)
+	{
+		fallSpeed -= FALL_INCREMENT;
+		fallSpeed *= 0.98;
+		// if (fallSpeed < -20.0) fallSpeed = -20.0;
 	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }
@@ -643,7 +655,6 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
-
 	if (action == GLFW_PRESS) keyStates[key] = true;
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
 }
