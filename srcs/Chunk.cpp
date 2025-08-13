@@ -40,7 +40,7 @@ size_t Chunk::getMemorySize() {
 	return _memorySize;
 }
 
-int Chunk::getTopBlock(int localX, int localZ)
+TopBlock Chunk::getTopBlock(int localX, int localZ)
 {
 	int index = std::numeric_limits<int>::min();
 	for (auto &elem : _subChunks)
@@ -60,11 +60,11 @@ int Chunk::getTopBlock(int localX, int localZ)
 			uint8_t block = subchunk->getBlock({localX, y, localZ});
 			if (block != AIR && block != WATER)
 			{
-				return subY * CHUNK_SIZE + y;
+				return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
 			}
 		}
 	}
-	return -1;
+	return {0, 0, {0.0, 0.0}};
 }
 
 Chunk::~Chunk()

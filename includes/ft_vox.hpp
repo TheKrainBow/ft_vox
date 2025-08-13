@@ -43,6 +43,12 @@ enum Direction {
 	UP,
 };
 
+struct TopBlock {
+	int height = 0;
+	char type = 0;
+	ivec2 pos = {0, 0};
+};
+
 const float rectangleVertices[] =
 {
 	// Coords    // texCoords

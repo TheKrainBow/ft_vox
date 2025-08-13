@@ -64,7 +64,9 @@ void StoneEngine::initData()
 	mouseCaptureToggle	= CAPTURE_MOUSE;
 	showLight			= SHOW_LIGHTING;
 	gravity				= GRAVITY;
-	falling				= false;
+	falling				= FALLING;
+	swimming			= SWIMMING;
+	jumping				= JUMPING;
 	_jumpCooldown		= std::chrono::steady_clock::now();
 
 	// Window size
@@ -87,6 +89,10 @@ void StoneEngine::initData()
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
 	timeValue = 39800;
+	camTopBlock.pos.x = 0.0;
+	camTopBlock.pos.y = 0.0;
+	camTopBlock.type = AIR;
+	camTopBlock.height = 0;
 }
 
 void StoneEngine::initFramebuffers()
@@ -386,6 +392,8 @@ void StoneEngine::findMoveRotationSpeed()
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
 	
+	if (swimming)
+		moveSpeed *= 0.5;
 
 	//ZOOM
 	if (keyStates[GLFW_KEY_KP_ADD]) {timeValue+=50;}
@@ -419,37 +427,96 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 	return block == AIR || block == WATER;
 }
 
-void StoneEngine::updateMovement()
+void StoneEngine::updateFalling(vec3 worldPos, int blockHeight)
 {
-	// Camera movement
-	vec3 oldPos = camera.getWorldPosition(); // Old pos
-	int blockHeight = _world.findTopBlockY(camera.getChunkPosition(CHUNK_SIZE), {oldPos.x, oldPos.z});
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	if (!falling && worldPos.y > blockHeight + 3) falling = true;
+	if (falling && worldPos.y <= blockHeight + 3)
+	{
+		falling = false;
+		fallSpeed = 0.0;
+		camera.setPos({-worldPos.x, -(blockHeight + 3), -worldPos.z});
+	}
+	camera.move({0.0, -(fallSpeed * deltaTime), 0.0});
+}
+
+void StoneEngine::updateSwimming(BlockType block)
+{
+	if (!swimming && block == WATER)
+	{
+		swimming = true;
+		if (!keyStates[GLFW_KEY_SPACE])
+			fallSpeed = -0.5;
+		else
+			fallSpeed = 0.0;
+	}
+	if (swimming && block != WATER)
+	{
+		swimming = false;
+		fallSpeed = 0.0;
+	}
+}
+
+void StoneEngine::updateJumping()
+{
+	jumping = gravity && !falling && keyStates[GLFW_KEY_SPACE] && now > _jumpCooldown && !swimming;
+}
+
+void StoneEngine::updatePlayerStates()
+{
+	vec3 worldPos = camera.getWorldPosition();
+	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
+	BlockType camStandingBlock = AIR;
+	BlockType camBodyBlockLegs = AIR;
+	BlockType camBodyBlockTorso = AIR;
+
+	camTopBlock = _world.findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	camStandingBlock = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 3, worldPos.z});
+	camBodyBlockLegs = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 2, worldPos.z});
+	camBodyBlockTorso = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 1, worldPos.z});
+	int blockHeight = camTopBlock.height;
+	BlockType inWater = (camStandingBlock == WATER
+						|| camBodyBlockLegs == WATER
+						|| camBodyBlockTorso == WATER) ? WATER : AIR;
+	
+	updateFalling(worldPos, blockHeight);
+	updateSwimming(inWater);
+	updateJumping();
+}
+
+void StoneEngine::updatePlayerDirection()
+{
+	playerDir = {0};
 
 	// Build direction once
-	movedir dir = {0.0, 0.0, 0.0};
-	if (keyStates[GLFW_KEY_W]) dir.forward += moveSpeed;
-	if (keyStates[GLFW_KEY_A]) dir.strafe += moveSpeed;
-	if (keyStates[GLFW_KEY_S]) dir.forward += -moveSpeed;
-	if (keyStates[GLFW_KEY_D]) dir.strafe += -moveSpeed;
-	if (!gravity && keyStates[GLFW_KEY_SPACE]) dir.up += -moveSpeed;
-
-	if (keyStates[GLFW_KEY_LEFT_SHIFT]) dir.up += moveSpeed;
-	auto remaining = _jumpCooldown - now;
-
-	// auto remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
-	// std::cout << "Jump cooldown remaining: " << remainingMs << " ms\n";
-	if (gravity && !falling && keyStates[GLFW_KEY_SPACE] && now > _jumpCooldown)
+	if (keyStates[GLFW_KEY_W]) playerDir.forward += moveSpeed;
+	if (keyStates[GLFW_KEY_A]) playerDir.strafe += moveSpeed;
+	if (keyStates[GLFW_KEY_S]) playerDir.forward += -moveSpeed;
+	if (keyStates[GLFW_KEY_D]) playerDir.strafe += -moveSpeed;
+	if (!gravity && keyStates[GLFW_KEY_SPACE]) playerDir.up += -moveSpeed;
+	if (!gravity && keyStates[GLFW_KEY_LEFT_SHIFT]) playerDir.up += moveSpeed;
+	if (jumping)
 	{
 		fallSpeed = 1.2f;
-		dir.up -= moveSpeed;
+		playerDir.up += -moveSpeed;
 		_jumpCooldown = now + std::chrono::milliseconds(500);
+		jumping = false;
 	}
+	// else if (gravity && grounded && keyStates[GLFW_KEY_SPACE] && swimming)
+	// {
+	// 	fallSpeed = 1.2f;
+	// 	playerDir.up += -(moveSpeed * 0.01);
+	// }
+}
 
-	glm::vec3 moveVec = camera.getForwardVector() * dir.forward
-					+ camera.getStrafeVector()   * dir.strafe
-					+ glm::vec3(0, 1, 0)        * dir.up;
+void StoneEngine::updateMovement()
+{
+	// Camera position
+	vec3 oldPos = camera.getWorldPosition();
+	glm::vec3 moveVec = camera.getForwardVector() * playerDir.forward
+					+ camera.getStrafeVector()   * playerDir.strafe
+					+ glm::vec3(0, 1, 0)        * playerDir.up;
 
+	// Move for each axis
 	glm::vec3 moveX(moveVec.x, 0.0f, 0.0f);
 	glm::vec3 moveZ(0.0f, 0.0f, moveVec.z);
 	glm::vec3 moveY(0.0f, moveVec.y, 0.0f);
@@ -469,37 +536,13 @@ void StoneEngine::updateMovement()
 			camera.move(moveY);
 	}
 	else camera.move(moveVec);
-	vec3 viewPos = camera.getWorldPosition();
+	vec3 newPos = camera.getWorldPosition();
 
-	if (!falling && viewPos.y > blockHeight + 3) falling = true;
-	if (falling && viewPos.y <= blockHeight + 3)
-	{
-		falling = false;
-		fallSpeed = 0.0;
-		camera.setPos({-viewPos.x, -(blockHeight + 3), -viewPos.z});
-	}
-	camera.move({0.0, -(fallSpeed * deltaTime), 0.0});
-
-	if (viewPos != oldPos)
+	// If the player changed position, update the shader
+	if (newPos != oldPos)
 	{
 		glUseProgram(shaderProgram);
-		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
-	}
-
-	// Camera rotation
-	if (!isWSL())
-	{
-		if (keyStates[GLFW_KEY_UP]) camera.rotate(0.0f, -1.0f, rotationSpeed * 150.0f);
-		if (keyStates[GLFW_KEY_DOWN]) camera.rotate(0.0f, 1.0f, rotationSpeed * 150.0f);
-		if (keyStates[GLFW_KEY_RIGHT]) camera.rotate(1.0f, 0.0f, rotationSpeed * 150.0f);
-		if (keyStates[GLFW_KEY_LEFT]) camera.rotate(-1.0f, 0.0f, rotationSpeed * 150.0f);
-	}
-	else
-	{
-		if (keyStates[GLFW_KEY_UP]) camera.rotate(0.0f, 1.0f, rotationSpeed);
-		if (keyStates[GLFW_KEY_DOWN]) camera.rotate(0.0f, -1.0f, rotationSpeed);
-		if (keyStates[GLFW_KEY_RIGHT]) camera.rotate(-1.0f, 0.0f, rotationSpeed);
-		if (keyStates[GLFW_KEY_LEFT]) camera.rotate(1.0f, 0.0f, rotationSpeed);
+		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(newPos));
 	}
 }
 
@@ -556,11 +599,21 @@ void StoneEngine::updateGameTick()
 		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), 58500);
 	}
 	// Update gravity and falling values
-	if (gravity && falling)
+	if (!swimming)
 	{
-		fallSpeed -= FALL_INCREMENT;
-		fallSpeed *= 0.98;
-		// if (fallSpeed < -20.0) fallSpeed = -20.0;
+		if (gravity && falling)
+		{
+			fallSpeed -= FALL_INCREMENT;
+			fallSpeed *= 0.98;
+		}
+	}
+	else
+	{
+		if (gravity && falling)
+		{
+			fallSpeed = -0.5;
+		}
+		if (keyStates[GLFW_KEY_SPACE]) fallSpeed += 1.0;
 	}
 	//std::cout << "Updating gameTICK" << std::endl;
 }
@@ -571,19 +624,24 @@ void StoneEngine::update()
 	findMoveRotationSpeed();
 
 	// Get current time
-	end = std::chrono::steady_clock::now();
-	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-	start = end; // Reset start time for next frame
+	now = std::chrono::steady_clock::now();
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+	start = now; // Reset start time for next frame
 
 	// Check if it's time to update the game tick (20 times per second)
 	static auto lastGameTick = std::chrono::steady_clock::now();
-	if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
+	if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastGameTick).count() >= (1000 / 20))
 	{
 		updateGameTick();
-		lastGameTick = end; // Reset game tick timer
+		lastGameTick = now; // Reset game tick timer
 	}
 
+	// Update player states
+	if (gravity)
+		updatePlayerStates();
+
 	// Update player position and orientation
+	updatePlayerDirection();
 	updateMovement();
 	display();
 }

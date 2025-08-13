@@ -47,6 +47,8 @@ class StoneEngine {
 		bool showLight;
 		bool gravity;
 		bool falling;
+		bool swimming;
+		bool jumping;
 
 		// Player speed
 		float moveSpeed;
@@ -77,6 +79,9 @@ class StoneEngine {
 		ivec3 sunPosition;
 		std::atomic_int timeValue;
 		std::chrono::steady_clock::time_point _jumpCooldown;
+		std::chrono::steady_clock::time_point now;
+		TopBlock camTopBlock;
+		movedir playerDir;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -116,9 +121,11 @@ class StoneEngine {
 		void triangleMeshToggle();
 		ivec2 getChunkPos(ivec2 pos);
 		bool canMove(const glm::vec3& offset, float extra);
-
-		// Multi thread methods
-		//void chunkUpdateWorker();
+		void updatePlayerStates();
+		void updateFalling(vec3 worldPos, int blockHeight);
+		void updateSwimming(BlockType block);
+		void updateJumping();
+		void updatePlayerDirection();
 
 		// Movement methods
 		void findMoveRotationSpeed();

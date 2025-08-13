@@ -7,6 +7,9 @@
 # define CAPTURE_MOUSE true
 # define SHOW_LIGHTING false
 # define GRAVITY false
+# define FALLING false
+# define SWIMMING false
+# define JUMPING false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
@@ -20,6 +23,7 @@
 # define CACHE_SIZE NB_CHUNKS * 2
 # define MOVEMENT_SPEED 0.5f
 # define FALL_INCREMENT 9.8f / 40.0f
+# define FALL_INCREMENT_WATER 9.8f / 1000.0f
 
 # define RESOLUTION 1
 

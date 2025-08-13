@@ -18,17 +18,20 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
 	vec3 worldPos = camera.getWorldPosition();
 	loadChunk(0, 0, 0, chunkPos, 1);
-	int height = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
 	const vec3 &camPos = camera.getPosition();
-	camera.setPos({camPos.x, -(height+3), camPos.z});
+	camera.setPos({camPos.x, -(topBlock.height+3), camPos.z});
 }
 
-int World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
+TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
+	std::lock_guard<std::mutex> lock(_chunksMutex);
 	Chunk* chunk = _chunks[{chunkPos.x, chunkPos.y}];
-	if (!chunk) return 0;
+	if (!chunk) return TopBlock();
 	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	return chunk->getTopBlock(localX, localZ);
+	TopBlock topBlock;
+	topBlock = chunk->getTopBlock(localX, localZ);
+	return topBlock;
 }
 
 void World::init(int renderDistance = RENDER_DISTANCE) {
@@ -64,7 +67,7 @@ int *World::getRenderDistancePtr()
 	return &_renderDistance;
 }
 
-BlockType World::getBlock(ivec2 &chunkPos, ivec3 &worldPos)
+BlockType World::getBlock(ivec2 chunkPos, ivec3 worldPos)
 {
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	Chunk *chunk = _chunks[{chunkPos.x, chunkPos.y}];

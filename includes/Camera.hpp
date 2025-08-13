@@ -18,9 +18,9 @@ enum e_direction
 
 struct movedir
 {
-	float forward;
-	float strafe;
-	float up;
+	float forward = 0.0f;
+	float strafe = 0.0f;
+	float up = 0.0f;
 };
 
 class Camera {
