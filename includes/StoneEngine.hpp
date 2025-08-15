@@ -79,6 +79,7 @@ class StoneEngine {
 		ivec3 sunPosition;
 		std::atomic_int timeValue;
 		std::chrono::steady_clock::time_point _jumpCooldown;
+		std::chrono::steady_clock::time_point _swimUpCooldownOnRise;
 		std::chrono::steady_clock::time_point now;
 		TopBlock camTopBlock;
 		movedir playerDir;

@@ -444,15 +444,12 @@ void StoneEngine::updateSwimming(BlockType block)
 	if (!swimming && block == WATER)
 	{
 		swimming = true;
-		if (!keyStates[GLFW_KEY_SPACE])
-			fallSpeed = -0.5;
-		else
-			fallSpeed = 0.0;
 	}
 	if (swimming && block != WATER)
 	{
 		swimming = false;
 		fallSpeed = 0.0;
+		_swimUpCooldownOnRise = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
 	}
 }
 
@@ -477,7 +474,7 @@ void StoneEngine::updatePlayerStates()
 	BlockType inWater = (camStandingBlock == WATER
 						|| camBodyBlockLegs == WATER
 						|| camBodyBlockTorso == WATER) ? WATER : AIR;
-	
+
 	updateFalling(worldPos, blockHeight);
 	updateSwimming(inWater);
 	updateJumping();
@@ -613,9 +610,11 @@ void StoneEngine::updateGameTick()
 		{
 			fallSpeed = -0.5;
 		}
-		if (keyStates[GLFW_KEY_SPACE]) fallSpeed += 1.0;
+		if (keyStates[GLFW_KEY_SPACE] && std::chrono::steady_clock::now() > _swimUpCooldownOnRise)
+		{
+			fallSpeed += 1.0;
+		}
 	}
-	//std::cout << "Updating gameTICK" << std::endl;
 }
 
 void StoneEngine::update()
