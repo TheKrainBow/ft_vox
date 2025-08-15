@@ -594,11 +594,11 @@ void StoneEngine::updateGameTick()
 	{
 		if (gravity && falling)
 		{
-			fallSpeed = -0.5;
+			fallSpeed = -0.25;
 		}
 		if (keyStates[GLFW_KEY_SPACE] && std::chrono::steady_clock::now() > _swimUpCooldownOnRise)
 		{
-			fallSpeed += 1.0;
+			fallSpeed += 0.75;
 		}
 	}
 }
