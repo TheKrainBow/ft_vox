@@ -414,19 +414,6 @@ ivec2 StoneEngine::getChunkPos(ivec2 pos)
 	return camChunk;
 }
 
-bool StoneEngine::canMove(const glm::vec3& offset, float extra)
-{
-	glm::vec3 probe = offset;
-	if (glm::length(probe) > 0.0f)
-		probe = glm::normalize(probe) * (glm::length(probe) + extra);
-
-	ivec3 nextCamPos = camera.moveCheck(probe);
-	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 2), -nextCamPos.z};
-	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
-	BlockType block  = _world.getBlock(chunkPos, worldPos);
-	return block == AIR || block == WATER;
-}
-
 void StoneEngine::updateFalling(vec3 worldPos, int blockHeight)
 {
 	if (!falling && worldPos.y > blockHeight + 3) falling = true;
@@ -480,6 +467,46 @@ void StoneEngine::updatePlayerStates()
 	updateJumping();
 }
 
+bool StoneEngine::canMove(const glm::vec3& offset, float extra)
+{
+	glm::vec3 probe = offset;
+	if (glm::length(probe) > 0.0f)
+		probe = glm::normalize(probe) * (glm::length(probe) + extra);
+
+	ivec3 nextCamPos = camera.moveCheck(probe);
+	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 2), -nextCamPos.z};
+	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
+	BlockType block  = _world.getBlock(chunkPos, worldPos);
+	return block == AIR || block == WATER;
+}
+
+// Divides every move into smaller steps if necessary typically if the player goes very
+// fast to avoid block skips 
+bool StoneEngine::tryMoveStepwise(const glm::vec3& moveVec, float stepSize)
+{
+	// Total distance to move
+	float distance = glm::length(moveVec);
+	if (distance <= 0.0f) return false;
+
+	// Normalize and scale to step size
+	glm::vec3 direction = glm::normalize(moveVec);
+	float moved = 0.0f;
+
+	while (moved < distance)
+	{
+		float step = std::min(stepSize, distance - moved);
+		glm::vec3 offset = direction * step;
+
+		if (!canMove(offset, 0.04f))
+			return false;
+
+		camera.move(offset);
+		moved += step;
+	}
+
+	return true;
+}
+
 void StoneEngine::updatePlayerDirection()
 {
 	playerDir = {0};
@@ -498,76 +525,35 @@ void StoneEngine::updatePlayerDirection()
 		_jumpCooldown = now + std::chrono::milliseconds(500);
 		jumping = false;
 	}
-	// else if (gravity && grounded && keyStates[GLFW_KEY_SPACE] && swimming)
-	// {
-	// 	fallSpeed = 1.2f;
-	// 	playerDir.up += -(moveSpeed * 0.01);
-	// }
 }
 
 void StoneEngine::updateMovement()
 {
-	// Camera position
 	vec3 oldPos = camera.getWorldPosition();
 	glm::vec3 moveVec = camera.getForwardVector() * playerDir.forward
-					+ camera.getStrafeVector()   * playerDir.strafe
-					+ glm::vec3(0, 1, 0)        * playerDir.up;
+						+ camera.getStrafeVector()   * playerDir.strafe
+						+ glm::vec3(0, 1, 0)        * playerDir.up;
 
-	// Move for each axis
-	glm::vec3 moveX(moveVec.x, 0.0f, 0.0f);
-	glm::vec3 moveZ(0.0f, 0.0f, moveVec.z);
-	glm::vec3 moveY(0.0f, moveVec.y, 0.0f);
-
-	// Checks to be able to move
 	if (gravity)
 	{
-		float margin = 0.04f;
+		float stepSize = 0.5f;
 
-		if (moveX.x != 0.0f && canMove(moveX, margin))
-			camera.move(moveX);
+		glm::vec3 moveX(moveVec.x, 0.0f, 0.0f);
+		glm::vec3 moveZ(0.0f, 0.0f, moveVec.z);
+		glm::vec3 moveY(0.0f, moveVec.y, 0.0f);
 
-		if (moveZ.z != 0.0f && canMove(moveZ, margin))
-			camera.move(moveZ);
-
-		if (moveY.y != 0.0f && canMove(moveY, margin))
-			camera.move(moveY);
+		if (moveX.x != 0.0f) tryMoveStepwise(moveX, stepSize);
+		if (moveZ.z != 0.0f) tryMoveStepwise(moveZ, stepSize);
+		if (moveY.y != 0.0f) tryMoveStepwise(moveY, stepSize);
 	}
-	else camera.move(moveVec);
-	vec3 newPos = camera.getWorldPosition();
+	else
+		tryMoveStepwise(moveVec, 0.5f);
 
-	// If the player changed position, update the shader
+	vec3 newPos = camera.getWorldPosition();
 	if (newPos != oldPos)
 	{
 		glUseProgram(shaderProgram);
 		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(newPos));
-	}
-}
-
-void StoneEngine::updateChunkWorker()
-{
-	bool firstIteration = true;
-	ivec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
-	vec3 oldCamPos = camera.getPosition();
-
-	while (getIsRunning())
-	{
-		vec3 newCamPos = camera.getPosition();
-		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
-		{
-			// Check new chunk position for necessary updates to chunks
-			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
-			if (firstIteration)
-			{
-				loadFirstChunks();
-				firstIteration = false;
-			}
-			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y)))
-			{
-				loadNextChunks(camChunk);
-			}
-			oldCamPos = newCamPos;
-			oldCamChunk = camChunk;
-		}
 	}
 }
 
@@ -643,6 +629,34 @@ void StoneEngine::update()
 	updatePlayerDirection();
 	updateMovement();
 	display();
+}
+
+void StoneEngine::updateChunkWorker()
+{
+	bool firstIteration = true;
+	ivec2 oldCamChunk = camera.getChunkPosition(CHUNK_SIZE);
+	vec3 oldCamPos = camera.getPosition();
+
+	while (getIsRunning())
+	{
+		vec3 newCamPos = camera.getPosition();
+		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
+		{
+			// Check new chunk position for necessary updates to chunks
+			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
+			if (firstIteration)
+			{
+				loadFirstChunks();
+				firstIteration = false;
+			}
+			else if(updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y)))
+			{
+				loadNextChunks(camChunk);
+			}
+			oldCamPos = newCamPos;
+			oldCamChunk = camChunk;
+		}
+	}
 }
 
 void StoneEngine::updateFboWindowSize()

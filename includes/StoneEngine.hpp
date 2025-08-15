@@ -127,6 +127,7 @@ class StoneEngine {
 		void updateSwimming(BlockType block);
 		void updateJumping();
 		void updatePlayerDirection();
+		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 
 		// Movement methods
 		void findMoveRotationSpeed();
