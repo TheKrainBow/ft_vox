@@ -102,6 +102,17 @@ void StoneEngine::initData()
 	_maxSamples = 0;
 	glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
 
+	// Fail safe in case GetIntegerv is not supported
+	GLint maxColorSamples = 0;
+	GLint maxDepthSamples = 0;
+	GLint maxIntegerSamples = 0;
+	glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &maxColorSamples);
+	glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &maxDepthSamples);
+	glGetIntegerv(GL_MAX_INTEGER_SAMPLES, &maxIntegerSamples);
+	if (maxDepthSamples > _maxSamples && maxColorSamples > _maxSamples && maxIntegerSamples > _maxSamples
+		&& (maxDepthSamples == maxColorSamples && maxColorSamples == maxIntegerSamples))
+		_maxSamples = maxDepthSamples;
+
 	// Window size
 	windowHeight	= W_HEIGHT;
 	windowWidth		= W_WIDTH;
@@ -256,8 +267,7 @@ void StoneEngine::displaySun()
 
 void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
 {
-	// std::cout << "Samples available for MSAA: " << maxSamples << std::endl;
-
+	// std::cout << "Samples available for MSAA: " << _maxSamples << std::endl;
 	// Init MSAA framebuffer
 	glGenFramebuffers(1, &fboData.fbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, fboData.fbo);
@@ -1080,6 +1090,7 @@ void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoff
 int StoneEngine::initGLFW()
 {	
 	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
+	// glfwWindowHint(GLFW_SAMPLES, 4);
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{
