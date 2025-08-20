@@ -9,12 +9,48 @@
 #include "Chrono.hpp"
 
 class StoneEngine {
+	public:
+	typedef struct s_PostProcessShader {
+		GLuint vao;
+		GLuint vbo;
+		GLuint program;
+	} PostProcessShader;
+
+	typedef struct s_FBODatas {
+		GLuint fbo;
+		GLuint texture;
+		GLuint depth;
+	} FBODatas;
+
+	typedef enum {
+		GREEDYFIX = 0,
+		GODRAYS = 1,
+		FOG = 2,
+		BRIGHNESSMASK = 3,
+		GODRAYS_BLEND = 4,
+	} ShaderType;
 	private:
 		// Display
 		GLFWwindow* _window;
+		GLint _maxSamples;
 		GLuint shaderProgram;
 		GLuint sunProgram;
 		Camera camera;
+
+		GLuint sunShaderProgram;
+		GLuint sunVAO;
+		GLuint sunVBO;
+
+		GLuint waterShaderProgram;
+		GLuint waterNormalMap;
+
+		std::map<ShaderType, PostProcessShader> postProcessShaders;
+		
+		FBODatas msaaFBO;
+		FBODatas readFBO;
+		FBODatas writeFBO;
+		FBODatas tmpFBO;
+
 		World _world;
 		int windowHeight;
 		int windowWidth;
@@ -23,16 +59,6 @@ class StoneEngine {
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 		float _fov = 80.0f;
-
-		// Framebuffer data
-		GLuint fbo;
-		GLuint fboTexture;
-		GLuint dboTexture;
-		GLuint rectangleVao;
-		GLuint rectangleVbo;
-
-		// Fbo shaders data
-		GLuint fboShaderProgram;
 
 		std::mutex		_isRunningMutex;
 		bool			_isRunning = false;
@@ -107,14 +133,22 @@ class StoneEngine {
 		void	initTextures();
 		void	initRenderShaders();
 		void	initDebugTextBox();
-		void	initFramebuffers();
+		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
 		void	initFboShaders();
 		void	resetFrameBuffers();
-		void	updateFboWindowSize();
+		void	updateFboWindowSize(PostProcessShader &shader);
+		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
 
 		// Runtime methods
 		void calculateFps();
 		void display();
+		void renderOverlayAndUI();
+		void finalizeFrame();
+		void renderTransparentObjects();
+		void renderSceneToFBO();
+		void resolveMsaaToFbo();
+		void prepareRenderPipeline();
+		void displaySun();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
@@ -128,6 +162,22 @@ class StoneEngine {
 		void updateJumping();
 		void updatePlayerDirection();
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
+		void activateTransparentShader();
+	
+		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
+		void postProcessGreedyFix();
+		void postProcessBrightnessMask();
+		void postProcessFog();
+		void postProcessGodRays();
+		void postProcessGodRaysBlend();
+		void sendPostProcessFBOToDispay();
+	
+		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
+
+		vec3 computeSunPosition(int timeValue, const glm::vec3& cameraPos);
+
+		// Multi thread methods
+		//void chunkUpdateWorker();
 
 		// Movement methods
 		void findMoveRotationSpeed();

@@ -1,5 +1,14 @@
 #include "StoneEngine.hpp"
 
+float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {
+	return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
+}
+
+float mapExpo(float x, float in_min, float in_max, float out_min, float out_max) {
+	float t = (x - in_min) / (in_max - in_min); // normalize to [0, 1]
+	return out_min * std::pow(out_max / out_min, t); // exponential interpolation
+}
+
 bool isTransparent(char block)
 {
 	return block == AIR || block == WATER;
@@ -10,6 +19,16 @@ bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 	return isTransparent(neighborBlock) && blockToDisplay != neighborBlock;
 }
 
+void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
+{
+	float texelX = 1.0f / windowWidth;
+	float texelY = 1.0f / windowHeight;
+
+	GLint texelSizeLoc = glGetUniformLocation(shader.program, "texelSize");
+	glUseProgram(shader.program);
+	glUniform2f(texelSizeLoc, texelX, texelY);
+}
+
 StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
 {
 	initData();
@@ -18,9 +37,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _t
 	initTextures();
 	initRenderShaders();
 	initDebugTextBox();
-	initFramebuffers();
 	initFboShaders();
-	updateFboWindowSize();
 	reshapeAction(windowWidth, windowHeight);
 	_world.init(RENDER_DISTANCE);
 	_world.setRunning(&_isRunningMutex, &_isRunning);
@@ -29,9 +46,26 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _t
 StoneEngine::~StoneEngine()
 {
 	glDeleteProgram(shaderProgram);
-	glDeleteFramebuffers(1, &fbo);
-	glDeleteTextures(1, &fboTexture);
-	glDeleteTextures(1, &dboTexture);
+	glDeleteProgram(waterShaderProgram);
+	glDeleteProgram(sunShaderProgram);
+
+	// Clean up post-process shaders
+	for (auto& [type, shader] : postProcessShaders)
+	{
+		glDeleteProgram(shader.program);
+		glDeleteVertexArrays(1, &shader.vao);
+		glDeleteBuffers(1, &shader.vbo);
+	}
+	postProcessShaders.clear();
+
+
+	glDeleteTextures(1, &readFBO.texture);
+	glDeleteTextures(1, &readFBO.depth);
+	glDeleteFramebuffers(1, &readFBO.fbo);
+	glDeleteTextures(1, &writeFBO.texture);
+	glDeleteTextures(1, &writeFBO.depth);
+	glDeleteFramebuffers(1, &writeFBO.fbo);
+	// Terminate GLFW
 	glfwDestroyWindow(_window);
 	glfwTerminate();
 }
@@ -68,6 +102,13 @@ void StoneEngine::initData()
 	swimming			= SWIMMING;
 	jumping				= JUMPING;
 	_jumpCooldown		= std::chrono::steady_clock::now();
+	
+	// Gets the max MSAA (anti aliasing) samples
+	_maxSamples = 0;
+	glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
+
+	if (SCHOOL_SAMPLES)
+		_maxSamples = 8;
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -95,45 +136,6 @@ void StoneEngine::initData()
 	camTopBlock.height = 0;
 }
 
-void StoneEngine::initFramebuffers()
-{
-	// Init framebuffer
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-	// Init framebuffer color texture
-	glGenTextures(1, &fboTexture);
-	glBindTexture(GL_TEXTURE_2D, fboTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTexture, 0);
-
-	// Init render buffer
-	// glGenRenderbuffers(1, &rbo);
-	// glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-	// glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth, windowHeight);
-	// glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-
-	glGenTextures(1, &dboTexture);
-	glBindTexture(GL_TEXTURE_2D, dboTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, windowWidth, windowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// Attach to framebuffer
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dboTexture, 0);
-
-	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "Framebuffer error: " << fboStatus << std::endl;
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
 void StoneEngine::initTextures()
 {
 	glEnable(GL_TEXTURE_2D);
@@ -147,46 +149,215 @@ void StoneEngine::initTextures()
 		{ T_WATER, "textures/water.ppm" },
 		{ T_SNOW, "textures/snow.ppm" },
 	});
+
+	glGenTextures(1, &waterNormalMap);
+	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
+
+	int width, height, nrChannels;
+	unsigned char* data = stbi_load("textures/water_normal.jpg", &width, &height, &nrChannels, 0);
+
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+					GL_RGB, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else {
+		std::cerr << "Failed to load water normal map!" << std::endl;
+	}
+	stbi_image_free(data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& cameraPos)
+{
+	const float pi = 3.14159265f;
+	const float radius = 6000.0f;
+
+	float angle = (timeValue / 86400.0f) * 2.0f * pi;
+
+	float x = radius * cos(angle);
+	float y = -radius * sin(angle);
+	float z = 0.0f;
+
+	return cameraPos + glm::vec3(x, y, z);
+}
+
+void initSunQuad(GLuint &vao, GLuint &vbo)
+{
+	// Quad corners in NDC [-1, 1] (used as offset in clip space)
+	float quadVertices[] = {
+		-1.0f, -1.0f,
+		-1.0f,  1.0f,
+			1.0f, -1.0f,
+			1.0f,  1.0f
+	};
+
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &vbo);
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+	// Attribute 0 = vec2 aPos
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(0);
 }
 
 void StoneEngine::initRenderShaders()
 {
-	shaderProgram = createShaderProgram("shaders/better.vert", "shaders/better.frag");
-	
-	projectionMatrix = perspective(radians(80.0f), (float)W_WIDTH / (float)W_HEIGHT, 0.1f, 1000.0f);
-	vec3 lightColor(1.0f, 1.0f, 1.0f);
-	vec3 sunColor(1.0f, 0.7f, 1.0f);
-	vec3 viewPos = camera.getWorldPosition();
-	sunPosition = {0.0f, 0.0f, 0.0f};
-
-	glUseProgram(shaderProgram);
-	glUniform1i(glGetUniformLocation(shaderProgram, "useTexture"), GL_FALSE);  // Use texture unit 0
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(lightColor));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(viewPos));
-
-	glBindTexture(GL_TEXTURE_2D, _textureManager.getTextureArray());  // Bind the texture
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+	shaderProgram = createShaderProgram("shaders/render/terrain.vert", "shaders/render/terrain.frag");
+	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
+	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
+	initSunQuad(sunVAO, sunVBO);
 }
 
-void StoneEngine::initFboShaders()
+void StoneEngine::displaySun()
 {
-	// Vao and Vbo that covers the whole screen basically a big rectangle of screen size
-	glGenVertexArrays(1, &rectangleVao);
-	glGenBuffers(1, &rectangleVbo);
-	glBindVertexArray(rectangleVao);
-	glBindBuffer(GL_ARRAY_BUFFER, rectangleVbo);
+	if (showTriangleMesh)
+		return ;
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	// glDepthFunc(GL_LESS);
+	vec3 camPos = camera.getWorldPosition();
+	// Compute current sun position based on time
+	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+
+	// Update view matrix
+
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
+
+	mat4 sunViewMatrix = mat4(1.0f);
+	sunViewMatrix = rotate(sunViewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	sunViewMatrix = rotate(sunViewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	sunViewMatrix = translate(sunViewMatrix, vec3(camera.getPosition()));
+
+	glUseProgram(sunShaderProgram);
+
+	// Set uniforms
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(sunViewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
+
+	glm::vec3 sunColor(1.0, 0.6, 0.2); // warm sun
+	float height = clamp((sunPos.y - camPos.y) / 6000, 0.0f, 1.0f);
+	sunColor = mix(sunColor, vec3(1.0f), height);
+	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
+	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
+
+	glEnable(GL_DEPTH_TEST);      // allow occlusion by terrain
+	glDepthMask(GL_FALSE);        // prevent writing depth
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);  // additive glow
+	
+	glBindVertexArray(sunVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glBindVertexArray(0);
+	
+	glDisable(GL_BLEND);
+	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
+{
+	// std::cout << "Samples available for MSAA: " << _maxSamples << std::endl;
+	// Init MSAA framebuffer
+	glGenFramebuffers(1, &fboData.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboData.fbo);
+
+	// Color renderbuffer
+	glGenRenderbuffers(1, &fboData.texture);
+	glBindRenderbuffer(GL_RENDERBUFFER, fboData.texture);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, _maxSamples, GL_RGB8, width, height);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, fboData.texture);
+
+	// Depth renderbuffer
+	glGenRenderbuffers(1, &fboData.depth);
+	glBindRenderbuffer(GL_RENDERBUFFER, fboData.depth);
+	glRenderbufferStorageMultisample(GL_RENDERBUFFER, _maxSamples, GL_DEPTH_COMPONENT24, width, height);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fboData.depth);
+
+	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "Multisampled Framebuffer error: " << fboStatus << std::endl;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void StoneEngine::initFramebuffers(FBODatas &fboData, int width, int height)
+{
+	// Init framebuffer
+	glGenFramebuffers(1, &fboData.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fboData.fbo);
+
+	// Init framebuffer color texture
+	glGenTextures(1, &fboData.texture);
+	glBindTexture(GL_TEXTURE_2D, fboData.texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboData.texture, 0);
+
+	glGenTextures(1, &fboData.depth);
+	glBindTexture(GL_TEXTURE_2D, fboData.depth);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// Attach to framebuffer
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, fboData.depth, 0);
+
+	GLuint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "Framebuffer error: " << fboStatus << std::endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+StoneEngine::PostProcessShader StoneEngine::createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath)
+{
+	glGenVertexArrays(1, &shader.vao);
+	glGenBuffers(1, &shader.vbo);
+	glBindVertexArray(shader.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, shader.vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(rectangleVertices), &rectangleVertices, GL_STATIC_DRAW);
+
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
 
-	fboShaderProgram = createShaderProgram("shaders/fbo.vert", "shaders/fbo.frag");
-	glUseProgram(fboShaderProgram);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
+
+	// Load shader
+	shader.program = createShaderProgram(vertPath.c_str(), fragPath.c_str());
+	glUseProgram(shader.program);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+	updateFboWindowSize(shader);
+	return shader;
+}
+
+void StoneEngine::initFboShaders()
+{
+	initFramebuffers(readFBO, windowWidth, windowHeight);
+	initFramebuffers(writeFBO, windowWidth, windowHeight);
+	initFramebuffers(tmpFBO, windowWidth, windowHeight);
+	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
+	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
+	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
+	createPostProcessShader(postProcessShaders[BRIGHNESSMASK], "shaders/postProcess/postProcess.vert", "shaders/postProcess/brightness.frag");
+	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/godray.frag");
+	createPostProcessShader(postProcessShaders[GODRAYS_BLEND], "shaders/postProcess/postProcess.vert", "shaders/postProcess/godray_blend.frag");
 }
 
 void StoneEngine::initDebugTextBox()
@@ -250,6 +421,7 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -260,96 +432,355 @@ void StoneEngine::activateRenderShader()
 	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
 }
 
-void StoneEngine::activateFboShader()
+void StoneEngine::activateTransparentShader()
 {
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	mat4 modelMatrix = mat4(1.0f);
+	
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
+
+	mat4 viewMatrix = mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+
+	vec3 viewPos = camera.getWorldPosition();
+
+	glUseProgram(waterShaderProgram);
+
+	// Uniforms for rendering
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
+	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), viewPos.y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+
+	// TEXTURES
+	// Bind screen color texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
+
+	// Bind depth texture
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
+
+	// Bind normal map
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
+
+	// Blending and depth settings
+	glDepthMask(GL_FALSE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	glFrontFace(GL_CCW);
+}
+
+void StoneEngine::resolveMsaaToFbo()
+{
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);    // Source: MSAA
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO.fbo);  // Destination: regular FBO
+
+	// Blit COLOR
+	glBlitFramebuffer(
+		0, 0, windowWidth, windowHeight,
+		0, 0, windowWidth, windowHeight,
+		GL_COLOR_BUFFER_BIT,
+		GL_NEAREST // or GL_LINEAR if you want smooth scaling
+	);
+
+	// Resolve DEPTH
+	glBlitFramebuffer(
+		0, 0, windowWidth, windowHeight,
+		0, 0, windowWidth, windowHeight,
+		GL_DEPTH_BUFFER_BIT,
+		GL_NEAREST
+	);
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glUseProgram(fboShaderProgram);
-	glBindVertexArray(rectangleVao);
+}
+
+void StoneEngine::display() {
+	prepareRenderPipeline();
+
+	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
+	renderSceneToFBO();
+	resolveMsaaToFbo();
+
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	postProcessGreedyFix();
+	screenshotFBOBuffer(writeFBO, readFBO);
+	// screenshotFBOBuffer(writeFBO, tmpFBO);
+	// postProcessBrightnessMask();
+	// screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGodRays();
+	// screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGodRaysBlend();
+	// screenshotFBOBuffer(writeFBO, readFBO);
+
+	// displaySun();
+	// screenshotFBOBuffer(writeFBO, readFBO);
+	renderTransparentObjects();
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	postProcessFog();
+	displaySun(); // Display sun because FOG erased it
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	sendPostProcessFBOToDispay();
+	renderOverlayAndUI();
+	finalizeFrame();
+}
+
+void StoneEngine::postProcessFog()
+{
+	if (showTriangleMesh)
+		return ;
+	PostProcessShader& shader = postProcessShaders[FOG];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
 	glDisable(GL_DEPTH_TEST);
 
+	// Bind screen texture (color)
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, fboTexture);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "screenTexture"), 0);
-	
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, dboTexture);
-	glUniform1i(glGetUniformLocation(fboShaderProgram, "depthTexture"), 1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+	// Send render distance for adaptative fog
+	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
+	glUniform1f(loc, RENDER_DISTANCE);
+
+	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-void StoneEngine::triangleMeshToggle()
+void StoneEngine::postProcessGreedyFix()
 {
 	if (showTriangleMesh)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	else
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		return ;
+
+	PostProcessShader& shader = postProcessShaders[GREEDYFIX];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_ALWAYS);
+
+	// Bind screen texture (color)
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	// Bind depth texture
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+	// Set uniforms (after glUseProgram!)
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
+	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDepthFunc(GL_LESS);
 }
 
-void StoneEngine::display()
+void StoneEngine::postProcessGodRaysBlend()
 {
-	// Skip FBO, draw to screen (wireframe dependant)
-    if (showTriangleMesh)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); 
-    else
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	if (showTriangleMesh)
+		return;
 
-	// Clear depth and color buffers
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glMatrixMode(GL_MODELVIEW);
+	PostProcessShader& shader = postProcessShaders[GODRAYS_BLEND];
 
-    // Render world ("better.vert/frag" shaders active)
-    activateRenderShader();
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
 
-	// Wireframe mode
-    triangleMeshToggle();
+	// Bind scene texture to unit 0
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tmpFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "mainSceneTex"), 0);
 
-	// Swap draw data with ready data
+	// Bind god ray texture to unit 1
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "godRayTex"), 1);
+
+	glClear(GL_COLOR_BUFFER_BIT);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDepthFunc(GL_LESS);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::postProcessGodRays()
+{
+	if (showTriangleMesh)
+		return;
+
+	PostProcessShader& shader = postProcessShaders[GODRAYS];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+
+	// Bind occlusion texture to unit 0
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	// Pass screen size
+	glUniform2f(glGetUniformLocation(shader.program, "screenSize"),
+				static_cast<float>(windowWidth),
+				static_cast<float>(windowHeight));
+
+	vec3 camPos = camera.getWorldPosition();
+	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+
+	// Update view matrix
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+
+	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
+
+	// Set uniforms
+	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shader.program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniform3fv(glGetUniformLocation(shader.program, "sunPos"), 1, glm::value_ptr(sunPos));
+
+	glClear(GL_COLOR_BUFFER_BIT);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::postProcessBrightnessMask()
+{
+	if (showTriangleMesh)
+		return ;
+
+	PostProcessShader& shader = postProcessShaders[BRIGHNESSMASK];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+
+	// Bind screen texture (color)
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	// Bind depth texture
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+
+	float near = mapExpo(_fov, 1.0f, 90.0f, 10.0f, 0.1f);
+	float far = 5000.0f;
+	glUniform1f(glGetUniformLocation(shader.program, "near"), near);
+	glUniform1f(glGetUniformLocation(shader.program, "far"), far);
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::prepareRenderPipeline() {
+	if (showTriangleMesh) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	} else {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+	}
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	glDepthMask(GL_TRUE);
+	glMatrixMode(GL_MODELVIEW);
+}
+
+void StoneEngine::renderSceneToFBO() {
+	activateRenderShader();
 	_world.updateDrawData();
+	drawnTriangles = _world.display();
+}
 
-	// One draw call solid blocks
-    drawnTriangles = _world.display();
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDisable(GL_CULL_FACE);
+void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
+	if (showTriangleMesh)
+		return ;
+	// Copy from current write to current read
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, source.fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, destination.fbo);
+	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+					  0, 0, windowWidth, windowHeight,
+					  GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+}
 
-    // Skip post-process only if not in wireframe
-    if (!showTriangleMesh)
-	{
-		// Post processing for T-junction holes ("fbo.vert/frag" shaders active )
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        activateFboShader();
+void StoneEngine::sendPostProcessFBOToDispay() {
+	if (showTriangleMesh)
+		return ;
+	// std::swap(readFBO, writeFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+						0, 0, windowWidth, windowHeight,
+						GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+}
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBlitFramebuffer(0, 0, windowWidth, windowHeight,
-                        0, 0, windowWidth, windowHeight,
-                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-		// Deactivate post processing for water
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
+void StoneEngine::renderTransparentObjects() {
+	activateTransparentShader();
+	drawnTriangles += _world.displayTransparent();
+}
 
-    // Transparency settings & UI
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
-	
-    // Render transparent world ("better.vert/frag" shaders active)
-    activateRenderShader();
-
-	// One draw call transparent blocks
-    drawnTriangles += _world.displayTransparent();
+void StoneEngine::renderOverlayAndUI() {
+	activateRenderShader();  // For UI rendering
 	glDisable(GL_CULL_FACE);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	// Deactivating lines for debug console
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    if (showDebugInfo)
-        debugBox.render();
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    calculateFps();
-    glfwSwapBuffers(_window);
+	if (showDebugInfo)
+		debugBox.render();
+}
+
+void StoneEngine::finalizeFrame() {
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+	calculateFps();
+	glfwSwapBuffers(_window);
 }
 
 void StoneEngine::loadFirstChunks()
@@ -570,16 +1001,16 @@ void StoneEngine::updateGameTick()
 	{
 		glUseProgram(shaderProgram);
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
-		glUseProgram(fboShaderProgram);
-		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), timeValue);
+		glUseProgram(postProcessShaders[GREEDYFIX].program);
+		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), timeValue);
 	}
 	else
 	{
 		// Always daytime
 		glUseProgram(shaderProgram);
 		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
-		glUseProgram(fboShaderProgram);
-		glUniform1i(glGetUniformLocation(fboShaderProgram, "timeValue"), 58500);
+		glUseProgram(postProcessShaders[GREEDYFIX].program);
+		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 58500);
 	}
 	// Update gravity and falling values
 	if (!swimming)
@@ -601,34 +1032,6 @@ void StoneEngine::updateGameTick()
 			fallSpeed += 0.75;
 		}
 	}
-}
-
-void StoneEngine::update()
-{
-	// Check for delta and apply to move and rotation speeds
-	findMoveRotationSpeed();
-
-	// Get current time
-	now = std::chrono::steady_clock::now();
-	delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
-	start = now; // Reset start time for next frame
-
-	// Check if it's time to update the game tick (20 times per second)
-	static auto lastGameTick = std::chrono::steady_clock::now();
-	if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastGameTick).count() >= (1000 / 20))
-	{
-		updateGameTick();
-		lastGameTick = now; // Reset game tick timer
-	}
-
-	// Update player states
-	if (gravity)
-		updatePlayerStates();
-
-	// Update player position and orientation
-	updatePlayerDirection();
-	updateMovement();
-	display();
 }
 
 void StoneEngine::updateChunkWorker()
@@ -659,34 +1062,60 @@ void StoneEngine::updateChunkWorker()
 	}
 }
 
-void StoneEngine::updateFboWindowSize()
+void StoneEngine::update()
 {
-	float texelX = 1.0f / windowWidth;
-	float texelY = 1.0f / windowHeight;
+	// Check for delta and apply to move and rotation speeds
+	findMoveRotationSpeed();
 
-	GLint texelSizeLoc = glGetUniformLocation(fboShaderProgram, "texelSize");
-	glUseProgram(fboShaderProgram);
-	glUniform2f(texelSizeLoc, texelX, texelY);
+	// Get current time
+	end = std::chrono::steady_clock::now();
+	now = end;
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	start = end; // Reset start time for next frame
+
+	// Check if it's time to update the game tick (20 times per second)
+	static auto lastGameTick = std::chrono::steady_clock::now();
+	if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
+	{
+		updateGameTick();
+		lastGameTick = end; // Reset game tick timer
+	}
+
+	// Update player states
+	if (gravity)
+		updatePlayerStates();
+
+	// Update player position and orientation
+	updatePlayerDirection();
+	updateMovement();
+	display();
 }
 
 void StoneEngine::resetFrameBuffers()
 {
-	// Delete old framebuffer and attachments
-	glDeleteFramebuffers(1, &fbo);
-	glDeleteTextures(1, &fboTexture);
-	glDeleteTextures(1, &dboTexture);
-	initFramebuffers();
-	updateFboWindowSize();
+	// Read/Write/Tmp framebuffers memory free
+	glDeleteFramebuffers(1, &readFBO.fbo);
+	glDeleteTextures(1, &readFBO.texture);
+	glDeleteTextures(1, &readFBO.depth);
+	glDeleteFramebuffers(1, &tmpFBO.fbo);
+	glDeleteTextures(1, &tmpFBO.texture);
+	glDeleteTextures(1, &tmpFBO.depth);
+	glDeleteFramebuffers(1, &writeFBO.fbo);
+	glDeleteTextures(1, &writeFBO.texture);
+	glDeleteTextures(1, &writeFBO.depth);
+
+	// Msaa renderbuffers and framebuffer memory free
+	glDeleteFramebuffers(1, &msaaFBO.fbo);
+	glDeleteRenderbuffers(1, &msaaFBO.texture);
+	glDeleteRenderbuffers(1, &msaaFBO.depth);
+
+	// Init second time
+	initFramebuffers(readFBO, windowWidth, windowHeight);
+	initFramebuffers(tmpFBO, windowWidth, windowHeight);
+	initFramebuffers(writeFBO, windowWidth, windowHeight);
+	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 }
 
-float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {
-    return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
-}
-
-float mapExpo(float x, float in_min, float in_max, float out_min, float out_max) {
-    float t = (x - in_min) / (in_max - in_min); // normalize to [0, 1]
-    return out_min * std::pow(out_max / out_min, t); // exponential interpolation
-}
 
 void StoneEngine::reshapeAction(int width, int height)
 {
@@ -791,8 +1220,8 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 
 void StoneEngine::scrollAction(double yoffset)
 {
-    _fov -= (float)yoffset;
-    _fov = std::clamp(_fov, 1.0f, 90.0f);
+	_fov -= (float)yoffset;
+	_fov = std::clamp(_fov, 1.0f, 90.0f);
 	reshapeAction(windowWidth, windowHeight);
 }
 
@@ -807,6 +1236,7 @@ void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoff
 int StoneEngine::initGLFW()
 {	
 	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
+	// glfwWindowHint(GLFW_SAMPLES, 4);
 	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
 	if (!_window)
 	{

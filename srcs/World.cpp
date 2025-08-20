@@ -248,7 +248,7 @@ void World::loadFirstChunks(ivec2 &chunkPos)
 	// _chronoHelper.printChrono(1);
 	std::vector<std::future<void>> retLst;
 	_currentRender = 0;
-    for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
+	for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
 		std::future<void> retBot;
@@ -275,7 +275,8 @@ void World::loadFirstChunks(ivec2 &chunkPos)
 		if (hasMoved(chunkPos))
 			break;
 		_currentRender = render + 2;
-    }
+	}
+	// updateFillData();
 
 	for (std::future<void> &ret : retLst)
 	{
@@ -471,7 +472,7 @@ int World::display()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
 	glBindVertexArray(_vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-
+	
 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _drawData->indirectBufferData.size(), 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
@@ -480,6 +481,8 @@ int World::display()
 
 int World::displayTransparent()
 {
+	// _drawDataMutex.unlock();
+	// return 0;
 	if (!_transparentDrawData)
 	{
 		_drawDataMutex.unlock();

@@ -8,6 +8,7 @@
 #include <vector>
 #include "Camera.hpp"
 #include "stb_truetype.hpp"
+#include "stb_image.h"
 
 struct direction_pair
 {

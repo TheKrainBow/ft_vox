@@ -15,7 +15,7 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 11
+# define RENDER_DISTANCE 61
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define LOD_THRESHOLD 32
@@ -29,6 +29,8 @@
 
 # define OCEAN_HEIGHT 111
 # define MOUNT_HEIGHT 260
+
+# define SCHOOL_SAMPLES 1
 
 # define AIR 0
 # define STONE 'S'
