@@ -144,7 +144,6 @@ void StoneEngine::initTextures()
 	glGenTextures(1, &waterNormalMap);
 	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
 
-	// Load your image here (example uses stb_image)
 	int width, height, nrChannels;
 	unsigned char* data = stbi_load("textures/water_normal.jpg", &width, &height, &nrChannels, 0);
 
@@ -511,21 +510,21 @@ void StoneEngine::display() {
 
 	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
-	screenshotFBOBuffer(writeFBO, tmpFBO);
-	postProcessBrightnessMask();
-	screenshotFBOBuffer(writeFBO, readFBO);
-	postProcessGodRays();
-	screenshotFBOBuffer(writeFBO, readFBO);
-	postProcessGodRaysBlend();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	// screenshotFBOBuffer(writeFBO, tmpFBO);
+	// postProcessBrightnessMask();
+	// screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGodRays();
+	// screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGodRaysBlend();
+	// screenshotFBOBuffer(writeFBO, readFBO);
 
-	displaySun();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	// displaySun();
+	// screenshotFBOBuffer(writeFBO, readFBO);
 	renderTransparentObjects();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
-	// postProcessFog();
-	// displaySun(); // Redisplay sun because FOG erased it
+	postProcessFog();
+	displaySun(); // Display sun because FOG erased it
 	screenshotFBOBuffer(writeFBO, readFBO);
 
 	sendPostProcessFBOToDispay();
@@ -550,7 +549,7 @@ void StoneEngine::postProcessFog()
 	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
-	// Bind depth texture (you may need to track this separately or store it in the struct)
+	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
@@ -578,7 +577,7 @@ void StoneEngine::postProcessGreedyFix()
 	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
-	// Bind depth texture (you may need to track this separately or store it in the struct)
+	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
@@ -608,12 +607,12 @@ void StoneEngine::postProcessGodRaysBlend()
 
 	// Bind scene texture to unit 0
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tmpFBO.texture); // ✅ your final scene (before rays)
+	glBindTexture(GL_TEXTURE_2D, tmpFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "mainSceneTex"), 0);
 
 	// Bind god ray texture to unit 1
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO.texture); // ✅ output from radial blur
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "godRayTex"), 1);
 
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -638,7 +637,7 @@ void StoneEngine::postProcessGodRays()
 
 	// Bind occlusion texture to unit 0
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, readFBO.texture); // <- your godray occlusion mask
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
 	// Pass screen size
@@ -687,7 +686,7 @@ void StoneEngine::postProcessBrightnessMask()
 	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
-	// Bind depth texture (you may need to track this separately or store it in the struct)
+	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);

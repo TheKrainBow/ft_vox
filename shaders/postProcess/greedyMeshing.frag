@@ -11,7 +11,6 @@ uniform vec3 viewPos;
 
 uniform vec2 texelSize;
 
-// tweak this based on how far your skybox is
 const float depthSkyThreshold = 1;
 
 void main()
