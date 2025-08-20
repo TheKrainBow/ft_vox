@@ -83,14 +83,14 @@ fvec2 *Camera::getAnglesPtr()
 }
 
 vec3 Camera::getDirection() const {
-    float pitch = radians(angle.y); // vertical
-    float yaw   = radians(angle.x); // horizontal
+	float pitch = radians(angle.y); // vertical
+	float yaw   = radians(angle.x); // horizontal
 
-    vec3 dir;
-    dir.z = -cos(pitch) * cos(yaw);
-    dir.y = sin(pitch);
-    dir.x = -cos(pitch) * sin(yaw);
-    return normalize(dir);
+	vec3 dir;
+	dir.z = -cos(pitch) * cos(yaw);
+	dir.y = sin(pitch);
+	dir.x = -cos(pitch) * sin(yaw);
+	return normalize(dir);
 }
 
 void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
@@ -122,4 +122,18 @@ void Camera::updateMousePos(int x, int y)
 {
 	mousePos.x = static_cast<float>(x);
 	mousePos.y = static_cast<float>(y);
+}
+
+glm::vec3 Camera::getForward() const
+{
+	// Convert angles from degrees to radians
+	float pitch = glm::radians(angle.y);
+	float yaw   = glm::radians(angle.x);
+
+	glm::vec3 forward;
+	forward.x = cos(pitch) * sin(yaw);
+	forward.y = -sin(pitch);
+	forward.z = -cos(pitch) * cos(yaw);
+
+	return glm::normalize(forward);
 }

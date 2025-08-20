@@ -34,6 +34,7 @@ class Camera {
 		e_direction *getDirectionPtr();
 		void rotate(float xAngle, float yAngle, double rotationSpeed);
 		void invert();
+		glm::vec3 getForward() const;
 
 	private:
 		vec3 position;

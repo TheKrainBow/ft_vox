@@ -102,16 +102,8 @@ void StoneEngine::initData()
 	_maxSamples = 0;
 	glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
 
-	// Fail safe in case GetIntegerv is not supported
-	GLint maxColorSamples = 0;
-	GLint maxDepthSamples = 0;
-	GLint maxIntegerSamples = 0;
-	glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &maxColorSamples);
-	glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &maxDepthSamples);
-	glGetIntegerv(GL_MAX_INTEGER_SAMPLES, &maxIntegerSamples);
-	if (maxDepthSamples > _maxSamples && maxColorSamples > _maxSamples && maxIntegerSamples > _maxSamples
-		&& (maxDepthSamples == maxColorSamples && maxColorSamples == maxIntegerSamples))
-		_maxSamples = maxDepthSamples;
+	if (SCHOOL_SAMPLES)
+		_maxSamples = 8;
 
 	// Window size
 	windowHeight	= W_HEIGHT;
@@ -173,42 +165,40 @@ void StoneEngine::initTextures()
 
 glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& cameraPos)
 {
-    const float pi = 3.14159265f;
-    const float radius = 6000.0f;
+	const float pi = 3.14159265f;
+	const float radius = 6000.0f;
 
-    float angle = (timeValue / 86400.0f) * 2.0f * pi;
+	float angle = (timeValue / 86400.0f) * 2.0f * pi;
 
-    // Orbit above the player (east-to-west arc)
-    float x = radius * cos(angle);
-    float y = -radius * sin(angle);
-    float z = 0.0f;
+	float x = radius * cos(angle);
+	float y = -radius * sin(angle);
+	float z = 0.0f;
 
-    // Center the sun arc around the player
-    return cameraPos + glm::vec3(x, y, z);
+	return cameraPos + glm::vec3(x, y, z);
 }
 
 void initSunQuad(GLuint &vao, GLuint &vbo)
 {
-    // Quad corners in NDC [-1, 1] (used as offset in clip space)
-    float quadVertices[] = {
-        -1.0f, -1.0f,
-        -1.0f,  1.0f,
-         1.0f, -1.0f,
-         1.0f,  1.0f
-    };
+	// Quad corners in NDC [-1, 1] (used as offset in clip space)
+	float quadVertices[] = {
+		-1.0f, -1.0f,
+		-1.0f,  1.0f,
+			1.0f, -1.0f,
+			1.0f,  1.0f
+	};
 
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &vbo);
 
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
 
-    // Attribute 0 = vec2 aPos
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
+	// Attribute 0 = vec2 aPos
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
-    glBindVertexArray(0);
+	glBindVertexArray(0);
 }
 
 void StoneEngine::initRenderShaders()
@@ -230,19 +220,20 @@ void StoneEngine::displaySun()
 	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
 
 	// Update view matrix
-	glm::mat4 viewMatrix = glm::mat4(1.0f);
-	float radX = camera.getAngles().x * (M_PI / 180.0f);
-	float radY = camera.getAngles().y * (M_PI / 180.0f);
 
-	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
-	// glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), camera.getPosition());
-	// Use sun shader
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
+
+	mat4 sunViewMatrix = mat4(1.0f);
+	sunViewMatrix = rotate(sunViewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	sunViewMatrix = rotate(sunViewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	sunViewMatrix = translate(sunViewMatrix, vec3(camera.getPosition()));
+
 	glUseProgram(sunShaderProgram);
 
 	// Set uniforms
-	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(sunViewMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
 
@@ -487,26 +478,26 @@ void StoneEngine::activateTransparentShader()
 
 void StoneEngine::resolveMsaaToFbo()
 {
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);    // Source: MSAA
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO.fbo);  // Destination: regular FBO
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);    // Source: MSAA
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO.fbo);  // Destination: regular FBO
 
-    // Blit COLOR
-    glBlitFramebuffer(
-        0, 0, windowWidth, windowHeight,
-        0, 0, windowWidth, windowHeight,
-        GL_COLOR_BUFFER_BIT,
-        GL_NEAREST // or GL_LINEAR if you want smooth scaling
-    );
+	// Blit COLOR
+	glBlitFramebuffer(
+		0, 0, windowWidth, windowHeight,
+		0, 0, windowWidth, windowHeight,
+		GL_COLOR_BUFFER_BIT,
+		GL_NEAREST // or GL_LINEAR if you want smooth scaling
+	);
 
-    // Resolve DEPTH
-    glBlitFramebuffer(
-        0, 0, windowWidth, windowHeight,
-        0, 0, windowWidth, windowHeight,
-        GL_DEPTH_BUFFER_BIT,
-        GL_NEAREST
-    );
+	// Resolve DEPTH
+	glBlitFramebuffer(
+		0, 0, windowWidth, windowHeight,
+		0, 0, windowWidth, windowHeight,
+		GL_DEPTH_BUFFER_BIT,
+		GL_NEAREST
+	);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void StoneEngine::display() {
@@ -652,8 +643,8 @@ void StoneEngine::postProcessGodRays()
 
 	// Pass screen size
 	glUniform2f(glGetUniformLocation(shader.program, "screenSize"),
-	            static_cast<float>(windowWidth),
-	            static_cast<float>(windowHeight));
+				static_cast<float>(windowWidth),
+				static_cast<float>(windowHeight));
 
 	vec3 camPos = camera.getWorldPosition();
 	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
@@ -759,25 +750,25 @@ void StoneEngine::sendPostProcessFBOToDispay() {
 }
 
 void StoneEngine::renderTransparentObjects() {
-    activateTransparentShader();
-    drawnTriangles += _world.displayTransparent();
+	activateTransparentShader();
+	drawnTriangles += _world.displayTransparent();
 }
 
 void StoneEngine::renderOverlayAndUI() {
-    activateRenderShader();  // For UI rendering
-    glDisable(GL_CULL_FACE);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	activateRenderShader();  // For UI rendering
+	glDisable(GL_CULL_FACE);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    if (showDebugInfo)
-        debugBox.render();
+	if (showDebugInfo)
+		debugBox.render();
 }
 
 void StoneEngine::finalizeFrame() {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-    calculateFps();
-    glfwSwapBuffers(_window);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+	calculateFps();
+	glfwSwapBuffers(_window);
 }
 
 void StoneEngine::loadFirstChunks()
@@ -924,25 +915,25 @@ void StoneEngine::updateGameTick()
 
 void StoneEngine::update()
 {
-    // Check for delta and apply to move and rotation speeds
-    findMoveRotationSpeed();
+	// Check for delta and apply to move and rotation speeds
+	findMoveRotationSpeed();
 
-    // Get current time
-    end = std::chrono::steady_clock::now();
-    delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    start = end; // Reset start time for next frame
+	// Get current time
+	end = std::chrono::steady_clock::now();
+	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	start = end; // Reset start time for next frame
 
-    // Check if it's time to update the game tick (20 times per second)
-    static auto lastGameTick = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 60))
-    {
-        updateGameTick();
-        lastGameTick = end; // Reset game tick timer
-    }
+	// Check if it's time to update the game tick (20 times per second)
+	static auto lastGameTick = std::chrono::steady_clock::now();
+	if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 60))
+	{
+		updateGameTick();
+		lastGameTick = end; // Reset game tick timer
+	}
 
-    // Update player position and orientation
-    updateMovement();
-    display();
+	// Update player position and orientation
+	updateMovement();
+	display();
 }
 
 void StoneEngine::resetFrameBuffers()
@@ -1074,8 +1065,8 @@ void StoneEngine::mouseCallback(GLFWwindow* window, double x, double y)
 
 void StoneEngine::scrollAction(double yoffset)
 {
-    _fov -= (float)yoffset;
-    _fov = std::clamp(_fov, 1.0f, 90.0f);
+	_fov -= (float)yoffset;
+	_fov = std::clamp(_fov, 1.0f, 90.0f);
 	reshapeAction(windowWidth, windowHeight);
 }
 

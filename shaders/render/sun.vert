@@ -10,15 +10,16 @@ out vec2 UV;
 
 void main()
 {
-    // Remove camera rotation from view matrix
-    mat4 rotView = mat4(mat3(view)); // strip translation
-    vec4 billboardCenter = projection * rotView * vec4(sunPosition, 1.0);
+	// World → View → Clip
+	vec4 viewPos  = view * vec4(sunPosition, 1.0);
+	vec4 clipPos  = projection * viewPos;
 
-    // Scale billboard size in screen space
-    float size = 0.15; // screen size
-    vec2 offset = aPos * size * billboardCenter.w;
+	// Billboard in NDC (always aligned to screen, independent of camera rotation)
+	float size = 0.15;
+	vec2 offset = aPos * size;
 
-    // Final projected position with offset in clip space
-    gl_Position = billboardCenter + vec4(offset, 0.0, 0.0);
-    UV = aPos * 0.5 + 0.5;
+	// Apply offset directly in clip space (ignores camera rotation)
+	gl_Position = clipPos + vec4(offset * clipPos.w, 0.0, 0.0);
+
+	UV = aPos * 0.5 + 0.5;
 }

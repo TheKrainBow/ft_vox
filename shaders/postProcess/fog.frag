@@ -13,9 +13,9 @@ void main()
 	vec3 finalColor = currentColor;
 	float finalDepth = currentDepth;
 
-    vec3 fogColor = vec3(0.53f, 0.81f, 0.92f); // your fog color
-    float fogStart = 1000.0;
-    float fogEnd   = 3000.0;
+	vec3 fogColor = vec3(0.53f, 0.81f, 0.92f); // your fog color
+	float fogStart = 1000.0;
+	float fogEnd   = 3000.0;
 	float near = 0.1f;
 	float far = 5000.0f;
 

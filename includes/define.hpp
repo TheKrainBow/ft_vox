@@ -24,6 +24,8 @@
 # define OCEAN_HEIGHT 111
 # define MOUNT_HEIGHT 260
 
+# define SCHOOL_SAMPLES 1
+
 # define AIR 0
 # define STONE 'S'
 # define DIRT 'D'

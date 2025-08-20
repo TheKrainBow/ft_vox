@@ -210,7 +210,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 	chronoHelper.startChrono(1, "Build chunks + loaded faces");
 	std::vector<std::future<void>> retLst;
 	_currentRender = 0;
-    for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
+	for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
 	{
 		std::future<void> retTop;
 		std::future<void> retBot;
@@ -237,7 +237,7 @@ void World::loadFirstChunks(ivec2 chunkPos)
 		if (hasMoved(chunkPos))
 			break;
 		_currentRender = render + 2;
-    }
+	}
 	// updateFillData();
 
 	for (std::future<void> &ret : retLst)

@@ -32,7 +32,7 @@ void Chunk::loadBlocks()
 		subChunk->loadBiome(0);
 		_memorySize += subChunk->getMemorySize();
 	}
-    _isInit = true;
+	_isInit = true;
 	_memorySize += sizeof(*this);
 }
 
