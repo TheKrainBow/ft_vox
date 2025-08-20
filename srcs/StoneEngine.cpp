@@ -554,6 +554,10 @@ void StoneEngine::postProcessFog()
 	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
+	// Send render distance for adaptative fog
+	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
+	glUniform1f(loc, RENDER_DISTANCE);
+
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
