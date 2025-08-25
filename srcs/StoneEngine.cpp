@@ -978,7 +978,7 @@ void StoneEngine::updateMovement()
 		if (moveY.y != 0.0f) tryMoveStepwise(moveY, stepSize);
 	}
 	else
-		tryMoveStepwise(moveVec, 0.5f);
+		camera.move(moveVec);
 
 	vec3 newPos = camera.getWorldPosition();
 	if (newPos != oldPos)
