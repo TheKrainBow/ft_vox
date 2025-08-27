@@ -10,6 +10,7 @@
 # define FALLING false
 # define SWIMMING false
 # define JUMPING false
+# define UNDERWATER false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 

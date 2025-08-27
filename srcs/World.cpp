@@ -183,11 +183,18 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 	}
 	else
 	{
+		// Generate 2D height map
 		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
+
+		// Create chunks and subchunks and add the chunk to the unordered map
 		chunk = new Chunk(pos, pMap, *this, _textureManager, resolution);
 		_chunks[pos] = chunk;
 		_chunksMutex.unlock();
+
+		// Load blocks in the subchunks depending on the map
 		chunk->loadBlocks();
+
+		// Fetch for neighbor chunks
 		chunk->getNeighbors();
 		_memorySize += chunk->getMemorySize();
 		_chunksListMutex.lock();

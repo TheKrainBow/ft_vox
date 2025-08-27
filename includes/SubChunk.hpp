@@ -6,6 +6,7 @@
 #include "define.hpp"
 #include "World.hpp"
 #include "Chrono.hpp"
+#include "CaveGenerator.hpp"
 
 class ator;
 class World;
@@ -47,6 +48,8 @@ class SubChunk
 		TextureManager				&_textManager;
 		bool						_needUpdate;
 		bool						_needTransparentUpdate;
+
+		CaveGenerator				_caveGen;
 	public:
 		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();

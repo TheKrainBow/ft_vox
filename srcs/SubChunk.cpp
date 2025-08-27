@@ -1,6 +1,7 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution) : _world(world), _chunk(chunk), _textManager(textManager)
+SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution)
+: _world(world), _chunk(chunk), _textManager(textManager), _caveGen(1000, 0.01f, 0.05f, 0.5f, 0.6f, 42)
 {
 	_position = position;
 	_resolution = resolution;
@@ -18,6 +19,7 @@ size_t SubChunk::getMemorySize() {
 void SubChunk::loadHeight(int prevResolution)
 {
 	(void)prevResolution;
+
 	for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 	{
 		for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
@@ -26,20 +28,25 @@ void SubChunk::loadHeight(int prevResolution)
 			for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 			{
 				int globalY = y + _position.y * CHUNK_SIZE;
-				setBlock(x, y, z, (globalY <= maxHeight) ? STONE : AIR);
+
+				// Default: solid below surface
+				bool solid = (globalY <= maxHeight);
+
+				if (solid) {
+					// Apply cave noise to carve out air
+					if (!_caveGen.isAir(x + _position.x * CHUNK_SIZE,
+										globalY,
+										z + _position.z * CHUNK_SIZE)) {
+						setBlock(x, y, z, AIR);
+					} else {
+						setBlock(x, y, z, STONE);
+					}
+				} else {
+					setBlock(x, y, z, AIR);
+				}
 			}
 		}
 	}
-}
-
-ivec2 SubChunk::getBorderWarping(double x, double z, NoiseGenerator &noise_gen) const
-{
-	double noiseX = noise_gen.noise(x, z);
-	double noiseY = noise_gen.noise(z, x);
-	ivec2 offset;
-	offset.x = noiseX * 15.0;
-	offset.y = noiseY * 15.0;
-	return offset;
 }
 
 void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)

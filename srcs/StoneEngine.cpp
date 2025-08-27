@@ -101,6 +101,7 @@ void StoneEngine::initData()
 	falling				= FALLING;
 	swimming			= SWIMMING;
 	jumping				= JUMPING;
+	isUnderWater		= UNDERWATER;
 	_jumpCooldown		= std::chrono::steady_clock::now();
 	
 	// Gets the max MSAA (anti aliasing) samples
@@ -456,7 +457,7 @@ void StoneEngine::activateTransparentShader()
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
 	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
 	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), viewPos.y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), isUnderWater);
 
 	// TEXTURES
 	// Bind screen color texture
@@ -596,7 +597,7 @@ void StoneEngine::postProcessGreedyFix()
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
 	// Set uniforms (after glUseProgram!)
-	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), camera.getWorldPosition().y <= OCEAN_HEIGHT + 1 ? 1 : 0);
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
 	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
 	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
 
@@ -884,10 +885,11 @@ void StoneEngine::updatePlayerStates()
 	BlockType camBodyBlockLegs = AIR;
 	BlockType camBodyBlockTorso = AIR;
 
-	camTopBlock = _world.findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	//camTopBlock = _world.findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
 	camStandingBlock = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 3, worldPos.z});
 	camBodyBlockLegs = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 2, worldPos.z});
 	camBodyBlockTorso = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 1, worldPos.z});
+	isUnderWater = camBodyBlockTorso == WATER;
 	int blockHeight = camTopBlock.height;
 	BlockType inWater = (camStandingBlock == WATER
 						|| camBodyBlockLegs == WATER
@@ -1084,6 +1086,13 @@ void StoneEngine::update()
 	// Update player states
 	if (gravity)
 		updatePlayerStates();
+	else
+	{
+		vec3 worldPos = camera.getWorldPosition();
+		ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
+		BlockType camBodyBlockTorso = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 1, worldPos.z});
+		isUnderWater = camBodyBlockTorso == WATER;
+	}
 
 	// Update player position and orientation
 	updatePlayerDirection();
