@@ -527,8 +527,8 @@ void StoneEngine::display() {
 	// postProcessGodRaysBlend();
 	// screenshotFBOBuffer(writeFBO, readFBO);
 
-	// displaySun();
-	// screenshotFBOBuffer(writeFBO, readFBO);
+	displaySun();
+	screenshotFBOBuffer(writeFBO, readFBO);
 	renderTransparentObjects();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
