@@ -34,6 +34,18 @@ TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
 	return topBlock;
 }
 
+TopBlock World::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos) {
+	std::lock_guard<std::mutex> lock(_chunksMutex);
+	Chunk* chunk = _chunks[{chunkPos.x, chunkPos.y}];
+	if (!chunk) return TopBlock();
+	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	TopBlock topBlock;
+	topBlock = chunk->getTopBlockUnderPlayer(localX, localY, localZ);
+	return topBlock;
+}
+
 void World::init(int renderDistance = RENDER_DISTANCE) {
 	_renderDistance = renderDistance;
 	initGLBuffer();
@@ -204,7 +216,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 	_displayedChunksMutex.lock();
 	_displayedChunks[pos] = chunk;
 	_displayedChunksMutex.unlock();
-	unloadChunk();
+	// unloadChunk();
 	return chunk;
 }
 

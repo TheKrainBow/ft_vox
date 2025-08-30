@@ -116,6 +116,7 @@ public:
 	int *getRenderDistancePtr();
 	int *getCurrentRenderPtr();
 	TopBlock findTopBlockY(ivec2 chunkPos, ivec2 worldPos);
+	TopBlock findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
 	BlockType getBlock(ivec2 chunkPos, ivec3 worldPos);
 private:
 	// Chunk loading

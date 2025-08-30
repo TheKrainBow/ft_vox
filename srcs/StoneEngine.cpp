@@ -846,15 +846,16 @@ ivec2 StoneEngine::getChunkPos(ivec2 pos)
 	return camChunk;
 }
 
-void StoneEngine::updateFalling(vec3 worldPos, int blockHeight)
+void StoneEngine::updateFalling(BlockType &standingBlock)
 {
-	if (!falling && worldPos.y > blockHeight + 3) falling = true;
-	if (falling && worldPos.y <= blockHeight + 3)
+	if (!falling && (standingBlock == AIR || standingBlock == WATER)) falling = true;
+	if (falling && (standingBlock != AIR && standingBlock != WATER))
 	{
 		falling = false;
 		fallSpeed = 0.0;
-		camera.setPos({-worldPos.x, -(blockHeight + 3), -worldPos.z});
+		// camera.setPos({-worldPos.x, -(blockHeight + 3), -worldPos.z});
 	}
+	// if (canMove({0.0, -(fallSpeed * deltaTime), 0.0}, 0.02))
 	camera.move({0.0, -(fallSpeed * deltaTime), 0.0});
 }
 
@@ -885,17 +886,23 @@ void StoneEngine::updatePlayerStates()
 	BlockType camBodyBlockLegs = AIR;
 	BlockType camBodyBlockTorso = AIR;
 
-	//camTopBlock = _world.findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-	camStandingBlock = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 3, worldPos.z});
-	camBodyBlockLegs = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 2, worldPos.z});
-	camBodyBlockTorso = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 1, worldPos.z});
+	camTopBlock = _world.findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	_world.findBlockUnderPlayer(chunkPos, worldPos);
+	camStandingBlock = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 2, worldPos.z});
+	camBodyBlockLegs = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 1, worldPos.z});
+	camBodyBlockTorso = _world.getBlock(chunkPos, {worldPos.x, worldPos.y, worldPos.z});
 	isUnderWater = camBodyBlockTorso == WATER;
-	int blockHeight = camTopBlock.height;
+
+	// Body blocks states debug
+	// std::cout << '[' << camStandingBlock << ']' << std::endl;
+	// std::cout << '[' << camBodyBlockLegs << ']' << std::endl;
+	// std::cout << '[' << camBodyBlockTorso << ']' << std::endl;
+
 	BlockType inWater = (camStandingBlock == WATER
 						|| camBodyBlockLegs == WATER
 						|| camBodyBlockTorso == WATER) ? WATER : AIR;
 
-	updateFalling(worldPos, blockHeight);
+	updateFalling(camStandingBlock);
 	updateSwimming(inWater);
 	updateJumping();
 }
@@ -907,10 +914,15 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 		probe = glm::normalize(probe) * (glm::length(probe) + extra);
 
 	ivec3 nextCamPos = camera.moveCheck(probe);
-	ivec3 worldPos   = {-nextCamPos.x, -(nextCamPos.y + 2), -nextCamPos.z};
+	ivec3 worldPosFeet   = {-nextCamPos.x, -(nextCamPos.y + 1), -nextCamPos.z};
+	ivec3 worldPosTorso   = {-nextCamPos.x, -(nextCamPos.y), -nextCamPos.z};
 	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
-	BlockType block  = _world.getBlock(chunkPos, worldPos);
-	return block == AIR || block == WATER;
+
+	// Check both the block in front of the legs and the upper body
+	BlockType blockFeet  = _world.getBlock(chunkPos, worldPosFeet);
+	BlockType blockTorso  = _world.getBlock(chunkPos, worldPosTorso);
+	return ((blockFeet == AIR || blockFeet == WATER)
+		&& (blockTorso == AIR || blockTorso == WATER));
 }
 
 // Divides every move into smaller steps if necessary typically if the player goes very

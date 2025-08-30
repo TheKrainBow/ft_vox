@@ -70,6 +70,7 @@ class Chunk
 		void unloadNeighbor(Direction dir);
 		void unloadNeighbors();
 		TopBlock getTopBlock(int localX, int localZ);
+		TopBlock getTopBlockUnderPlayer(int localX, int localY, int localZ);
 
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();

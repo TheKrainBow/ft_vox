@@ -39,6 +39,8 @@ class SubChunk
 		bool						_hasBufferInitialized = false;
 
 		std::vector<Face>			_faces[6];
+
+		std::mutex					_dataMutex;
 		
 		std::vector<int>			_vertexData;
 

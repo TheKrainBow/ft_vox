@@ -67,17 +67,21 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
-	setBlock(x, y, z, GRASS);
+	if (getBlock({x, y, z}) == STONE)
+		setBlock(x, y, z, GRASS);
 	for (int i = 1; i <= 4; i++)
-		setBlock(x, y - (i * _resolution), z, DIRT);
+		if (getBlock({x, y - (i * _resolution), z}) == STONE)
+			setBlock(x, y - (i * _resolution), z, DIRT);
 }
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
-	setBlock(x, y, z, SNOW);
+	if (getBlock({x, y, z}) == STONE)
+		setBlock(x, y, z, SNOW);
 	for (int i = 1; i <= 4; i++)
-		setBlock(x, y - (i * _resolution), z, SNOW);
+		if (getBlock({x, y - (i * _resolution), z}) == STONE)
+			setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
 void SubChunk::loadBiome(int prevResolution)
@@ -104,6 +108,7 @@ void SubChunk::loadBiome(int prevResolution)
 				loadPlaine(x, z, ground);
 		}
 	}
+	_isFullyLoaded = true;
 }
 
 SubChunk::~SubChunk()
@@ -305,8 +310,9 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 
 void SubChunk::sendFacesToDisplay()
 {
-	clearFaces();
+	// if (!_isFullyLoaded)
 	// 	return ;
+	clearFaces();
 	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y += _resolution)
@@ -415,10 +421,6 @@ bool SubChunk::isNeighborTransparent(ivec3 position, Direction dir, char viewerB
 		return (IS_SOLID);
 	position /= _resolution;
 	position *= _resolution;
-	(void)position;
-	(void)dir;
-	(void)viewerBlock;
-	(void)viewerResolution;
 	int res2 = _resolution * 2;
 	for (int x = 0; x < res2; x += _resolution) {
 		for (int y = 0; y < res2; y += _resolution) {

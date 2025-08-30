@@ -13,6 +13,28 @@ Noise3DGenerator::Noise3DGenerator(unsigned int seed = 42) {
 	p.insert(p.end(), p.begin(), p.end());
 }
 
+// Fractal noise: sum of multiple octaves
+float Noise3DGenerator::fractalNoise(float x, float y, float z,
+			int octaves = 4,
+			float lacunarity = 2.0f,
+			float persistence = 0.5f) const
+{
+	float amplitude = 1.0f;
+	float frequency = 1.0f;
+	float sum = 0.0f;
+	float maxSum = 0.0f;
+
+	for (int i = 0; i < octaves; i++) {
+	sum += amplitude * noise(x * frequency, y * frequency, z * frequency);
+	maxSum += amplitude;
+	amplitude *= persistence;
+	frequency *= lacunarity;
+	}
+
+	// Normalize to [-1,1]
+	return sum / maxSum;
+}
+
 /// Returns noise in range [-1,1]
 float Noise3DGenerator::noise(float x, float y, float z) const {
 	// Find unit cube containing point

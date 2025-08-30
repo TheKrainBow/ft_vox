@@ -9,6 +9,10 @@ class Noise3DGenerator {
 	public:
 		Noise3DGenerator(unsigned int seed);
 		float noise(float x, float y, float z) const;
+		float fractalNoise(float x, float y, float z,
+					int octaves,
+					float lacunarity,
+					float persistence) const;
 
 	private:
 		std::vector<int> p;

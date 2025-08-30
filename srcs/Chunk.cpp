@@ -42,7 +42,38 @@ size_t Chunk::getMemorySize() {
 
 TopBlock Chunk::getTopBlock(int localX, int localZ)
 {
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
 	int index = std::numeric_limits<int>::min();
+	for (auto &elem : _subChunks)
+	{
+		if (elem.first > index)
+			index = elem.first;
+	}
+
+	for (int subY = index; subY >= 0; subY--)
+	{
+		SubChunk *subchunk = _subChunks[subY];
+		if (!subchunk)
+			continue ;
+
+		for (int y = CHUNK_SIZE - 1; y >= 0; --y)
+		{
+			uint8_t block = subchunk->getBlock({localX, y, localZ});
+			if (block != AIR && block != WATER)
+			{
+				return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
+			}
+		}
+	}
+	return {0, 0, {0.0, 0.0}};
+}
+
+TopBlock Chunk::getTopBlockUnderPlayer(int localX, int localY, int localZ)
+{
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
+	int index = std::numeric_limits<int>::min();
+	(void)localY;
+
 	for (auto &elem : _subChunks)
 	{
 		if (elem.first > index)
