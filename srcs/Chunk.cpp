@@ -349,3 +349,24 @@ void	Chunk::updateResolution(int newResolution)
 	if (_west)
 		_west->sendFacesToDisplay();
 }
+
+void Chunk::getAABB(glm::vec3& minp, glm::vec3& maxp) {
+    const float xs = _position.x * CHUNK_SIZE;
+    const float zs = _position.y * CHUNK_SIZE;
+
+    int minIdx = INT_MAX, maxIdx = INT_MIN;
+    {
+        std::lock_guard<std::mutex> lock(_subChunksMutex);
+        for (const auto& kv : _subChunks) {
+            minIdx = std::min(minIdx, kv.first);
+            maxIdx = std::max(maxIdx, kv.first);
+        }
+    }
+    if (minIdx == INT_MAX) { // fallback if somehow empty
+        minp = { xs, 0.0f,  zs };
+        maxp = { xs + CHUNK_SIZE, CHUNK_SIZE, zs + CHUNK_SIZE };
+        return;
+    }
+    minp = { xs,              float(minIdx * CHUNK_SIZE), zs };
+    maxp = { xs + CHUNK_SIZE, float((maxIdx + 1) * CHUNK_SIZE), zs + CHUNK_SIZE };
+}

@@ -7,7 +7,6 @@
 #include "World.hpp"
 #include "Chrono.hpp"
 
-class ator;
 class World;
 class Chunk;
 class CaveGenerator;

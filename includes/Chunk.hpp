@@ -80,4 +80,5 @@ class Chunk
 		std::vector<DrawArraysIndirectCommand> &getIndirectData();
 		std::vector<vec4> &getSSBO();
 		void freeSubChunks();
+		void getAABB(glm::vec3& minp, glm::vec3& maxp);
 };

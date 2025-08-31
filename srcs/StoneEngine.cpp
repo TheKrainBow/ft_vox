@@ -371,7 +371,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.initData(_window, 0, 0, 200, 200);
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
-	debugBox.addLine("Triangles: ", Textbox::DOUBLE, &drawnTriangles);
+	debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
 	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, _world.getMemorySizePtr());
 	debugBox.addLine("RenderDistance: ", Textbox::INT, _world.getRenderDistancePtr());
 	debugBox.addLine("CurrentRender: ", Textbox::INT, _world.getCurrentRenderPtr());
@@ -419,6 +419,9 @@ void StoneEngine::activateRenderShader()
     viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
     viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
+	this->viewMatrix = viewMatrix;
+	_world.setViewProj(this->viewMatrix, projectionMatrix);
+
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
@@ -448,6 +451,9 @@ void StoneEngine::activateTransparentShader()
     viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
     viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
     viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+
+	this->viewMatrix = viewMatrix;
+	_world.setViewProj(this->viewMatrix, projectionMatrix);
 
     vec3 viewPos = camera.getWorldPosition();
 

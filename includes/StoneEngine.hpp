@@ -90,7 +90,7 @@ class StoneEngine {
 
 		// Debug
 		Chrono chronoHelper;
-		double drawnTriangles;
+		int drawnTriangles;
 		Textbox debugBox;
 	
 		// World gen

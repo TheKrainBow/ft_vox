@@ -389,44 +389,64 @@ Chunk *World::getChunk(ivec2 &position)
 	return nullptr;
 }
 
-void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData)
-{
-	// Copy of the unordered map of displayable chunks
-	std::unordered_map<ivec2, Chunk*, ivec2_hash> displayedChunks;
-	_displayedChunksMutex.lock();
-	displayedChunks = _displayedChunks;
-	_displayedChunksMutex.unlock();
+void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData) {
+    std::unordered_map<ivec2, Chunk*, ivec2_hash> displayedChunks;
+    _displayedChunksMutex.lock();
+    displayedChunks = _displayedChunks;
+    _displayedChunksMutex.unlock();
 
-	for (auto &chunk : displayedChunks)
-	{
-		// Fill solid vertices
-		size_t size = fillData->vertexData.size();
-		std::vector<int> vertices = chunk.second->getVertices();
-		fillData->vertexData.insert(fillData->vertexData.end(), vertices.begin(), vertices.end());
+    for (auto &kv : displayedChunks) {
+        Chunk* c = kv.second;
+		// pull once; order matches subchunk iteration used to build commands
+		auto& ssbo = c->getSSBO();
 
-		// Fill solid indirect buffers
-		std::vector<DrawArraysIndirectCommand> indirectBufferData = chunk.second->getIndirectData();
-		for (DrawArraysIndirectCommand &tmp : indirectBufferData) {
-			tmp.baseInstance += size;
+		// --- SOLID ---
+		uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
+		auto& solidVerts = c->getVertices();
+		size_t vSizeBefore = fillData->vertexData.size();
+		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
+
+		auto& ib = c->getIndirectData();
+		for (size_t i = 0; i < ib.size(); ++i) {
+			auto cmd = ib[i];
+			cmd.baseInstance += vSizeBefore;
+			fillData->indirectBufferData.push_back(cmd);
+
+			// AABB from SSBO[i] (subchunk origin) → + CHUNK_SIZE cube
+			vec3 o = vec3(ssbo[i].x, ssbo[i].y, ssbo[i].z);
+			fillData->cmdAABBsSolid.push_back({ o, o + vec3(CHUNK_SIZE) });
 		}
-		fillData->indirectBufferData.insert(fillData->indirectBufferData.end(), indirectBufferData.begin(), indirectBufferData.end());
 
-		// Fill transparent vertices
-		size_t transparentSize = transparentFillData->vertexData.size();
-		std::vector<int> transparentVertices = chunk.second->getTransparentVertices();
-		transparentFillData->vertexData.insert(transparentFillData->vertexData.end(), transparentVertices.begin(), transparentVertices.end());
+		// keep your existing ssboData append
+		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+		fillData->chunkCmdRanges[c->getPosition()] = {
+			startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
+		};
 
-		// Fill transparent indirect buffers
-		std::vector<DrawArraysIndirectCommand> transparentIndirectBuffer = chunk.second->getTransparentIndirectData();
-		for (DrawArraysIndirectCommand &tmp : transparentIndirectBuffer) {
-			tmp.baseInstance += transparentSize;
+		// --- TRANSPARENT ---
+		uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
+
+		auto& transpVerts = c->getTransparentVertices();
+		size_t tvBefore = transparentFillData->vertexData.size();
+		transparentFillData->vertexData.insert(transparentFillData->vertexData.end(),
+                                       transpVerts.begin(), transpVerts.end());
+
+
+		auto& tib = c->getTransparentIndirectData();
+		for (size_t i = 0; i < tib.size(); ++i) {
+			auto cmd = tib[i];
+			cmd.baseInstance += tvBefore;
+			transparentFillData->indirectBufferData.push_back(cmd);
+
+			// same SSBO order
+			vec3 o = vec3(ssbo[i].x, ssbo[i].y, ssbo[i].z);
+			transparentFillData->cmdAABBsTransp.push_back({ o, o + vec3(CHUNK_SIZE) });
 		}
-		transparentFillData->indirectBufferData.insert(transparentFillData->indirectBufferData.end(), transparentIndirectBuffer.begin(), transparentIndirectBuffer.end());
 
-		// SSBO load (same for both solid and transparent we arbitrarily use _fillData/_drawData)
-		std::vector<vec4> ssboData = chunk.second->getSSBO();
-		fillData->ssboData.insert(fillData->ssboData.end(), ssboData.begin(), ssboData.end());
-	}
+		transparentFillData->chunkCmdRanges[c->getPosition()] = {
+			startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
+		};
+    }
 }
 
 void World::updateSSBO()
@@ -485,59 +505,58 @@ void World::updateDrawData()
 
 int World::display()
 {
-	if (!_drawData)
-		return 0;
-	if (_needUpdate)
-	{
-		pushVerticesToOpenGL(false);
-		_needUpdate = false;
-	}
-	long long size = _drawData->vertexData.size();
-	if (size == 0)
-		return 0;
+    if (!_drawData) return 0;
+    if (_needUpdate) { pushVerticesToOpenGL(false); _needUpdate = false; }
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
-	glBindVertexArray(_vao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-	
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _drawData->indirectBufferData.size(), 0);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-	glBindVertexArray(0);
-	return (size * 2);
+    // Mask indirect commands for this frame
+    applyFrustumCulling(false);
+
+    // === triangles actually drawn (after culling) ===
+    const auto& cmds = _frustumValid ? _culledSolidCmds
+                                     : _drawData->indirectBufferData;
+    long long triangles = 0;
+    for (const auto& c : cmds) {
+        long long per = (c.count >= 3) ? (c.count - 2) : 0; // strip: 4 -> 2
+        triangles += (long long)c.instanceCount * per;
+    }
+
+    if (cmds.empty()) return 0;
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
+    glBindVertexArray(_vao);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+    glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, cmds.size(), 0);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+    glBindVertexArray(0);
+    return (int)triangles;
 }
 
 int World::displayTransparent()
 {
-	// _drawDataMutex.unlock();
-	// return 0;
-	if (!_transparentDrawData)
-	{
-		_drawDataMutex.unlock();
-		return 0;
-	}
-	if (_needTransparentUpdate)
-	{
-		pushVerticesToOpenGL(true);
-		_needTransparentUpdate = false;
-	}
-	glDisable(GL_CULL_FACE);
-	long long size = _transparentDrawData->vertexData.size();
-	if (size == 0) {
-		_drawDataMutex.unlock();
-		return 0;
-	}
+    if (!_transparentDrawData) { _drawDataMutex.unlock(); return 0; }
+    if (_needTransparentUpdate) { pushVerticesToOpenGL(true); _needTransparentUpdate = false; }
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
-	glBindVertexArray(_transparentVao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+    applyFrustumCulling(true);
 
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transparentDrawData->indirectBufferData.size(), 0);
+    const auto& cmds = _frustumValid ? _culledTranspCmds
+                                     : _transparentDrawData->indirectBufferData;
+    long long triangles = 0;
+    for (const auto& c : cmds) {
+        long long per = (c.count >= 3) ? (c.count - 2) : 0;
+        triangles += (long long)c.instanceCount * per;
+    }
 
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-	glBindVertexArray(0);
-	// Unlock here
-	_drawDataMutex.unlock();
-	return (size * 2);
+    if (cmds.empty()) { _drawDataMutex.unlock(); return 0; }
+
+    glDisable(GL_CULL_FACE);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
+    glBindVertexArray(_transparentVao);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+    glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, cmds.size(), 0);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+    glBindVertexArray(0);
+    _drawDataMutex.unlock();
+    return (int)triangles;
 }
 
 void World::pushVerticesToOpenGL(bool isTransparent)
@@ -655,4 +674,47 @@ void World::initGLBuffer()
 void World::updatePerlinMapResolution(PerlinMap *pMap, int newResolution)
 {
 	_perlinGenerator.updatePerlinMapResolution(pMap, newResolution);
+}
+
+void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
+    _frustum = Frustum::fromVP(proj * view);
+    _frustumValid = true;
+}
+
+void World::applyFrustumCulling(bool transparent) {
+    if (!_frustumValid) return;
+
+    if (transparent) {
+        if (!_transparentDrawData) return;
+        _culledTranspCmds = _transparentDrawData->indirectBufferData;
+
+        const auto& boxes = _transparentDrawData->cmdAABBsTransp;
+        for (size_t i = 0; i < _culledTranspCmds.size(); ++i) {
+            const auto& b = boxes[i];
+            if (!_frustum.aabbVisible(b.mn, b.mx))
+                _culledTranspCmds[i].instanceCount = 0;
+        }
+
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+        glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0,
+            (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _culledTranspCmds.size()),
+            _culledTranspCmds.data());
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+    } else {
+        if (!_drawData) return;
+        _culledSolidCmds = _drawData->indirectBufferData;
+
+        const auto& boxes = _drawData->cmdAABBsSolid;
+        for (size_t i = 0; i < _culledSolidCmds.size(); ++i) {
+            const auto& b = boxes[i];
+            if (!_frustum.aabbVisible(b.mn, b.mx))
+                _culledSolidCmds[i].instanceCount = 0;
+        }
+
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+        glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0,
+            (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _culledSolidCmds.size()),
+            _culledSolidCmds.data());
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+    }
 }
