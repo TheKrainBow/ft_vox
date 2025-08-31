@@ -72,19 +72,22 @@ StoneEngine::~StoneEngine()
 
 void StoneEngine::run()
 {
-	// Main loop
-	_isRunning = true;
-	std::future<void> chunkLoadThread = _pool.enqueue(&StoneEngine::updateChunkWorker, this);
-	while (!glfwWindowShouldClose(_window))
-	{
-		glClear(GL_COLOR_BUFFER_BIT);
-		update();
-		glfwPollEvents();
-	}
-	_isRunningMutex.lock();
-	_isRunning = false;
-	_isRunningMutex.unlock();
-	chunkLoadThread.get();
+    _isRunning = true;
+
+    // Run the orchestrator on a dedicated thread so it doesn't consume a pool worker
+    std::thread chunkThread(&StoneEngine::updateChunkWorker, this);
+
+    while (!glfwWindowShouldClose(_window))
+    {
+        glClear(GL_COLOR_BUFFER_BIT);
+        update();
+        glfwPollEvents();
+    }
+    {
+        std::lock_guard<std::mutex> g(_isRunningMutex);
+        _isRunning = false;
+    }
+    if (chunkThread.joinable()) chunkThread.join();
 }
 
 void StoneEngine::initData()

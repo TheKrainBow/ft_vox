@@ -36,23 +36,17 @@ void SubChunk::loadHeight(int prevResolution)
 					continue;
 				}
 				// Default: solid below surface
-				bool solid = (globalY <= maxHeight);
 
-				if (solid
-					&& !_caveGen.isAir
-					(
+				if (globalY > maxHeight)
+					break;
+	
+				if (_resolution != 1 || !_caveGen.isAir(
 						x + _position.x * CHUNK_SIZE,
 						globalY,
 						z + _position.z * CHUNK_SIZE,
 						maxHeight + 40
 					))
-				{
 					setBlock(x, y, z, STONE);
-				}
-				else
-				{
-					setBlock(x, y, z, AIR);
-				}
 			}
 		}
 	}
@@ -101,13 +95,14 @@ void SubChunk::loadBiome(int prevResolution)
 		1.0, 0.9, 0.02, 0.5, 12
 	});
 
+	const int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+
 	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
 			ground = ground - (int(ground) % _resolution);
-			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
 		
 			if (ground <= OCEAN_HEIGHT)
 				loadOcean(x, z, ground + 3, adjustOceanHeight);
@@ -160,7 +155,7 @@ void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType textur
 		SubChunk *underChunk = nullptr;
 		underChunk = _chunk.getSubChunk(_position.y - 1);
 		if (!underChunk)
-			block = '/';
+			block = AIR;
 		else
 			block = underChunk->getBlock({position.x, CHUNK_SIZE - _resolution, position.z});
 	}
@@ -178,6 +173,8 @@ void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture,
 		SubChunk *overChunk = _chunk.getSubChunk(_position.y + 1);
 		if (overChunk)
 			block = overChunk->getBlock({position.x, 0, position.z});
+		else
+			block = AIR;
 
 	}
 	if (faceDisplayCondition(current, block))
@@ -323,6 +320,7 @@ void SubChunk::sendFacesToDisplay()
 	if (!_isFullyLoaded)
 		return ;
 	clearFaces();
+
 	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
 		for (int y = 0; y < CHUNK_SIZE; y += _resolution)

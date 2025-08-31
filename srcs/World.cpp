@@ -198,7 +198,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
-		if (chunk->_resolution > resolution)
+		if (chunk->getResolution() > resolution)
 			chunk->updateResolution(resolution);
 	}
 	else
@@ -207,7 +207,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
 
 		// Create chunks and subchunks and add the chunk to the unordered map
-		chunk = new Chunk(pos, pMap, _caveGen, *this, _textureManager, resolution);
+		chunk = new Chunk(pos, pMap, _caveGen, *this, _textureManager, _threadPool, resolution);
 		_chunks[pos] = chunk;
 		_chunksMutex.unlock();
 
@@ -478,8 +478,7 @@ void World::updateSSBO()
 
 void World::updateDrawData()
 {
-	// Lock here
-	_drawDataMutex.lock();
+    std::lock_guard<std::mutex> lock(_drawDataMutex);
 	if (!_stagedDataQueue.empty())
 	{
 		DisplayData *stagedData = _stagedDataQueue.front();
@@ -533,8 +532,12 @@ int World::display()
 
 int World::displayTransparent()
 {
-    if (!_transparentDrawData) { _drawDataMutex.unlock(); return 0; }
-    if (_needTransparentUpdate) { pushVerticesToOpenGL(true); _needTransparentUpdate = false; }
+    if (!_transparentDrawData) return 0;
+
+    if (_needTransparentUpdate) {
+        pushVerticesToOpenGL(true);
+        _needTransparentUpdate = false;
+    }
 
     applyFrustumCulling(true);
 
@@ -546,7 +549,7 @@ int World::displayTransparent()
         triangles += (long long)c.instanceCount * per;
     }
 
-    if (cmds.empty()) { _drawDataMutex.unlock(); return 0; }
+    if (cmds.empty()) return 0;
 
     glDisable(GL_CULL_FACE);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
@@ -555,7 +558,6 @@ int World::displayTransparent()
     glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, cmds.size(), 0);
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
     glBindVertexArray(0);
-    _drawDataMutex.unlock();
     return (int)triangles;
 }
 
@@ -564,7 +566,9 @@ void World::pushVerticesToOpenGL(bool isTransparent)
 	if (isTransparent)
 	{
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
-		glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _transparentDrawData->indirectBufferData.size(), _transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		GLsizeiptr tisz = (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _transparentDrawData->indirectBufferData.size());
+		glBufferData(GL_DRAW_INDIRECT_BUFFER, tisz, nullptr, GL_STREAM_DRAW);
+		glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0, tisz, _transparentDrawData->indirectBufferData.data());
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
 		if (_drawData->ssboData.size() != 0) {
@@ -575,15 +579,18 @@ void World::pushVerticesToOpenGL(bool isTransparent)
 				_drawData->ssboData.data()
 			);
 		}
-
 		glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _transparentDrawData->vertexData.size(), _transparentDrawData->vertexData.data(), GL_STATIC_DRAW);
+		GLsizeiptr tvsz = (GLsizeiptr)(sizeof(int) * _transparentDrawData->vertexData.size());
+		glBufferData(GL_ARRAY_BUFFER, tvsz, nullptr, GL_STREAM_DRAW);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, tvsz, _transparentDrawData->vertexData.data());
 		_needTransparentUpdate = false;
 	}
 	else
 	{
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-		glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(DrawArraysIndirectCommand) * _drawData->indirectBufferData.size(), _drawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		GLsizeiptr isz = (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _drawData->indirectBufferData.size());
+		glBufferData(GL_DRAW_INDIRECT_BUFFER, isz, nullptr, GL_STREAM_DRAW);               // orphan
+		glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0, isz, _drawData->indirectBufferData.data());
 		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
 		if (_drawData->ssboData.size() != 0) {
@@ -594,9 +601,10 @@ void World::pushVerticesToOpenGL(bool isTransparent)
 				_drawData->ssboData.data()
 			);
 		}
-
 		glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(int) * _drawData->vertexData.size(), _drawData->vertexData.data(), GL_STATIC_DRAW);
+		GLsizeiptr vsz = (GLsizeiptr)(sizeof(int) * _drawData->vertexData.size());
+		glBufferData(GL_ARRAY_BUFFER, vsz, nullptr, GL_STREAM_DRAW);                       // orphan
+		glBufferSubData(GL_ARRAY_BUFFER, 0, vsz, _drawData->vertexData.data());
 		_needUpdate = false;
 	}
 }

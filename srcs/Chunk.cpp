@@ -1,6 +1,7 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, int resolution)
+
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution)
 :
 _position(pos),
 _facesSent(false),
@@ -12,28 +13,57 @@ _perlinMap(perlinMap),
 _hasBufferInitialized(false),
 _needUpdate(true),
 _caveGen(caveGen),
-_resolution(resolution)
+_resolution(resolution),
+_pool(pool) // NEW
 {
 }
 
 void Chunk::loadBlocks()
 {
+	// Compute the vertical range we actually need:
+	// - Start at 0 (bedrock is at globalY==0 inside subchunk 0)
+	// - Go up to the max of (chunk highest) and (ocean) + one extra subchunk
 	int heighest = _perlinMap->heighest;
-	int lowest = _perlinMap->lowest;
-	if (heighest < OCEAN_HEIGHT) {
-		heighest = OCEAN_HEIGHT;
-	}
-	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
-	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
-	lowest = 0;
-	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2 + (_resolution == CHUNK_SIZE)); y += CHUNK_SIZE)
+	if (heighest < OCEAN_HEIGHT) heighest = OCEAN_HEIGHT;
+
+	const int minYIdx = 0;
+	const int maxYIdx = (heighest / CHUNK_SIZE) + 1; // one subchunk margin above
+
+	// Generate each subchunk in parallel, then insert them
+	std::vector<std::future<std::pair<int, SubChunk*>>> futures;
+	futures.reserve(maxYIdx - minYIdx + 1);
+
+	for (int idx = minYIdx; idx <= maxYIdx; ++idx)
 	{
-		int index = y / CHUNK_SIZE;
-		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, _caveGen, *this, _world, _textureManager, _resolution);
-		subChunk->loadHeight(0);
-		subChunk->loadBiome(0);
-		_memorySize += subChunk->getMemorySize();
+		futures.emplace_back(
+			_pool.enqueue([this, idx]() -> std::pair<int, SubChunk*>
+			{
+				SubChunk *sub = new SubChunk(
+					{ _position.x, idx, _position.y },
+					_perlinMap,
+					_caveGen,
+					*this,
+					_world,
+					_textureManager,
+					_resolution
+				);
+				// Height then biome (biome only touches a few cells near the surface)
+				sub->loadHeight(0);
+				sub->loadBiome(0);
+				return { idx, sub };
+			})
+		);
 	}
+
+	size_t localMem = 0;
+	for (auto &f : futures)
+	{
+		auto [idx, sub] = f.get();
+		_subChunks[idx] = sub;
+		localMem += sub->getMemorySize();
+	}
+	_memorySize += localMem;
+
 	_isInit = true;
 	_memorySize += sizeof(*this);
 }
@@ -369,4 +399,8 @@ void Chunk::getAABB(glm::vec3& minp, glm::vec3& maxp) {
     }
     minp = { xs,              float(minIdx * CHUNK_SIZE), zs };
     maxp = { xs + CHUNK_SIZE, float((maxIdx + 1) * CHUNK_SIZE), zs + CHUNK_SIZE };
+}
+
+std::atomic_int &Chunk::getResolution() {
+	return _resolution;
 }

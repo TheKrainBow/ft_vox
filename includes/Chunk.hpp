@@ -6,6 +6,8 @@
 #include "TextureManager.hpp"
 #include "SubChunk.hpp"
 #include "Chrono.hpp"
+
+#include "ThreadPool.hpp"
 #include <future>
 
 class SubChunk;
@@ -48,15 +50,18 @@ class Chunk
 		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
 		CaveGenerator							&_caveGen;
+		std::atomic_int							_resolution;
+		ThreadPool								&_pool;
 	public:
-		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, int resolution = 1);
+		// Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, int resolution = 1);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
-		std::atomic_int						_resolution;
 		SubChunk *getSubChunk(int y);
 		void updateResolution(int newResolution);
 		void sendFacesToDisplay();
 		bool isReady();
+		std::atomic_int	&getResolution();
 		ivec2 getPosition();
 		size_t getMemorySize();
 		void setWestChunk(Chunk *chunk);
