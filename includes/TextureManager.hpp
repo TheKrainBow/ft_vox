@@ -16,9 +16,10 @@ enum TextureType {
 	T_SAND,
 	T_WATER,
 	T_SNOW,
+	T_BEDROCK,
 };
 
-# define N_TEXTURES 8
+# define N_TEXTURES 9
 # define TEXTURE_SIZE 16
 
 class TextureManager {

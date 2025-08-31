@@ -6,11 +6,11 @@
 #include "define.hpp"
 #include "World.hpp"
 #include "Chrono.hpp"
-#include "CaveGenerator.hpp"
 
 class ator;
 class World;
 class Chunk;
+class CaveGenerator;
 
 class SubChunk
 {
@@ -51,9 +51,9 @@ class SubChunk
 		bool						_needUpdate;
 		bool						_needTransparentUpdate;
 
-		CaveGenerator				_caveGen;
+		CaveGenerator				&_caveGen;
 	public:
-		SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
+		SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);

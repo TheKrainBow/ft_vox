@@ -226,7 +226,7 @@ PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 	newMap->resolution = resolution;
 	newMap->position = pos;
 	newMap->heighest = 0;
-	newMap->lowest = 256;
+	newMap->lowest = 2048;
 
 	for (int x = 0; x < size; x += resolution)
 		for (int z = 0; z < size; z += resolution)

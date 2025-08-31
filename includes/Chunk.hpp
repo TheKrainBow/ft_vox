@@ -10,6 +10,7 @@
 
 class SubChunk;
 class World;
+class CaveGenerator;
 
 class Chunk
 {
@@ -46,8 +47,9 @@ class Chunk
 		GLuint									_indirectBuffer;
 		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
+		CaveGenerator							&_caveGen;
 	public:
-		Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution = 1);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
 		std::atomic_int						_resolution;

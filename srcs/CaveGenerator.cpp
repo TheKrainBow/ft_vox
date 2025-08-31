@@ -1,5 +1,5 @@
 #include "CaveGenerator.hpp"
-
+#include <iostream>
 CaveGenerator::CaveGenerator(int worldHeight,
 		float surfaceScale,
 		float caveScale,
@@ -11,7 +11,8 @@ CaveGenerator::CaveGenerator(int worldHeight,
 	m_caveScale(caveScale),
 	m_caveThreshold(caveThreshold),
 	m_verticalBiasStrength(verticalBiasStrength),
-	m_perlin(seed) {}
+	m_perlin(seed) {
+	}
 
 // bool CaveGenerator::isAir(int x, int y, int z) const
 // {
@@ -58,18 +59,18 @@ CaveGenerator::CaveGenerator(int worldHeight,
 // 	return (caveNoise + bias) > m_caveThreshold;
 // }
 
-bool CaveGenerator::isAir(int x, int y, int z) const {
+bool CaveGenerator::isAir(int x, int y, int z, int currentHeight) const {
 	// Surface
 	float hNoise = m_perlin.noise(x * m_surfaceScale, 0.0f, z * m_surfaceScale);
-	int surfaceHeight = (int)((hNoise * 0.5f + 0.5f) * (m_worldHeight - 1));
+	int surfaceHeight = (int)((hNoise * 0.5f + 0.5f) * (currentHeight - 1));
 
-	if (y > surfaceHeight) return true;
+	if (y > surfaceHeight) return false;
 
 	int depth = surfaceHeight - y;
 
 	// Block caves right at the surface
 	const int caveSurfaceBuffer = 5; 
-	if (depth < caveSurfaceBuffer) return false;
+	if (depth < caveSurfaceBuffer) return true;
 
 	// Main cave noise
 	float caveNoise = m_perlin.fractalNoise(
@@ -86,21 +87,23 @@ bool CaveGenerator::isAir(int x, int y, int z) const {
 	float entranceNoise = m_perlin.fractalNoise(
 		x * 0.01f, 0.0f, z * 0.01f, 3, 2.0f, 0.5f
 	);
-	entranceNoise = (entranceNoise * 0.5f + 0.5f);
+	entranceNoise = m_perlin.fractalNoise(x*0.005f, 0.0f, z*0.005f, 3, 2.0f, 0.5f);
+	bool allowEntrance = entranceNoise > 0.85f;
+	// entranceNoise = (entranceNoise * 0.5f + 0.5f);
 
-	bool allowEntrance = entranceNoise > 0.75f; // only some columns get entrances
+	// bool allowEntrance = entranceNoise > 0.75f; // only some columns get entrances
 
 	// Depth fade
 	float depthFactor = std::clamp((float)depth / 15.0f, 0.0f, 1.0f);
 
 	// Bias with height
-	float bias = (float)y / (float)m_worldHeight;
+	float bias = (float)y / (float)currentHeight;
 	bias *= m_verticalBiasStrength;
 
 	// Apply entrance restriction
 	if (depth < 20 && !allowEntrance) {
-		return false; // force stone near surface unless marked entrance
+		return true; // force stone near surface unless marked entrance
 	}
 
-	return (caveNoise * depthFactor + bias) > m_caveThreshold;
+	return (caveNoise * depthFactor + bias) <= m_caveThreshold;
 }

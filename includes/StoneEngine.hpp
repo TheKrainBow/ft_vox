@@ -110,6 +110,7 @@ class StoneEngine {
 		std::chrono::steady_clock::time_point now;
 		TopBlock camTopBlock;
 		movedir playerDir;
+		int _bestRender = 0;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();

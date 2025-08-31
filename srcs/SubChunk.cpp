@@ -1,7 +1,7 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &world, TextureManager &textManager, int resolution)
-: _world(world), _chunk(chunk), _textManager(textManager), _caveGen(1000, 0.01f, 0.05f, 0.5f, 0.6f, 42)
+SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, World &world, TextureManager &textManager, int resolution)
+: _world(world), _chunk(chunk), _textManager(textManager), _caveGen(caveGen)
 {
 	_position = position;
 	_resolution = resolution;
@@ -9,7 +9,9 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, Chunk &chunk, World &wo
 	_chunkSize = CHUNK_SIZE / resolution;
 	size_t size = _chunkSize * _chunkSize * _chunkSize;
 	_blocks = std::make_unique<uint8_t[]>(size);
+	std::fill_n(_blocks.get(), size, 0);
 	_memorySize = sizeof(*this) + size;
+	_isFullyLoaded = false;
 }
 
 size_t SubChunk::getMemorySize() {
@@ -28,20 +30,27 @@ void SubChunk::loadHeight(int prevResolution)
 			for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 			{
 				int globalY = y + _position.y * CHUNK_SIZE;
-
+				if (globalY <= 0) {
+					if (globalY == 0)
+						setBlock(x, y, z, BEDROCK);
+					continue;
+				}
 				// Default: solid below surface
 				bool solid = (globalY <= maxHeight);
 
-				if (solid) {
-					// Apply cave noise to carve out air
-					if (!_caveGen.isAir(x + _position.x * CHUNK_SIZE,
-										globalY,
-										z + _position.z * CHUNK_SIZE)) {
-						setBlock(x, y, z, AIR);
-					} else {
-						setBlock(x, y, z, STONE);
-					}
-				} else {
+				if (solid
+					&& !_caveGen.isAir
+					(
+						x + _position.x * CHUNK_SIZE,
+						globalY,
+						z + _position.z * CHUNK_SIZE,
+						maxHeight + 40
+					))
+				{
+					setBlock(x, y, z, STONE);
+				}
+				else
+				{
 					setBlock(x, y, z, AIR);
 				}
 			}
@@ -121,6 +130,7 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	x /= _resolution;
 	y /= _resolution;
 	z /= _resolution;
+	if (_chunkSize <= 0) return;
 	if (x >= _chunkSize || y >= _chunkSize || z >= _chunkSize || x < 0 || y < 0 || z < 0)
 		return ;
 	_blocks[x + (z * _chunkSize) + (y * _chunkSize * _chunkSize)] = block;
@@ -310,8 +320,8 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 
 void SubChunk::sendFacesToDisplay()
 {
-	// if (!_isFullyLoaded)
-	// 	return ;
+	if (!_isFullyLoaded)
+		return ;
 	clearFaces();
 	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
@@ -325,6 +335,12 @@ void SubChunk::sendFacesToDisplay()
 						break;
 					case DIRT:
 						addBlock(DIRT, ivec3(x, y, z), T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT, T_DIRT);
+						break;
+					case COBBLE:
+						addBlock(COBBLE, ivec3(x, y, z), T_COBBLE, T_COBBLE, T_COBBLE, T_COBBLE, T_COBBLE, T_COBBLE);
+						break;
+					case BEDROCK:
+						addBlock(BEDROCK, ivec3(x, y, z), T_BEDROCK, T_BEDROCK, T_BEDROCK, T_BEDROCK, T_BEDROCK, T_BEDROCK);
 						break;
 					case STONE:
 						addBlock(STONE, ivec3(x, y, z), T_STONE, T_STONE, T_STONE, T_STONE, T_STONE, T_STONE);

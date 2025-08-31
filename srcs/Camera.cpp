@@ -113,6 +113,7 @@ vec3 Camera::getForwardVector() const
 	float yawRad = angle.x * (M_PI / 180.0f);
 	return vec3(
 		sin(yawRad),   // X axis in your system
+		
 		0.0f,
 		cos(yawRad)    // Z axis in your system
 	);

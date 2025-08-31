@@ -1,6 +1,6 @@
 #include "World.hpp"
 
-World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(camera), _perlinGenerator(seed)
+World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(camera), _perlinGenerator(seed), _caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, 42)
 {
 	_needUpdate = true;
 	_needTransparentUpdate = true;
@@ -59,14 +59,22 @@ World::~World()
 		it->second->freeSubChunks();
 		delete it->second;
 	}
-	if (_drawData)
-		delete _drawData;
-	if (_transparentDrawData)
-		delete _transparentDrawData;
-	if (_transparentFillData)
-		delete _transparentFillData;
-	if (_transparentStagingData)
-		delete _transparentStagingData;
+	while (_stagedDataQueue.size())
+	{
+		auto &tmp = _stagedDataQueue.front();
+		_stagedDataQueue.pop();
+		delete tmp;
+	}
+	while (_transparentStagedDataQueue.size())
+	{
+		auto &tmp = _transparentStagedDataQueue.front();
+		_transparentStagedDataQueue.pop();
+		delete tmp;
+	}
+	delete _drawData;
+	delete _transparentDrawData;
+	delete _transparentFillData;
+	delete _transparentStagingData;
 }
 
 NoiseGenerator &World::getNoiseGenerator()
@@ -199,7 +207,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
 
 		// Create chunks and subchunks and add the chunk to the unordered map
-		chunk = new Chunk(pos, pMap, *this, _textureManager, resolution);
+		chunk = new Chunk(pos, pMap, _caveGen, *this, _textureManager, resolution);
 		_chunks[pos] = chunk;
 		_chunksMutex.unlock();
 

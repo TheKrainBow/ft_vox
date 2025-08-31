@@ -2,6 +2,7 @@
 #include "ft_vox.hpp"
 #include "NoiseGenerator.hpp"
 #include "SubChunk.hpp"
+#include "CaveGenerator.hpp"
 #include "Chunk.hpp"
 #include "Camera.hpp"
 #include "Chrono.hpp"
@@ -89,6 +90,8 @@ private:
 	std::atomic_int 						_threshold;
 	NoiseGenerator							_perlinGenerator;
 	std::mutex								_chunksMutex;
+
+	CaveGenerator							_caveGen;
 public:
 	// Init
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);

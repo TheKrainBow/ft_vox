@@ -1,90 +1,197 @@
 #version 430 core
 
+// ============================================================================
+// TWEAKABLES — EDIT HERE
+// ============================================================================
+// Waves (matches simple sin/cos surface)
+const float WAVE_FREQ            = 0.001;
+const float WAVE_AMP             = 0.03;
+const float WAVE_SPEED           = 0.01;
+
+// Normal-map ripples
+const float RIPPLE_UV_SCALE      = 0.05;
+const float RIPPLE_SCROLL_X      = 0.0002;
+const float RIPPLE_SCROLL_Y      = 0.00015;
+const float RIPPLE_STRENGTH      = 0.05;   // 0..1, blend toward up-vector to soften
+const float NORMAL_Z_ATTENUATION = 0.10;   // <1 flattens screen-space Z wobble
+
+// Reflection + colors
+const float REFLECT_DISTANCE     = 5000.0;
+const vec3  SKY_COLOR            = vec3(0.53, 0.81, 0.92);
+const vec3  BLUE_TINT            = vec3(0.10, 0.20, 0.50);
+const vec3  WATER_BASE           = vec3(0.07, 0.14, 0.55);
+const vec3  UNDERWATER_COLOR     = vec3(0.00, 0.10, 0.30);
+
+// Height fade (weakens reflection as camera rises above the surface)
+const float HEIGHT_FADE_RANGE    = 25.0;
+const float HEIGHT_FADE_MAX      = 0.80;
+
+// Small brightness lift from normal B channel (micro-variation)
+const float NORMAL_OFFSET_SCALE  = 0.20;
+
+// Fresnel / overall reflection strength
+const float FRESNEL_F0               = 0.02; // ~2% for water
+const float REFLECTION_STRENGTH_CAP  = 0.55; // clamp max reflection contribution
+const float REFLECTION_BLUE_MIX      = 0.20; // bias reflection slightly toward blue
+
+// Optional tweaks
+const bool  USE_FRAGMENT_Y_WAVE  = false; // add per-fragment Y wave (keep false if vertex animates)
+const bool  USE_REFLECTION_BLUR  = false; // small 4-tap blur to soften mirror look
+const float BLUR_UV_OFFSET       = 0.001;
+
+// Choose reflection source:
+// 0 = sample screenTexture normally
+// 1 = ALWAYS use SKY_COLOR (matches your nice OOB look)  <-- default
+// 2 = screenTexture but fall back to SKY_COLOR when OOB/behind camera
+const int   REFLECTION_SOURCE    = 2;
+
+// Optional tonemapping for reflection (kept OFF to avoid gray look)
+const bool  USE_REFLECTION_TONE  = false;
+const float REFLECTION_GAMMA     = 1.60;   // used only if USE_REFLECTION_TONE = true
+const float REFLECTION_SCALE     = 0.65;   // used only if USE_REFLECTION_TONE = true
+
+// Final alpha
+const float WATER_ALPHA          = 0.50;
+
+
+// ============================================================================
+// REQUIRED UNIFORMS
+// ============================================================================
 in vec3 FragPos;
 
 uniform sampler2D screenTexture;
 uniform sampler2D normalMap;
-uniform vec3 viewPos;
-uniform float waterHeight;
+
+uniform vec3  viewPos;
 uniform float time;
-uniform mat4 view;
-uniform mat4 projection;
-uniform int isUnderwater;
+uniform mat4  view;
+uniform mat4  projection;
+uniform int   isUnderwater;
+uniform float waterHeight; // (kept for compatibility; not used here)
 
 out vec4 FragColor;
 
-void main()
-{
-	// Match vertex wave for vertical displacement
-	float waveFreq  = 0.001;
-	float waveAmp   = 0.03;
-	float waveSpeed = 0.01;
 
-	float wave = sin(FragPos.x * waveFreq + time * waveSpeed)
-				+ cos(FragPos.z * waveFreq + time * waveSpeed * 0.8);
-	wave *= 0.5 * waveAmp;
+// ============================================================================
+// Helpers
+// ============================================================================
+float fresnelSchlick(float cosTheta, float F0) {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
 
-	vec3 waveFragPos = FragPos;
-	// waveFragPos.y += wave;
+float calcWave(vec3 pos) {
+    float px = pos.x * WAVE_FREQ + time * WAVE_SPEED;
+    float pz = pos.z * WAVE_FREQ + time * WAVE_SPEED * 0.8;
+    float w  = sin(px) + cos(pz);
+    return 0.5 * WAVE_AMP * w;
+}
 
-	// View direction
-	vec3 viewDir = normalize(waveFragPos - viewPos);
+float computeHeightFade(vec3 cam, vec3 frag) {
+    float cameraHeight = cam.y - frag.y;
+    float base = 1.0 - (cameraHeight / HEIGHT_FADE_RANGE);
+    return clamp(base, 0.0, HEIGHT_FADE_MAX);
+}
 
-	// Ripple: normal map UV + scroll
-	vec2 rippleUV = FragPos.xz * 0.05 + vec2(time * 0.0002, time * 0.00015);
-	vec3 sampledNormal = texture(normalMap, rippleUV).rgb;
-	vec3 normal = normalize(sampledNormal * 2.0 - 1.0);
-	// Blend with flat up vector to soften effect
-	float rippleStrength = 0.05;
-	normal = normalize(mix(vec3(0.0, 1.0, 0.0), normal, rippleStrength));
-	normal.z *= 0.1;
+struct NormalInfo {
+    vec3  normal;
+    float offset;
+};
 
-	vec3 reflectedDir = reflect(viewDir, normal);
-	vec3 reflectedPoint = waveFragPos + reflectedDir * 5000.0;
-	vec4 clip = projection * view * vec4(reflectedPoint, 1.0);
+NormalInfo computeWaterNormal(vec3 fragPos) {
+    vec2 uv = fragPos.xz * RIPPLE_UV_SCALE
+            + vec2(time * RIPPLE_SCROLL_X, time * RIPPLE_SCROLL_Y);
 
-	vec3 skyColor = vec3(0.53f, 0.81f, 0.92f);
+    vec3 nSample = texture(normalMap, uv).rgb;
+    vec3 n       = normalize(nSample * 2.0 - 1.0);
+    n            = normalize(mix(vec3(0.0, 1.0, 0.0), n, RIPPLE_STRENGTH));
+    n.z         *= NORMAL_Z_ATTENUATION;
 
-	// Height fade
-	float cameraHeight = viewPos.y - waveFragPos.y;
-	float heightFade = clamp(1.0 - (cameraHeight / 25.0), 0.0, 0.8);
-	float normalOffset = (sampledNormal.b - 0.5) * 0.2;
+    NormalInfo info;
+    info.normal = n;
+    info.offset = (nSample.b - 0.5) * NORMAL_OFFSET_SCALE;
+    return info;
+}
 
-	if (clip.w <= 0.0) {
-		vec3 blueTint = vec3(0.1, 0.2, 0.5);
-		vec3 finalColor = mix(blueTint, mix(skyColor, blueTint, 0.2), heightFade);
-		finalColor += normalOffset;
-		// finalColor.b = clamp(finalColor.b, 0.0, 1.0);
-		FragColor = vec4(finalColor, 0.5f);
-		return;
-	}
-	vec3 ndc = clip.xyz / clip.w;
-	vec2 uv = ndc.xy * 0.5 + 0.5;
+vec2 toUV(vec4 clip, out bool outOfBounds) {
+    vec3 ndc = clip.xyz / clip.w;
+    vec2 uv  = ndc.xy * 0.5 + 0.5;
+    outOfBounds = any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)));
+    return uv;
+}
 
-	// Reflection distortion (sync with wave)
-	// float waveX = sin(FragPos.x * waveFreq + time * waveSpeed);
-	// float waveY = cos(FragPos.z * waveFreq + time * waveSpeed * 0.8);
-	// uv += vec2(waveX, waveY) * 0.005;
+vec3 sampleReflection(vec2 uv) {
+    if (USE_REFLECTION_BLUR) {
+        vec3 c = vec3(0.0);
+        c += texture(screenTexture, uv + vec2( BLUR_UV_OFFSET, 0.0)).rgb;
+        c += texture(screenTexture, uv + vec2(-BLUR_UV_OFFSET, 0.0)).rgb;
+        c += texture(screenTexture, uv + vec2(0.0,  BLUR_UV_OFFSET)).rgb;
+        c += texture(screenTexture, uv + vec2(0.0, -BLUR_UV_OFFSET)).rgb;
+        return c * 0.25;
+    }
+    return texture(screenTexture, uv).rgb;
+}
 
-	// Sample reflection or fallback to sky
-	// vec2 safeUV = clamp(uv, vec2(0.001), vec2(0.999));
-	// vec3 reflectedColor = texture(screenTexture, safeUV).rgb;
-	bool outOfBounds = any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)));
-	// vec3 skyColor = vec3(1.0f, 0.0f, 0.0f);
-	vec3 reflectedColor = outOfBounds ? skyColor : texture(screenTexture, uv).rgb;
+vec3 toneReflection(vec3 color) {
+    if (!USE_REFLECTION_TONE) return color;
+    vec3 toned = pow(max(color, vec3(0.0)), vec3(REFLECTION_GAMMA)) * REFLECTION_SCALE;
+    return toned;
+}
 
 
-	// Final color blending
-	vec3 blueTint = vec3(0.1, 0.2, 0.5);
-	vec3 finalColor;
+// ============================================================================
+// Main
+// ============================================================================
+void main() {
+    vec3 waveFragPos = FragPos;
+    if (USE_FRAGMENT_Y_WAVE) {
+        waveFragPos.y += calcWave(FragPos);
+    }
 
-	if (isUnderwater == 1) {
-		finalColor = vec3(0.0, 0.1, 0.3); // no reflection underwater
-	} else {
-		vec3 reflection = mix(reflectedColor, blueTint, 0.2);
-		finalColor = mix(blueTint, reflection, heightFade);
-		finalColor += normalOffset;
-		finalColor = clamp(finalColor, 0.0, 1.0);
-	}
-	FragColor = vec4(finalColor, 0.5);
+    vec3 viewDir = normalize(waveFragPos - viewPos);
+    NormalInfo nfo = computeWaterNormal(waveFragPos);
+    float heightFade = computeHeightFade(viewPos, waveFragPos);
+
+    // Reflection ray/project
+    vec3 reflectedDir   = reflect(viewDir, nfo.normal);
+    vec3 reflectedPoint = waveFragPos + reflectedDir * REFLECT_DISTANCE;
+    vec4 clip           = projection * view * vec4(reflectedPoint, 1.0);
+
+    // Determine base reflection color per selected source
+    vec3 reflectedBase;
+    if (REFLECTION_SOURCE == 1) {
+        // Always the nice sky color (your preferred look)
+        reflectedBase = SKY_COLOR;
+    } else if (REFLECTION_SOURCE == 0) {
+        // Always sample screen texture
+        bool dummyOOB = false;
+        vec2 uv = (clip.w <= 0.0) ? vec2(0.5) : toUV(clip, dummyOOB);
+        reflectedBase = sampleReflection(uv);
+    } else { // REFLECTION_SOURCE == 2
+        // Sample screen; fall back to sky when OOB/behind camera
+        bool outOfBounds = (clip.w <= 0.0);
+        vec2 uv = outOfBounds ? vec2(0.5) : toUV(clip, outOfBounds);
+        reflectedBase = outOfBounds ? SKY_COLOR : sampleReflection(uv);
+    }
+
+    // Gentle blue bias and optional tone (tone OFF by default to avoid gray)
+    vec3 reflection = mix(reflectedBase, BLUE_TINT, REFLECTION_BLUE_MIX);
+    reflection = toneReflection(reflection);
+
+    // Fresnel with low F0 (limits straight-on reflectance)
+    float cosTheta = max(dot(-viewDir, nfo.normal), 0.0);
+    float fres     = fresnelSchlick(cosTheta, FRESNEL_F0);
+
+    float baseStrength = clamp(fres * heightFade, 0.0, 1.0);
+    float reflMix      = baseStrength * REFLECTION_STRENGTH_CAP;
+
+    vec3 finalColor;
+    if (isUnderwater == 1) {
+        finalColor = UNDERWATER_COLOR;
+    } else {
+        finalColor  = mix(WATER_BASE, reflection, reflMix);
+        finalColor += nfo.offset;
+        finalColor  = clamp(finalColor, 0.0, 1.0);
+    }
+
+    FragColor = vec4(finalColor, WATER_ALPHA);
 }

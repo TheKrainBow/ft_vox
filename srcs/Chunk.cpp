@@ -1,6 +1,6 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, World &world, TextureManager &textureManager, int resolution)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, int resolution)
 :
 _position(pos),
 _facesSent(false),
@@ -11,6 +11,7 @@ _textureManager(textureManager),
 _perlinMap(perlinMap),
 _hasBufferInitialized(false),
 _needUpdate(true),
+_caveGen(caveGen),
 _resolution(resolution)
 {
 }
@@ -24,10 +25,11 @@ void Chunk::loadBlocks()
 	}
 	heighest = heighest / CHUNK_SIZE * CHUNK_SIZE;
 	lowest = lowest / CHUNK_SIZE * CHUNK_SIZE;
+	lowest = 0;
 	for (int y = (lowest) - (CHUNK_SIZE); y < (heighest) + (CHUNK_SIZE * 2 + (_resolution == CHUNK_SIZE)); y += CHUNK_SIZE)
 	{
 		int index = y / CHUNK_SIZE;
-		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, *this, _world, _textureManager, _resolution);
+		SubChunk *subChunk = _subChunks[index] = new SubChunk({_position.x, index, _position.y}, _perlinMap, _caveGen, *this, _world, _textureManager, _resolution);
 		subChunk->loadHeight(0);
 		subChunk->loadBiome(0);
 		_memorySize += subChunk->getMemorySize();
@@ -200,12 +202,13 @@ void Chunk::clearFaces()
 
 void Chunk::sendFacesToDisplay()
 {
-	if (_hasAllNeighbors == false)
+	if (_hasAllNeighbors == false || _isInit == false)
 		return ;
 	// if (_facesSent == true)
 	// 	return ;
 	_sendFacesMutex.lock();
 	clearFaces();
+	// _subChunksMutex.lock();
 	for (auto &subChunk : _subChunks)
 	{
 		subChunk.second->sendFacesToDisplay();
@@ -235,6 +238,7 @@ void Chunk::sendFacesToDisplay()
 		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 	}
 	_facesSent = true;
+	// _subChunksMutex.unlock();
 	_sendFacesMutex.unlock();
 }
 

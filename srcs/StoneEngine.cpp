@@ -149,6 +149,7 @@ void StoneEngine::initTextures()
 		{ T_SAND, "textures/sand.ppm" },
 		{ T_WATER, "textures/water.ppm" },
 		{ T_SNOW, "textures/snow.ppm" },
+		{ T_BEDROCK, "textures/bedrock.ppm" },
 	});
 
 	glGenTextures(1, &waterNormalMap);
@@ -408,81 +409,99 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::activateRenderShader()
 {
-	mat4 modelMatrix = mat4(1.0f);
-	float radY, radX;
-	radX = camera.getAngles().x * (M_PI / 180.0);
-	radY = camera.getAngles().y * (M_PI / 180.0);
+    mat4 modelMatrix = mat4(1.0f);
+    float radY, radX;
+    radX = camera.getAngles().x * (M_PI / 180.0);
+    radY = camera.getAngles().y * (M_PI / 180.0);
 
-	mat4 viewMatrix = mat4(1.0f);
-	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+    mat4 viewMatrix = mat4(1.0f);
+    viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+    viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+    viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
-	glUseProgram(shaderProgram);
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
+    glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
-	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
+    glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);      // Cull back faces
-	glFrontFace(GL_CCW);      // Set counter-clockwise as the front face
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glFrontFace(GL_CCW);
 }
 
 void StoneEngine::activateTransparentShader()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-	mat4 modelMatrix = mat4(1.0f);
-	
-	float radY, radX;
-	radX = camera.getAngles().x * (M_PI / 180.0);
-	radY = camera.getAngles().y * (M_PI / 180.0);
+    glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
 
-	mat4 viewMatrix = mat4(1.0f);
-	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+    mat4 modelMatrix = mat4(1.0f);
 
-	vec3 viewPos = camera.getWorldPosition();
+    float radY, radX;
+    radX = camera.getAngles().x * (M_PI / 180.0);
+    radY = camera.getAngles().y * (M_PI / 180.0);
 
-	glUseProgram(waterShaderProgram);
+    mat4 viewMatrix = mat4(1.0f);
+    viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+    viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+    viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
-	// Uniforms for rendering
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewMatrix));
-	glUniform3fv(glGetUniformLocation(waterShaderProgram, "viewPos"), 1, value_ptr(viewPos));
-	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), isUnderWater);
+    vec3 viewPos = camera.getWorldPosition();
 
-	// TEXTURES
-	// Bind screen color texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
+    glUseProgram(waterShaderProgram);
 
-	// Bind depth texture
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
+    // Matrices & camera
+    glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
+    glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
+    glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
+    glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
 
-	// Bind normal map
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
+    // --- NEW: depth-thickness uniforms (match your Transparent.frag) ---
+    // Use whatever you set when building the projection; replace if you have getters.
+    const float nearPlane = 1;   // or your engine's stored z-near
+    const float farPlane  = 9600;    // or your engine's stored z-far
+    glUniform1f(glGetUniformLocation(waterShaderProgram, "nearPlane"), nearPlane);
+    glUniform1f(glGetUniformLocation(waterShaderProgram, "farPlane"),  farPlane);
 
-	// Blending and depth settings
-	glDepthMask(GL_FALSE);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
-	glFrontFace(GL_CCW);
+    // Tweakables for Beer–Lambert absorption -> alpha
+    glUniform1f(glGetUniformLocation(waterShaderProgram, "absorption"), 3.5f);
+    glUniform1f(glGetUniformLocation(waterShaderProgram, "minAlpha"),   0.15f);
+    glUniform1f(glGetUniformLocation(waterShaderProgram, "maxAlpha"),   0.95f);
+
+    // TEXTURES
+    // 0: screen color (opaque color buffer)
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+    glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
+
+    // 1: depth from opaque pass (sampled as regular 2D)
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, readFBO.depth);
+    // --- IMPORTANT: ensure depth is sampled as a texture, not PCF ---
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
+
+    // 2: water normal map
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, waterNormalMap);
+    glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
+
+    // Blending and depth settings for transparent pass
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glFrontFace(GL_CCW);
 }
 
 void StoneEngine::resolveMsaaToFbo()
@@ -566,7 +585,15 @@ void StoneEngine::postProcessFog()
 
 	// Send render distance for adaptative fog
 	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
-	glUniform1f(loc, RENDER_DISTANCE);
+	auto render = _world.getCurrentRenderPtr();
+	if (render) {
+		if (*render > _bestRender) {
+			_bestRender = *render;
+		}
+		glUniform1f(loc, _bestRender - 5);
+	}
+	else
+		glUniform1f(loc, RENDER_DISTANCE);
 
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);

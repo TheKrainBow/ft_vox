@@ -9,7 +9,7 @@ class CaveGenerator {
 						float verticalBiasStrength,
 						unsigned int seed);
 
-		bool isAir(int x, int y, int z) const;
+		bool isAir(int x, int y, int z, int currentHeight) const;
 
 	private:
 		int m_worldHeight;

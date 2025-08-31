@@ -35,6 +35,8 @@
 
 # define AIR 0
 # define STONE 'S'
+# define COBBLE 'C'
+# define BEDROCK 'B'
 # define DIRT 'D'
 # define GRASS 'G'
 # define SAND 's'
