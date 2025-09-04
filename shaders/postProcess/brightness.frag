@@ -17,7 +17,7 @@ void main()
 {
 	float depthSample = texture(depthTexture, texCoords).r;
 
-	// If depth is 1.0, assume it's sky (nothing rendered here)
+	// If depth is 1.0 it's sky
 	if (depthSample >= 1.0) {
 		FragColor = vec4(0.0);
 		return;

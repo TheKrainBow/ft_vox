@@ -35,7 +35,7 @@ unsigned char* loadTexturePPM(const std::string& filename, int& width, int& heig
 
 	delete[] data;
 
-	return rgbaData;  // Don't forget to delete[] after usage!
+	return rgbaData;
 }
 
 void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data) {

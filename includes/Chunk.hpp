@@ -86,4 +86,10 @@ class Chunk
 		std::vector<vec4> &getSSBO();
 		void freeSubChunks();
 		void getAABB(glm::vec3& minp, glm::vec3& maxp);
+		void snapshotDisplayData(
+			std::vector<int>&							outSolidVerts,
+			std::vector<DrawArraysIndirectCommand>&		outSolidCmds,
+			std::vector<vec4>&							outSSBO,
+			std::vector<int>&							outTranspVerts,
+			std::vector<DrawArraysIndirectCommand>&		outTranspCmds);
 };

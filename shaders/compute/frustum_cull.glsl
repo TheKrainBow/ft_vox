@@ -3,7 +3,7 @@ layout(local_size_x = 64) in;
 
 struct DrawCmd { uint count, instanceCount, first, baseInstance; };
 
-layout(std430, binding=0) readonly buffer PosRes    { vec4 posRes[]; }; // xyz = subchunk origin
+layout(std430, binding=0) readonly buffer PosRes	{ vec4 posRes[]; };
 layout(std430, binding=1) readonly buffer Templates { DrawCmd templ[]; };
 layout(std430, binding=2) writeonly buffer OutCmds  { DrawCmd outCmds[]; };
 
@@ -32,12 +32,11 @@ void main() {
 	vec3 mx = mn + vec3(chunkSize);
 
 	// --- conservative expansion to avoid borderline pops ---
-	// expand by ~1 block; tweak if you still see edge flicker
 	const float expand = 1.0;
 	vec3 c = 0.5 * (mn + mx);
 	vec3 e = 0.5 * (mx - mn) + vec3(expand);
 
-	// use a small negative tolerance: only cull if *definitely* outside
+	// small negative tolerance
 	const float tol = 1.0; // in “distance units”; 1–2 blocks is usually enough
 
 	bool culled = false;

@@ -1,8 +1,8 @@
 #ifndef TEXTBOX_HPP
 #define TEXTBOX_HPP
 
-#include <GL/glew.h> // For GLEW
-#include <GL/gl.h>   // OpenGL headers
+#include <GL/glew.h>
+#include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
@@ -29,38 +29,38 @@ const direction_pair directionTab[8] = {
 
 class Textbox {
 public:
-    enum e_type {
-        DOUBLE,
-        INT,
-        FLOAT,
+	enum e_type {
+		DOUBLE,
+		INT,
+		FLOAT,
 		DIRECTION,
-        SIZE_T
-    };
+		SIZE_T
+	};
 private:
-    struct Line {
-        std::string label;
-        void* value;
-        e_type type;
-    };
+	struct Line {
+		std::string label;
+		void* value;
+		e_type type;
+	};
 
-    std::vector<Line> lines;
-    GLFWwindow* window;
-    int positionX, positionY, width, height;
-    stbtt_bakedchar cdata[96];
-    unsigned char ttfBuffer[1 << 20];
-    unsigned char bitmap[512 * 512 * 4];
-    GLuint fontTexture;
-    bool fontLoaded;
+	std::vector<Line> lines;
+	GLFWwindow* window;
+	int positionX, positionY, width, height;
+	stbtt_bakedchar cdata[96];
+	unsigned char ttfBuffer[1 << 20];
+	unsigned char bitmap[512 * 512 * 4];
+	GLuint fontTexture;
+	bool fontLoaded;
 
-    void initializeFont(const std::string& fontPath, float fontSize);
+	void initializeFont(const std::string& fontPath, float fontSize);
 
 public:
-    Textbox();
-    void loadFont(const std::string& fontPath, float fontSize);
-    void addLine(const std::string& label, e_type type, void* value);
-    void render();
+	Textbox();
+	void loadFont(const std::string& fontPath, float fontSize);
+	void addLine(const std::string& label, e_type type, void* value);
+	void render();
 	void initData(GLFWwindow* window, int x, int y, int width, int height);
-    ~Textbox();
+	~Textbox();
 };
 
 #endif

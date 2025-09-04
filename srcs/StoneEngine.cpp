@@ -72,22 +72,22 @@ StoneEngine::~StoneEngine()
 
 void StoneEngine::run()
 {
-    _isRunning = true;
+	_isRunning = true;
 
-    // Run the orchestrator on a dedicated thread so it doesn't consume a pool worker
-    std::thread chunkThread(&StoneEngine::updateChunkWorker, this);
+	// Run the orchestrator on a dedicated thread so it doesn't consume a pool worker
+	std::thread chunkThread(&StoneEngine::updateChunkWorker, this);
 
-    while (!glfwWindowShouldClose(_window))
-    {
-        glClear(GL_COLOR_BUFFER_BIT);
-        update();
-        glfwPollEvents();
-    }
-    {
-        std::lock_guard<std::mutex> g(_isRunningMutex);
-        _isRunning = false;
-    }
-    if (chunkThread.joinable()) chunkThread.join();
+	while (!glfwWindowShouldClose(_window))
+	{
+		glClear(GL_COLOR_BUFFER_BIT);
+		update();
+		glfwPollEvents();
+	}
+	{
+		std::lock_guard<std::mutex> g(_isRunningMutex);
+		_isRunning = false;
+	}
+	if (chunkThread.joinable()) chunkThread.join();
 }
 
 void StoneEngine::initData()
@@ -412,105 +412,102 @@ void StoneEngine::calculateFps()
 
 void StoneEngine::activateRenderShader()
 {
-    mat4 modelMatrix = mat4(1.0f);
-    float radY, radX;
-    radX = camera.getAngles().x * (M_PI / 180.0);
-    radY = camera.getAngles().y * (M_PI / 180.0);
+	mat4 modelMatrix = mat4(1.0f);
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
 
-    mat4 viewMatrix = mat4(1.0f);
-    viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-    viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-    viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+	mat4 viewMatrix = mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
 	this->viewMatrix = viewMatrix;
 	_world.setViewProj(this->viewMatrix, projectionMatrix);
 
-    glUseProgram(shaderProgram);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
-    glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+	glUseProgram(shaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
+	glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
-    glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
+	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-    glFrontFace(GL_CCW);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	glFrontFace(GL_CCW);
 }
 
 void StoneEngine::activateTransparentShader()
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
 
-    mat4 modelMatrix = mat4(1.0f);
+	mat4 modelMatrix = mat4(1.0f);
 
-    float radY, radX;
-    radX = camera.getAngles().x * (M_PI / 180.0);
-    radY = camera.getAngles().y * (M_PI / 180.0);
+	float radY, radX;
+	radX = camera.getAngles().x * (M_PI / 180.0);
+	radY = camera.getAngles().y * (M_PI / 180.0);
 
-    mat4 viewMatrix = mat4(1.0f);
-    viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-    viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-    viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+	mat4 viewMatrix = mat4(1.0f);
+	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
+	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
 
 	this->viewMatrix = viewMatrix;
 	_world.setViewProj(this->viewMatrix, projectionMatrix);
 
-    vec3 viewPos = camera.getWorldPosition();
+	vec3 viewPos = camera.getWorldPosition();
 
-    glUseProgram(waterShaderProgram);
+	glUseProgram(waterShaderProgram);
 
-    // Matrices & camera
-    glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
-    glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
-    glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
-    glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
-    glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
-    glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
+	// Matrices & camera
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
+	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
+	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
+	glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
 
-    // --- NEW: depth-thickness uniforms (match your Transparent.frag) ---
-    // Use whatever you set when building the projection; replace if you have getters.
-    const float nearPlane = 1;   // or your engine's stored z-near
-    const float farPlane  = 9600;    // or your engine's stored z-far
-    glUniform1f(glGetUniformLocation(waterShaderProgram, "nearPlane"), nearPlane);
-    glUniform1f(glGetUniformLocation(waterShaderProgram, "farPlane"),  farPlane);
+	const float nearPlane = 1;
+	const float farPlane  = 9600;
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "nearPlane"), nearPlane);
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "farPlane"),  farPlane);
 
-    // Tweakables for Beer–Lambert absorption -> alpha
-    glUniform1f(glGetUniformLocation(waterShaderProgram, "absorption"), 3.5f);
-    glUniform1f(glGetUniformLocation(waterShaderProgram, "minAlpha"),   0.15f);
-    glUniform1f(glGetUniformLocation(waterShaderProgram, "maxAlpha"),   0.95f);
+	// Tweakables for Beer–Lambert absorption -> alpha
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "absorption"), 3.5f);
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "minAlpha"),   0.15f);
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "maxAlpha"),   0.95f);
 
-    // TEXTURES
-    // 0: screen color (opaque color buffer)
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, readFBO.texture);
-    glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
+	// TEXTURES
+	// 0: screen color (opaque color buffer)
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "screenTexture"), 0);
 
-    // 1: depth from opaque pass (sampled as regular 2D)
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, readFBO.depth);
-    // --- IMPORTANT: ensure depth is sampled as a texture, not PCF ---
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
+	// depth from opaque pass (sampled as regular 2D)
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "depthTexture"), 1);
 
-    // 2: water normal map
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, waterNormalMap);
-    glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
+	// 2: water normal map
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
 
-    // Blending and depth settings for transparent pass
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
+	// Blending and depth settings for transparent pass
+	glDepthMask(GL_FALSE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_DEPTH_TEST);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-    glFrontFace(GL_CCW);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	glFrontFace(GL_CCW);
 }
 
 void StoneEngine::resolveMsaaToFbo()
@@ -523,7 +520,7 @@ void StoneEngine::resolveMsaaToFbo()
 		0, 0, windowWidth, windowHeight,
 		0, 0, windowWidth, windowHeight,
 		GL_COLOR_BUFFER_BIT,
-		GL_NEAREST // or GL_LINEAR if you want smooth scaling
+		GL_NEAREST
 	);
 
 	// Resolve DEPTH
@@ -758,7 +755,8 @@ void StoneEngine::prepareRenderPipeline() {
 	if (showTriangleMesh) {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	} else {
+	}
+	else {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 	}
@@ -791,7 +789,6 @@ void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
 void StoneEngine::sendPostProcessFBOToDispay() {
 	if (showTriangleMesh)
 		return ;
-	// std::swap(readFBO, writeFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);

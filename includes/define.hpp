@@ -28,6 +28,8 @@
 # define FALL_INCREMENT 9.8f / 40.0f
 # define FALL_INCREMENT_WATER 9.8f / 1000.0f
 
+# define KHR_DEBUG false
+
 # define RESOLUTION 1
 
 # define OCEAN_HEIGHT 111
@@ -46,8 +48,8 @@
 # define SNOW 'w'
 
 typedef  struct {
-    uint  count;
-    uint  instanceCount;
-    uint  first;
-    uint  baseInstance;
+	uint  count;
+	uint  instanceCount;
+	uint  first;
+	uint  baseInstance;
 } DrawArraysIndirectCommand;

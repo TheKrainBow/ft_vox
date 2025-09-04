@@ -27,43 +27,45 @@ struct ChunkElement
 };
 
 struct PersistBuf {
-    GLuint      id = 0;
-    GLsizeiptr  cap = 0;
-    void*       ptr = nullptr;
+	GLuint		id = 0;
+	GLsizeiptr  cap = 0;
+	void*		ptr = nullptr;
+	bool		coherent = true;
 
-    void create(GLsizeiptr initial) {
-        glCreateBuffers(1, &id);
-        GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_DYNAMIC_STORAGE_BIT;
-        glNamedBufferStorage(id, initial, nullptr, flags);
-        ptr = glMapNamedBufferRange(id, 0, initial,
-            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
-        cap = initial;
-    }
-    void ensure(GLsizeiptr need) {
-        if (need <= cap) return;
-        // grow to next power-of-two
-        GLsizeiptr newCap = 1;
-        while (newCap < need) newCap <<= 1;
-        // re-create
-        GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_DYNAMIC_STORAGE_BIT;
-        GLuint newId; glCreateBuffers(1, &newId);
-        glNamedBufferStorage(newId, newCap, nullptr, flags);
-        void* newPtr = glMapNamedBufferRange(newId, 0, newCap,
-            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
-        // destroy old
-        if (id) { glUnmapNamedBuffer(id); glDeleteBuffers(1, &id); }
-        id = newId; ptr = newPtr; cap = newCap;
-    }
-    void destroy() {
-        if (id) { glUnmapNamedBuffer(id); glDeleteBuffers(1, &id); id = 0; ptr = nullptr; cap = 0; }
-    }
+	void create(GLsizeiptr initial_cap, bool makeCoherent = true) {
+		coherent = makeCoherent;
+		GLbitfield storage = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_DYNAMIC_STORAGE_BIT;
+		if (coherent) storage |= GL_MAP_COHERENT_BIT;
+
+		glCreateBuffers(1, &id);
+		glNamedBufferStorage(id, initial_cap, nullptr, storage);
+		cap = initial_cap;
+
+		GLbitfield access = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
+		if (coherent) access |= GL_MAP_COHERENT_BIT;
+
+		ptr = glMapNamedBufferRange(id, 0, cap, access);
+	}
+
+	void ensure(GLsizeiptr needed) {
+		if (needed <= cap) return;
+		GLsizeiptr newCap = std::max(needed, cap + cap/2);
+		glUnmapNamedBuffer(id);
+		glDeleteBuffers(1, &id);
+		create(newCap, coherent);
+	}
+
+	void flush(GLintptr offset, GLsizeiptr size) const {
+		if (!coherent && size > 0) {
+			glFlushMappedNamedBufferRange(id, offset, size);
+		}
+	}
 };
 
-
 struct Compare {
-    bool operator()(const ChunkElement& a, const ChunkElement& b) const {
-        return a.priority > b.priority;
-    }
+	bool operator()(const ChunkElement& a, const ChunkElement& b) const {
+		return a.priority > b.priority;
+	}
 };
 struct CmdRange { uint32_t start; uint32_t count; };
 struct AABB { vec3 mn, mx; };
@@ -76,43 +78,44 @@ struct DisplayData
 
 	std::unordered_map<ivec2, CmdRange, ivec2_hash> chunkCmdRanges;
 
-    std::vector<AABB> cmdAABBsSolid;
-    std::vector<AABB> cmdAABBsTransp;
+	std::vector<AABB> cmdAABBsSolid;
+	std::vector<AABB> cmdAABBsTransp;
 };
 
 struct FrustumPlane { glm::vec3 n; float d; };
 struct Frustum {
-    FrustumPlane p[6]; // L,R,B,T,N,F
-    static Frustum fromVP(const glm::mat4& VP) {
-        Frustum f{}; const glm::mat4& m = VP; auto norm = [](FrustumPlane& pl){
-            float inv = 1.0f / glm::length(pl.n); pl.n *= inv; pl.d *= inv;
-        };
-        // column-major: row i is (m[0][i], m[1][i], m[2][i], m[3][i])
-        auto row = [&](int i){ return glm::vec4(m[0][i], m[1][i], m[2][i], m[3][i]); };
-        glm::vec4 r0=row(0), r1=row(1), r2=row(2), r3=row(3);
+	FrustumPlane p[6]; // L,R,B,T,N,F
+	static Frustum fromVP(const glm::mat4& VP) {
+		Frustum f{}; const glm::mat4& m = VP; auto norm = [](FrustumPlane& pl){
+			float inv = 1.0f / glm::length(pl.n); pl.n *= inv; pl.d *= inv;
+		};
+		// column-major: row i is (m[0][i], m[1][i], m[2][i], m[3][i])
+		auto row = [&](int i){ return glm::vec4(m[0][i], m[1][i], m[2][i], m[3][i]); };
+		glm::vec4 r0=row(0), r1=row(1), r2=row(2), r3=row(3);
 
-        auto set = [&](FrustumPlane& pl, const glm::vec4& v){
-            pl.n = glm::vec3(v.x, v.y, v.z); pl.d = v.w; norm(pl);
-        };
-        set(f.p[0], r3 + r0); // Left
-        set(f.p[1], r3 - r0); // Right
-        set(f.p[2], r3 + r1); // Bottom
-        set(f.p[3], r3 - r1); // Top
-        set(f.p[4], r3 + r2); // Near
-        set(f.p[5], r3 - r2); // Far
-        return f;
-    }
-    bool aabbVisible(const glm::vec3& mn, const glm::vec3& mx) const {
-        glm::vec3 c = (mn + mx) * 0.5f;
-        glm::vec3 e = (mx - mn) * 0.5f;
-        for (int i=0;i<6;++i) {
-            const auto& pl = p[i];
-            float r = e.x * std::abs(pl.n.x) + e.y * std::abs(pl.n.y) + e.z * std::abs(pl.n.z);
-            float s = glm::dot(pl.n, c) + pl.d;
-            if (s + r < 0.0f) return false; // fully outside this plane
-        }
-        return true;
-    }
+		auto set = [&](FrustumPlane& pl, const glm::vec4& v){
+			pl.n = glm::vec3(v.x, v.y, v.z); pl.d = v.w; norm(pl);
+		};
+		set(f.p[0], r3 + r0); // Left
+		set(f.p[1], r3 - r0); // Right
+		set(f.p[2], r3 + r1); // Bottom
+		set(f.p[3], r3 - r1); // Top
+		set(f.p[4], r3 + r2); // Near
+		set(f.p[5], r3 - r2); // Far
+		return f;
+	}
+	bool aabbVisible(const glm::vec3& mn, const glm::vec3& mx) const {
+		glm::vec3 c = (mn + mx) * 0.5f;
+		glm::vec3 e = (mx - mn) * 0.5f;
+		for (int i=0;i<6;++i) {
+			const auto& pl = p[i];
+			float r = e.x * std::abs(pl.n.x) + e.y * std::abs(pl.n.y) + e.z * std::abs(pl.n.z);
+			float s = glm::dot(pl.n, c) + pl.d;
+			// Outside the plane
+			if (s + r < 0.0f) return false;
+		}
+		return true;
+	}
 };
 
 class World
@@ -184,15 +187,29 @@ private:
 	// Solid
 	PersistBuf _pbSolidIndirect[kFrames];
 	PersistBuf _pbSolidTemplate[kFrames];
-	PersistBuf _pbSolidInstances[kFrames];
 
 	// Transparent
 	PersistBuf _pbTranspIndirect[kFrames];
 	PersistBuf _pbTranspTemplate[kFrames];
-	PersistBuf _pbTranspInstances[kFrames];
 
 	// SSBO posRes (subchunk origins)
 	PersistBuf _pbSSBO[kFrames];
+	GLsync _inFlight[kFrames] = {nullptr,nullptr,nullptr};
+	int _srcIxSolid  = 0;  // slot index that currently holds the *valid* solid inputs
+	int _srcIxTransp = 0;  // slot index that currently holds the *valid* transparent inputs
+	// members
+	PersistBuf _pbSolidInstSSBO[kFrames];
+	PersistBuf _pbTranspInstSSBO[kFrames];
+	PersistBuf _pbSolidPosSSBO[kFrames];   // pos/res for SOLID pass
+	PersistBuf _pbTranspPosSSBO[kFrames];  // pos/res for TRANSPARENT pass
+
+	bool		_useBigSSBO = false;
+	GLuint		_bigSSBO	= 0;
+	GLsizeiptr	_bigSSBOBytes = 0;
+
+	// optional: hard cap for the test; tune as needed
+	static constexpr GLsizeiptr kBigSSBOBytes = 64ll * 1024ll * 1024ll; // 64 MB
+
 public:
 	// Init
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
@@ -232,6 +249,7 @@ private:
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadLeftChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void unloadChunk();
+	void initBigSSBO(GLsizeiptr bytes);
 
 	// Runtime info
 	bool hasMoved(ivec2 &oldPos);
