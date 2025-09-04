@@ -26,6 +26,40 @@ struct ChunkElement
 	int displayPos;
 };
 
+struct PersistBuf {
+    GLuint      id = 0;
+    GLsizeiptr  cap = 0;
+    void*       ptr = nullptr;
+
+    void create(GLsizeiptr initial) {
+        glCreateBuffers(1, &id);
+        GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_DYNAMIC_STORAGE_BIT;
+        glNamedBufferStorage(id, initial, nullptr, flags);
+        ptr = glMapNamedBufferRange(id, 0, initial,
+            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+        cap = initial;
+    }
+    void ensure(GLsizeiptr need) {
+        if (need <= cap) return;
+        // grow to next power-of-two
+        GLsizeiptr newCap = 1;
+        while (newCap < need) newCap <<= 1;
+        // re-create
+        GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_DYNAMIC_STORAGE_BIT;
+        GLuint newId; glCreateBuffers(1, &newId);
+        glNamedBufferStorage(newId, newCap, nullptr, flags);
+        void* newPtr = glMapNamedBufferRange(newId, 0, newCap,
+            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+        // destroy old
+        if (id) { glUnmapNamedBuffer(id); glDeleteBuffers(1, &id); }
+        id = newId; ptr = newPtr; cap = newCap;
+    }
+    void destroy() {
+        if (id) { glUnmapNamedBuffer(id); glDeleteBuffers(1, &id); id = 0; ptr = nullptr; cap = 0; }
+    }
+};
+
+
 struct Compare {
     bool operator()(const ChunkElement& a, const ChunkElement& b) const {
         return a.priority > b.priority;
@@ -135,10 +169,30 @@ private:
 	std::mutex								_chunksMutex;
 
 	CaveGenerator							_caveGen;
-	Frustum _frustum;
-	bool    _frustumValid = false;
-	std::vector<DrawArraysIndirectCommand> _culledSolidCmds;
-	std::vector<DrawArraysIndirectCommand> _culledTranspCmds;
+	// === GPU frustum culling ===
+	GLuint									_cullProgram = 0;
+	GLuint									_frustumUBO  = 0;
+	GLuint									_templIndirectBuffer = 0;
+	GLuint									_transpTemplIndirectBuffer = 0;
+	GLsizei									_solidDrawCount = 0;
+	GLsizei									_transpDrawCount = 0;
+	GLint									_locNumDraws = -1;
+	GLint									_locChunkSize = -1;
+	static constexpr int kFrames = 3;
+	int _frameIx = 0;
+
+	// Solid
+	PersistBuf _pbSolidIndirect[kFrames];
+	PersistBuf _pbSolidTemplate[kFrames];
+	PersistBuf _pbSolidInstances[kFrames];
+
+	// Transparent
+	PersistBuf _pbTranspIndirect[kFrames];
+	PersistBuf _pbTranspTemplate[kFrames];
+	PersistBuf _pbTranspInstances[kFrames];
+
+	// SSBO posRes (subchunk origins)
+	PersistBuf _pbSSBO[kFrames];
 public:
 	// Init
 	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
@@ -169,6 +223,7 @@ public:
 	TopBlock findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
 	BlockType getBlock(ivec2 chunkPos, ivec3 worldPos);
 	void setViewProj(const glm::mat4& view, const glm::mat4& proj);
+	void endFrame();
 private:
 	// Chunk loading
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
@@ -181,6 +236,10 @@ private:
 	// Runtime info
 	bool hasMoved(ivec2 &oldPos);
 	bool getIsRunning();
+	void initGpuCulling();
+	void runGpuCulling(bool transparent);
+	void updateTemplateBuffer(bool transparent, GLsizeiptr byteSize);
+
 
 	// Display
 	void initGLBuffer();
@@ -189,5 +248,4 @@ private:
 	void clearFaces();
 	void updateSSBO();
 	void updateFillData();
-	void applyFrustumCulling(bool transparent);
 };

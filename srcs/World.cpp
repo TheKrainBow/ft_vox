@@ -500,127 +500,193 @@ void World::updateDrawData()
 	}
 	if (_drawData && (_needUpdate || _needTransparentUpdate))
 		updateSSBO();
+	if (_drawData) {
+		if (_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
+			std::cout << "[CULL] Mismatch solid: ssbo=" << _drawData->ssboData.size()
+					<< " cmds=" << _drawData->indirectBufferData.size() << std::endl;
+		}
+	}
+	// Transparent sanity (uses the same SSBO)
+	if (_transparentDrawData) {
+		if (_drawData && _drawData->ssboData.size() != _transparentDrawData->indirectBufferData.size()) {
+			std::cout << "[CULL] Mismatch transp: ssbo=" << _drawData->ssboData.size()
+					<< " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
+		}
+	}
 }
 
 int World::display()
 {
-    if (!_drawData) return 0;
-    if (_needUpdate) { pushVerticesToOpenGL(false); _needUpdate = false; }
+	if (!_drawData) return 0;
+	if (_needUpdate) { pushVerticesToOpenGL(false); }       // uploads to PB slot ix
 
-    // Mask indirect commands for this frame
-    applyFrustumCulling(false);
+	const int ix = _frameIx % kFrames;
+	const GLsizei want = (GLsizei)_solidDrawCount;
+	if (want == 0) return 0;
 
-    // === triangles actually drawn (after culling) ===
-    const auto& cmds = _frustumValid ? _culledSolidCmds
-                                     : _drawData->indirectBufferData;
-    long long triangles = 0;
-    for (const auto& c : cmds) {
-        long long per = (c.count >= 3) ? (c.count - 2) : 0; // strip: 4 -> 2
-        triangles += (long long)c.instanceCount * per;
-    }
+	// Cull using the same per-frame slot
+	runGpuCulling(false);
 
-    if (cmds.empty()) return 0;
+	// Bind the same SSBO that compute used
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _pbSSBO[ix].id);
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
-    glBindVertexArray(_vao);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-    glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, cmds.size(), 0);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-    glBindVertexArray(0);
-    return (int)triangles;
+	// Re-point instance attribute #2 at the per-frame instance buffer
+	glBindVertexArray(_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, _pbSolidInstances[ix].id);
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0);
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	// Draw from the per-frame *indirect* buffer that compute just wrote
+	glDisable(GL_CULL_FACE);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _pbSolidIndirect[ix].id);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, want, 0);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	glBindVertexArray(0);
+
+	// (optional) triangle estimate from the unculled template if you still want it
+	long long tris = 0;
+	for (const auto& c : _drawData->indirectBufferData) {
+		long long per = (c.count >= 3) ? (c.count - 2) : 0;
+		tris += (long long)c.instanceCount * per;
+	}
+	return (int)tris;
 }
+
+// int World::display()
+// {
+// 	if (!_drawData) return 0;
+// 	if (_needUpdate) { pushVerticesToOpenGL(false); }  // ensures _indirectBuffer + instance data are uploaded
+
+// 	// ===== TEMP: BYPASS COMPUTE & COUNTS =====
+// 	const GLsizei n = (GLsizei)_drawData->indirectBufferData.size();
+// 	if (n == 0) return 0;
+
+// 	glDisable(GL_CULL_FACE); // TEMP: avoid any accidental face cull during debug
+// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
+// 	glBindVertexArray(_vao);
+// 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+// 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, n, 0);
+// 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+// 	glBindVertexArray(0);
+// 	return (int)n; // temp
+// }
 
 int World::displayTransparent()
 {
-    if (!_transparentDrawData) return 0;
+	if (!_transparentDrawData) return 0;
+	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
 
-    if (_needTransparentUpdate) {
-        pushVerticesToOpenGL(true);
-        _needTransparentUpdate = false;
-    }
+	const int ix = _frameIx % kFrames;
+	const GLsizei want = (GLsizei)_transpDrawCount;
+	if (want == 0) return 0;
 
-    applyFrustumCulling(true);
+	runGpuCulling(true); // uses transp PB slot ix
 
-    const auto& cmds = _frustumValid ? _culledTranspCmds
-                                     : _transparentDrawData->indirectBufferData;
-    long long triangles = 0;
-    for (const auto& c : cmds) {
-        long long per = (c.count >= 3) ? (c.count - 2) : 0;
-        triangles += (long long)c.instanceCount * per;
-    }
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _pbSSBO[ix].id);
 
-    if (cmds.empty()) return 0;
+	glBindVertexArray(_transparentVao);
+	glBindBuffer(GL_ARRAY_BUFFER, _pbTranspInstances[ix].id);
+	glVertexAttribIPointer(2, 1, GL_INT, sizeof(int), (void*)0);
+	glEnableVertexAttribArray(2);
+	glVertexAttribDivisor(2, 1);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    glDisable(GL_CULL_FACE);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
-    glBindVertexArray(_transparentVao);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
-    glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, cmds.size(), 0);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-    glBindVertexArray(0);
-    return (int)triangles;
+	glDisable(GL_CULL_FACE);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _pbTranspIndirect[ix].id);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, want, 0);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	glBindVertexArray(0);
+	return (int)want;
 }
 
-void World::pushVerticesToOpenGL(bool isTransparent)
-{
-	if (isTransparent)
-	{
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
-		GLsizeiptr tisz = (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _transparentDrawData->indirectBufferData.size());
-		glBufferData(GL_DRAW_INDIRECT_BUFFER, tisz, nullptr, GL_STREAM_DRAW);
-		glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0, tisz, _transparentDrawData->indirectBufferData.data());
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+// int World::displayTransparent()
+// {
+// 	if (!_transparentDrawData) return 0;
+// 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
 
-		if (_drawData->ssboData.size() != 0) {
-			glNamedBufferSubData(
-				_ssbo,
-				0,
-				sizeof(vec4) * _drawData->ssboData.size(),
-				_drawData->ssboData.data()
-			);
-		}
-		glBindBuffer(GL_ARRAY_BUFFER, _transparentInstanceVBO);
-		GLsizeiptr tvsz = (GLsizeiptr)(sizeof(int) * _transparentDrawData->vertexData.size());
-		glBufferData(GL_ARRAY_BUFFER, tvsz, nullptr, GL_STREAM_DRAW);
-		glBufferSubData(GL_ARRAY_BUFFER, 0, tvsz, _transparentDrawData->vertexData.data());
+// 	// runGpuCulling(true);
+
+//     // ===== TEMP: BYPASS COMPUTE & COUNTS =====
+//     const GLsizei n = (GLsizei)_drawData->indirectBufferData.size();
+//     if (n == 0) return 0;
+
+// 	if (_transpDrawCount == 0) return 0;
+
+// 	glDisable(GL_CULL_FACE);
+// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _ssbo);
+// 	glBindVertexArray(_transparentVao);
+// 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+// 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount, 0);
+// 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+// 	glBindVertexArray(0);
+// 	return (int)n;
+// }
+
+void World::pushVerticesToOpenGL(bool transparent)
+{
+	std::lock_guard<std::mutex> lock(_drawDataMutex);
+	const int ix = _frameIx % kFrames;
+
+	if (transparent)
+	{
+		const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
+		const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+		const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
+		const GLsizeiptr bytesInst = nInst * sizeof(int);
+		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4); // shared
+
+		_pbTranspIndirect[ix].ensure(bytesCmd);
+		_pbTranspTemplate[ix].ensure(bytesCmd);
+		_pbTranspInstances[ix].ensure(bytesInst);
+		_pbSSBO[ix].ensure(bytesSSBO);
+
+		if (bytesCmd)  { memcpy(_pbTranspIndirect[ix].ptr, _transparentDrawData->indirectBufferData.data(), bytesCmd);
+							memcpy(_pbTranspTemplate[ix].ptr, _transparentDrawData->indirectBufferData.data(),    bytesCmd); }
+		if (bytesInst) { memcpy(_pbTranspInstances[ix].ptr, _transparentDrawData->vertexData.data(),            bytesInst); }
+		if (bytesSSBO) { memcpy(_pbSSBO[ix].ptr,            _drawData->ssboData.data(),                          bytesSSBO); }
+
+		glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+
+		_transpDrawCount = (GLsizei)nCmd;
 		_needTransparentUpdate = false;
 	}
 	else
 	{
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-		GLsizeiptr isz = (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _drawData->indirectBufferData.size());
-		glBufferData(GL_DRAW_INDIRECT_BUFFER, isz, nullptr, GL_STREAM_DRAW);               // orphan
-		glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0, isz, _drawData->indirectBufferData.data());
-		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+		const GLsizeiptr nCmd      = (GLsizeiptr)_drawData->indirectBufferData.size();
+		const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+		const GLsizeiptr nInst     = (GLsizeiptr)_drawData->vertexData.size();
+		const GLsizeiptr bytesInst = nInst * sizeof(int);
+		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
-		if (_drawData->ssboData.size() != 0) {
-			glNamedBufferSubData(
-				_ssbo,
-				0,
-				sizeof(vec4) * _drawData->ssboData.size(),
-				_drawData->ssboData.data()
-			);
-		}
-		glBindBuffer(GL_ARRAY_BUFFER, _instanceVBO);
-		GLsizeiptr vsz = (GLsizeiptr)(sizeof(int) * _drawData->vertexData.size());
-		glBufferData(GL_ARRAY_BUFFER, vsz, nullptr, GL_STREAM_DRAW);                       // orphan
-		glBufferSubData(GL_ARRAY_BUFFER, 0, vsz, _drawData->vertexData.data());
+		_pbSolidIndirect[ix].ensure(bytesCmd);
+		_pbSolidTemplate[ix].ensure(bytesCmd);
+		_pbSolidInstances[ix].ensure(bytesInst);
+		_pbSSBO[ix].ensure(bytesSSBO);
+
+		if (bytesCmd)  { memcpy(_pbSolidIndirect[ix].ptr, _drawData->indirectBufferData.data(), bytesCmd);
+							memcpy(_pbSolidTemplate[ix].ptr, _drawData->indirectBufferData.data(),  bytesCmd); }
+		if (bytesInst) { memcpy(_pbSolidInstances[ix].ptr, _drawData->vertexData.data(),         bytesInst); }
+		if (bytesSSBO) { memcpy(_pbSSBO[ix].ptr,           _drawData->ssboData.data(),            bytesSSBO); }
+
+		glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+
+		_solidDrawCount = (GLsizei)nCmd;
 		_needUpdate = false;
 	}
 }
 
-// void World::clearFaces() {
-// 	// Clear solid data
-// 	_fillData->vertexData.clear();
-// 	_fillData->indirectBufferData.clear();
 
-// 	// Clear transparent data
-// 	_transparentFillData->vertexData.clear();
-// 	_transparentFillData->indirectBufferData.clear();
+void World::initGpuCulling() {
+	_cullProgram  = compileComputeShader("shaders/compute/frustum_cull.glsl");
+	_locNumDraws  = glGetUniformLocation(_cullProgram, "numDraws");
+	_locChunkSize = glGetUniformLocation(_cullProgram, "chunkSize");
 
-// 	// Clear common ssbo
-// 	_fillData->ssboData.clear();
-// }
+	// Frustum UBO (6 vec4)
+	glCreateBuffers(1, &_frustumUBO);
+	glNamedBufferData(_frustumUBO, sizeof(glm::vec4) * 6, nullptr, GL_DYNAMIC_DRAW);
+}
 
 void World::initGLBuffer()
 {
@@ -677,7 +743,43 @@ void World::initGLBuffer()
 	
 	glBindVertexArray(0);
 	_hasBufferInitialized = true;
+
+	const GLsizeiptr initCmdCap   = 1 << 20; // 1 MB to start; grows automatically
+	const GLsizeiptr initInstCap  = 1 << 22; // 4 MB
+	const GLsizeiptr initSSBOCap  = 1 << 20;
+
+	for (int i=0;i<kFrames;++i) {
+		_pbSolidIndirect[i].create(initCmdCap);
+		_pbSolidTemplate[i].create(initCmdCap);
+		_pbSolidInstances[i].create(initInstCap);
+
+		_pbTranspIndirect[i].create(initCmdCap);
+		_pbTranspTemplate[i].create(initCmdCap);
+		_pbTranspInstances[i].create(initInstCap);
+
+		_pbSSBO[i].create(initSSBOCap);
+	}
+	initGpuCulling();
 }
+
+void World::updateTemplateBuffer(bool transparent, GLsizeiptr byteSize)
+{
+	if (transparent)
+	{
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _transpTemplIndirectBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, byteSize, _transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+		_transpDrawCount = (GLsizei)_transparentDrawData->indirectBufferData.size();
+	}
+	else
+	{
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _templIndirectBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, byteSize, _drawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+		_solidDrawCount = (GLsizei)_drawData->indirectBufferData.size();
+	}
+}
+
 
 void World::updatePerlinMapResolution(PerlinMap *pMap, int newResolution)
 {
@@ -685,44 +787,45 @@ void World::updatePerlinMapResolution(PerlinMap *pMap, int newResolution)
 }
 
 void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
-    _frustum = Frustum::fromVP(proj * view);
-    _frustumValid = true;
+	// Build 6 normalized planes from VP
+	Frustum f = Frustum::fromVP(proj * view);
+
+	glm::vec4 planes[6];
+	for (int i = 0; i < 6; ++i)
+	{
+		planes[i] = glm::vec4(f.p[i].n, f.p[i].d);
+	}
+	// Update UBO
+	glNamedBufferSubData(_frustumUBO, 0, sizeof(planes), planes);
 }
 
-void World::applyFrustumCulling(bool transparent) {
-    if (!_frustumValid) return;
+void World::runGpuCulling(bool transparent)
+{
+	const int ix = _frameIx % kFrames;
 
-    if (transparent) {
-        if (!_transparentDrawData) return;
-        _culledTranspCmds = _transparentDrawData->indirectBufferData;
+	GLuint templ = transparent ? _pbTranspTemplate[ix].id : _pbSolidTemplate[ix].id;
+	GLuint out   = transparent ? _pbTranspIndirect[ix].id : _pbSolidIndirect[ix].id;
+	GLuint ssbo  = _pbSSBO[ix].id;
 
-        const auto& boxes = _transparentDrawData->cmdAABBsTransp;
-        for (size_t i = 0; i < _culledTranspCmds.size(); ++i) {
-            const auto& b = boxes[i];
-            if (!_frustum.aabbVisible(b.mn, b.mx))
-                _culledTranspCmds[i].instanceCount = 0;
-        }
+	const GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
+	if (count <= 0) return;
 
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
-        glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0,
-            (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _culledTranspCmds.size()),
-            _culledTranspCmds.data());
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-    } else {
-        if (!_drawData) return;
-        _culledSolidCmds = _drawData->indirectBufferData;
+	GLint prevProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+	glUseProgram(_cullProgram);
 
-        const auto& boxes = _drawData->cmdAABBsSolid;
-        for (size_t i = 0; i < _culledSolidCmds.size(); ++i) {
-            const auto& b = boxes[i];
-            if (!_frustum.aabbVisible(b.mn, b.mx))
-                _culledSolidCmds[i].instanceCount = 0;
-        }
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, templ);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, out);
+	glBindBufferBase(GL_UNIFORM_BUFFER,        3, _frustumUBO);
 
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-        glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0,
-            (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _culledSolidCmds.size()),
-            _culledSolidCmds.data());
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-    }
+	glUniform1ui(_locNumDraws, (GLuint)count);
+	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
+
+	const GLuint groups = ((GLuint)count + 63u) / 64u;
+	glDispatchCompute(groups, 1, 1);
+
+	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+	glUseProgram(prevProg ? (GLuint)prevProg : 0);
 }
+
+void World::endFrame() { _frameIx = (_frameIx + 1) % kFrames; }

@@ -67,6 +67,7 @@ bool isWSL();
 GLuint compileShader(const char* filePath, GLenum shaderType);
 GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath);
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock);
+GLuint compileComputeShader(const char* src);
 
 struct ivec2_hash {
 	std::size_t operator () (const ivec2 vec) const {

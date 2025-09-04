@@ -567,6 +567,7 @@ void StoneEngine::display() {
 
 	sendPostProcessFBOToDispay();
 	renderOverlayAndUI();
+	_world.endFrame();
 	finalizeFrame();
 }
 
@@ -772,6 +773,7 @@ void StoneEngine::prepareRenderPipeline() {
 void StoneEngine::renderSceneToFBO() {
 	activateRenderShader();
 	_world.updateDrawData();
+	_world.setViewProj(viewMatrix, projectionMatrix);
 	drawnTriangles = _world.display();
 }
 
