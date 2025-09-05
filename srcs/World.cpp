@@ -569,7 +569,7 @@ int World::display()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _bigSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _pbSolidInstSSBO[inIx].id);
 
-	glDisable(GL_CULL_FACE);
+	// glDisable(GL_CULL_FACE);
 	glBindVertexArray(_vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _pbSolidIndirect[outIx].id);
 	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, want, 0);
