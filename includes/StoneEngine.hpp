@@ -76,6 +76,7 @@ class StoneEngine {
 		bool swimming;
 		bool jumping;
 		bool isUnderWater;
+		bool ascending;
 
 		// Player speed
 		float moveSpeed;

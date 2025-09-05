@@ -1,4 +1,5 @@
 #include "World.hpp"
+#include "define.hpp"
 
 World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool) : _threadPool(pool), _textureManager(textureManager), _camera(camera), _perlinGenerator(seed), _caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, 42)
 {
@@ -20,7 +21,8 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	loadChunk(0, 0, 0, chunkPos, 1);
 	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
 	const vec3 &camPos = camera.getPosition();
-	camera.setPos({camPos.x, -(topBlock.height+3), camPos.z});
+	// Place camera: feet on ground
+	camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
 }
 
 TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
@@ -35,12 +37,12 @@ TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
 }
 
 static inline int mod_floor(int a, int b) {
-    int r = a % b;
-    return (r < 0) ? r + b : r;
+	int r = a % b;
+	return (r < 0) ? r + b : r;
 }
 static inline int floor_div(int a, int b) {
-    int q = a / b, r = a % b;
-    return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
+	int q = a / b, r = a % b;
+	return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
 }
 
 TopBlock World::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos) {
@@ -221,7 +223,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 	{
 		chunk = it->second;
 		_chunksMutex.unlock();
-		if (chunk->getResolution() > resolution)
+		if (chunk && chunk->getResolution() > resolution)
 			chunk->updateResolution(resolution);
 	}
 	else
@@ -351,6 +353,8 @@ void World::unLoadNextChunks(ivec2 &newCamChunk)
 	for (auto &it : _displayedChunks)
 	{
 		Chunk *chunk = it.second;
+		if (!chunk)
+			continue ;
 		ivec2 chunkPos = chunk->getPosition();
 		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
 		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
@@ -449,6 +453,8 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 		std::vector<int> sv, tv;
 		std::vector<DrawArraysIndirectCommand> ic, tic;
 		std::vector<vec4> ssbo;
+		if (!c)
+			continue ;
 		c->snapshotDisplayData(sv, ic, ssbo, tv, tic);
 
 		// ---------- SOLID ----------

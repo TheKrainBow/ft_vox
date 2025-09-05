@@ -253,6 +253,8 @@ void Chunk::sendFacesToDisplay()
 	// _subChunksMutex.lock();
 	for (auto &subChunk : _subChunks)
 	{
+		if (!subChunk.second)
+			continue ;
 		subChunk.second->sendFacesToDisplay();
 		std::vector<int> vertices = subChunk.second->getVertices();
 		std::vector<int> transparentVertices = subChunk.second->getTransparentVertices();
