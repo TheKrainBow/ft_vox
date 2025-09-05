@@ -881,14 +881,14 @@ ivec2 StoneEngine::getChunkPos(ivec2 pos)
 	return camChunk;
 }
 
-void StoneEngine::updateFalling(BlockType &standingBlock)
+void StoneEngine::updateFalling(vec3 &worldPos, int &blockHeight)
 {
-	if (!falling && (standingBlock == AIR || standingBlock == WATER)) falling = true;
-	if (falling && (standingBlock != AIR && standingBlock != WATER))
+	if (!falling && worldPos.y > blockHeight + 3) falling = true;
+	if (falling && worldPos.y <= blockHeight + 3)
 	{
 		falling = false;
 		fallSpeed = 0.0;
-		// camera.setPos({-worldPos.x, -(blockHeight + 3), -worldPos.z});
+		camera.setPos({-worldPos.x, -(blockHeight + 3), -worldPos.z});
 	}
 	// if (canMove({0.0, -(fallSpeed * deltaTime), 0.0}, 0.02))
 	camera.move({0.0, -(fallSpeed * deltaTime), 0.0});
@@ -921,8 +921,7 @@ void StoneEngine::updatePlayerStates()
 	BlockType camBodyBlockLegs = AIR;
 	BlockType camBodyBlockTorso = AIR;
 
-	camTopBlock = _world.findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-	_world.findBlockUnderPlayer(chunkPos, worldPos);
+	camTopBlock = _world.findBlockUnderPlayer(chunkPos, worldPos);
 	camStandingBlock = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 2, worldPos.z});
 	camBodyBlockLegs = _world.getBlock(chunkPos, {worldPos.x, worldPos.y - 1, worldPos.z});
 	camBodyBlockTorso = _world.getBlock(chunkPos, {worldPos.x, worldPos.y, worldPos.z});
@@ -937,7 +936,7 @@ void StoneEngine::updatePlayerStates()
 						|| camBodyBlockLegs == WATER
 						|| camBodyBlockTorso == WATER) ? WATER : AIR;
 
-	updateFalling(camStandingBlock);
+	updateFalling(worldPos, camTopBlock.height);
 	updateSwimming(inWater);
 	updateJumping();
 }
@@ -949,7 +948,7 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 		probe = glm::normalize(probe) * (glm::length(probe) + extra);
 
 	ivec3 nextCamPos = camera.moveCheck(probe);
-	ivec3 worldPosFeet   = {-nextCamPos.x, -(nextCamPos.y + 1), -nextCamPos.z};
+	ivec3 worldPosFeet   = {-nextCamPos.x, -(nextCamPos.y + 2), -nextCamPos.z};
 	ivec3 worldPosTorso   = {-nextCamPos.x, -(nextCamPos.y), -nextCamPos.z};
 	ivec2 chunkPos   = getChunkPos({nextCamPos.x, nextCamPos.z});
 

@@ -34,16 +34,31 @@ TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
 	return topBlock;
 }
 
+static inline int mod_floor(int a, int b) {
+    int r = a % b;
+    return (r < 0) ? r + b : r;
+}
+static inline int floor_div(int a, int b) {
+    int q = a / b, r = a % b;
+    return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
+}
+
 TopBlock World::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos) {
 	std::lock_guard<std::mutex> lock(_chunksMutex);
-	Chunk* chunk = _chunks[{chunkPos.x, chunkPos.y}];
-	if (!chunk) return TopBlock();
-	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	TopBlock topBlock;
-	topBlock = chunk->getTopBlockUnderPlayer(localX, localY, localZ);
-	return topBlock;
+
+	auto it = _chunks.find({chunkPos.x, chunkPos.y});
+	if (it == _chunks.end() || !it->second)
+		return TopBlock();
+
+	Chunk* chunk = it->second;
+
+	const int localX = mod_floor(worldPos.x, CHUNK_SIZE);
+	const int localZ = mod_floor(worldPos.z, CHUNK_SIZE);
+
+	int startSubY   = floor_div(worldPos.y, CHUNK_SIZE);
+	int startLocalY = mod_floor(worldPos.y, CHUNK_SIZE);
+
+	return chunk->getFirstSolidBelow(localX, startLocalY, localZ, startSubY);
 }
 
 void World::init(int renderDistance = RENDER_DISTANCE) {

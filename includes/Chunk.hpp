@@ -92,4 +92,5 @@ class Chunk
 			std::vector<vec4>&							outSSBO,
 			std::vector<int>&							outTranspVerts,
 			std::vector<DrawArraysIndirectCommand>&		outTranspCmds);
+		TopBlock getFirstSolidBelow(int localX, int startLocalY, int localZ, int startSubY);
 };

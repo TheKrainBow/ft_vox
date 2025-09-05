@@ -100,30 +100,42 @@ TopBlock Chunk::getTopBlock(int localX, int localZ)
 	return {0, 0, {0.0, 0.0}};
 }
 
-TopBlock Chunk::getTopBlockUnderPlayer(int localX, int localY, int localZ)
+TopBlock Chunk::getFirstSolidBelow(int localX, int startLocalY, int localZ, int startSubY)
 {
 	std::lock_guard<std::mutex> lock(_subChunksMutex);
-	int index = std::numeric_limits<int>::min();
-	(void)localY;
 
-	for (auto &elem : _subChunks)
-	{
-		if (elem.first > index)
-			index = elem.first;
+	int highest = -1;
+	for (const auto &kv : _subChunks)
+		if (kv.first > highest) highest = kv.first;
+
+	if (highest < 0)               return {0, 0, {0.0, 0.0}};
+	if (startSubY > highest) {
+		startSubY   = highest;
+		startLocalY = CHUNK_SIZE - 1;
+	}
+	if (startSubY < 0)             return {0, 0, {0.0, 0.0}};
+
+	const bool strictlyBelow = true;
+	if (strictlyBelow) {
+		if (startLocalY > 0) {
+			--startLocalY;
+		} else {
+			--startSubY;
+			startLocalY = CHUNK_SIZE - 1;
+		}
 	}
 
-	for (int subY = index; subY >= 0; subY--)
-	{
-		SubChunk *subchunk = _subChunks[subY];
-		if (!subchunk)
-			continue ;
+	for (int subY = startSubY; subY >= 0; --subY) {
+		auto it = _subChunks.find(subY);
+		if (it == _subChunks.end() || !it->second) continue;
 
-		for (int y = CHUNK_SIZE - 1; y >= 0; --y)
-		{
-			uint8_t block = subchunk->getBlock({localX, y, localZ});
-			if (block != AIR && block != WATER)
-			{
-				return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
+		SubChunk* sub = it->second;
+		const int yStart = (subY == startSubY) ? startLocalY : (CHUNK_SIZE - 1);
+
+		for (int y = yStart; y >= 0; --y) {
+			const uint8_t block = sub->getBlock({localX, y, localZ});
+			if (block != AIR && block != WATER) {
+				return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
 			}
 		}
 	}

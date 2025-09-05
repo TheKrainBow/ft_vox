@@ -64,7 +64,7 @@ const float REFLECTION_GAMMA	= 1.60;   // used only if USE_REFLECTION_TONE = tru
 const float REFLECTION_SCALE	= 0.65;   // used only if USE_REFLECTION_TONE = true
 
 // Final alpha
-const float ALPHA_NEAR_VALUE	= 0.70;
+const float ALPHA_NEAR_VALUE	= 0.80;
 const float ALPHA_FAR_VALUE		= 0.90;
 const float ALPHA_NEAR_DIST		= 5.0;
 const float ALPHA_FAR_DIST		= 50.0;

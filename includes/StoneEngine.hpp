@@ -159,7 +159,7 @@ class StoneEngine {
 		ivec2 getChunkPos(ivec2 pos);
 		bool canMove(const glm::vec3& offset, float extra);
 		void updatePlayerStates();
-		void updateFalling(BlockType &standingBlock);
+		void updateFalling(vec3 &worldPos, int &blockHeight);
 		void updateSwimming(BlockType block);
 		void updateJumping();
 		void updatePlayerDirection();
