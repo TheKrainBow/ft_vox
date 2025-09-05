@@ -187,7 +187,7 @@ void main() {
 
 	// Reflection ray/project
 	vec3 reflectedDir	= reflect(viewDir, nfo.normal);
-	vec3 reflectedPoin	= waveFragPos + reflectedDir * REFLECT_DISTANCE;
+	vec3 reflectedPoint	= waveFragPos + reflectedDir * REFLECT_DISTANCE;
 	vec4 clip			= projection * view * vec4(reflectedPoint, 1.0);
 
 	// Determine base reflection color per selected source
