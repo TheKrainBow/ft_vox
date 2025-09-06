@@ -23,6 +23,7 @@ class NoiseGenerator {
 		struct PerlinMap {
 			double *heightMap = nullptr;
 			double *caveMap = nullptr;
+			double *treeMap = nullptr;
 			ivec2	position;
 			double	heighest = std::numeric_limits<double>::min();
 			double	lowest = std::numeric_limits<double>::max();
@@ -55,6 +56,9 @@ class NoiseGenerator {
 		double getErosionNoise(ivec2 pos);
 		double getOceanNoise(ivec2 pos);
 		double getPeaksValleysNoise(ivec2 pos);
+		double getTreeNoise(ivec2 pos);
+		double getTreeProbability(ivec2 pos);
+		void   buildTreeMap(PerlinMap* map, int resolution);
 
 		size_t _seed;
 		NoiseData _data;

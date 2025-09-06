@@ -16,6 +16,17 @@ flat out int TextureID;
 out vec3 Normal; // Output normal for lighting
 out vec3 FragPos; // Output fragment position for lighting
 
+const float LOG_INSET = 0.10;
+
+float insetTile(float v, float inset) {
+    // v is in "tile units" after you scaled by lengthX/lengthY (each tile = 1.0)
+    float ti = floor(v);          // tile index
+    float lf = v - ti;            // local [0..1) within tile
+    float s  = max(1.0 - 2.0*inset, 0.0); // keep >0
+    lf = 0.5 + (lf - 0.5) * s;    // shrink around center of the tile
+    return ti + lf;
+}
+
 void main()
 {
 	vec4 ssboValue = ssbo[gl_DrawID];
@@ -25,8 +36,8 @@ void main()
 	int y = (instanceData >> 5) & 0x1F;
 	int z = (instanceData >> 10) & 0x1F;
 	int direction = (instanceData >> 15) & 0x07;
-	int lengthX = (instanceData >> 18) & 0x1F;
-	int lengthY = (instanceData >> 23) & 0x1F;
+	float lengthX = (instanceData >> 18) & 0x1F;
+	float lengthY = (instanceData >> 23) & 0x1F;
 	int textureID = (instanceData >> 28) & 0x0F;
 
 	// if (textureID == 6)
@@ -87,10 +98,23 @@ void main()
 		basePos.y += res;
 		normal = vec3(0.0, 1.0, 0.0);
 	}
+
+	if (textureID == 10 || textureID == 9) {
+		float sx = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
+		float sz = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
+
+		float cx = 0.5 * 1;
+		float cz = 0.5 * 1;
+
+		basePos.x = cx + (basePos.x - cx) * sx;
+		basePos.z = cz + (basePos.z - cz) * sz;
+	}
+
 	// Compute world position and transform normal to world space
 	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
 	finalUV.x *= lengthX;
 	finalUV.y *= lengthY;
+
 
 	gl_Position = projection * view * model * vec4(worldPosition, 1.0);
 	TexCoord = finalUV;

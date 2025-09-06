@@ -43,6 +43,7 @@ void NoiseGenerator::clearPerlinMaps(void)
 			delete [] map.second->heightMap;
 			map.second->heightMap = nullptr;
 		}
+		if (map.second && map.second->treeMap) { delete[] map.second->treeMap; map.second->treeMap = nullptr; }
 		if (map.second)
 		{
 			delete map.second;
@@ -219,6 +220,7 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
+	resolution = 1;
 	PerlinMap *newMap = new PerlinMap();
 	newMap->size = size;
 	newMap->heightMap = new double[size * size];
@@ -237,6 +239,7 @@ PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 			if (newMap->heightMap[z * size + x] < newMap->lowest)
 				newMap->lowest = newMap->heightMap[z * size + x];
 		}
+	buildTreeMap(newMap, 1);
 	_perlinMaps[pos] = newMap;
 	return (newMap);
 }
@@ -254,6 +257,7 @@ void NoiseGenerator::removePerlinMap(int x, int z)
 			delete [] map->heightMap;
 			map->heightMap = nullptr;
 		}
+		if (map && map->treeMap) { delete[] map->treeMap; map->treeMap = nullptr; }
 		if (map)
 		{
 			delete map;
@@ -332,4 +336,39 @@ double NoiseGenerator::grad(int hash, double x, double y) const
 	double u = h < 2 ? x : y;
 	double v = h < 2 ? y : x;
 	return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+double NoiseGenerator::getTreeNoise(ivec2 pos)
+{
+    NoiseData nData = {
+        1.0,    // amplitude
+        0.89, // frequency (tweak: lower = larger patches, higher = more speckle)
+        0.5,    // persistence
+        2.0,    // lacunarity
+        4       // octaves
+    };
+    setNoiseData(nData);
+    double n = noise(pos.x, pos.y);   // [-1, 1]
+    setNoiseData(NoiseData());
+    return n;
+}
+
+double NoiseGenerator::getTreeProbability(ivec2 pos)
+{
+    // normalize to [0,1]
+    return 0.5 * (getTreeNoise(pos) + 1.0);
+}
+
+void NoiseGenerator::buildTreeMap(PerlinMap* map, int resolution)
+{
+    if (!map) return;
+    if (!map->treeMap) map->treeMap = new double[map->size * map->size];
+
+    for (int x = 0; x < map->size; x += resolution)
+    for (int z = 0; z < map->size; z += resolution)
+    {
+        ivec2 worldXZ = { map->position.x * map->size + x,
+                          map->position.y * map->size + z };
+        map->treeMap[z * map->size + x] = getTreeProbability(worldXZ);
+    }
 }

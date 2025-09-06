@@ -84,14 +84,20 @@ struct Frustum {
 class World
 {
 private:
+	struct PendingBlock {
+		glm::ivec3 worldPos;
+		BlockType  value;
+	};
+	std::unordered_map<glm::ivec2, std::vector<PendingBlock>, ivec2_hash> _pendingEdits;
+	std::mutex _pendingMutex;
 	// Chunk loading info
 	std::queue<DisplayData *>	_stagedDataQueue;
 	std::queue<DisplayData *>	_transparentStagedDataQueue;
-	std::list<Chunk *>							_chunkList;
+	std::list<std::shared_ptr<Chunk>>				_chunkList;
 	std::mutex									_chunksListMutex;
 	size_t										_memorySize;
-	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_chunks;
-	std::unordered_map<ivec2, Chunk*, ivec2_hash>	_displayedChunks;
+	std::unordered_map<ivec2, std::shared_ptr<Chunk>, ivec2_hash>	_chunks;
+	std::unordered_map<ivec2, std::shared_ptr<Chunk>, ivec2_hash>	_displayedChunks;
 	std::mutex										_displayedChunksMutex;
 
 	// Chunk loading utils
@@ -146,6 +152,9 @@ public:
 	void init(int renderDistance);
 	void setRunning(std::mutex *runningMutex, bool *isRunning);
 	
+	bool setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value);
+	void applyPendingFor(const ivec2& pos);
+
 	// Display
 	int display();
 	int displayTransparent();
@@ -161,6 +170,7 @@ public:
 	// Shared data getters
 	NoiseGenerator &getNoiseGenerator(void);
 	Chunk* getChunk(ivec2 &position);
+	std::shared_ptr<Chunk> getChunkShared(const ivec2& pos);
 	SubChunk* getSubChunk(ivec3 &position);
 	size_t *getMemorySizePtr();
 	int *getRenderDistancePtr();
@@ -168,10 +178,13 @@ public:
 	TopBlock findTopBlockY(ivec2 chunkPos, ivec2 worldPos);
 	TopBlock findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
 	BlockType getBlock(ivec2 chunkPos, ivec3 worldPos);
+	bool setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value);
 	void setViewProj(const glm::mat4& view, const glm::mat4& proj);
+    void markChunkDirty(const ivec2& pos);
 private:
 	// Chunk loading
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
+	std::shared_ptr<Chunk> loadChunkShared(int x, int z, int render, ivec2& chunkPos, int resolution);
 	void loadTopChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadRightChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
@@ -190,4 +203,9 @@ private:
 	void updateSSBO();
 	void updateFillData();
 	void applyFrustumCulling(bool transparent);
+
+	std::mutex _dirtyMutex;
+    std::unordered_set<ivec2, ivec2_hash> _dirtyChunks;
+
+    void flushDirtyChunks(); // optional keep private; called internally
 };

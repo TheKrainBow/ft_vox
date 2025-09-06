@@ -29,12 +29,13 @@ class SubChunk
 		std::unique_ptr<uint8_t[]>	_blocks;
 		// std::array<uint8_t, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE>	_blocks;
 		double						**_heightMap;
+		double						**_treeMap;
 		World						&_world;
 		Chunk						&_chunk;
 
 		bool						_loaded = false;
 		bool						_hasSentFaces = false;
-		bool						_isFullyLoaded = true;
+		bool						_isFullyLoaded = false;
 		bool						_hasBufferInitialized = false;
 
 		std::vector<Face>			_faces[6];
@@ -54,6 +55,7 @@ class SubChunk
 	public:
 		SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();
+	    void markLoaded(bool loaded = true);
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight(int prevResolution);
@@ -61,6 +63,7 @@ class SubChunk
 		void loadOcean(int x, int z, size_t ground, size_t adjustedOceanHeight);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
+		void plantTree(int x, int y, int z, double proba);
 		ivec3 getPosition(void);
 		char getBlock(ivec3 position);
 		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);

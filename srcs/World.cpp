@@ -24,26 +24,20 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 }
 
 TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
-	std::lock_guard<std::mutex> lock(_chunksMutex);
-	Chunk* chunk = _chunks[{chunkPos.x, chunkPos.y}];
-	if (!chunk) return TopBlock();
-	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	TopBlock topBlock;
-	topBlock = chunk->getTopBlock(localX, localZ);
-	return topBlock;
+    auto chunk = getChunkShared(chunkPos);
+    if (!chunk) return TopBlock();
+    int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    return chunk->getTopBlock(localX, localZ);
 }
 
 TopBlock World::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos) {
-	std::lock_guard<std::mutex> lock(_chunksMutex);
-	Chunk* chunk = _chunks[{chunkPos.x, chunkPos.y}];
-	if (!chunk) return TopBlock();
-	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-	TopBlock topBlock;
-	topBlock = chunk->getTopBlockUnderPlayer(localX, localY, localZ);
-	return topBlock;
+    auto chunk = getChunkShared(chunkPos);
+    if (!chunk) return TopBlock();
+    int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    return chunk->getTopBlockUnderPlayer(localX, localY, localZ);
 }
 
 void World::init(int renderDistance = RENDER_DISTANCE) {
@@ -53,28 +47,33 @@ void World::init(int renderDistance = RENDER_DISTANCE) {
 
 World::~World()
 {
-	std::lock_guard<std::mutex> lock(_chunksMutex);
-	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
-	{
-		it->second->freeSubChunks();
-		delete it->second;
-	}
-	while (_stagedDataQueue.size())
-	{
-		auto &tmp = _stagedDataQueue.front();
-		_stagedDataQueue.pop();
-		delete tmp;
-	}
-	while (_transparentStagedDataQueue.size())
-	{
-		auto &tmp = _transparentStagedDataQueue.front();
-		_transparentStagedDataQueue.pop();
-		delete tmp;
-	}
-	delete _drawData;
-	delete _transparentDrawData;
-	delete _transparentFillData;
-	delete _transparentStagingData;
+    // stopWorkers(); // if you have one, ensure threads are joined first
+
+    {
+        std::lock_guard<std::mutex> lock(_chunksMutex);
+        _chunks.clear();            // drops refs; Chunks free themselves
+    }
+    {
+        std::lock_guard<std::mutex> lk(_chunksListMutex);
+        _chunkList.clear();
+    }
+    {
+        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+        _displayedChunks.clear();
+    }
+
+    while (!_stagedDataQueue.empty()) {
+        auto* tmp = _stagedDataQueue.front(); _stagedDataQueue.pop();
+        delete tmp;
+    }
+    while (!_transparentStagedDataQueue.empty()) {
+        auto* tmp = _transparentStagedDataQueue.front(); _transparentStagedDataQueue.pop();
+        delete tmp;
+    }
+    delete _drawData;
+    delete _transparentDrawData;
+    delete _transparentFillData;
+    delete _transparentStagingData;
 }
 
 NoiseGenerator &World::getNoiseGenerator()
@@ -89,8 +88,7 @@ int *World::getRenderDistancePtr()
 
 BlockType World::getBlock(ivec2 chunkPos, ivec3 worldPos)
 {
-	std::lock_guard<std::mutex> lock(_chunksMutex);
-	Chunk *chunk = _chunks[{chunkPos.x, chunkPos.y}];
+	auto chunk = getChunkShared(chunkPos);
 	if (!chunk)
 		return AIR;
 	int subChunkIndex = static_cast<int>(floor(worldPos.y / CHUNK_SIZE));
@@ -101,6 +99,26 @@ BlockType World::getBlock(ivec2 chunkPos, ivec3 worldPos)
 	int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	return subchunk->getBlock({localX, localY, localZ});
+}
+
+bool World::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value)
+{
+    auto chunk = getChunkShared(chunkPos);
+    if (!chunk) return false;
+
+    const int subY = (int)std::floor((double)worldPos.y / (double)CHUNK_SIZE);
+    SubChunk* sc = chunk->getOrCreateSubChunk(subY, /*generate=*/false);
+    if (!sc) return false;
+
+    const int lx = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+    const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+
+    sc->setBlock(lx, ly, lz, value);
+
+    // mark this chunk for a one-time remesh
+    markChunkDirty(chunkPos);
+    return true;
 }
 
 void World::setRunning(std::mutex *runningMutex, bool *isRunning)
@@ -114,119 +132,132 @@ bool World::getIsRunning()
 	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
 	return *_isRunning;
 }
-
 void World::unloadChunk()
 {
-	//TODO Save or do not unload modified chunks (delete block)
-	//(Add a isModified boolean in Chunk or SubChunk class)
-	_chunksListMutex.lock();
-	size_t chunksNb = _chunkList.size();
-	_chunksListMutex.unlock();
+    // keep most-recent CACHE_SIZE in memory
+    size_t count;
+    { std::lock_guard<std::mutex> lk(_chunksListMutex); count = _chunkList.size(); }
+    if (count <= CACHE_SIZE) return;
 
-	if (chunksNb <= CACHE_SIZE)
-		return ;
+    // player chunk coords
+    ivec3 p = _camera.getWorldPosition();
+    int pcx = p.x / CHUNK_SIZE; if (p.x < 0) --pcx;
+    int pcz = p.z / CHUNK_SIZE; if (p.z < 0) --pcz;
 
-	// Get player position in chunk coordinates
-	ivec3 playerPos = _camera.getWorldPosition();
-	int playerChunkX = playerPos.x / CHUNK_SIZE;
-	int playerChunkZ = playerPos.z / CHUNK_SIZE;
-	if (playerPos.x < 0) playerChunkX--;
-	if (playerPos.z < 0) playerChunkZ--;
+    // pick farthest candidate (from the list)
+    std::shared_ptr<Chunk> victim;
+    ivec2 pos;
+    {
+        std::lock_guard<std::mutex> lk(_chunksListMutex);
 
-	// Find the farthest chunk
-	_chunksListMutex.lock();
-	auto farthestChunkIt = _chunkList.end();
-	float maxDistance = -1.0f;
-	for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it)
-	{
-		Chunk* chunk = *it;
-		int chunkX = chunk->getPosition().x;
-		int chunkZ = chunk->getPosition().y;
-		float distance = sqrt(pow(chunkX - playerChunkX, 2) + pow(chunkZ - playerChunkZ, 2));
-		if (distance > maxDistance)
-		{
-			maxDistance = distance;
-			farthestChunkIt = it;
-		}
-	}
+        float maxDist = -1.f;
+        auto farIt = _chunkList.end();
 
-	if (farthestChunkIt != _chunkList.end())
-	{
-		Chunk* chunkToRemove = *farthestChunkIt;
-		// Remove from _chunkList
-		_chunkList.erase(farthestChunkIt);
-		_chunksListMutex.unlock();
-		
-		ivec2 pos = chunkToRemove->getPosition();
-		
-		// Check if chunk is being displayed
-		_displayedChunksMutex.lock();
-		bool isDisplayed = false;
-		auto endDisplay = _displayedChunks.end();
-		auto displayIt = _displayedChunks.find(pos);
-		isDisplayed = endDisplay != displayIt;
-		_displayedChunksMutex.unlock();
-		if (isDisplayed)
-			return ;
+        for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it) {
+            if (!*it) { it = _chunkList.erase(it); if (it == _chunkList.end()) break; continue; }
+            const ivec2 cpos = (*it)->getPosition();
+            float dx = float(cpos.x - pcx), dz = float(cpos.y - pcz);
+            float d  = std::sqrt(dx*dx + dz*dz);
+            if (d > maxDist) { maxDist = d; farIt = it; }
+        }
 
-		// Remove from _chunks
-		_chunksMutex.lock();
-		_chunks.erase(pos);
-		_chunksMutex.unlock();
+        if (farIt == _chunkList.end()) return;
 
-		// Clean up memory
-		_perlinGenerator.removePerlinMap(pos.x, pos.y);
-		chunkToRemove->unloadNeighbors();
-		chunkToRemove->freeSubChunks();
-		delete chunkToRemove;
-	}
-	else
-	{
-		_chunksListMutex.unlock();
-	}
+        victim = *farIt;
+        pos    = victim->getPosition();
+        _chunkList.erase(farIt);           // temporarily remove from LRU list
+    }
+
+    // if still displayed, put back and bail
+    {
+        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+        if (_displayedChunks.count(pos)) {
+            std::lock_guard<std::mutex> lk2(_chunksListMutex);
+            _chunkList.emplace_back(victim);  // reinsert
+            return;
+        }
+        _displayedChunks.erase(pos); // ensure it is not marked displayed
+    }
+
+    // erase from the main map (other threads holding shared_ptr keep it alive)
+    {
+        std::lock_guard<std::mutex> lk(_chunksMutex);
+        _chunks.erase(pos);
+    }
+
+    // book-keeping (memory size will actually drop when last ref releases)
+    _memorySize -= victim->getMemorySize();
+
+    // Defer heavy cleanup to Chunk dtor (recommended).
+    // If you *must* free perlin now, do it only when no other refs exist:
+    if (victim.use_count() == 1) {
+        _perlinGenerator.removePerlinMap(pos.x, pos.y);
+        // nothing else to do; shared_ptr will destroy now
+    }
+    // else: let the last holder trigger the destructor later.
 }
 
-Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
+
+Chunk* World::loadChunk(int x, int z, int render, ivec2& chunkPos, int resolution)
 {
-	Chunk *chunk = nullptr;
-	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
-
-	_chunksMutex.lock();
-	auto it = _chunks.find(pos);
-	auto itend = _chunks.end();
-	if (it != itend)
-	{
-		chunk = it->second;
-		_chunksMutex.unlock();
-		if (chunk->getResolution() > resolution)
-			chunk->updateResolution(resolution);
-	}
-	else
-	{
-		// Generate 2D height map
-		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
-
-		// Create chunks and subchunks and add the chunk to the unordered map
-		chunk = new Chunk(pos, pMap, _caveGen, *this, _textureManager, _threadPool, resolution);
-		_chunks[pos] = chunk;
-		_chunksMutex.unlock();
-
-		// Load blocks in the subchunks depending on the map
-		chunk->loadBlocks();
-
-		// Fetch for neighbor chunks
-		chunk->getNeighbors();
-		_memorySize += chunk->getMemorySize();
-		_chunksListMutex.lock();
-		_chunkList.emplace_back(chunk);
-		_chunksListMutex.unlock();
-	}
-	_displayedChunksMutex.lock();
-	_displayedChunks[pos] = chunk;
-	_displayedChunksMutex.unlock();
-	// unloadChunk();
-	return chunk;
+    auto sp = loadChunkShared(x, z, render, chunkPos, resolution);
+    return sp.get();
 }
+
+std::shared_ptr<Chunk> World::loadChunkShared(int x, int z, int render, ivec2& chunkPos, int resolution)
+{
+    ivec2 pos = { chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z };
+
+    // fast path: try find
+    std::shared_ptr<Chunk> chunk;
+    {
+        std::lock_guard<std::mutex> lock(_chunksMutex);
+        auto it = _chunks.find(pos);
+        if (it != _chunks.end())
+            chunk = it->second;
+    }
+
+    bool created = false;
+    if (!chunk)
+    {
+        // heavy work outside the map lock
+        PerlinMap* pMap = _perlinGenerator.getPerlinMap(pos, resolution);
+        auto newChunk = std::make_shared<Chunk>(pos, pMap, _caveGen, *this, _textureManager, _threadPool, resolution);
+
+        // insert (second check to avoid duplicate creators)
+        {
+            std::lock_guard<std::mutex> lock(_chunksMutex);
+            auto [it, inserted] = _chunks.emplace(pos, newChunk);
+            if (inserted) { chunk = std::move(newChunk); created = true; }
+            else          { chunk = it->second; }
+        }
+
+        if (created) {
+            chunk->loadBlocks();
+            chunk->getNeighbors();
+            _memorySize += chunk->getMemorySize();
+            {
+                std::lock_guard<std::mutex> lk(_chunksListMutex);
+                _chunkList.emplace_back(chunk);
+            }
+			chunk->sendFacesToDisplay(); 
+			applyPendingFor(pos);
+        }
+    }
+
+    // resolution downgrades are cheap; do outside locks
+    if (chunk && chunk->getResolution() > resolution)
+        chunk->updateResolution(resolution);
+
+    // mark as displayed
+    if (chunk) {
+        std::lock_guard<std::mutex> lock(_displayedChunksMutex);
+        _displayedChunks[pos] = chunk;
+    }
+
+    return chunk;
+}
+
 
 void World::loadTopChunks(int render, ivec2 &chunkPos, int resolution)
 {
@@ -322,40 +353,40 @@ size_t *World::getMemorySizePtr() {
 
 void World::unLoadNextChunks(ivec2 &newCamChunk)
 {
-	ivec2 pos;
-	std::queue<ivec2> deleteQueue;
-	_displayedChunksMutex.lock();
-	for (auto &it : _displayedChunks)
-	{
-		Chunk *chunk = it.second;
-		ivec2 chunkPos = chunk->getPosition();
-		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
-		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
-		{
-			deleteQueue.emplace(chunkPos);
-		}
-	}
-	_displayedChunksMutex.unlock();
-	while (!deleteQueue.empty())
-	{
-		pos = deleteQueue.front();
-		_displayedChunksMutex.lock();
-		_displayedChunks.erase(pos);
-		_displayedChunksMutex.unlock();
-		deleteQueue.pop();
-	}
-	updateFillData();
+    // collect positions to erase (snapshot under lock)
+    std::vector<ivec2> toErase;
+    {
+        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+        toErase.reserve(_displayedChunks.size());
+        for (const auto &kv : _displayedChunks) {
+            const std::shared_ptr<Chunk>& chunk = kv.second;
+            const ivec2 cpos = chunk->getPosition();
+            if (std::abs(cpos.x - newCamChunk.x) > _renderDistance / 2 ||
+                std::abs(cpos.y - newCamChunk.y) > _renderDistance / 2) {
+                toErase.emplace_back(cpos);
+            }
+        }
+        // erase while we still hold the lock so readers see a consistent map
+        for (const auto &pos : toErase) {
+            _displayedChunks.erase(pos);
+        }
+    }
+
+    // rebuild GPU buffers after we changed the displayed set
+    updateFillData();
 }
 
 void World::updateFillData()
 {
-	DisplayData *fillData = new DisplayData();
-	DisplayData *transparentData = new DisplayData();
-	buildFacesToDisplay(fillData, transparentData);
-	_drawDataMutex.lock();
-	_stagedDataQueue.emplace(fillData);
-	_transparentStagedDataQueue.emplace(transparentData);
-	_drawDataMutex.unlock();
+    // Make sure any cross-chunk edits are reflected in meshes
+    flushDirtyChunks();
+
+    DisplayData* fillData        = new DisplayData();
+    DisplayData* transparentData = new DisplayData();
+    buildFacesToDisplay(fillData, transparentData);
+    std::lock_guard<std::mutex> g(_drawDataMutex);
+    _stagedDataQueue.emplace(fillData);
+    _transparentStagedDataQueue.emplace(transparentData);
 }
 
 bool World::hasMoved(ivec2 &oldPos)
@@ -367,87 +398,92 @@ bool World::hasMoved(ivec2 &oldPos)
 	return false;
 }
 
-SubChunk *World::getSubChunk(ivec3 &position)
+SubChunk* World::getSubChunk(ivec3 &position)
 {
-	_chunksMutex.lock();
-	auto it = _chunks.find(ivec2(position.x, position.z));
-	auto itend = _chunks.end();
-	_chunksMutex.unlock();
-	if (it != itend)
-		return it->second->getSubChunk(position.y);
-	return nullptr;
+    std::shared_ptr<Chunk> c;
+    {
+        std::lock_guard<std::mutex> lk(_chunksMutex);
+        auto it = _chunks.find(ivec2(position.x, position.z));
+        if (it != _chunks.end()) c = it->second;
+    }
+    return c ? c->getSubChunk(position.y) : nullptr;
 }
 
-Chunk *World::getChunk(ivec2 &position)
-{
-	_chunksMutex.lock();
-	auto it = _chunks.find({position.x, position.y});
-	auto itend = _chunks.end();
-	_chunksMutex.unlock();
-	if (it != itend)
-		return it->second;
-	return nullptr;
+std::shared_ptr<Chunk> World::getChunkShared(const ivec2& pos) {
+    std::lock_guard<std::mutex> lock(_chunksMutex);
+    auto it = _chunks.find(pos);
+    if (it == _chunks.end()) return {};
+    return it->second; // copy shared_ptr (increments refcount)
 }
 
-void World::buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData) {
-    std::unordered_map<ivec2, Chunk*, ivec2_hash> displayedChunks;
-    _displayedChunksMutex.lock();
-    displayedChunks = _displayedChunks;
-    _displayedChunksMutex.unlock();
+void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentFillData)
+{
+    // snapshot displayed chunks (avoid holding the lock during heavy copies)
+    std::vector<std::shared_ptr<Chunk>> snapshot;
+    {
+        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+        snapshot.reserve(_displayedChunks.size());
+        for (auto &kv : _displayedChunks) snapshot.push_back(kv.second);
+    }
 
-    for (auto &kv : displayedChunks) {
-        Chunk* c = kv.second;
-		// pull once; order matches subchunk iteration used to build commands
-		auto& ssbo = c->getSSBO();
+    for (const auto& c : snapshot) {
+        // SSBO order must match indirect command order inside the chunk
+        auto& ssbo = c->getSSBO();
 
-		// --- SOLID ---
-		uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
-		auto& solidVerts = c->getVertices();
-		size_t vSizeBefore = fillData->vertexData.size();
-		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
+        // --- SOLID ---
+        uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
 
-		auto& ib = c->getIndirectData();
-		for (size_t i = 0; i < ib.size(); ++i) {
-			auto cmd = ib[i];
-			cmd.baseInstance += vSizeBefore;
-			fillData->indirectBufferData.push_back(cmd);
+        auto& solidVerts = c->getVertices();
+        size_t vSizeBefore = fillData->vertexData.size();
+        fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
 
-			// AABB from SSBO[i] (subchunk origin) → + CHUNK_SIZE cube
-			vec3 o = vec3(ssbo[i].x, ssbo[i].y, ssbo[i].z);
-			fillData->cmdAABBsSolid.push_back({ o, o + vec3(CHUNK_SIZE) });
-		}
+        auto& ib = c->getIndirectData();
+        size_t solidCount = ib.size();
+        size_t ssboLimit  = std::min(ssbo.size(), solidCount);
+        for (size_t i = 0; i < solidCount; ++i) {
+            auto cmd = ib[i];
+            cmd.baseInstance += (uint32_t)vSizeBefore;
+            fillData->indirectBufferData.push_back(cmd);
 
-		// keep your existing ssboData append
-		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
-		fillData->chunkCmdRanges[c->getPosition()] = {
-			startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
-		};
+            // AABB from SSBO[i] (guard if ssbo is shorter)
+            size_t idx = std::min(i, ssboLimit ? ssboLimit - 1 : (size_t)0);
+            glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
+            fillData->cmdAABBsSolid.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
+        }
 
-		// --- TRANSPARENT ---
-		uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
+        fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+        fillData->chunkCmdRanges[c->getPosition()] = {
+            startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
+        };
 
-		auto& transpVerts = c->getTransparentVertices();
-		size_t tvBefore = transparentFillData->vertexData.size();
-		transparentFillData->vertexData.insert(transparentFillData->vertexData.end(),
-                                       transpVerts.begin(), transpVerts.end());
+        // --- TRANSPARENT ---
+        uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
 
+        auto& transpVerts = c->getTransparentVertices();
+        size_t tvBefore = transparentFillData->vertexData.size();
+        transparentFillData->vertexData.insert(
+            transparentFillData->vertexData.end(), transpVerts.begin(), transpVerts.end()
+        );
 
-		auto& tib = c->getTransparentIndirectData();
-		for (size_t i = 0; i < tib.size(); ++i) {
-			auto cmd = tib[i];
-			cmd.baseInstance += tvBefore;
-			transparentFillData->indirectBufferData.push_back(cmd);
+        auto& tib = c->getTransparentIndirectData();
+        size_t transpCount = tib.size();
+        size_t ssboLimitT  = std::min(ssbo.size(), transpCount);
+        for (size_t i = 0; i < transpCount; ++i) {
+            auto cmd = tib[i];
+            cmd.baseInstance += (uint32_t)tvBefore;
+            transparentFillData->indirectBufferData.push_back(cmd);
 
-			// same SSBO order
-			vec3 o = vec3(ssbo[i].x, ssbo[i].y, ssbo[i].z);
-			transparentFillData->cmdAABBsTransp.push_back({ o, o + vec3(CHUNK_SIZE) });
-		}
+            size_t idx = std::min(i, ssboLimitT ? ssboLimitT - 1 : (size_t)0);
+            glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
+            transparentFillData->cmdAABBsTransp.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
+        }
 
-		transparentFillData->chunkCmdRanges[c->getPosition()] = {
-			startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
-		};
+        transparentFillData->chunkCmdRanges[c->getPosition()] = {
+            startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
+        };
     }
 }
+
 
 void World::updateSSBO()
 {
@@ -724,5 +760,56 @@ void World::applyFrustumCulling(bool transparent) {
             (GLsizeiptr)(sizeof(DrawArraysIndirectCommand) * _culledSolidCmds.size()),
             _culledSolidCmds.data());
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+    }
+}
+bool World::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value)
+{
+    auto chunk = getChunkShared(chunkPos);
+    if (!chunk) {
+        std::lock_guard<std::mutex> lk(_pendingMutex);
+        _pendingEdits[chunkPos].push_back({worldPos, value});
+        return false; // queued
+    }
+    return setBlock(chunkPos, worldPos, value); // applies immediately
+}
+
+void World::applyPendingFor(const ivec2& pos)
+{
+    std::vector<PendingBlock> edits;
+    {
+        std::lock_guard<std::mutex> lk(_pendingMutex);
+        auto it = _pendingEdits.find(pos);
+        if (it != _pendingEdits.end()) {
+            edits.swap(it->second);
+            _pendingEdits.erase(it);
+        }
+    }
+    if (edits.empty()) return;
+
+    // Now the chunk exists; apply all queued edits
+    for (const auto& e : edits)
+        setBlock(pos, e.worldPos, e.value);
+
+    // Optionally remesh once per chunk after the batch:
+    if (auto c = getChunkShared(pos)) c->sendFacesToDisplay();
+    updateFillData();
+}
+
+void World::markChunkDirty(const ivec2& pos) {
+    std::lock_guard<std::mutex> lk(_dirtyMutex);
+    _dirtyChunks.insert(pos);
+}
+
+void World::flushDirtyChunks() {
+    std::vector<ivec2> toRemesh;
+    {
+        std::lock_guard<std::mutex> lk(_dirtyMutex);
+        if (_dirtyChunks.empty()) return;
+        toRemesh.assign(_dirtyChunks.begin(), _dirtyChunks.end());
+        _dirtyChunks.clear();
+    }
+    // Rebuild meshes for the affected chunks
+    for (const auto& p : toRemesh) {
+        if (auto c = getChunkShared(p)) c->sendFacesToDisplay();
     }
 }

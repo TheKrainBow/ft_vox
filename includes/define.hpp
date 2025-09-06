@@ -44,6 +44,8 @@
 # define SAND 's'
 # define WATER 'W'
 # define SNOW 'w'
+# define LOG 'l'
+# define LEAF 'L'
 
 typedef  struct {
     uint  count;

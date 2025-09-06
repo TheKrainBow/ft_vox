@@ -11,12 +11,12 @@ float mapExpo(float x, float in_min, float in_max, float out_min, float out_max)
 
 bool isTransparent(char block)
 {
-	return block == AIR || block == WATER;
+	return block == AIR || block == WATER || block == LOG;
 }
 
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 {
-	return isTransparent(neighborBlock) && blockToDisplay != neighborBlock;
+	return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && neighborBlock != LOG);
 }
 
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
@@ -153,6 +153,9 @@ void StoneEngine::initTextures()
 		{ T_WATER, "textures/water.ppm" },
 		{ T_SNOW, "textures/snow.ppm" },
 		{ T_BEDROCK, "textures/bedrock.ppm" },
+		{ T_LOG_SIDE, "textures/log_side.ppm" },
+		{ T_LOG_TOP, "textures/log_top.ppm" },
+		{ T_LEAF, "textures/full_leaves.ppm" },
 	});
 
 	glGenTextures(1, &waterNormalMap);
