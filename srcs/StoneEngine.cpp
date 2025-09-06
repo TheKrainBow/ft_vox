@@ -446,7 +446,11 @@ void StoneEngine::activateRenderShader()
 
 void StoneEngine::activateTransparentShader()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	// Render water to MSAA FBO to leverage per-sample depth; in wireframe, draw to default framebuffer
+	if (showTriangleMesh)
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	else
+		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 
 	mat4 modelMatrix = mat4(1.0f);
 
@@ -559,7 +563,12 @@ void StoneEngine::display() {
 
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
+	// Render transparent objects (water) into MSAA FBO, then resolve again
 	renderTransparentObjects();
+	resolveMsaaToFbo();
+	screenshotFBOBuffer(writeFBO, readFBO);
+	// Apply greedy fix a second time for the transparent layer (water)
+	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
 	postProcessFog();
@@ -570,7 +579,7 @@ void StoneEngine::display() {
 	renderOverlayAndUI();
 	_world.endFrame();
 	finalizeFrame();
-}
+	}
 
 void StoneEngine::postProcessFog()
 {
