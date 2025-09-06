@@ -11,12 +11,13 @@
 # define SWIMMING false
 # define JUMPING false
 # define UNDERWATER false
+# define ASCENDING false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 60
+# define RENDER_DISTANCE 400
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -27,6 +28,12 @@
 # define MOVEMENT_SPEED 0.5f
 # define FALL_INCREMENT 9.8f / 40.0f
 # define FALL_INCREMENT_WATER 9.8f / 1000.0f
+
+# define PLAYER_HEIGHT 1.8f
+# define EYE_HEIGHT 1.62f
+# define EPS 0.02f
+
+# define KHR_DEBUG false
 
 # define RESOLUTION 1
 
@@ -48,8 +55,8 @@
 # define LEAF 'L'
 
 typedef  struct {
-    uint  count;
-    uint  instanceCount;
-    uint  first;
-    uint  baseInstance;
+	uint  count;
+	uint  instanceCount;
+	uint  first;
+	uint  baseInstance;
 } DrawArraysIndirectCommand;

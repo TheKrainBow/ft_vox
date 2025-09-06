@@ -53,7 +53,7 @@ float Noise3DGenerator::noise(float x, float y, float z) const {
 	float w = fade(z);
 
 	// Hash coordinates of the 8 cube corners
-	int A  = p[X] + Y,    AA = p[A] + Z,    AB = p[A + 1] + Z;
+	int A  = p[X] + Y,	AA = p[A] + Z,	AB = p[A + 1] + Z;
 	int B  = p[X + 1] + Y, BA = p[B] + Z,   BB = p[B + 1] + Z;
 
 	// Add blended results from 8 corners of cube

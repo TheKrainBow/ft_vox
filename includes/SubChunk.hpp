@@ -27,7 +27,6 @@ class SubChunk
 		size_t						_memorySize = 0;
 		int							_chunkSize;
 		std::unique_ptr<uint8_t[]>	_blocks;
-		// std::array<uint8_t, CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE>	_blocks;
 		double						**_heightMap;
 		double						**_treeMap;
 		World						&_world;

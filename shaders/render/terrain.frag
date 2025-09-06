@@ -2,7 +2,6 @@
 
 uniform vec3 lightColor;
 uniform int timeValue;
-// uniform vec3 viewPos;
 uniform mat4 view;
 uniform sampler2DArray textureArray;
 
@@ -37,7 +36,8 @@ float calculateAmbientLight(float time) {
 	if (time < 43200) {
 		float angle = (time / 43200.0) * 3.14159265359;
 		ambient += 0.15 * sin(angle);
-	} else {
+	}
+	else {
 		time -= 43200;
 		float angle = (time / 43200.0) * 3.14159265359;
 		ambient += 0.5 * sin(angle);
@@ -63,14 +63,6 @@ void main() {
 
 	// Calculate the distance from the camera to the fragment
 	float dist = distance(viewPos, FragPos);
-
-	// Optionally, apply transparency for water (TextureID 6)
-	// if (TextureID == 6) {
-	//	float minDistance = 20.0;
-	//	float maxDistance = 250.0;
-	//	float transparency = clamp((dist - minDistance) / (maxDistance - minDistance), 0.6, 0.85);
-	//	texColor.a *= transparency;
-	// }
 
 	// Lighting strengths
 	float ambient = calculateAmbientLight(timeValue);

@@ -1,117 +1,72 @@
 #version 460 core
 
-layout(location = 0) in ivec3 aPos;			// Vertex position
-layout(location = 2) in int instanceData;	// Encoded instance data
+#extension GL_ARB_shader_draw_parameters : require
+layout(location = 0) in ivec3 aPos;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform float time;
 
-layout(binding = 3, std430) readonly buffer ssbo1 {
-	vec4 ssbo[];
-};
+layout(std430, binding = 3) readonly buffer ssbo1 { vec4 ssbo[]; };
+layout(std430, binding = 4) readonly buffer instBuf { int inst[]; };
 
 out vec2 TexCoord;
 flat out int TextureID;
-out vec3 Normal; // Output normal for lighting
-out vec3 FragPos; // Output fragment position for lighting
+out vec3 Normal;
+out vec3 FragPos;
 
 void main()
 {
 	vec4 ssboValue = ssbo[gl_DrawID];
 	float res = ssboValue.w;
-	// Decode instance data
-	int x = (instanceData >> 0) & 0x1F;
-	int y = (instanceData >> 5) & 0x1F;
+
+	int instanceData = inst[gl_BaseInstance + gl_InstanceID];
+
+	int x = (instanceData >>  0) & 0x1F;
+	int y = (instanceData >>  5) & 0x1F;
 	int z = (instanceData >> 10) & 0x1F;
 	int direction = (instanceData >> 15) & 0x07;
-	int lengthX = (instanceData >> 18) & 0x1F;
-	int lengthY = (instanceData >> 23) & 0x1F;
+	int lengthX   = (instanceData >> 18) & 0x1F;
+	int lengthY   = (instanceData >> 23) & 0x1F;
 	int textureID = (instanceData >> 28) & 0x0F;
 
 	if (textureID != 6) {
-		return ;
+		gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
+		TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
+		return;
 	}
 
-	vec3 instancePos = vec3(float(x), float(y), float(z));
+	vec3 instancePos = vec3(x, y, z);
 	vec3 basePos = aPos;
 	vec2 finalUV = aPos.xy;
 
-	lengthX++;
-	lengthY++;
+	lengthX++; lengthY++;
 	finalUV.y = 1.0 - finalUV.y;
 	finalUV /= res;
 	basePos.x *= lengthX;
 	basePos.y *= lengthY;
 
-	// Default normal
-	vec3 normal = vec3(0.0, 0.0, 0.0);
+	vec3 normal = vec3(0.0);
 
-	if (direction == 2 || direction == 3)
-	{
-		basePos.xyz = basePos.zyx;
-	}
-	if (direction == 4 || direction == 5)
-	{
-		basePos.zy = basePos.yz;
-	}
+	if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
+	if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
 
-	if (direction == 0)
-	{
-		normal = vec3(0.0, 0.0, 1.0);
-	}
-	if (direction == 1) // -X
-	{
-		basePos.x = -basePos.x + lengthX;
-		basePos.z += res;
-		normal = vec3(-1.0, 0.0, 0.0);
-	}
-	if (direction == 2) // -Y
-	{
-		basePos.y = -basePos.y + lengthY;
-		finalUV.y = -finalUV.y + 1;
-		normal = vec3(0.0, -1.0, 0.0);
-	}
-	if (direction == 3) // +X
-	{
-		basePos.x += res;
-		normal = vec3(1.0, 0.0, 0.0);
-	}
-	if (direction == 4) // -Z
-	{
-		basePos.z = -basePos.z + lengthY;
-		normal = vec3(0.0, 0.0, -1.0);
-	}
-	if (direction == 5) // +Y
-	{
-		basePos.y += res;
-		normal = vec3(0.0, 1.0, 0.0);
-	}
+	if (direction == 0) normal = vec3(0,0, 1);
+	if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(-1,0,0); }
+	if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(0,-1,0); }
+	if (direction == 3) { basePos.x += res; normal = vec3(1,0,0); }
+	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
+	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
-	if (textureID == 6)
-	{
-		basePos.y -= 0.1;
-	}
-	// Compute world position and transform normal to world space
+	basePos.y -= 0.1;
+
 	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
-	finalUV.x *= lengthX;
-	finalUV.y *= lengthY;
-
-	// float waveFreq = 0.001;
-	// float waveAmp = 0.03;
-	// float waveSpeed = 0.01;
-
-	// float wave =
-	//	sin(worldPosition.x * waveFreq + time * waveSpeed) +
-	//	cos(worldPosition.z * waveFreq + time * waveSpeed * 0.8);
-
-	// float offset = clamp(wave * 0.5 * waveAmp, -0.1, 0.1);
-	// worldPosition.y += offset;
+	finalUV *= vec2(lengthX, lengthY);
 
 	gl_Position = projection * view * model * vec4(worldPosition, 1.0);
 	TexCoord = finalUV;
 	TextureID = textureID;
-	Normal = mat3(transpose(inverse(model))) * normal; // Transform normal to world space
-	FragPos = worldPosition; // Pass world position to fragment shader
+	Normal = mat3(transpose(inverse(model))) * normal;
+	FragPos = worldPosition;
 }
