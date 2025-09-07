@@ -10,8 +10,6 @@ _isInit(false),
 _world(world),
 _textureManager(textureManager),
 _perlinMap(perlinMap),
-_hasBufferInitialized(false),
-_needUpdate(true),
 _caveGen(caveGen),
 _resolution(resolution),
 _pool(pool)

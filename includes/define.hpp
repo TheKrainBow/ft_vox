@@ -21,7 +21,7 @@
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
-# define SUBCHUNK_MARGIN_DOWN (0)  // bedrock is at 0, so keep 0 for now
+# define SUBCHUNK_MARGIN_DOWN (0)
 # define LOD_THRESHOLD 32
 # define ROTATION_SPEED 1.0f
 # define CACHE_SIZE NB_CHUNKS * 2

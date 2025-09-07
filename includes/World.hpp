@@ -26,47 +26,6 @@ struct ChunkElement
 	int displayPos;
 };
 
-struct PersistBuf {
-	GLuint		id = 0;
-	GLsizeiptr  cap = 0;
-	void*		ptr = nullptr;
-	bool		coherent = true;
-
-	void create(GLsizeiptr initial_cap, bool makeCoherent = true) {
-		coherent = makeCoherent;
-		GLbitfield storage = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_DYNAMIC_STORAGE_BIT;
-		if (coherent) storage |= GL_MAP_COHERENT_BIT;
-
-		glCreateBuffers(1, &id);
-		glNamedBufferStorage(id, initial_cap, nullptr, storage);
-		cap = initial_cap;
-
-		GLbitfield access = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
-		if (coherent) access |= GL_MAP_COHERENT_BIT;
-
-		ptr = glMapNamedBufferRange(id, 0, cap, access);
-	}
-
-	void ensure(GLsizeiptr needed) {
-		if (needed <= cap) return;
-		GLsizeiptr newCap = std::max(needed, cap + cap/2);
-		glUnmapNamedBuffer(id);
-		glDeleteBuffers(1, &id);
-		create(newCap, coherent);
-	}
-
-	void flush(GLintptr offset, GLsizeiptr size) const {
-		if (!coherent && size > 0) {
-			glFlushMappedNamedBufferRange(id, offset, size);
-		}
-	}
-};
-
-struct Compare {
-	bool operator()(const ChunkElement& a, const ChunkElement& b) const {
-		return a.priority > b.priority;
-	}
-};
 struct CmdRange { uint32_t start; uint32_t count; };
 struct AABB { vec3 mn, mx; };
 
@@ -148,22 +107,22 @@ private:
 	// Display / Runtime data
 	std::mutex								_drawDataMutex;
 	DisplayData								*_drawData;
-	GLuint									_ssbo;
 	bool 									_hasBufferInitialized;
 
 	DisplayData								*_transparentDrawData;
-	DisplayData								*_transparentFillData;
-	DisplayData								*_transparentStagingData;
 
-	size_t									_drawnSSBOSize;
-	GLuint									_instanceVBO;
 	GLuint									_indirectBuffer;
 	GLuint									_vao;
 	GLuint									_vbo;
 
 	GLuint									_transparentVao;
-	GLuint									_transparentInstanceVBO;
 	GLuint									_transparentIndirectBuffer;
+
+	// Single-buffer (no triple PB) SSBOs per pass
+	GLuint									_solidPosSSBO = 0;      // binding=3 for SOLID
+	GLuint									_transpPosSSBO = 0;     // binding=3 for TRANSPARENT
+	GLuint									_solidInstSSBO = 0;     // binding=4 for SOLID
+	GLuint									_transpInstSSBO = 0;    // binding=4 for TRANSPARENT
 
 	bool									_needUpdate;
 	bool									_needTransparentUpdate;
@@ -181,34 +140,8 @@ private:
 	GLsizei									_transpDrawCount = 0;
 	GLint									_locNumDraws = -1;
 	GLint									_locChunkSize = -1;
-	static constexpr int kFrames = 3;
-	int _frameIx = 0;
 
-	// Solid
-	PersistBuf _pbSolidIndirect[kFrames];
-	PersistBuf _pbSolidTemplate[kFrames];
 
-	// Transparent
-	PersistBuf _pbTranspIndirect[kFrames];
-	PersistBuf _pbTranspTemplate[kFrames];
-
-	// SSBO posRes (subchunk origins)
-	PersistBuf _pbSSBO[kFrames];
-	GLsync _inFlight[kFrames] = {nullptr,nullptr,nullptr};
-	int _srcIxSolid  = 0;  // slot index that currently holds the *valid* solid inputs
-	int _srcIxTransp = 0;  // slot index that currently holds the *valid* transparent inputs
-	// members
-	PersistBuf _pbSolidInstSSBO[kFrames];
-	PersistBuf _pbTranspInstSSBO[kFrames];
-	PersistBuf _pbSolidPosSSBO[kFrames];   // pos/res for SOLID pass
-	PersistBuf _pbTranspPosSSBO[kFrames];  // pos/res for TRANSPARENT pass
-
-	bool		_useBigSSBO = false;
-	GLuint		_bigSSBO	= 0;
-	GLsizeiptr	_bigSSBOBytes = 0;
-
-	// optional: hard cap for the test; tune as needed
-	static constexpr GLsizeiptr kBigSSBOBytes = 64ll * 1024ll * 1024ll; // 64 MB
 
 public:
 	// Init
@@ -241,6 +174,8 @@ public:
 	BlockType getBlock(ivec2 chunkPos, ivec3 worldPos);
 	void setViewProj(const glm::mat4& view, const glm::mat4& proj);
 	void endFrame();
+	// Explicit GL teardown (call before destroying the GL context)
+	void shutdownGL();
 private:
 	// Chunk loading
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
@@ -256,14 +191,11 @@ private:
 	bool getIsRunning();
 	void initGpuCulling();
 	void runGpuCulling(bool transparent);
-	void updateTemplateBuffer(bool transparent, GLsizeiptr byteSize);
 
 
 	// Display
 	void initGLBuffer();
 	void pushVerticesToOpenGL(bool isTransparent);
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
-	void clearFaces();
-	void updateSSBO();
 	void updateFillData();
 };

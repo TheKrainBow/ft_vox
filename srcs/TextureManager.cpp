@@ -84,4 +84,8 @@ TextureManager::TextureManager() {
 }
 
 TextureManager::~TextureManager() {
+	if (_textureArrayID) {
+		glDeleteTextures(1, &_textureArrayID);
+		_textureArrayID = 0;
+	}
 }

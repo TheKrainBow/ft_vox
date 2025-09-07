@@ -7,7 +7,6 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	_needTransparentUpdate = true;
 	_hasBufferInitialized = false;
 	_renderDistance = RENDER_DISTANCE;
-	_drawnSSBOSize = 1;
 	_currentRender = 0;
 
 	_memorySize = 0;
@@ -68,14 +67,6 @@ void World::init(int renderDistance = RENDER_DISTANCE) {
 	initGLBuffer();
 }
 
-void World::initBigSSBO(GLsizeiptr bytes) {
-	if (_bigSSBO) glDeleteBuffers(1, &_bigSSBO);
-	glCreateBuffers(1, &_bigSSBO);
-	glNamedBufferStorage(_bigSSBO, bytes, nullptr, GL_DYNAMIC_STORAGE_BIT);
-	_bigSSBOBytes = bytes;
-	_useBigSSBO   = true;
-}
-
 World::~World()
 {
 	std::lock_guard<std::mutex> lock(_chunksMutex);
@@ -98,8 +89,28 @@ World::~World()
 	}
 	delete _drawData;
 	delete _transparentDrawData;
-	delete _transparentFillData;
-	delete _transparentStagingData;
+}
+
+void World::shutdownGL()
+{
+	// Delete GL programs and buffers created by World
+	if (_cullProgram) { glDeleteProgram(_cullProgram); _cullProgram = 0; }
+	if (_vao) { glDeleteVertexArrays(1, &_vao); _vao = 0; }
+	if (_transparentVao) { glDeleteVertexArrays(1, &_transparentVao); _transparentVao = 0; }
+
+	if (_vbo) { glDeleteBuffers(1, &_vbo); _vbo = 0; }
+	if (_indirectBuffer) { glDeleteBuffers(1, &_indirectBuffer); _indirectBuffer = 0; }
+
+	if (_transparentIndirectBuffer) { glDeleteBuffers(1, &_transparentIndirectBuffer); _transparentIndirectBuffer = 0; }
+
+	if (_templIndirectBuffer) { glDeleteBuffers(1, &_templIndirectBuffer); _templIndirectBuffer = 0; }
+	if (_transpTemplIndirectBuffer) { glDeleteBuffers(1, &_transpTemplIndirectBuffer); _transpTemplIndirectBuffer = 0; }
+	if (_frustumUBO) { glDeleteBuffers(1, &_frustumUBO); _frustumUBO = 0; }
+
+	if (_solidPosSSBO) { glDeleteBuffers(1, &_solidPosSSBO); _solidPosSSBO = 0; }
+	if (_transpPosSSBO) { glDeleteBuffers(1, &_transpPosSSBO); _transpPosSSBO = 0; }
+	if (_solidInstSSBO) { glDeleteBuffers(1, &_solidInstSSBO); _solidInstSSBO = 0; }
+	if (_transpInstSSBO) { glDeleteBuffers(1, &_transpInstSSBO); _transpInstSSBO = 0; }
 }
 
 NoiseGenerator &World::getNoiseGenerator()
@@ -509,33 +520,6 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 	}
 }
 
-void World::updateSSBO()
-{
-	// SSBO Update
-	bool needUpdate = false;
-	size_t size = _drawData->ssboData.size() * 2;
-	while (size > _drawnSSBOSize)
-	{
-		_drawnSSBOSize *= 2;
-		needUpdate = true;
-	}
-	if (needUpdate)
-	{
-		glDeleteBuffers(1, &_ssbo);
-		glCreateBuffers(1, &_ssbo);
-		glNamedBufferStorage(_ssbo, 
-			sizeof(vec4) * _drawnSSBOSize, 
-			nullptr, 
-			GL_DYNAMIC_STORAGE_BIT);
-		glNamedBufferSubData(
-			_ssbo,
-			0,
-			sizeof(vec4) * _drawData->ssboData.size(),
-			_drawData->ssboData.data()
-		);
-	}
-}
-
 void World::updateDrawData()
 {
 	std::lock_guard<std::mutex> lock(_drawDataMutex);
@@ -558,8 +542,7 @@ void World::updateDrawData()
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
 	}
-	if (_drawData && (_needUpdate || _needTransparentUpdate))
-		updateSSBO();
+	// SSBOs are uploaded per-pass in pushVerticesToOpenGL now
 	if (_drawData) {
 		if (_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
 			std::cout << "[CULL] Mismatch solid: ssbo=" << _drawData->ssboData.size()
@@ -578,22 +561,17 @@ int World::display()
 {
 	if (!_drawData) return 0;
 	if (_needUpdate) { pushVerticesToOpenGL(false); }
-
-	const int outIx = _frameIx % kFrames;
-	const int inIx  = _srcIxSolid;
-	const GLsizei want = (GLsizei)_solidDrawCount;
-	if (want == 0) return 0;
+	if (_solidDrawCount == 0) return 0;
 
 	runGpuCulling(false);
 
-	// <<< BIG SSBO: bind once >>>
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _bigSSBO);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _pbSolidInstSSBO[inIx].id);
+	// Bind per-pass SSBOs (single-buffer path)
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
 
-	// glDisable(GL_CULL_FACE);
 	glBindVertexArray(_vao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _pbSolidIndirect[outIx].id);
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, want, 0);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
@@ -609,39 +587,26 @@ int World::displayTransparent()
 {
 	if (!_transparentDrawData) return 0;
 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
-
-	const int outIx = _frameIx % kFrames;
-	const int inIx  = _srcIxTransp;
-	const GLsizei want = (GLsizei)_transpDrawCount;
-	if (want == 0) return 0;
+	if (_transpDrawCount == 0) return 0;
 
 	runGpuCulling(true);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _bigSSBO);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _pbTranspInstSSBO[inIx].id);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
 
 	glDisable(GL_CULL_FACE);
 	glBindVertexArray(_transparentVao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _pbTranspIndirect[outIx].id);
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, want, 0);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
-	return (int)want;
+	return (int)_transpDrawCount;
 }
 
 void World::pushVerticesToOpenGL(bool transparent)
 {
 	std::lock_guard<std::mutex> lock(_drawDataMutex);
-	const int ix = _frameIx % kFrames;
-
-	if (_inFlight[ix]) {
-		GLenum s = glClientWaitSync(_inFlight[ix], 0, 0);
-		if (s == GL_TIMEOUT_EXPIRED || s == GL_WAIT_FAILED) {
-			glWaitSync(_inFlight[ix], 0, GL_TIMEOUT_IGNORED);
-		}
-		glDeleteSync(_inFlight[ix]); _inFlight[ix] = nullptr;
-	}
 
 	if (transparent)
 	{
@@ -651,38 +616,22 @@ void World::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
-		_pbTranspIndirect[ix].ensure(bytesCmd);
-		_pbTranspTemplate[ix].ensure(bytesCmd);
-		_pbTranspInstSSBO[ix].ensure(bytesInst);
+		// Upload template and out buffers (compute read/write)
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _transpTemplIndirectBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _transparentIndirectBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _transparentDrawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
 
-		if (bytesCmd)  {
-			memcpy(_pbTranspIndirect[ix].ptr, _transparentDrawData->indirectBufferData.data(), bytesCmd);
-			memcpy(_pbTranspTemplate[ix].ptr, _transparentDrawData->indirectBufferData.data(), bytesCmd);
-			_pbTranspIndirect[ix].flush(0, bytesCmd);
-			_pbTranspTemplate[ix].flush(0, bytesCmd);
-		}
-		if (bytesInst) {
-			memcpy(_pbTranspInstSSBO[ix].ptr, _transparentDrawData->vertexData.data(), bytesInst);
-			_pbTranspInstSSBO[ix].flush(0, bytesInst);
-		}
+		// Upload instance SSBO (binding=4)
+		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
+		glNamedBufferData(_transpInstSSBO, bytesInst, _transparentDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
-		// <<< BIG SSBO: single update; no rotation, no reallocation >>>
-		if (_useBigSSBO && bytesSSBO) {
-			if (bytesSSBO <= _bigSSBOBytes) {
-				glNamedBufferSubData(_bigSSBO, 0, bytesSSBO, _drawData->ssboData.data());
-			}
-			else {
-				// grow once if needed (for test convenience)
-				initBigSSBO(bytesSSBO * 2);
-				glNamedBufferSubData(_bigSSBO, 0, bytesSSBO, _drawData->ssboData.data());
-			}
-		}
-
-		glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+		// Upload pos/res SSBO (binding=3)
+		if (!_transpPosSSBO) glCreateBuffers(1, &_transpPosSSBO);
+		glNamedBufferData(_transpPosSSBO, bytesSSBO, _drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
 		_transpDrawCount = (GLsizei)nCmd;
 		_needTransparentUpdate = false;
-		_srcIxTransp = ix;
 	}
 	else
 	{
@@ -692,37 +641,22 @@ void World::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
-		_pbSolidIndirect[ix].ensure(bytesCmd);
-		_pbSolidTemplate[ix].ensure(bytesCmd);
-		_pbSolidInstSSBO[ix].ensure(bytesInst);
+		// Upload template and out buffers (compute read/write)
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _templIndirectBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _drawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _indirectBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _drawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
 
-		if (bytesCmd)  {
-			memcpy(_pbSolidIndirect[ix].ptr, _drawData->indirectBufferData.data(), bytesCmd);
-			memcpy(_pbSolidTemplate[ix].ptr, _drawData->indirectBufferData.data(),  bytesCmd);
-			_pbSolidIndirect[ix].flush(0, bytesCmd);
-			_pbSolidTemplate[ix].flush(0, bytesCmd);
-		}
-		if (bytesInst) {
-			memcpy(_pbSolidInstSSBO[ix].ptr, _drawData->vertexData.data(), bytesInst);
-			_pbSolidInstSSBO[ix].flush(0, bytesInst);
-		}
+		// Upload instance SSBO (binding=4)
+		if (!_solidInstSSBO) glCreateBuffers(1, &_solidInstSSBO);
+		glNamedBufferData(_solidInstSSBO, bytesInst, _drawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
-		// <<< BIG SSBO: single update; no rotation, no reallocation >>>
-		if (_useBigSSBO && bytesSSBO) {
-			if (bytesSSBO <= _bigSSBOBytes) {
-				glNamedBufferSubData(_bigSSBO, 0, bytesSSBO, _drawData->ssboData.data());
-			}
-			else {
-				initBigSSBO(bytesSSBO * 2);
-				glNamedBufferSubData(_bigSSBO, 0, bytesSSBO, _drawData->ssboData.data());
-			}
-		}
-
-		glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+		// Upload pos/res SSBO (binding=3)
+		if (!_solidPosSSBO) glCreateBuffers(1, &_solidPosSSBO);
+		glNamedBufferData(_solidPosSSBO, bytesSSBO, _drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
 		_solidDrawCount = (GLsizei)nCmd;
 		_needUpdate = false;
-		_srcIxSolid = ix;
 	}
 }
 
@@ -741,9 +675,7 @@ void World::initGLBuffer()
 
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
-	glGenBuffers(1, &_instanceVBO);
 	glGenBuffers(1, &_indirectBuffer);
-	glCreateBuffers(1, &_ssbo); // legacy, harmless
 
 	// Static quad strip
 	GLint vertices[] = { 0,0,0, 1,0,0, 0,1,0, 1,1,0 };
@@ -758,7 +690,6 @@ void World::initGLBuffer()
 
 	// Transparent VAO
 	glGenVertexArrays(1, &_transparentVao);
-	glGenBuffers(1, &_transparentInstanceVBO);
 	glGenBuffers(1, &_transparentIndirectBuffer);
 
 	glBindVertexArray(_transparentVao);
@@ -767,42 +698,12 @@ void World::initGLBuffer()
 	glEnableVertexAttribArray(0);
 	glBindVertexArray(0);
 
-	const GLsizeiptr initCmdCap  = 1 << 20;
-	const GLsizeiptr initInstCap = 1 << 22;
-
-
-	for (int i=0;i<kFrames;++i) {
-		_pbSolidIndirect[i].create(initCmdCap,  true);
-		_pbSolidTemplate[i].create(initCmdCap,  true);
-		_pbTranspIndirect[i].create(initCmdCap, true);
-		_pbTranspTemplate[i].create(initCmdCap, true);
-
-		_pbSolidInstSSBO[i].create(initInstCap,  true);
-		_pbTranspInstSSBO[i].create(initInstCap, true);
-	}
-
-	initBigSSBO(kBigSSBOBytes);
+	// Create template SSBOs for compute inputs
+	glCreateBuffers(1, &_templIndirectBuffer);
+	glCreateBuffers(1, &_transpTemplIndirectBuffer);
 
 	initGpuCulling();
 	_hasBufferInitialized = true;
-}
-
-void World::updateTemplateBuffer(bool transparent, GLsizeiptr byteSize)
-{
-	if (transparent)
-	{
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _transpTemplIndirectBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, byteSize, _transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-		_transpDrawCount = (GLsizei)_transparentDrawData->indirectBufferData.size();
-	}
-	else
-	{
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _templIndirectBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, byteSize, _drawData->indirectBufferData.data(), GL_STATIC_DRAW);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-		_solidDrawCount = (GLsizei)_drawData->indirectBufferData.size();
-	}
 }
 
 
@@ -826,21 +727,21 @@ void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
 
 void World::runGpuCulling(bool transparent)
 {
-	const int outIx = _frameIx % kFrames;
-	const int inIx  = transparent ? _srcIxTransp : _srcIxSolid;
-
-	GLuint templ = transparent ? _pbTranspTemplate[inIx].id : _pbSolidTemplate[inIx].id;
-	GLuint out   = transparent ? _pbTranspIndirect[outIx].id : _pbSolidIndirect[outIx].id;
+	GLuint templ = transparent ? _transpTemplIndirectBuffer : _templIndirectBuffer;
+	GLuint out   = transparent ? _transparentIndirectBuffer : _indirectBuffer;
 
 	const GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
 	if (count <= 0) return;
 
-	glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+	// ensure previous uploads visible to compute
+	glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
 	GLint prevProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
 	glUseProgram(_cullProgram);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _bigSSBO);
+	// Bind pass' pos/res buffer
+	GLuint posBuf = transparent ? _transpPosSSBO : _solidPosSSBO;
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, posBuf);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, templ);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, out);
 	glBindBufferBase(GL_UNIFORM_BUFFER,        3, _frustumUBO);
@@ -855,12 +756,3 @@ void World::runGpuCulling(bool transparent)
 	glUseProgram(prevProg ? (GLuint)prevProg : 0);
 }
 
-void World::endFrame() {
-	const int ix = _frameIx % kFrames;
-
-	// fence work submitted this frame using slot ix
-	if (_inFlight[ix]) { glDeleteSync(_inFlight[ix]); _inFlight[ix] = nullptr; }
-	_inFlight[ix] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-	_frameIx = (_frameIx + 1) % kFrames;
-}

@@ -35,25 +35,16 @@ class Chunk
 		Chunk								*_west = nullptr;
 
 
-		bool 				_hasBufferInitialized;
-		
-		GLuint									_ssbo;
 		std::vector<vec4>						_ssboData;
-		GLuint									_vao;
-		GLuint									_vbo;
-		GLuint									_instanceVBO;
 		std::vector<int>						_vertexData;
 		std::vector<int>						_transparentVertexData;
 		std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
 		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
-		GLuint									_indirectBuffer;
-		bool									_needUpdate;
 		std::mutex								_sendFacesMutex;
 		CaveGenerator							&_caveGen;
 		std::atomic_int							_resolution;
 		ThreadPool								&_pool;
 	public:
-		// Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, int resolution = 1);
 		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
@@ -77,7 +68,6 @@ class Chunk
 		void unloadNeighbor(Direction dir);
 		void unloadNeighbors();
 		TopBlock getTopBlock(int localX, int localZ);
-		TopBlock getTopBlockUnderPlayer(int localX, int localY, int localZ);
 
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();

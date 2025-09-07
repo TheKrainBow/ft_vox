@@ -12,7 +12,7 @@ layout(std140, binding=3) uniform Frustum { vec4 planes[6]; };
 uniform uint  numDraws;
 uniform float chunkSize;
 
-// --- set to 1 to bypass culling and just copy (debug) ---
+// 1 to bypass culling
 #define BYPASS_CULL 0
 
 void main() {
@@ -31,13 +31,13 @@ void main() {
 	vec3 mn = posRes[i].xyz;
 	vec3 mx = mn + vec3(chunkSize);
 
-	// --- conservative expansion to avoid borderline pops ---
+	// conservative expansion to avoid borderline pops
 	const float expand = 1.0;
 	vec3 c = 0.5 * (mn + mx);
 	vec3 e = 0.5 * (mx - mn) + vec3(expand);
 
 	// small negative tolerance
-	const float tol = 1.0; // in “distance units”; 1–2 blocks is usually enough
+	const float tol = 1.0; // in “distance units”; 1 block
 
 	bool culled = false;
 	for (int k = 0; k < 6; ++k) {

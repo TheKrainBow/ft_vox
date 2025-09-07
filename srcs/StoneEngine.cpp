@@ -45,6 +45,9 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _t
 
 StoneEngine::~StoneEngine()
 {
+	// Ensure World GL resources are freed before destroying the context
+	_world.shutdownGL();
+
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
 	glDeleteProgram(sunShaderProgram);
@@ -58,6 +61,19 @@ StoneEngine::~StoneEngine()
 	}
 	postProcessShaders.clear();
 
+	// Delete sun resources and water normal map
+	if (sunVAO) glDeleteVertexArrays(1, &sunVAO);
+	if (sunVBO) glDeleteBuffers(1, &sunVBO);
+	if (waterNormalMap) glDeleteTextures(1, &waterNormalMap);
+
+	// Delete tmp and MSAA framebuffers/renderbuffers
+	if (tmpFBO.fbo) glDeleteFramebuffers(1, &tmpFBO.fbo);
+	if (tmpFBO.texture) glDeleteTextures(1, &tmpFBO.texture);
+	if (tmpFBO.depth) glDeleteTextures(1, &tmpFBO.depth);
+
+	if (msaaFBO.fbo) glDeleteFramebuffers(1, &msaaFBO.fbo);
+	if (msaaFBO.texture) glDeleteRenderbuffers(1, &msaaFBO.texture);
+	if (msaaFBO.depth) glDeleteRenderbuffers(1, &msaaFBO.depth);
 
 	glDeleteTextures(1, &readFBO.texture);
 	glDeleteTextures(1, &readFBO.depth);
@@ -543,7 +559,7 @@ void StoneEngine::resolveMsaaToFbo()
 }
 
 void StoneEngine::display() {
-    prepareRenderPipeline();
+	prepareRenderPipeline();
 
 	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
 	renderSceneToFBO();
@@ -553,6 +569,7 @@ void StoneEngine::display() {
 
 	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
+
 	// screenshotFBOBuffer(writeFBO, tmpFBO);
 	// postProcessBrightnessMask();
 	// screenshotFBOBuffer(writeFBO, readFBO);
@@ -561,19 +578,21 @@ void StoneEngine::display() {
 	// postProcessGodRaysBlend();
 	// screenshotFBOBuffer(writeFBO, readFBO);
 
-    displaySun();
-    screenshotFBOBuffer(writeFBO, readFBO);
-    // Render transparent objects (water) directly over resolved scene
-    renderTransparentObjects();
-    screenshotFBOBuffer(writeFBO, readFBO);
+	displaySun();
+	screenshotFBOBuffer(writeFBO, readFBO);
+	
+	// Render transparent objects (water) directly over resolved scene
+	renderTransparentObjects();
+	screenshotFBOBuffer(writeFBO, readFBO);
 
 	postProcessFog();
-	displaySun(); // Display sun because FOG erased it
+	
+	// Display sun because FOG erased it
+	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
 	sendPostProcessFBOToDispay();
 	renderOverlayAndUI();
-	_world.endFrame();
 	finalizeFrame();
 }
 
