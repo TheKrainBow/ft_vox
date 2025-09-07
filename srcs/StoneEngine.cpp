@@ -445,12 +445,12 @@ void StoneEngine::activateTransparentShader()
 {
 	// In triangle mesh (wireframe) mode, render directly to the default framebuffer
 	// so transparent objects like water are visible in wireframe too.
-	// Otherwise, draw to the MSAA framebuffer so water benefits from MSAA
-	// and per-sample depth at silhouettes.
+	// Otherwise, draw to the resolved write FBO so it composes
+	// over the opaque scene without an extra MSAA resolve pass.
 	if (showTriangleMesh)
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	else
-		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
 
 	mat4 modelMatrix = mat4(1.0f);
 
@@ -563,13 +563,9 @@ void StoneEngine::display() {
 
     displaySun();
     screenshotFBOBuffer(writeFBO, readFBO);
-    // Render transparent objects (water) into MSAA FBO, then resolve again
+    // Render transparent objects (water) directly over resolved scene
     renderTransparentObjects();
-    resolveMsaaToFbo();
     screenshotFBOBuffer(writeFBO, readFBO);
-	// Apply greedy fix a second time for the transparent layer (water)
-	postProcessGreedyFix();
-	screenshotFBOBuffer(writeFBO, readFBO);
 
 	postProcessFog();
 	displaySun(); // Display sun because FOG erased it
