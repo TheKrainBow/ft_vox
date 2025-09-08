@@ -981,7 +981,12 @@ void StoneEngine::updatePlayerStates()
 	camStandingBlock   = _world.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
 	camBodyBlockLegs   = _world.getBlock(chunkPos, {worldX, footCell,     worldZ});
 	camBodyBlockTorso  = _world.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
-	isUnderWater = camBodyBlockTorso == WATER;
+
+	// Consider underwater slightly sooner by biasing eye sample downward
+	const float eyeBias = 0.10f;
+	int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
+	BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
+	isUnderWater = (camHeadBlock == WATER);
 
 	// Body blocks states debug
 	// std::cout << '[' << camStandingBlock << ']' << std::endl;
@@ -1208,16 +1213,20 @@ void StoneEngine::update()
 	// Update player states
 	if (gravity)
 		updatePlayerStates();
-	else
-	{
-		vec3 worldPos = camera.getWorldPosition();
-		ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
-		int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
-		int worldX = static_cast<int>(std::floor(worldPos.x));
-		int worldZ = static_cast<int>(std::floor(worldPos.z));
-		BlockType camBodyBlockTorso = _world.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
-		isUnderWater = camBodyBlockTorso == WATER;
-	}
+    else
+    {
+        vec3 worldPos = camera.getWorldPosition();
+        int worldX = static_cast<int>(std::floor(worldPos.x));
+        int worldZ = static_cast<int>(std::floor(worldPos.z));
+        ivec2 chunkPos = {
+            static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
+            static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))
+        };
+        const float eyeBias = 0.30f;
+        int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
+        BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
+        isUnderWater = (camHeadBlock == WATER);
+    }
 
 	// Update player position and orientation
 	updatePlayerDirection();
