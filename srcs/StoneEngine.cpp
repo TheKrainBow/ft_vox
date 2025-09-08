@@ -658,10 +658,14 @@ void StoneEngine::postProcessGreedyFix()
 	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
-	// Set uniforms (after glUseProgram!)
-	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
-	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
-	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+    // Set uniforms (after glUseProgram!)
+    glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+    glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
+    glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+    const float nearPlane = 1.0f;
+    const float farPlane  = 9600.0f;
+    glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), nearPlane);
+    glUniform1f(glGetUniformLocation(shader.program, "farPlane"),  farPlane);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);

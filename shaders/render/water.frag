@@ -220,20 +220,27 @@ void main() {
 	float baseStrength	= clamp(fres * heightFade, 0.0, 1.0);
 	float reflMix		= baseStrength * REFLECTION_STRENGTH_CAP;
 
-	vec3 finalColor;
-	if (isUnderwater == 1) {
-		finalColor = UNDERWATER_COLOR;
-	}
-	else {
-		finalColor  = mix(WATER_BASE, reflection, reflMix);
-		finalColor += nfo.offset;
-		finalColor  = clamp(finalColor, 0.0, 1.0);
-	}
+    vec3 finalColor;
+    if (isUnderwater == 1) {
+        // Underwater: no reflections; use same distance-based tinting as outside
+        vec3 baseTintUW = distanceTint(viewPos, waveFragPos);
+        finalColor = baseTintUW;
+        finalColor += nfo.offset;
+        finalColor = clamp(finalColor, 0.0, 1.0);
+    }
+    else {
+        finalColor  = mix(WATER_BASE, reflection, reflMix);
+        finalColor += nfo.offset;
+        finalColor  = clamp(finalColor, 0.0, 1.0);
+    }
 
-	float alpha = distanceAlpha(viewPos, waveFragPos);
-	if (isUnderwater == 1)
-		alpha = ALPHA_FAR_VALUE;
-	vec3 baseTint	= distanceTint(viewPos, waveFragPos);
-	finalColor		= mix(baseTint, reflection, reflMix);
-	FragColor   = vec4(finalColor, alpha);
+    float alpha = distanceAlpha(viewPos, waveFragPos);
+    if (isUnderwater == 1) {
+        // Underwater: disable reflection; use distance-based tint
+        FragColor = vec4(finalColor, alpha);
+        return;
+    }
+    vec3 baseTint = distanceTint(viewPos, waveFragPos);
+    finalColor    = mix(baseTint, reflection, reflMix);
+    FragColor     = vec4(finalColor, alpha);
 }
