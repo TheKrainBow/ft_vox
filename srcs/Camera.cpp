@@ -1,6 +1,6 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{-820, -131, -1379}, angle(0, 12) {
+Camera::Camera() : position{0, -131, 0}, angle(0, 12) {
 	_facing = e_direction(int(angle.x) / 45);
 };
 
@@ -27,10 +27,13 @@ vec3 Camera::getWorldPosition(void)
 }
 
 ivec2 Camera::getChunkPosition(int chunkSize) {
-	ivec2 camChunk(-position.x / chunkSize, -position.z / chunkSize);
-	if (-position.x < 0) camChunk.x--;
-	if (-position.z < 0) camChunk.y--;
-	return camChunk;
+	// Floor division on world coords to handle negatives correctly
+	const float wx = -position.x;
+	const float wz = -position.z;
+	const float cs = static_cast<float>(chunkSize);
+	const int cx = static_cast<int>(std::floor(wx / cs));
+	const int cz = static_cast<int>(std::floor(wz / cs));
+	return {cx, cz};
 }
 
 vec3 Camera::getPosition()

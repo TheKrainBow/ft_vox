@@ -157,7 +157,7 @@ class StoneEngine {
 		void activateRenderShader();
 		void activateFboShader();
 		void triangleMeshToggle();
-		ivec2 getChunkPos(ivec2 pos);
+		ivec2 getChunkPos(vec2 camPosXZ);
 		bool canMove(const glm::vec3& offset, float extra);
 		void updatePlayerStates();
 		void updateFalling(vec3 &worldPos, int &blockHeight);

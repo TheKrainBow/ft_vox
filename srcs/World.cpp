@@ -162,12 +162,10 @@ void World::unloadChunk()
 	if (chunksNb <= CACHE_SIZE)
 		return ;
 
-	// Get player position in chunk coordinates
-	ivec3 playerPos = _camera.getWorldPosition();
-	int playerChunkX = playerPos.x / CHUNK_SIZE;
-	int playerChunkZ = playerPos.z / CHUNK_SIZE;
-	if (playerPos.x < 0) playerChunkX--;
-	if (playerPos.z < 0) playerChunkZ--;
+	// Get player position in chunk coordinates (true floor division)
+	vec3 playerPos = _camera.getWorldPosition();
+	int playerChunkX = static_cast<int>(std::floor(playerPos.x / static_cast<float>(CHUNK_SIZE)));
+	int playerChunkZ = static_cast<int>(std::floor(playerPos.z / static_cast<float>(CHUNK_SIZE)));
 
 	// Find the farthest chunk
 	_chunksListMutex.lock();
@@ -755,4 +753,3 @@ void World::runGpuCulling(bool transparent)
 	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 	glUseProgram(prevProg ? (GLuint)prevProg : 0);
 }
-

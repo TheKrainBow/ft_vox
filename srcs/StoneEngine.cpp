@@ -901,12 +901,16 @@ void StoneEngine::findMoveRotationSpeed()
 	start = std::chrono::steady_clock::now();
 }
 
-ivec2 StoneEngine::getChunkPos(ivec2 pos)
+ivec2 StoneEngine::getChunkPos(vec2 camPosXZ)
 {
-	ivec2 camChunk(-pos.x / CHUNK_SIZE, -pos.y / CHUNK_SIZE);
-	if (-pos.x < 0) camChunk.x--;
-	if (-pos.y < 0) camChunk.y--;
-	return camChunk;
+	// Convert camera-space coords to world-space and use floor division
+	const float wx = -camPosXZ.x;
+	const float wz = -camPosXZ.y;
+	const float cs = static_cast<float>(CHUNK_SIZE);
+	return {
+		static_cast<int>(std::floor(wx / cs)),
+		static_cast<int>(std::floor(wz / cs))
+	};
 }
 
 void StoneEngine::updateFalling(vec3 &worldPos, int &blockHeight)
@@ -946,26 +950,40 @@ void StoneEngine::updateJumping()
 void StoneEngine::updatePlayerStates()
 {
 	vec3 worldPos = camera.getWorldPosition();
-	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
 	BlockType camStandingBlock = AIR;
 	BlockType camBodyBlockLegs = AIR;
 	BlockType camBodyBlockTorso = AIR;
 
-	camTopBlock = _world.findBlockUnderPlayer(chunkPos, {worldPos.x, worldPos.y, worldPos.z});
-	// Compute foot cell from eye height
-	int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
+	// Compute world integer cell first
 	int worldX = static_cast<int>(std::floor(worldPos.x));
 	int worldZ = static_cast<int>(std::floor(worldPos.z));
+
+	// Derive chunk strictly from the integer world cell to avoid float-boundary mismatches
+	ivec2 chunkPos = {
+		static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
+		static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))
+	};
+
+	// Compute foot cell from eye height
+	int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
+	int footSubY = static_cast<int>(std::floor(static_cast<float>(footCell) / static_cast<float>(CHUNK_SIZE)));
+
+	// If the destination chunk or the needed subchunk is not yet loaded, avoid updating
+	// ground/physics to prevent erroneous falling while streaming catches up.
+	if (Chunk* c = _world.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
+		return;
+
+	camTopBlock = _world.findBlockUnderPlayer(chunkPos, {worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
 	camStandingBlock   = _world.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
 	camBodyBlockLegs   = _world.getBlock(chunkPos, {worldX, footCell,     worldZ});
 	camBodyBlockTorso  = _world.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
 	isUnderWater = camBodyBlockTorso == WATER;
-	
+
 	// Body blocks states debug
 	// std::cout << '[' << camStandingBlock << ']' << std::endl;
 	// std::cout << '[' << camBodyBlockLegs << ']' << std::endl;
 	// std::cout << '[' << camBodyBlockTorso << ']' << std::endl;
-	
+
 	BlockType inWater = (camStandingBlock == WATER
 		|| camBodyBlockLegs == WATER
 		|| camBodyBlockTorso == WATER) ? WATER : AIR;
@@ -1000,7 +1018,11 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 	int worldZ = static_cast<int>(std::floor(-nextCamPos.z));
 	ivec3 worldPosFeet   = {worldX, footCell,         worldZ};
 	ivec3 worldPosTorso  = {worldX, footCell + 1,     worldZ};
-	ivec2 chunkPos       = getChunkPos({static_cast<int>(nextCamPos.x), static_cast<int>(nextCamPos.z)});
+	// Derive chunk from integer world cell to avoid float-boundary errors
+	ivec2 chunkPos = {
+		static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
+		static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))
+	};
 
 	// Check both the block in front of the legs and the upper body
 	BlockType blockFeet  = _world.getBlock(chunkPos, worldPosFeet);
