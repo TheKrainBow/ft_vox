@@ -234,12 +234,18 @@ void main() {
 		finalColor  = clamp(finalColor, 0.0, 1.0);
 	}
 
-	float alpha = distanceAlpha(viewPos, waveFragPos);
-	if (isUnderwater == 1) {
-		// Underwater: disable reflection; use distance-based tint
-		FragColor = vec4(finalColor, alpha);
-		return;
-	}
+    float alpha = distanceAlpha(viewPos, waveFragPos);
+    if (isUnderwater == 1) {
+        // Underwater: reduce opacity so above-surface scene remains visible
+        float depthUnder = clamp((waterHeight - viewPos.y) / 30.0, 0.0, 1.0);
+        float cosTheta = max(dot(-viewDir, nfo.normal), 0.0);
+        float viewFactor = 1.0 - cosTheta; // more transparent when looking up
+        float alphaUW = mix(0.25, 0.60, depthUnder);
+        alphaUW *= mix(0.60, 1.00, viewFactor);
+        alphaUW = clamp(alphaUW, 0.15, 0.70);
+        FragColor = vec4(finalColor, alphaUW);
+        return;
+    }
 	vec3 baseTint = distanceTint(viewPos, waveFragPos);
 	finalColor    = mix(baseTint, reflection, reflMix);
 	FragColor     = vec4(finalColor, alpha);
