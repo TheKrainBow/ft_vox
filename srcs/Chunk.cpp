@@ -158,6 +158,10 @@ void Chunk::getNeighbors()
 	_east = _world.getChunk(eastPos);
 	_west = _world.getChunk(westPos);
 
+	// Update our own neighbor-completeness flag so we can emit faces even if
+	// all neighbors already existed before this chunk was created.
+	_hasAllNeighbors = _north && _south && _east && _west;
+
 	if (_north) {
 		_north->setSouthChunk(this);
 		_north->sendFacesToDisplay();
@@ -174,6 +178,10 @@ void Chunk::getNeighbors()
 		_west->setEastChunk(this);
 		_west->sendFacesToDisplay();
 	}
+
+	// If we are now fully surrounded, generate our faces immediately.
+	if (_hasAllNeighbors)
+		sendFacesToDisplay();
 }
 
 void Chunk::unloadNeighbors()
@@ -219,9 +227,9 @@ SubChunk *Chunk::getSubChunk(int y)
 {
 	if (_isInit == false)
 		return nullptr;
+	std::lock_guard<std::mutex> lk(_subChunksMutex);
 	auto it = _subChunks.find(y);
-	auto endIt = _subChunks.end();
-	if (it != endIt)
+	if (it != _subChunks.end())
 		return it->second;
 	return nullptr;
 }
@@ -244,19 +252,27 @@ void Chunk::sendFacesToDisplay()
 {
 	if (_hasAllNeighbors == false || _isInit == false)
 		return ;
-	// if (_facesSent == true)
-	// 	return ;
-	_sendFacesMutex.lock();
-	clearFaces();
-	// _subChunksMutex.lock();
-	for (auto &subChunk : _subChunks)
+
+	// Save of subchunk pointers under _subChunksMutex to avoid
+	// iterating the map concurrently with resolution updates.
+	std::vector<SubChunk*> subs;
 	{
-		if (!subChunk.second)
-			continue ;
-		subChunk.second->sendFacesToDisplay();
-		std::vector<int> vertices = subChunk.second->getVertices();
-		std::vector<int> transparentVertices = subChunk.second->getTransparentVertices();
-		
+		std::lock_guard<std::mutex> lk(_subChunksMutex);
+		subs.reserve(_subChunks.size());
+		for (auto &kv : _subChunks)
+			subs.push_back(kv.second);
+	}
+
+	std::lock_guard<std::mutex> lkSend(_sendFacesMutex);
+	clearFaces();
+
+	for (SubChunk* sc : subs)
+	{
+		if (!sc) continue;
+		sc->sendFacesToDisplay();
+		std::vector<int> vertices = sc->getVertices();
+		std::vector<int> transparentVertices = sc->getTransparentVertices();
+
 		_indirectBufferData.push_back(DrawArraysIndirectCommand{
 			4,
 			uint(vertices.size()),
@@ -271,7 +287,7 @@ void Chunk::sendFacesToDisplay()
 			uint(_transparentVertexData.size()),
 		});
 
-		ivec3 pos = subChunk.second->getPosition();
+		ivec3 pos = sc->getPosition();
 		_ssboData.push_back(vec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
@@ -280,32 +296,42 @@ void Chunk::sendFacesToDisplay()
 		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 	}
 	_facesSent = true;
-	// _subChunksMutex.unlock();
-	_sendFacesMutex.unlock();
 }
 
 void Chunk::setNorthChunk(Chunk *chunk)
 {
 	_north = chunk;
+	bool wasComplete = _hasAllNeighbors;
 	_hasAllNeighbors = _north && _south && _east && _west;
+	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
+		sendFacesToDisplay();
 }
 
 void Chunk::setSouthChunk(Chunk *chunk)
 {
 	_south = chunk;
+	bool wasComplete = _hasAllNeighbors;
 	_hasAllNeighbors = _north && _south && _east && _west;
+	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
+		sendFacesToDisplay();
 }
 
 void Chunk::setEastChunk(Chunk *chunk)
 {
 	_east = chunk;
+	bool wasComplete = _hasAllNeighbors;
 	_hasAllNeighbors = _north && _south && _east && _west;
+	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
+		sendFacesToDisplay();
 }
 
 void Chunk::setWestChunk(Chunk *chunk)
 {
 	_west = chunk;
+	bool wasComplete = _hasAllNeighbors;
 	_hasAllNeighbors = _north && _south && _east && _west;
+	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
+		sendFacesToDisplay();
 }
 
 Chunk *Chunk::getNorthChunk() {

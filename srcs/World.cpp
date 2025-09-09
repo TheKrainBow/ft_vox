@@ -225,39 +225,61 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
 
-	_chunksMutex.lock();
-	auto it = _chunks.find(pos);
-	auto itend = _chunks.end();
-	if (it != itend)
+	// First, try to find an existing chunk quickly
 	{
-		chunk = it->second;
-		_chunksMutex.unlock();
-		if (chunk && chunk->getResolution() > resolution)
+		std::lock_guard<std::mutex> lk(_chunksMutex);
+		auto it = _chunks.find(pos);
+		if (it != _chunks.end())
+			chunk = it->second;
+	}
+
+	if (chunk)
+	{
+		if (chunk->getResolution() > resolution)
 			chunk->updateResolution(resolution);
 	}
 	else
 	{
-		// Generate 2D height map
 		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
+		Chunk *newChunk = new Chunk(pos, pMap, _caveGen, *this, _textureManager, _threadPool, resolution);
 
-		// Create chunks and subchunks and add the chunk to the unordered map
-		chunk = new Chunk(pos, pMap, _caveGen, *this, _textureManager, _threadPool, resolution);
-		_chunks[pos] = chunk;
-		_chunksMutex.unlock();
+		bool inserted = false;
+		{
+			std::lock_guard<std::mutex> lk(_chunksMutex);
+			auto [it, didInsert] = _chunks.emplace(pos, newChunk);
+			if (didInsert)
+			{
+				chunk = newChunk;
+				inserted = true;
+			}
+			else
+			{
+				chunk = it->second;
+			}
+		}
 
-		// Load blocks in the subchunks depending on the map
-		chunk->loadBlocks();
+		if (!inserted)
+		{
+			delete newChunk;
+		}
+		else
+		{
+			// Heavy init outside the map lock so neighbors created later can find us.
+			chunk->loadBlocks();
+			chunk->getNeighbors();
 
-		// Fetch for neighbor chunks
-		chunk->getNeighbors();
-		_memorySize += chunk->getMemorySize();
-		_chunksListMutex.lock();
-		_chunkList.emplace_back(chunk);
-		_chunksListMutex.unlock();
+			_memorySize += chunk->getMemorySize();
+			{
+				std::lock_guard<std::mutex> lk(_chunksListMutex);
+				_chunkList.emplace_back(chunk);
+			}
+		}
 	}
-	_displayedChunksMutex.lock();
-	_displayedChunks[pos] = chunk;
-	_displayedChunksMutex.unlock();
+
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		_displayedChunks[pos] = chunk;
+	}
 	// unloadChunk();
 	return chunk;
 }
@@ -356,42 +378,50 @@ size_t *World::getMemorySizePtr() {
 
 void World::unLoadNextChunks(ivec2 &newCamChunk)
 {
-	ivec2 pos;
-	std::queue<ivec2> deleteQueue;
-	_displayedChunksMutex.lock();
-	for (auto &it : _displayedChunks)
+	std::vector<ivec2> toErase;
 	{
-		Chunk *chunk = it.second;
-		if (!chunk)
-			continue ;
-		ivec2 chunkPos = chunk->getPosition();
-		if (abs((int)chunkPos.x - (int)newCamChunk.x) > _renderDistance / 2
-		|| abs((int)chunkPos.y - (int)newCamChunk.y) > _renderDistance / 2)
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		for (auto &kv : _displayedChunks)
 		{
-			deleteQueue.emplace(chunkPos);
+			Chunk *chunk = kv.second;
+			if (!chunk) continue;
+			ivec2 chunkPos = chunk->getPosition();
+			if (std::abs(chunkPos.x - newCamChunk.x) > _renderDistance / 2
+				|| std::abs(chunkPos.y - newCamChunk.y) > _renderDistance / 2)
+			{
+				toErase.push_back(kv.first);
+			}
 		}
-	}
-	_displayedChunksMutex.unlock();
-	while (!deleteQueue.empty())
-	{
-		pos = deleteQueue.front();
-		_displayedChunksMutex.lock();
-		_displayedChunks.erase(pos);
-		_displayedChunksMutex.unlock();
-		deleteQueue.pop();
+		for (const auto& key : toErase)
+			_displayedChunks.erase(key);
 	}
 	updateFillData();
 }
 
 void World::updateFillData()
 {
+	// Avoid piling up heavy builds and starving the render thread
+	if (_buildingDisplay.exchange(true))
+		return;
+	// If a staged update already exists, skip this build (we will coalesce)
+	{
+		std::lock_guard<std::mutex> lk(_drawDataMutex);
+		if (!_stagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
+		{
+			_buildingDisplay = false;
+			return;
+		}
+	}
+
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
-	_drawDataMutex.lock();
-	_stagedDataQueue.emplace(fillData);
-	_transparentStagedDataQueue.emplace(transparentData);
-	_drawDataMutex.unlock();
+	{
+		std::lock_guard<std::mutex> lk(_drawDataMutex);
+		_stagedDataQueue.emplace(fillData);
+		_transparentStagedDataQueue.emplace(transparentData);
+	}
+	_buildingDisplay = false;
 }
 
 bool World::hasMoved(ivec2 &oldPos)
@@ -405,22 +435,21 @@ bool World::hasMoved(ivec2 &oldPos)
 
 SubChunk *World::getSubChunk(ivec3 &position)
 {
-	_chunksMutex.lock();
-	auto it = _chunks.find(ivec2(position.x, position.z));
-	auto itend = _chunks.end();
-	_chunksMutex.unlock();
-	if (it != itend)
-		return it->second->getSubChunk(position.y);
+	Chunk* c = nullptr;
+	{
+		std::lock_guard<std::mutex> lk(_chunksMutex);
+		auto it = _chunks.find(ivec2(position.x, position.z));
+		if (it != _chunks.end()) c = it->second;
+	}
+	if (c) return c->getSubChunk(position.y);
 	return nullptr;
 }
 
 Chunk *World::getChunk(ivec2 &position)
 {
-	_chunksMutex.lock();
+	std::lock_guard<std::mutex> lk(_chunksMutex);
 	auto it = _chunks.find({position.x, position.y});
-	auto itend = _chunks.end();
-	_chunksMutex.unlock();
-	if (it != itend)
+	if (it != _chunks.end())
 		return it->second;
 	return nullptr;
 }
@@ -521,6 +550,19 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 void World::updateDrawData()
 {
 	std::lock_guard<std::mutex> lock(_drawDataMutex);
+	// queues: keep only the newest staged data to minimize uploads
+	while (_stagedDataQueue.size() > 1)
+	{
+		DisplayData *old = _stagedDataQueue.front();
+		_stagedDataQueue.pop();
+		delete old;
+	}
+	while (_transparentStagedDataQueue.size() > 1)
+	{
+		DisplayData *old = _transparentStagedDataQueue.front();
+		_transparentStagedDataQueue.pop();
+		delete old;
+	}
 	if (!_stagedDataQueue.empty())
 	{
 		DisplayData *stagedData = _stagedDataQueue.front();
@@ -540,7 +582,7 @@ void World::updateDrawData()
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
 	}
-	// SSBOs are uploaded per-pass in pushVerticesToOpenGL now
+	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
 	if (_drawData) {
 		if (_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
 			std::cout << "[CULL] Mismatch solid: ssbo=" << _drawData->ssboData.size()
@@ -606,6 +648,20 @@ void World::pushVerticesToOpenGL(bool transparent)
 {
 	std::lock_guard<std::mutex> lock(_drawDataMutex);
 
+	// Helper to grow buffers once and update with SubData (reduces realloc waiting)
+	auto ensureCapacityAndUpload = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, const void* data, GLenum usage)
+	{
+		if (cap < neededBytes)
+		{
+			GLsizeiptr newCap = cap > 0 ? cap : (GLsizeiptr)4096;
+			while (newCap < neededBytes) newCap *= 2;
+			glNamedBufferData(buf, newCap, nullptr, usage);
+			cap = newCap;
+		}
+		if (neededBytes > 0)
+			glNamedBufferSubData(buf, 0, neededBytes, data);
+	};
+
 	if (transparent)
 	{
 		const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
@@ -614,19 +670,23 @@ void World::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
-		// Upload template and out buffers (compute read/write)
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _transpTemplIndirectBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _transparentIndirectBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _transparentDrawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
+		// Ensure buffers exist
+		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
+		if (!_transpPosSSBO)  glCreateBuffers(1, &_transpPosSSBO);
+
+		// Upload template and out buffers (compute read/write) with capacity growth
+		ensureCapacityAndUpload(_transpTemplIndirectBuffer, _capTemplTranspCmd, bytesCmd,
+			_transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		ensureCapacityAndUpload(_transparentIndirectBuffer, _capOutTranspCmd, bytesCmd,
+			_transparentDrawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload instance SSBO (binding=4)
-		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
-		glNamedBufferData(_transpInstSSBO, bytesInst, _transparentDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
+		ensureCapacityAndUpload(_transpInstSSBO, _capTranspInst, bytesInst,
+			_transparentDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
-		// Upload pos/res SSBO (binding=3)
-		if (!_transpPosSSBO) glCreateBuffers(1, &_transpPosSSBO);
-		glNamedBufferData(_transpPosSSBO, bytesSSBO, _drawData->ssboData.data(), GL_DYNAMIC_DRAW);
+		// Upload pos/res SSBO (binding=3). Share capacity with solid path via _capSSBO
+		ensureCapacityAndUpload(_transpPosSSBO, _capTranspSSBO, bytesSSBO,
+			_drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
 		_transpDrawCount = (GLsizei)nCmd;
 		_needTransparentUpdate = false;
@@ -639,19 +699,23 @@ void World::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
-		// Upload template and out buffers (compute read/write)
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _templIndirectBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _drawData->indirectBufferData.data(), GL_STATIC_DRAW);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, _indirectBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, bytesCmd, _drawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
+		// Ensure buffers exist
+		if (!_solidInstSSBO) glCreateBuffers(1, &_solidInstSSBO);
+		if (!_solidPosSSBO)  glCreateBuffers(1, &_solidPosSSBO);
+
+		// Upload template and out buffers (compute read/write) with capacity growth
+		ensureCapacityAndUpload(_templIndirectBuffer, _capTemplSolidCmd, bytesCmd,
+			_drawData->indirectBufferData.data(), GL_STATIC_DRAW);
+		ensureCapacityAndUpload(_indirectBuffer, _capOutSolidCmd, bytesCmd,
+			_drawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload instance SSBO (binding=4)
-		if (!_solidInstSSBO) glCreateBuffers(1, &_solidInstSSBO);
-		glNamedBufferData(_solidInstSSBO, bytesInst, _drawData->vertexData.data(), GL_DYNAMIC_DRAW);
+		ensureCapacityAndUpload(_solidInstSSBO, _capSolidInst, bytesInst,
+			_drawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload pos/res SSBO (binding=3)
-		if (!_solidPosSSBO) glCreateBuffers(1, &_solidPosSSBO);
-		glNamedBufferData(_solidPosSSBO, bytesSSBO, _drawData->ssboData.data(), GL_DYNAMIC_DRAW);
+		ensureCapacityAndUpload(_solidPosSSBO, _capSolidSSBO, bytesSSBO,
+			_drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
 		_solidDrawCount = (GLsizei)nCmd;
 		_needUpdate = false;

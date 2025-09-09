@@ -141,6 +141,19 @@ private:
 	GLint									_locNumDraws = -1;
 	GLint									_locChunkSize = -1;
 
+	// Buffer capacities to minimize reallocations (amortize uploads)
+	GLsizeiptr								_capTemplSolidCmd  = 0;
+	GLsizeiptr								_capOutSolidCmd    = 0;
+	GLsizeiptr								_capSolidInst      = 0;
+	GLsizeiptr								_capSolidSSBO      = 0;
+	GLsizeiptr								_capTemplTranspCmd = 0;
+	GLsizeiptr								_capOutTranspCmd   = 0;
+	GLsizeiptr								_capTranspInst     = 0;
+	GLsizeiptr								_capTranspSSBO     = 0;
+
+	// Concurrency guard to avoid concurrent/stacked heavy builds
+	std::atomic_bool						_buildingDisplay = false;
+
 
 
 public:

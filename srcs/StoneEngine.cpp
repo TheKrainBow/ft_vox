@@ -484,6 +484,8 @@ void StoneEngine::activateTransparentShader()
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
 	glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
+	// Provide global water plane height to the water shader (for underwater depth-based effects)
+	glUniform1f      (glGetUniformLocation(waterShaderProgram, "waterHeight"),      OCEAN_HEIGHT + 2);
 
 	const float nearPlane = 1;
 	const float farPlane  = 9600;
@@ -625,14 +627,14 @@ void StoneEngine::postProcessFog()
 	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
 	// glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
 
-    // Set uniforms (after glUseProgram!)
-    glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
-    glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
-    glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
-    const float nearPlane = 1.0f;
-    const float farPlane  = 9600.0f;
-    glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), nearPlane);
-    glUniform1f(glGetUniformLocation(shader.program, "farPlane"),  farPlane);
+	// Set uniforms (after glUseProgram!)
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
+	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+	const float nearPlane = 1.0f;
+	const float farPlane  = 9600.0f;
+	glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), nearPlane);
+	glUniform1f(glGetUniformLocation(shader.program, "farPlane"),  farPlane);
 
 	auto render = _world.getCurrentRenderPtr();
 	if (render) {
@@ -1220,20 +1222,20 @@ void StoneEngine::update()
 	{
 		updatePlayerStates();
 	}
-    else
-    {
-        vec3 worldPos = camera.getWorldPosition();
-        int worldX = static_cast<int>(std::floor(worldPos.x));
-        int worldZ = static_cast<int>(std::floor(worldPos.z));
-        ivec2 chunkPos = {
-            static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-            static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))
-        };
-        const float eyeBias = 0.30f;
-        int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-        BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
-        isUnderWater = (camHeadBlock == WATER);
-    }
+	else
+	{
+		vec3 worldPos = camera.getWorldPosition();
+		int worldX = static_cast<int>(std::floor(worldPos.x));
+		int worldZ = static_cast<int>(std::floor(worldPos.z));
+		ivec2 chunkPos = {
+			static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
+			static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))
+		};
+		const float eyeBias = 0.30f;
+		int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
+		BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
+		isUnderWater = (camHeadBlock == WATER);
+	}
 
 	// Update player position and orientation
 	updatePlayerDirection();

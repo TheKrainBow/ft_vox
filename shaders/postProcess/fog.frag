@@ -12,6 +12,15 @@ uniform float farPlane;
 uniform vec3 viewPos;
 uniform float waterHeight;
 
+// Underwater fog controls
+// Tune these to control when tinting ramps in/out based on depth below the surface
+const float UW_MIN_TINT_DEPTH = 1.5;   // meters below surface where tint begins
+const float UW_MAX_TINT_DEPTH = 28.0;  // meters where tint is fully applied
+const float UW_DENSITY_BASE   = 0.008; // base density at shallow depth
+const float UW_DENSITY_DEEP   = 0.035; // density at deep depth
+const float UW_DENSITY_EXP    = 1.6;   // >1 slows the density ramp progression
+const float UW_DISTANCE_SPEED = 1.5;   // >1 makes distance fog accumulate faster underwater
+
 float linearizeDepth(float depth)
 {
 	// Convert non-linear depth buffer value to linear eye-space depth
@@ -21,9 +30,9 @@ float linearizeDepth(float depth)
 
 void main()
 {
-    vec3 currentColor = texture(screenTexture, texCoords).rgb;
-    float currentDepth = texture(depthTexture, texCoords).r;
-    vec3 finalColor = currentColor;
+	vec3 currentColor = texture(screenTexture, texCoords).rgb;
+	float currentDepth = texture(depthTexture, texCoords).r;
+	vec3 finalColor = currentColor;
 
 	vec3 fogColor = vec3(0.53, 0.81, 0.92);
 
@@ -31,34 +40,37 @@ void main()
 	float fogStart = renderDistance * 5.0;
 	float fogEnd   = renderDistance * 15.0;
 
-    // Keep outside-water fog behavior unchanged (original hardcoded near/far)
-    float near = 0.1;
-    float far  = 9000.0;
-    float z = currentDepth * 2.0 - 1.0;
-    float linearDepth = (2.0 * near * far) / (far + near - z * (far - near));
+	// Keep outside-water fog behavior unchanged (original hardcoded near/far)
+	float near = 0.1;
+	float far  = 9000.0;
+	float z = currentDepth * 2.0 - 1.0;
+	float linearDepth = (2.0 * near * far) / (far + near - z * (far - near));
 
 	float fogFactor = clamp((linearDepth - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
 	fogFactor = smoothstep(0.0, 1.0, fogFactor);
 
 	if (isUnderwater == 1)
 	{
-		// Depth-aware underwater fog with deep blue tint, tuned to be less overpowering.
-		float depthUnder = clamp((waterHeight - viewPos.y) / 30.0, 0.0, 1.0);
-		vec3 deepBlue = vec3(0.0, 0.12, 0.25);
+		// Depth-aware underwater fog with smooth tint ramp based on camera depth below water.
+		float depthMeters = max(0.0, waterHeight - viewPos.y);
+		float depthUnder  = smoothstep(UW_MIN_TINT_DEPTH, UW_MAX_TINT_DEPTH, depthMeters);
+		// Color ramp from shallow aqua to deep blue as we descend
+		vec3 shallowAqua = vec3(0.07, 0.24, 0.28);
+		vec3 deepBlue    = vec3(0.00, 0.12, 0.25);
+		vec3 uwTint      = mix(shallowAqua, deepBlue, depthUnder);
 
 		float linDepthUW = linearizeDepth(currentDepth);
 
 		// Limit the effective path length through water to avoid crushing distant details.
-		float maxPath = mix(80.0, 320.0, depthUnder); // meters
-		float effDepth = min(linDepthUW, maxPath);
+		// Slow the growth of effective path length with depth for gentler progression
+		float depthRamp = pow(depthUnder, UW_DENSITY_EXP);
+		float maxPath = mix(80.0, 320.0, depthRamp); // meters
+		float effDepth = min(linDepthUW * UW_DISTANCE_SPEED, maxPath);
 
 		// Softer density curve underwater so solids remain visible outside water.
-		float density = mix(0.008, 0.035, depthUnder);
+		// Start 2x stronger at shallow depth, then increase more slowly with depth.
+		float density = mix(UW_DENSITY_BASE * 2.0, UW_DENSITY_DEEP, depthRamp);
 		float fog = 1.0 - exp(-density * effDepth);
-
-		// Reduce fog near the camera to keep nearby surfaces crisp.
-		// float nearClear = smoothstep(8.0, 25.0, linDepthUW);
-		// fog *= nearClear;
 
 		// For far away pixels, fog is attenuated so we can see outside blocks from in the water
 		const float skyDepthStart = 0.995;   // begin attenuation
@@ -72,7 +84,7 @@ void main()
 		finalColor = mix(finalColor, vec3(gray), 0.12);
 
 		// apply color shift with fog amount
-		finalColor = mix(finalColor, deepBlue, fog);
+		finalColor = mix(finalColor, uwTint, fog);
 	}
 	else
 		finalColor = mix(finalColor, fogColor, fogFactor);
