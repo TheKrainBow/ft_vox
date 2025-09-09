@@ -459,15 +459,6 @@ void StoneEngine::activateRenderShader()
 
 void StoneEngine::activateTransparentShader()
 {
-	// In triangle mesh (wireframe) mode, render directly to the default framebuffer
-	// so transparent objects like water are visible in wireframe too.
-	// Otherwise, draw to the resolved write FBO so it composes
-	// over the opaque scene without an extra MSAA resolve pass.
-	if (showTriangleMesh)
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	else
-		glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-
 	mat4 modelMatrix = mat4(1.0f);
 
 	float radY, radX;
@@ -565,10 +556,9 @@ void StoneEngine::display() {
 	renderSceneToFBO();
 	resolveMsaaToFbo();
 
-	screenshotFBOBuffer(writeFBO, readFBO);
+		screenshotFBOBuffer(writeFBO, readFBO);
 
-	postProcessGreedyFix();
-	screenshotFBOBuffer(writeFBO, readFBO);
+		// Delay greedy-fix until after transparent pass so it applies to the final scene
 
 	// screenshotFBOBuffer(writeFBO, tmpFBO);
 	// postProcessBrightnessMask();
@@ -581,8 +571,21 @@ void StoneEngine::display() {
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
 	
-	// Render transparent objects (water) directly over resolved scene
-	renderTransparentObjects();
+	// Render transparent objects with MSAA (same path as solids), then resolve
+	if (!showTriangleMesh) {
+		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+		renderTransparentObjects();
+		resolveMsaaToFbo();
+	}
+	else
+	{
+		// Wireframe: draw directly to current framebuffer
+		renderTransparentObjects();
+	}
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	// Now run greedy-fix so it affects the combined scene
+	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
 	postProcessFog();
