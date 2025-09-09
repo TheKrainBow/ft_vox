@@ -377,9 +377,8 @@ void StoneEngine::initFboShaders()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
 	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
-	createPostProcessShader(postProcessShaders[BRIGHNESSMASK], "shaders/postProcess/postProcess.vert", "shaders/postProcess/brightness.frag");
-	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/godray.frag");
-	createPostProcessShader(postProcessShaders[GODRAYS_BLEND], "shaders/postProcess/postProcess.vert", "shaders/postProcess/godray_blend.frag");
+	// New single-pass light shafts implementation
+	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/lightshafts.frag");
 }
 
 void StoneEngine::initDebugTextBox()
@@ -562,13 +561,7 @@ void StoneEngine::display() {
 
 		// Delay greedy-fix until after transparent pass so it applies to the final scene
 
-	// screenshotFBOBuffer(writeFBO, tmpFBO);
-	// postProcessBrightnessMask();
-	// screenshotFBOBuffer(writeFBO, readFBO);
-	// postProcessGodRays();
-	// screenshotFBOBuffer(writeFBO, readFBO);
-	// postProcessGodRaysBlend();
-	// screenshotFBOBuffer(writeFBO, readFBO);
+
 
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
@@ -594,6 +587,10 @@ void StoneEngine::display() {
 	
 	// Display sun because FOG erased it
 	displaySun();
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	// Godrays: single-pass over scene+depth to add shafts
+	postProcessGodRays();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
 	sendPostProcessFBOToDispay();
@@ -679,36 +676,6 @@ void StoneEngine::postProcessGreedyFix()
 	glDepthFunc(GL_LESS);
 }
 
-void StoneEngine::postProcessGodRaysBlend()
-{
-	if (showTriangleMesh)
-		return;
-
-	PostProcessShader& shader = postProcessShaders[GODRAYS_BLEND];
-
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-	glUseProgram(shader.program);
-	glBindVertexArray(shader.vao);
-	glDisable(GL_DEPTH_TEST);
-	glDepthMask(GL_FALSE);
-
-	// Bind scene texture to unit 0
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tmpFBO.texture);
-	glUniform1i(glGetUniformLocation(shader.program, "mainSceneTex"), 0);
-
-	// Bind god ray texture to unit 1
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
-	glUniform1i(glGetUniformLocation(shader.program, "godRayTex"), 1);
-
-	glClear(GL_COLOR_BUFFER_BIT);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glDepthFunc(GL_LESS);
-	glEnable(GL_DEPTH_TEST);
-	glDepthMask(GL_TRUE);
-}
-
 void StoneEngine::postProcessGodRays()
 {
 	if (showTriangleMesh)
@@ -722,69 +689,39 @@ void StoneEngine::postProcessGodRays()
 	glDisable(GL_DEPTH_TEST);
 	glDepthMask(GL_FALSE);
 
-	// Bind occlusion texture to unit 0
+	// Inputs: scene color and depth from readFBO
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
-	// Pass screen size
-	glUniform2f(glGetUniformLocation(shader.program, "screenSize"),
-				static_cast<float>(windowWidth),
-				static_cast<float>(windowHeight));
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
-	vec3 camPos = camera.getWorldPosition();
-	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
-
-	// Update view matrix
+	// View matrix built from camera
 	glm::mat4 viewMatrix = glm::mat4(1.0f);
 	float radX = camera.getAngles().x * (M_PI / 180.0f);
 	float radY = camera.getAngles().y * (M_PI / 180.0f);
-
 	viewMatrix = glm::rotate(viewMatrix, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
 
-	// Set uniforms
+	vec3 camPos = camera.getWorldPosition();
+	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+
+	// Uniforms
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(shader.program, "sunPos"), 1, glm::value_ptr(sunPos));
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+
+	// Intensity scales with sun altitude and underwater state
+	float sunHeight = glm::clamp((sunPos.y - camPos.y) / 6000.0f, 0.0f, 1.0f);
+	float baseIntensity = isUnderWater ? 0.85f : 0.50f;
+	float rayIntensity = baseIntensity * sunHeight;
+	glUniform1f(glGetUniformLocation(shader.program, "rayIntensity"), rayIntensity);
 
 	glClear(GL_COLOR_BUFFER_BIT);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glEnable(GL_DEPTH_TEST);
-	glDepthMask(GL_TRUE);
-}
-
-void StoneEngine::postProcessBrightnessMask()
-{
-	if (showTriangleMesh)
-		return ;
-
-	PostProcessShader& shader = postProcessShaders[BRIGHNESSMASK];
-
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-	glUseProgram(shader.program);
-	glBindVertexArray(shader.vao);
-	glDisable(GL_DEPTH_TEST);
-	glDepthMask(GL_FALSE);
-
-	// Bind screen texture (color)
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
-	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
-
-	// Bind depth texture
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
-	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
-
-
-	float near = mapExpo(_fov, 1.0f, 90.0f, 10.0f, 0.1f);
-	float far = 5000.0f;
-	glUniform1f(glGetUniformLocation(shader.program, "near"), near);
-	glUniform1f(glGetUniformLocation(shader.program, "far"), far);
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);

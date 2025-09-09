@@ -22,13 +22,11 @@ class StoneEngine {
 		GLuint depth;
 	} FBODatas;
 
-	typedef enum {
-		GREEDYFIX = 0,
-		GODRAYS = 1,
-		FOG = 2,
-		BRIGHNESSMASK = 3,
-		GODRAYS_BLEND = 4,
-	} ShaderType;
+		typedef enum {
+			GREEDYFIX = 0,
+			FOG = 1,
+			GODRAYS = 2,
+		} ShaderType;
 	private:
 		// Display
 		GLFWwindow* _window;
@@ -169,10 +167,8 @@ class StoneEngine {
 	
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
-		void postProcessBrightnessMask();
 		void postProcessFog();
 		void postProcessGodRays();
-		void postProcessGodRaysBlend();
 		void sendPostProcessFBOToDispay();
 	
 		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
