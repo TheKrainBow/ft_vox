@@ -620,6 +620,17 @@ void StoneEngine::postProcessFog()
 
 	// Send render distance for adaptative fog
 	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
+	// glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+
+    // Set uniforms (after glUseProgram!)
+    glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+    glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
+    glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+    const float nearPlane = 1.0f;
+    const float farPlane  = 9600.0f;
+    glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), nearPlane);
+    glUniform1f(glGetUniformLocation(shader.program, "farPlane"),  farPlane);
+
 	auto render = _world.getCurrentRenderPtr();
 	if (render) {
 		if (*render > _bestRender) {
@@ -657,15 +668,6 @@ void StoneEngine::postProcessGreedyFix()
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
-
-    // Set uniforms (after glUseProgram!)
-    glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
-    glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
-    glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
-    const float nearPlane = 1.0f;
-    const float farPlane  = 9600.0f;
-    glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), nearPlane);
-    glUniform1f(glGetUniformLocation(shader.program, "farPlane"),  farPlane);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -970,12 +972,12 @@ void StoneEngine::updatePlayerStates()
 
 	// Compute foot cell from eye height
 	int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
-	int footSubY = static_cast<int>(std::floor(static_cast<float>(footCell) / static_cast<float>(CHUNK_SIZE)));
+	// int footSubY = static_cast<int>(std::floor(static_cast<float>(footCell) / static_cast<float>(CHUNK_SIZE)));
 
 	// If the destination chunk or the needed subchunk is not yet loaded, avoid updating
 	// ground/physics to prevent erroneous falling while streaming catches up.
-	if (Chunk* c = _world.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
-		return;
+	// if (Chunk* c = _world.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
+	// 	return;
 
 	camTopBlock = _world.findBlockUnderPlayer(chunkPos, {worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
 	camStandingBlock   = _world.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
@@ -1212,7 +1214,9 @@ void StoneEngine::update()
 
 	// Update player states
 	if (gravity)
+	{
 		updatePlayerStates();
+	}
     else
     {
         vec3 worldPos = camera.getWorldPosition();
