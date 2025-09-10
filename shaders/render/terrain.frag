@@ -32,18 +32,22 @@ float calculateDiffuseLight(float time, vec3 lightDir) {
 }
 
 float calculateAmbientLight(float time) {
-	float ambient = 0.2;
+    // Smooth, branchless day-night ambient using a cosine cycle
+    // angle: 0 at midnight, pi at noon, 2pi next midnight
+    const float pi = 3.14159265359;
+    float angle = (time / 86400.0) * (2.0 * pi);
 
-	if (time < 43200) {
-		float angle = (time / 43200.0) * 3.14159265359;
-		ambient += 0.15 * sin(angle);
-	}
-	else {
-		time -= 43200;
-		float angle = (time / 43200.0) * 3.14159265359;
-		ambient += 0.5 * sin(angle);
-	}
-	return ambient;
+    // Map to [0,1]: 0 at midnight, 1 at noon
+    float dayFactor = 0.5 - 0.5 * cos(angle);
+
+    // Soften sunrise/sunset transitions
+    dayFactor = smoothstep(0.0, 1.0, dayFactor);
+
+    // Ambient ranges: darker nights, brighter days
+    float nightAmbient = 0.10; // ambient at midnight
+    float dayAmbient   = 0.35; // ambient at noon
+
+    return mix(nightAmbient, dayAmbient, dayFactor);
 }
 
 float calculateSpecularLight(float time, vec3 lightDir) {
@@ -76,14 +80,12 @@ void main() {
 	float specularWeight = 0.5;
 
 	// Adjust diffuse factor by timeValue
-	float diffuseFactor = 0.2;
-	if (timeValue < 40000)
-		diffuseFactor = 0.0;
-	else if (timeValue <= 43200) {
-		float time = timeValue - 40000;
-		float angle = (time / 3200.0) * (3.14159265359 / 2.0);
-		diffuseFactor = 0.2 * sin(angle);
-	}
+	const float pi = 3.14159265359;
+	float angle = (timeValue / 86400.0) * (2.0 * pi);
+	float sun = 0.5 - 0.5 * cos(angle); // 0 at midnight, 1 at noon
+	// soften transitions; treat low sun as near-zero diffuse
+	sun = smoothstep(0.05, 0.35, sun);
+	float diffuseFactor = 0.2 * sun;
 
 	// Combine lighting components
 	float finalAmbient = ambient * ambientWeight;
