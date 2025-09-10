@@ -53,12 +53,40 @@ void main()
 	if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
 	if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
 
+	// Direction notes, paired with facing direction for light debug
+	// Direction 0 == North
+	// Direction 1 == South
+	// Direction 2 == West
+	// Direction 3 == East
+	// Direction 4 == Down
+	// Direction 5 == Up
 	if (direction == 0) normal = vec3(0,0, 1);
-	if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(-1,0,0); }
-	if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(0,-1,0); }
-	if (direction == 3) { basePos.x += res; normal = vec3(1,0,0); }
-	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
-	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
+	if (direction == 1)
+	{
+		basePos.x = -basePos.x + lengthX;
+		basePos.z += res;
+		normal = vec3(0,-1,0);
+	}
+	if (direction == 2)
+	{
+		basePos.y = -basePos.y + lengthY;
+		finalUV.y = 1.0 - finalUV.y;
+		normal = vec3(1,0,0);
+	}
+	if (direction == 3)
+	{
+		basePos.x += res;
+		normal = vec3(-1,0,0); }
+	if (direction == 4)
+	{
+		basePos.z = -basePos.z + lengthY;
+		normal = vec3(0,0,-1);
+	}
+	if (direction == 5)
+	{
+		basePos.y += res;
+		normal = vec3(0,1,0);
+	}
 
 	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
 	finalUV *= vec2(lengthX, lengthY);

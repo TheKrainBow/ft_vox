@@ -13,16 +13,17 @@ in vec3 FragPos;
 out vec4 FragColor;
 
 vec3 computeSunPosition(float time) {
+	vec3 viewPos = vec3(inverse(view)[3]);
 	float pi = 3.14159265359;
 	float radius = 6000.0;
 	float angle = (time / 86400.0) * (2.0 * pi);
 	float tiltAngle = radians(30.0);
 
-	float x = radius * sin(angle) * cos(tiltAngle);
-	float y = radius * sin(angle);
-	float z = radius * cos(angle);
+	float x = radius * cos(angle);
+	float y = -radius * sin(angle);
+	float z = 0.0f;
 
-	return vec3(x, y, z);
+	return viewPos + vec3(x, y, z);
 }
 
 float calculateDiffuseLight(float time, vec3 lightDir) {
@@ -91,6 +92,9 @@ void main() {
 
 	float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular, 0.0, 1.0);
 	vec3 result = totalLight * lightColor * texColor.rgb;
-
+	
+	// Face direction debug whitens the face depending on normal
+	// if (Normal.x == -1)
+	// 	result.rgb *= 10;
 	FragColor = vec4(result, texColor.a);
 }
