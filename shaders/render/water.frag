@@ -142,6 +142,9 @@ vec2 toUV(vec4 clip, out bool outOfBounds) {
 	return uv;
 }
 
+// Depth-aware reflection validation to prevent incorrect reflections
+// This fixes the issue where objects in front of the camera (like trees) 
+// get incorrectly reflected in water that is behind those objects.
 bool isReflectionValid(vec4 clip, vec2 uv, bool outOfBounds) {
 	if (outOfBounds || clip.w <= 0.0) {
 		return false;
