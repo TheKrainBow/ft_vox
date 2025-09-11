@@ -75,6 +75,7 @@ const float ALPHA_FAR_DIST		= 50.0;
 in vec3 FragPos;
 
 uniform sampler2D screenTexture;
+uniform sampler2D depthTexture;
 uniform sampler2D normalMap;
 
 uniform vec3  viewPos;
@@ -141,6 +142,27 @@ vec2 toUV(vec4 clip, out bool outOfBounds) {
 	return uv;
 }
 
+bool isReflectionValid(vec4 clip, vec2 uv, bool outOfBounds) {
+	if (outOfBounds || clip.w <= 0.0) {
+		return false;
+	}
+	
+	// Get the depth of the reflected point in NDC space, convert to [0,1] range
+	float reflectedDepth = (clip.z / clip.w) * 0.5 + 0.5;
+	
+	// Sample the actual depth from the depth buffer at the reflection sample point
+	float sampledDepth = texture(depthTexture, uv).r;
+	
+	// Use a reasonable tolerance for floating point precision and minor variations
+	// This tolerance accounts for floating point errors and small discrepancies
+	float tolerance = 0.005;
+	
+	// The reflection is valid if the reflected point depth is close to the sampled depth.
+	// This ensures we're reflecting geometry that's actually at the correct distance,
+	// preventing objects that are much closer/farther from being incorrectly reflected.
+	return abs(reflectedDepth - sampledDepth) < tolerance;
+}
+
 vec3 sampleReflection(vec2 uv) {
 	if (USE_REFLECTION_BLUR) {
 		vec3 c = vec3(0.0);
@@ -197,16 +219,20 @@ void main() {
 		reflectedBase = SKY_COLOR;
 	}
 	else if (REFLECTION_SOURCE == 0) {
-		// Always sample screen texture
-		bool dummyOOB = false;
-		vec2 uv = (clip.w <= 0.0) ? vec2(0.5) : toUV(clip, dummyOOB);
-		reflectedBase = sampleReflection(uv);
-	}
-	else { // REFLECTION_SOURCE == 2
-		// Sample screen; fall back to sky when OOB/behind camera
+		// Always sample screen texture, but check depth validity
 		bool outOfBounds = (clip.w <= 0.0);
 		vec2 uv = outOfBounds ? vec2(0.5) : toUV(clip, outOfBounds);
-		reflectedBase = outOfBounds ? SKY_COLOR : sampleReflection(uv);
+		bool validReflection = !outOfBounds && isReflectionValid(clip, uv, outOfBounds);
+		reflectedBase = validReflection ? sampleReflection(uv) : SKY_COLOR;
+	}
+	else { // REFLECTION_SOURCE == 2
+		// Sample screen; fall back to sky when OOB/behind camera or invalid depth
+		bool outOfBounds = (clip.w <= 0.0);
+		vec2 uv = outOfBounds ? vec2(0.5) : toUV(clip, outOfBounds);
+		
+		// Check if reflection is valid (proper depth) in addition to bounds checking
+		bool validReflection = !outOfBounds && isReflectionValid(clip, uv, outOfBounds);
+		reflectedBase = validReflection ? sampleReflection(uv) : SKY_COLOR;
 	}
 
 	// Gentle blue bias and optional tone (tone OFF by default to avoid gray)
