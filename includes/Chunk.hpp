@@ -14,7 +14,7 @@ class SubChunk;
 class World;
 class CaveGenerator;
 
-class Chunk
+class Chunk : public std::enable_shared_from_this<Chunk>
 {
 	private:
 		ivec2								_position;
@@ -29,10 +29,10 @@ class Chunk
 		TextureManager						&_textureManager;
 		PerlinMap							*_perlinMap;
 		Chrono								_chrono;
-		Chunk								*_north = nullptr;
-		Chunk								*_south = nullptr;
-		Chunk								*_east = nullptr;
-		Chunk								*_west = nullptr;
+		Chunk *_north;
+		Chunk *_south;
+		Chunk *_east;
+		Chunk *_west;
 
 
 		std::vector<vec4>						_ssboData;
@@ -44,25 +44,30 @@ class Chunk
 		CaveGenerator							&_caveGen;
 		std::atomic_int							_resolution;
 		ThreadPool								&_pool;
+
+	    void updateHasAllNeighbors();
 	public:
 		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
 		SubChunk *getSubChunk(int y);
+		SubChunk *getOrCreateSubChunk(int y, bool generate = true);
 		void updateResolution(int newResolution);
 		void sendFacesToDisplay();
 		bool isReady();
 		std::atomic_int	&getResolution();
 		ivec2 getPosition();
 		size_t getMemorySize();
-		void setWestChunk(Chunk *chunk);
-		void setNorthChunk(Chunk *chunk);
-		void setEastChunk(Chunk *chunk);
-		void setSouthChunk(Chunk *chunk);
+		void setNorthChunk(Chunk *c);
+		void setSouthChunk(Chunk *c);
+		void setEastChunk (Chunk *c);
+		void setWestChunk (Chunk *c);
+	
 		Chunk *getNorthChunk();
 		Chunk *getSouthChunk();
-		Chunk *getWestChunk();
-		Chunk *getEastChunk();
+		Chunk *getEastChunk ();
+		Chunk *getWestChunk ();
+	
 		void clearFaces();
 		void loadBlocks();
 		void unloadNeighbor(Direction dir);

@@ -11,12 +11,12 @@ float mapExpo(float x, float in_min, float in_max, float out_min, float out_max)
 
 bool isTransparent(char block)
 {
-	return block == AIR || block == WATER;
+	return block == AIR || block == WATER || block == LOG;
 }
 
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
 {
-	return isTransparent(neighborBlock) && blockToDisplay != neighborBlock;
+	return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && neighborBlock != LOG);
 }
 
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
@@ -170,6 +170,9 @@ void StoneEngine::initTextures()
 		{ T_WATER, "textures/water.ppm" },
 		{ T_SNOW, "textures/snow.ppm" },
 		{ T_BEDROCK, "textures/bedrock.ppm" },
+		{ T_LOG_SIDE, "textures/log_side.ppm" },
+		{ T_LOG_TOP, "textures/log_top.ppm" },
+		{ T_LEAF, "textures/full_leaves.ppm" },
 	});
 
 	glGenTextures(1, &waterNormalMap);
@@ -483,6 +486,7 @@ void StoneEngine::activateTransparentShader()
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
 	glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
+	
 	// Provide global water plane height to the water shader (for underwater depth-based effects)
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "waterHeight"),      OCEAN_HEIGHT + 2);
 
@@ -556,13 +560,9 @@ void StoneEngine::display() {
 	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
 	renderSceneToFBO();
 	resolveMsaaToFbo();
+	screenshotFBOBuffer(writeFBO, readFBO);
 
-		screenshotFBOBuffer(writeFBO, readFBO);
-
-		// Delay greedy-fix until after transparent pass so it applies to the final scene
-
-
-
+	// Delay greedy-fix until after transparent pass so it applies to the final scene
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
 	

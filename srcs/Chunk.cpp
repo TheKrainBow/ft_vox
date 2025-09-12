@@ -1,6 +1,5 @@
 #include "Chunk.hpp"
 
-
 Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution)
 :
 _position(pos),
@@ -16,135 +15,131 @@ _pool(pool)
 {
 }
 
-void Chunk::loadBlocks()
-{
-	// Compute the vertical range we actually need:
-	// - Start at 0 (bedrock is at globalY==0 inside subchunk 0)
-	// - Go up to the max of (chunk highest) and (ocean) + one extra subchunk
-	int heighest = _perlinMap->heighest;
-	if (heighest < OCEAN_HEIGHT) heighest = OCEAN_HEIGHT;
+void Chunk::loadBlocks() {
+    int heighest = _perlinMap->heighest;
+    if (heighest < OCEAN_HEIGHT) heighest = OCEAN_HEIGHT;
 
-	const int minYIdx = 0;
-	const int maxYIdx = (heighest / CHUNK_SIZE) + 1; // one subchunk margin above
+    const int minYIdx = 0;
+    const int maxYIdx = (heighest / CHUNK_SIZE) + 1;
 
-	// Generate each subchunk in parallel, then insert them
-	std::vector<std::future<std::pair<int, SubChunk*>>> futures;
-	futures.reserve(maxYIdx - minYIdx + 1);
+    std::vector<std::future<std::pair<int, SubChunk*>>> futures;
+    futures.reserve(maxYIdx - minYIdx + 1);
 
-	for (int idx = minYIdx; idx <= maxYIdx; ++idx)
-	{
-		futures.emplace_back(
-			_pool.enqueue([this, idx]() -> std::pair<int, SubChunk*>
-			{
-				SubChunk *sub = new SubChunk(
-					{ _position.x, idx, _position.y },
-					_perlinMap,
-					_caveGen,
-					*this,
-					_world,
-					_textureManager,
-					_resolution
-				);
-				// Height then biome (biome only touches a few cells near the surface)
-				sub->loadHeight(0);
-				sub->loadBiome(0);
-				return { idx, sub };
-			})
-		);
-	}
+    for (int idx = minYIdx; idx <= maxYIdx; ++idx) {
+        futures.emplace_back(_pool.enqueue([this, idx]() -> std::pair<int, SubChunk*>
+        {
+            auto* sub = new SubChunk(
+                { _position.x, idx, _position.y },
+                _perlinMap, _caveGen, *this, _world, _textureManager, _resolution
+            );
+            sub->loadHeight(0);
+            sub->loadBiome(0);
+            return { idx, sub };
+        }));
+    }
 
-	size_t localMem = 0;
-	for (auto &f : futures)
-	{
-		auto [idx, sub] = f.get();
-		_subChunks[idx] = sub;
-		localMem += sub->getMemorySize();
-	}
-	_memorySize += localMem;
+    size_t localMem = 0;
+    for (auto& f : futures) {
+        auto [idx, generated] = f.get();
 
-	_isInit = true;
-	_memorySize += sizeof(*this);
+        SubChunk* existing = nullptr;
+        {
+            std::lock_guard<std::mutex> lk(_subChunksMutex);
+            auto it = _subChunks.find(idx);
+            if (it == _subChunks.end()) {
+                _subChunks.emplace(idx, generated);
+                existing = nullptr;
+            } else {
+                existing = it->second;
+                it->second = generated;
+            }
+        }
+
+        if (existing) {
+            for (int y = 0; y < CHUNK_SIZE; y += _resolution) {
+                for (int z = 0; z < CHUNK_SIZE; z += _resolution) {
+                    for (int x = 0; x < CHUNK_SIZE; x += _resolution) {
+                        char b = existing->getBlock({x, y, z});
+                        if (b != AIR) {
+                            generated->setBlock(x, y, z, b);
+                        }
+                    }
+                }
+            }
+            delete existing;
+        }
+        localMem += generated->getMemorySize();
+    }
+
+    _memorySize += localMem;
+    _isInit = true;
+    _memorySize += sizeof(*this);
 }
 
-size_t Chunk::getMemorySize() {
-	return _memorySize;
+size_t Chunk::getMemorySize() { return _memorySize; }
+
+TopBlock Chunk::getTopBlock(int localX, int localZ) {
+    std::lock_guard<std::mutex> lock(_subChunksMutex);
+    int maxIdx = INT_MIN;
+    for (const auto& kv : _subChunks) maxIdx = std::max(maxIdx, kv.first);
+    if (maxIdx == INT_MIN) return {0, 0, {0.0, 0.0}};
+
+    for (int subY = maxIdx; subY >= 0; --subY) {
+        auto it = _subChunks.find(subY);
+        if (it == _subChunks.end() || !it->second) continue;
+
+        SubChunk* sub = it->second;
+        for (int y = CHUNK_SIZE - 1; y >= 0; --y) {
+            uint8_t block = sub->getBlock({localX, y, localZ});
+            if (block != AIR && block != WATER)
+                return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
+        }
+    }
+    return {0, 0, {0.0, 0.0}};
 }
 
-TopBlock Chunk::getTopBlock(int localX, int localZ)
-{
-	std::lock_guard<std::mutex> lock(_subChunksMutex);
-	int index = std::numeric_limits<int>::min();
-	for (auto &elem : _subChunks)
-	{
-		if (elem.first > index)
-			index = elem.first;
-	}
+TopBlock Chunk::getFirstSolidBelow(int localX, int startLocalY, int localZ, int startSubY) {
+    std::lock_guard<std::mutex> lock(_subChunksMutex);
 
-	for (int subY = index; subY >= 0; subY--)
-	{
-		SubChunk *subchunk = _subChunks[subY];
-		if (!subchunk)
-			continue ;
+    int highest = -1;
+    for (const auto &kv : _subChunks)
+        if (kv.first > highest) highest = kv.first;
 
-		for (int y = CHUNK_SIZE - 1; y >= 0; --y)
-		{
-			uint8_t block = subchunk->getBlock({localX, y, localZ});
-			if (block != AIR && block != WATER)
-			{
-				return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
-			}
-		}
-	}
-	return {0, 0, {0.0, 0.0}};
+    if (highest < 0)               return {0, 0, {0.0, 0.0}};
+    if (startSubY > highest) {
+        startSubY   = highest;
+        startLocalY = CHUNK_SIZE - 1;
+    }
+    if (startSubY < 0)             return {0, 0, {0.0, 0.0}};
+
+    // strictly search below the starting voxel
+    if (startLocalY > 0) {
+        --startLocalY;
+    } else {
+        --startSubY;
+        startLocalY = CHUNK_SIZE - 1;
+    }
+
+    for (int subY = startSubY; subY >= 0; --subY) {
+        auto it = _subChunks.find(subY);
+        if (it == _subChunks.end() || !it->second) continue;
+
+        SubChunk* sub = it->second;
+        const int yStart = (subY == startSubY) ? startLocalY : (CHUNK_SIZE - 1);
+
+        for (int y = yStart; y >= 0; --y) {
+            const uint8_t block = sub->getBlock({localX, y, localZ});
+            if (block != AIR && block != WATER) {
+                return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
+            }
+        }
+    }
+    return {0, 0, {0.0, 0.0}};
 }
 
-TopBlock Chunk::getFirstSolidBelow(int localX, int startLocalY, int localZ, int startSubY)
-{
-	std::lock_guard<std::mutex> lock(_subChunksMutex);
-
-	int highest = -1;
-	for (const auto &kv : _subChunks)
-		if (kv.first > highest) highest = kv.first;
-
-	if (highest < 0)               return {0, 0, {0.0, 0.0}};
-	if (startSubY > highest) {
-		startSubY   = highest;
-		startLocalY = CHUNK_SIZE - 1;
-	}
-	if (startSubY < 0)             return {0, 0, {0.0, 0.0}};
-
-	const bool strictlyBelow = true;
-	if (strictlyBelow) {
-		if (startLocalY > 0) {
-			--startLocalY;
-		} else {
-			--startSubY;
-			startLocalY = CHUNK_SIZE - 1;
-		}
-	}
-
-	for (int subY = startSubY; subY >= 0; --subY) {
-		auto it = _subChunks.find(subY);
-		if (it == _subChunks.end() || !it->second) continue;
-
-		SubChunk* sub = it->second;
-		const int yStart = (subY == startSubY) ? startLocalY : (CHUNK_SIZE - 1);
-
-		for (int y = yStart; y >= 0; --y) {
-			const uint8_t block = sub->getBlock({localX, y, localZ});
-			if (block != AIR && block != WATER) {
-				return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
-			}
-		}
-	}
-	return {0, 0, {0.0, 0.0}};
-}
-
-Chunk::~Chunk()
-{
-	for (auto &subchunk : _subChunks)
-		delete subchunk.second;
-	_subChunks.clear();
+Chunk::~Chunk() {
+    for (auto &subchunk : _subChunks) delete subchunk.second;
+    _subChunks.clear();
 }
 
 void Chunk::getNeighbors()
@@ -184,44 +179,32 @@ void Chunk::getNeighbors()
 		sendFacesToDisplay();
 }
 
-void Chunk::unloadNeighbors()
-{
-	if (_north)
-		_north->unloadNeighbor(SOUTH);
-	if (_south)
-		_south->unloadNeighbor(NORTH);
-	if (_east)
-		_east->unloadNeighbor(WEST);
-	if (_west)
-		_west->unloadNeighbor(EAST);
+void Chunk::updateHasAllNeighbors() {
+    _hasAllNeighbors =
+        _north && _south &&
+        _east  && _west;
 }
 
-void Chunk::unloadNeighbor(Direction dir)
-{
-	switch (dir) {
-		case NORTH:
-			_north = nullptr;
-			break;
-		case SOUTH:
-			_south = nullptr;
-			break;
-		case EAST:
-			_east = nullptr;
-			break;
-		case WEST:
-			_west = nullptr;
-			break;
-		case DOWN:
-			break;
-		case UP:
-			break;
-	}
+void Chunk::unloadNeighbors() {
+    if (_north) _north->unloadNeighbor(SOUTH);
+    if (_south) _south->unloadNeighbor(NORTH);
+    if (_east) _east->unloadNeighbor(WEST);
+    if (_west) _west->unloadNeighbor(EAST);
 }
 
-ivec2 Chunk::getPosition()
-{
-	return _position;
+void Chunk::unloadNeighbor(Direction dir) {
+    switch (dir) {
+        case NORTH: _north = nullptr; break;
+        case SOUTH: _south = nullptr; break;
+        case EAST:  _east = nullptr; break;
+        case WEST:  _west = nullptr; break;
+        case DOWN:  break;
+        case UP:    break;
+    }
+    updateHasAllNeighbors();
 }
+
+ivec2 Chunk::getPosition() { return _position; }
 
 SubChunk *Chunk::getSubChunk(int y)
 {
@@ -234,226 +217,191 @@ SubChunk *Chunk::getSubChunk(int y)
 	return nullptr;
 }
 
-bool Chunk::isReady()
-{
-	return _facesSent;
+SubChunk* Chunk::getOrCreateSubChunk(int subY, bool generate) {
+    {
+        std::lock_guard<std::mutex> lk(_subChunksMutex);
+        auto it = _subChunks.find(subY);
+        if (it != _subChunks.end()) return it->second;
+    }
+
+    auto* sc = new SubChunk(
+        { _position.x, subY, _position.y },
+        _perlinMap, _caveGen, *this, _world, _textureManager, _resolution
+    );
+
+    if (generate) {
+        sc->loadHeight(_resolution);
+        sc->loadBiome (_resolution);
+    } else {
+        sc->markLoaded(true);
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(_subChunksMutex);
+        auto [it, inserted] = _subChunks.emplace(subY, sc);
+        if (!inserted) { delete sc; return it->second; }
+        return sc;
+    }
 }
 
-void Chunk::clearFaces()
-{
-	_vertexData.clear();
-	_indirectBufferData.clear();
-	_transparentVertexData.clear();
-	_transparentIndirectBufferData.clear();
-	_ssboData.clear();
+bool Chunk::isReady() { return _facesSent; }
+
+void Chunk::clearFaces() {
+    _vertexData.clear();
+    _indirectBufferData.clear();
+    _transparentVertexData.clear();
+    _transparentIndirectBufferData.clear();
+    _ssboData.clear();
 }
 
 void Chunk::sendFacesToDisplay()
 {
-	if (_hasAllNeighbors == false || _isInit == false)
-		return ;
+    if (_hasAllNeighbors == false || _isInit == false)
+        return ;
 
-	// Save of subchunk pointers under _subChunksMutex to avoid
-	// iterating the map concurrently with resolution updates.
-	std::vector<SubChunk*> subs;
-	{
-		std::lock_guard<std::mutex> lk(_subChunksMutex);
-		subs.reserve(_subChunks.size());
-		for (auto &kv : _subChunks)
-			subs.push_back(kv.second);
-	}
+    std::vector<SubChunk*> subs;
+    {
+        std::lock_guard<std::mutex> lk(_subChunksMutex);
+        subs.reserve(_subChunks.size());
+        for (auto &kv : _subChunks)
+            subs.push_back(kv.second);
+    }
 
-	std::lock_guard<std::mutex> lkSend(_sendFacesMutex);
-	clearFaces();
+    std::lock_guard<std::mutex> lkSend(_sendFacesMutex);
+    clearFaces();
 
-	for (SubChunk* sc : subs)
-	{
-		if (!sc) continue;
-		sc->sendFacesToDisplay();
-		std::vector<int> vertices = sc->getVertices();
-		std::vector<int> transparentVertices = sc->getTransparentVertices();
+    for (SubChunk* sc : subs)
+    {
+        if (!sc) continue;
+        sc->sendFacesToDisplay();
 
-		_indirectBufferData.push_back(DrawArraysIndirectCommand{
-			4,
-			uint(vertices.size()),
-			0,
-			uint(_vertexData.size()),
-		});
+        std::vector<int> vertices              = sc->getVertices();
+        std::vector<int> transparentVertices   = sc->getTransparentVertices();
 
-		_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{
-			4,
-			uint(transparentVertices.size()),
-			0,
-			uint(_transparentVertexData.size()),
-		});
+        // ---- SOLID draw cmd ----
+        _indirectBufferData.push_back(DrawArraysIndirectCommand{
+            4,
+            static_cast<uint32_t>(vertices.size()),
+            0,
+            static_cast<uint32_t>(_vertexData.size())
+        });
 
-		ivec3 pos = sc->getPosition();
-		_ssboData.push_back(vec4{
-			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
-		});
+        // ---- TRANSPARENT draw cmd (missing before) ----
+        _transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{
+            4,
+            static_cast<uint32_t>(transparentVertices.size()),
+            0,
+            static_cast<uint32_t>(_transparentVertexData.size())
+        });
 
-		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
-	}
-	_facesSent = true;
+        // Per-draw origin/res for *both* passes; index i must match draw i
+        ivec3 pos = sc->getPosition();
+        _ssboData.push_back(vec4{
+            pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
+        });
+
+        // Append instance streams
+        _vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+        _transparentVertexData.insert(_transparentVertexData.end(),
+                                      transparentVertices.begin(), transparentVertices.end());
+    }
+    _facesSent = true;
 }
 
-void Chunk::setNorthChunk(Chunk *chunk)
-{
-	_north = chunk;
-	bool wasComplete = _hasAllNeighbors;
-	_hasAllNeighbors = _north && _south && _east && _west;
-	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
-		sendFacesToDisplay();
+void Chunk::setNorthChunk(Chunk *c) { _north = c; updateHasAllNeighbors(); }
+void Chunk::setSouthChunk(Chunk *c) { _south = c; updateHasAllNeighbors(); }
+void Chunk::setEastChunk (Chunk *c) { _east  = c; updateHasAllNeighbors(); }
+void Chunk::setWestChunk (Chunk *c) { _west  = c; updateHasAllNeighbors(); }
+Chunk *Chunk::getNorthChunk() { return _north; }
+Chunk *Chunk::getSouthChunk() { return _south; }
+Chunk *Chunk::getEastChunk () { return _east;  }
+Chunk *Chunk::getWestChunk () { return _west;  }
+
+std::vector<int> &Chunk::getVertices() {
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return _vertexData;
+}
+std::vector<DrawArraysIndirectCommand> &Chunk::getIndirectData() {
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return _indirectBufferData;
+}
+std::vector<vec4> &Chunk::getSSBO() {
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return _ssboData;
+}
+std::vector<int> &Chunk::getTransparentVertices() {
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return _transparentVertexData;
+}
+std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData() {
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return _transparentIndirectBufferData;
 }
 
-void Chunk::setSouthChunk(Chunk *chunk)
-{
-	_south = chunk;
-	bool wasComplete = _hasAllNeighbors;
-	_hasAllNeighbors = _north && _south && _east && _west;
-	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
-		sendFacesToDisplay();
+void Chunk::freeSubChunks() {
+    _subChunksMutex.lock();
+    for (auto &subchunk : _subChunks) {
+        if (subchunk.second) delete subchunk.second;
+        subchunk.second = nullptr;
+    }
+    _subChunksMutex.unlock();
+    _subChunks.clear();
 }
 
-void Chunk::setEastChunk(Chunk *chunk)
-{
-	_east = chunk;
-	bool wasComplete = _hasAllNeighbors;
-	_hasAllNeighbors = _north && _south && _east && _west;
-	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
-		sendFacesToDisplay();
-}
+void Chunk::updateResolution(int newResolution) {
+    _resolution = newResolution;
 
-void Chunk::setWestChunk(Chunk *chunk)
-{
-	_west = chunk;
-	bool wasComplete = _hasAllNeighbors;
-	_hasAllNeighbors = _north && _south && _east && _west;
-	if (_isInit && _hasAllNeighbors && !wasComplete && !_facesSent)
-		sendFacesToDisplay();
-}
+    std::vector<SubChunk*> subs;
+    {
+        std::lock_guard<std::mutex> lk(_subChunksMutex);
+        subs.reserve(_subChunks.size());
+        for (auto& kv : _subChunks) subs.push_back(kv.second);
+    }
+    for (auto* sc : subs) sc->updateResolution(newResolution, _perlinMap);
 
-Chunk *Chunk::getNorthChunk() {
-	return _north;
-}
+    _facesSent = false;
+    sendFacesToDisplay();
 
-Chunk *Chunk::getSouthChunk() {
-	return _south;
-}
-
-Chunk *Chunk::getEastChunk() {
-	return _east;
-}
-
-Chunk *Chunk::getWestChunk() {
-	return _west;
-}
-
-std::vector<int> &Chunk::getVertices()
-{
-	std::lock_guard<std::mutex> lock(_sendFacesMutex);
-	return _vertexData;
-}
-
-std::vector<DrawArraysIndirectCommand> &Chunk::getIndirectData()
-{
-	std::lock_guard<std::mutex> lock(_sendFacesMutex);
-	return _indirectBufferData;
-}
-
-std::vector<vec4> &Chunk::getSSBO()
-{
-	std::lock_guard<std::mutex> lock(_sendFacesMutex);
-	return _ssboData;
-}
-
-std::vector<int> &Chunk::getTransparentVertices()
-{
-	std::lock_guard<std::mutex> lock(_sendFacesMutex);
-	return _transparentVertexData;
-}
-
-std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData()
-{
-	std::lock_guard<std::mutex> lock(_sendFacesMutex);
-	return _transparentIndirectBufferData;
-}
-
-void Chunk::freeSubChunks()
-{
-	_subChunksMutex.lock();
-	for (auto &subchunk : _subChunks)
-	{
-		if (subchunk.second)
-			delete subchunk.second;
-		subchunk.second = nullptr;
-	}
-	_subChunksMutex.unlock();
-	_subChunks.clear();
-}
-
-void	Chunk::updateResolution(int newResolution)
-{
-	_world.updatePerlinMapResolution(_perlinMap, newResolution);
-	_resolution = newResolution;
-
-	_subChunksMutex.lock();
-	for (auto &subchunk : _subChunks)
-	{
-		SubChunk *subChunk = subchunk.second;
-		subChunk->updateResolution(newResolution, _perlinMap);
-	}
-	_subChunksMutex.unlock();
-
-	_facesSent = false;
-	sendFacesToDisplay();
-	if (_north)
-		_north->sendFacesToDisplay();
-	if (_south)
-		_south->sendFacesToDisplay();
-	if (_east)
-		_east->sendFacesToDisplay();
-	if (_west)
-		_west->sendFacesToDisplay();
+    if (_north) _north->sendFacesToDisplay();
+    if (_south) _south->sendFacesToDisplay();
+    if (_east ) _east->sendFacesToDisplay();
+    if (_west ) _west->sendFacesToDisplay();
 }
 
 void Chunk::getAABB(glm::vec3& minp, glm::vec3& maxp) {
-	const float xs = _position.x * CHUNK_SIZE;
-	const float zs = _position.y * CHUNK_SIZE;
+    const float xs = _position.x * CHUNK_SIZE;
+    const float zs = _position.y * CHUNK_SIZE;
 
-	int minIdx = INT_MAX, maxIdx = INT_MIN;
-	{
-		std::lock_guard<std::mutex> lock(_subChunksMutex);
-		for (const auto& kv : _subChunks) {
-			minIdx = std::min(minIdx, kv.first);
-			maxIdx = std::max(maxIdx, kv.first);
-		}
-	}
-	if (minIdx == INT_MAX) { // fallback if somehow empty
-		minp = { xs, 0.0f,  zs };
-		maxp = { xs + CHUNK_SIZE, CHUNK_SIZE, zs + CHUNK_SIZE };
-		return;
-	}
-	minp = { xs,				float(minIdx * CHUNK_SIZE), zs };
-	maxp = { xs + CHUNK_SIZE,	float((maxIdx + 1) * CHUNK_SIZE), zs + CHUNK_SIZE };
+    int minIdx = INT_MAX, maxIdx = INT_MIN;
+    {
+        std::lock_guard<std::mutex> lock(_subChunksMutex);
+        for (const auto& kv : _subChunks) {
+            minIdx = std::min(minIdx, kv.first);
+            maxIdx = std::max(maxIdx, kv.first);
+        }
+    }
+    if (minIdx == INT_MAX) {
+        minp = { xs, 0.0f,  zs };
+        maxp = { xs + CHUNK_SIZE, CHUNK_SIZE, zs + CHUNK_SIZE };
+        return;
+    }
+    minp = { xs,               float(minIdx * CHUNK_SIZE), zs };
+    maxp = { xs + CHUNK_SIZE,  float((maxIdx + 1) * CHUNK_SIZE), zs + CHUNK_SIZE };
 }
 
-std::atomic_int &Chunk::getResolution() {
-	return _resolution;
-}
+std::atomic_int &Chunk::getResolution() { return _resolution; }
 
 void Chunk::snapshotDisplayData(
-	std::vector<int>&							outSolidVerts,
-	std::vector<DrawArraysIndirectCommand>&		outSolidCmds,
-	std::vector<vec4>&							outSSBO,
-	std::vector<int>&							outTranspVerts,
-	std::vector<DrawArraysIndirectCommand>&		outTranspCmds)
+    std::vector<int>& outSolidVerts,
+    std::vector<DrawArraysIndirectCommand>& outSolidCmds,
+    std::vector<vec4>& outSSBO,
+    std::vector<int>& outTranspVerts,
+    std::vector<DrawArraysIndirectCommand>& outTranspCmds)
 {
-	std::lock_guard<std::mutex> lockk(_sendFacesMutex);
-	outSolidVerts   = _vertexData;
-	outSolidCmds	= _indirectBufferData;
-	outSSBO		 	= _ssboData;
-	outTranspVerts  = _transparentVertexData;
-	outTranspCmds   = _transparentIndirectBufferData;
+    std::lock_guard<std::mutex> lockk(_sendFacesMutex);
+    outSolidVerts   = _vertexData;
+    outSolidCmds    = _indirectBufferData;
+    outSSBO         = _ssboData;
+    outTranspVerts  = _transparentVertexData;
+    outTranspCmds   = _transparentIndirectBufferData;
 }

@@ -17,7 +17,7 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 60
+# define RENDER_DISTANCE 121
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -51,6 +51,8 @@
 # define SAND 's'
 # define WATER 'W'
 # define SNOW 'w'
+# define LOG 'l'
+# define LEAF 'L'
 
 typedef  struct {
 	uint  count;
