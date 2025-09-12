@@ -54,7 +54,7 @@ class SubChunk
 	public:
 		SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
 		~SubChunk();
-	    void markLoaded(bool loaded = true);
+		void markLoaded(bool loaded = true);
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);
 		void addFace(ivec3 position, Direction dir, TextureType texture, bool isTransparent);
 		void loadHeight(int prevResolution);

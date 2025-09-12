@@ -32,22 +32,22 @@ float calculateDiffuseLight(float time, vec3 lightDir) {
 }
 
 float calculateAmbientLight(float time) {
-    // Smooth, branchless day-night ambient using a cosine cycle
-    // angle: 0 at midnight, pi at noon, 2pi next midnight
-    const float pi = 3.14159265359;
-    float angle = (time / 86400.0) * (2.0 * pi);
+	// Smooth, branchless day-night ambient using a cosine cycle
+	// angle: 0 at midnight, pi at noon, 2pi next midnight
+	const float pi = 3.14159265359;
+	float angle = (time / 86400.0) * (2.0 * pi);
 
-    // Map to [0,1]: 0 at midnight, 1 at noon
-    float dayFactor = 0.5 - 0.5 * cos(angle);
+	// Map to [0,1]: 0 at midnight, 1 at noon
+	float dayFactor = 0.5 - 0.5 * cos(angle);
 
-    // Soften sunrise/sunset transitions
-    dayFactor = smoothstep(0.0, 1.0, dayFactor);
+	// Soften sunrise/sunset transitions
+	dayFactor = smoothstep(0.0, 1.0, dayFactor);
 
-    // Ambient ranges: darker nights, brighter days
-    float nightAmbient = 0.10; // ambient at midnight
-    float dayAmbient   = 0.35; // ambient at noon
+	// Ambient ranges: darker nights, brighter days
+	float nightAmbient = 0.10; // ambient at midnight
+	float dayAmbient   = 0.35; // ambient at noon
 
-    return mix(nightAmbient, dayAmbient, dayFactor);
+	return mix(nightAmbient, dayAmbient, dayFactor);
 }
 
 float calculateSpecularLight(float time, vec3 lightDir) {

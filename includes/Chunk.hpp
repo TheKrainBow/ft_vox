@@ -44,8 +44,7 @@ class Chunk : public std::enable_shared_from_this<Chunk>
 		CaveGenerator							&_caveGen;
 		std::atomic_int							_resolution;
 		ThreadPool								&_pool;
-
-	    void updateHasAllNeighbors();
+		std::atomic_bool						_isBuilding;
 	public:
 		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution = 1);
 		~Chunk();
@@ -88,4 +87,7 @@ class Chunk : public std::enable_shared_from_this<Chunk>
 			std::vector<int>&							outTranspVerts,
 			std::vector<DrawArraysIndirectCommand>&		outTranspCmds);
 		TopBlock getFirstSolidBelow(int localX, int startLocalY, int localZ, int startSubY);
+		bool isBuilding() const;
+	private:	
+		void updateHasAllNeighbors();
 };

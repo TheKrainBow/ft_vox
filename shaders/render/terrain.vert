@@ -8,10 +8,10 @@ uniform mat4 view;
 uniform mat4 projection;
 
 layout(std430, binding = 3) readonly buffer ssbo1 {
-    vec4 ssbo[]; // per-draw subchunk origin (xyz) + res (w)
+	vec4 ssbo[]; // per-draw subchunk origin (xyz) + res (w)
 };
 layout(std430, binding = 4) readonly buffer instBuf {
-    int inst[];  // packed instance ints for all draws
+	int inst[];  // packed instance ints for all draws
 };
 
 out vec2 TexCoord;
@@ -22,34 +22,34 @@ out vec3 FragPos;
 const float LOG_INSET = 0.10; // shrink logs/leaves a bit so they look rounded
 
 void main() {
-    // subchunk origin for this draw
-    vec4 ssboValue = ssbo[gl_DrawID];
-    float res = ssboValue.w;
+	// subchunk origin for this draw
+	vec4 ssboValue = ssbo[gl_DrawID];
+	float res = ssboValue.w;
 
-    // instance data (baseInstance + instanceID)
-    int instanceData = inst[gl_BaseInstance + gl_InstanceID];
+	// instance data (baseInstance + instanceID)
+	int instanceData = inst[gl_BaseInstance + gl_InstanceID];
 
-    int x         = (instanceData >>  0) & 0x1F;
-    int y         = (instanceData >>  5) & 0x1F;
-    int z         = (instanceData >> 10) & 0x1F;
-    int direction = (instanceData >> 15) & 0x07;
-    int lengthX   = (instanceData >> 18) & 0x1F;
-    int lengthY   = (instanceData >> 23) & 0x1F;
-    int textureID = (instanceData >> 28) & 0x0F;
+	int x         = (instanceData >>  0) & 0x1F;
+	int y         = (instanceData >>  5) & 0x1F;
+	int z         = (instanceData >> 10) & 0x1F;
+	int direction = (instanceData >> 15) & 0x07;
+	int lengthX   = (instanceData >> 18) & 0x1F;
+	int lengthY   = (instanceData >> 23) & 0x1F;
+	int textureID = (instanceData >> 28) & 0x0F;
 
-    lengthX++; lengthY++; // greedy lengths are stored (len-1)
+	lengthX++; lengthY++; // greedy lengths are stored (len-1)
 
-    vec3 instancePos = vec3(x, y, z);
-    vec3 basePos     = vec3(aPos);
-    vec2 finalUV     = vec2(aPos.x, aPos.y);
+	vec3 instancePos = vec3(x, y, z);
+	vec3 basePos     = vec3(aPos);
+	vec2 finalUV     = vec2(aPos.x, aPos.y);
 
-    finalUV.y = 1.0 - finalUV.y;
-    finalUV /= res;
+	finalUV.y = 1.0 - finalUV.y;
+	finalUV /= res;
 
-    basePos.x *= float(lengthX);
-    basePos.y *= float(lengthY);
+	basePos.x *= float(lengthX);
+	basePos.y *= float(lengthY);
 
-    vec3 normal = vec3(0.0);
+	vec3 normal = vec3(0.0);
 
 	if (direction == 2 || direction == 3)
 	{
@@ -106,12 +106,12 @@ void main() {
 		basePos.z = cz + (basePos.z - cz) * sz;
 	}
 
-    vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
-    finalUV *= vec2(float(lengthX), float(lengthY));
+	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
+	finalUV *= vec2(float(lengthX), float(lengthY));
 
-    gl_Position = projection * view * model * vec4(worldPosition, 1.0);
-    TexCoord = finalUV;
-    TextureID = textureID;
-    Normal = mat3(transpose(inverse(model))) * normal;
-    FragPos = worldPosition;
+	gl_Position = projection * view * model * vec4(worldPosition, 1.0);
+	TexCoord = finalUV;
+	TextureID = textureID;
+	Normal = mat3(transpose(inverse(model))) * normal;
+	FragPos = worldPosition;
 }

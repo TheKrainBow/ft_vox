@@ -4,12 +4,12 @@
 #include <cmath>
 
 static inline int mod_floor(int a, int b) {
-    int r = a % b;
-    return (r < 0) ? r + b : r;
+	int r = a % b;
+	return (r < 0) ? r + b : r;
 }
 static inline int floor_div(int a, int b) {
-    int q = a / b, r = a % b;
-    return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
+	int q = a / b, r = a % b;
+	return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
 }
 
 World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool)
@@ -25,50 +25,50 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 	_renderDistance = RENDER_DISTANCE;
 	_currentRender = 0;
 
-    _memorySize = 0;
+	_memorySize = 0;
 
-    _drawData = nullptr;
-    _transparentDrawData = nullptr;
+	_drawData = nullptr;
+	_transparentDrawData = nullptr;
 
-    // Load first chunk under the player, and pop their position on top of it
-    ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
-    vec3 worldPos  = camera.getWorldPosition();
-    loadChunk(0, 0, 0, chunkPos, 1);
-    TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-    const vec3 &camPos = camera.getPosition();
-    // Place camera: feet on ground
-    camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
+	// Load first chunk under the player, and pop their position on top of it
+	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
+	vec3 worldPos  = camera.getWorldPosition();
+	loadChunk(0, 0, 0, chunkPos, 1);
+	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	const vec3 &camPos = camera.getPosition();
+	// Place camera: feet on ground
+	camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
 }
 
 TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
-    auto chunk = getChunk(chunkPos);
-    if (!chunk) return TopBlock();
-    int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    return chunk->getTopBlock(localX, localZ);
+	auto chunk = getChunk(chunkPos);
+	if (!chunk) return TopBlock();
+	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localZ = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	return chunk->getTopBlock(localX, localZ);
 }
 
 TopBlock World::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos) {
-    std::lock_guard<std::mutex> lock(_chunksMutex);
+	std::lock_guard<std::mutex> lock(_chunksMutex);
 
-    auto it = _chunks.find({chunkPos.x, chunkPos.y});
-    if (it == _chunks.end() || !it->second)
-        return TopBlock();
+	auto it = _chunks.find({chunkPos.x, chunkPos.y});
+	if (it == _chunks.end() || !it->second)
+		return TopBlock();
 
-    Chunk* chunk = it->second;
+	Chunk* chunk = it->second;
 
-    const int localX = mod_floor(worldPos.x, CHUNK_SIZE);
-    const int localZ = mod_floor(worldPos.z, CHUNK_SIZE);
+	const int localX = mod_floor(worldPos.x, CHUNK_SIZE);
+	const int localZ = mod_floor(worldPos.z, CHUNK_SIZE);
 
-    int startSubY   = floor_div(worldPos.y, CHUNK_SIZE);
-    int startLocalY = mod_floor(worldPos.y, CHUNK_SIZE);
+	int startSubY   = floor_div(worldPos.y, CHUNK_SIZE);
+	int startLocalY = mod_floor(worldPos.y, CHUNK_SIZE);
 
-    return chunk->getFirstSolidBelow(localX, startLocalY, localZ, startSubY);
+	return chunk->getFirstSolidBelow(localX, startLocalY, localZ, startSubY);
 }
 
 void World::init(int renderDistance) {
-    _renderDistance = renderDistance;
-    initGLBuffer();
+	_renderDistance = renderDistance;
+	initGLBuffer();
 }
 
 World::~World()
@@ -122,66 +122,74 @@ NoiseGenerator &World::getNoiseGenerator() { return _perlinGenerator; }
 int *World::getRenderDistancePtr() { return &_renderDistance; }
 
 BlockType World::getBlock(ivec2 chunkPos, ivec3 worldPos) {
-    auto chunk = getChunk(chunkPos);
-    if (!chunk) return AIR;
-    int subChunkIndex = static_cast<int>(floor(worldPos.y / CHUNK_SIZE));
-    SubChunk *subchunk = chunk->getSubChunk(subChunkIndex);
-    if (!subchunk) return AIR;
-    int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    return subchunk->getBlock({localX, localY, localZ});
+	auto chunk = getChunk(chunkPos);
+	if (!chunk) return AIR;
+	int subChunkIndex = static_cast<int>(floor(worldPos.y / CHUNK_SIZE));
+	SubChunk *subchunk = chunk->getSubChunk(subChunkIndex);
+	if (!subchunk) return AIR;
+	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localY = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	int localZ = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	return subchunk->getBlock({localX, localY, localZ});
 }
 
 bool World::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value) {
-    auto chunk = getChunk(chunkPos);
-    if (!chunk) return false;
+	auto chunk = getChunk(chunkPos);
+	if (!chunk) return false;
 
-    const int subY = (int)std::floor((double)worldPos.y / (double)CHUNK_SIZE);
-    SubChunk* sc = chunk->getOrCreateSubChunk(subY, /*generate=*/false);
-    if (!sc) return false;
+	const int subY = (int)std::floor((double)worldPos.y / (double)CHUNK_SIZE);
+	SubChunk* sc = chunk->getOrCreateSubChunk(subY, /*generate=*/false);
+	if (!sc) return false;
 
-    const int lx = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-    const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	const int lx = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 
-    sc->setBlock(lx, ly, lz, value);
+	sc->setBlock(lx, ly, lz, value);
 
-    markChunkDirty(chunkPos);
-    return true;
+	markChunkDirty(chunkPos);
+	return true;
 }
 
 bool World::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value) {
-    auto chunk = getChunk(chunkPos);
-    if (!chunk) {
-        std::lock_guard<std::mutex> lk(_pendingMutex);
-        _pendingEdits[chunkPos].push_back({worldPos, value});
-        return false; // queued
-    }
-    return setBlock(chunkPos, worldPos, value); // applies immediately
+	auto chunk = getChunk(chunkPos);
+	if (!chunk) {
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		_pendingEdits[chunkPos].push_back({worldPos, value});
+		return false;
+	}
+
+	// NEW: defer edits while chunk is building its subchunks
+	if (chunk->isBuilding()) {
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		_pendingEdits[chunkPos].push_back({worldPos, value});
+		return false;
+	}
+
+	return setBlock(chunkPos, worldPos, value);
 }
 
 void World::applyPendingFor(const ivec2& pos) {
-    std::vector<PendingBlock> edits;
-    {
-        std::lock_guard<std::mutex> lk(_pendingMutex);
-        auto it = _pendingEdits.find(pos);
-        if (it != _pendingEdits.end()) {
-            edits.swap(it->second);
-            _pendingEdits.erase(it);
-        }
-    }
-    if (edits.empty()) return;
+	std::vector<PendingBlock> edits;
+	{
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		auto it = _pendingEdits.find(pos);
+		if (it != _pendingEdits.end()) {
+			edits.swap(it->second);
+			_pendingEdits.erase(it);
+		}
+	}
+	if (edits.empty()) return;
 
-    for (const auto& e : edits) setBlock(pos, e.worldPos, e.value);
+	for (const auto& e : edits) setBlock(pos, e.worldPos, e.value);
 
-    if (auto c = getChunk(pos)) c->sendFacesToDisplay();
-    updateFillData();
+	if (auto c = getChunk(pos)) c->sendFacesToDisplay();
+	updateFillData();
 }
 
 void World::markChunkDirty(const ivec2& pos) {
-    std::lock_guard<std::mutex> lk(_dirtyMutex);
-    _dirtyChunks.insert(pos);
+	std::lock_guard<std::mutex> lk(_dirtyMutex);
+	_dirtyChunks.insert(pos);
 }
 
 void World::unloadChunk()
@@ -270,7 +278,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 	{
 		if (chunk->getResolution() > resolution)
 			chunk->updateResolution(resolution);
-        applyPendingFor(pos);
+		applyPendingFor(pos);
 	}
 	else
 	{
@@ -307,6 +315,7 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 				std::lock_guard<std::mutex> lk(_chunksListMutex);
 				_chunkList.emplace_back(chunk);
 			}
+			applyPendingFor(pos);
 		}
 	}
 
@@ -319,80 +328,80 @@ Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolutio
 }
 
 void World::flushDirtyChunks() {
-    std::vector<ivec2> toRemesh;
-    {
-        std::lock_guard<std::mutex> lk(_dirtyMutex);
-        if (_dirtyChunks.empty()) return;
-        toRemesh.assign(_dirtyChunks.begin(), _dirtyChunks.end());
-        _dirtyChunks.clear();
-    }
-    for (const auto& p : toRemesh) {
-        if (auto c = getChunk(p)) c->sendFacesToDisplay();
-    }
+	std::vector<ivec2> toRemesh;
+	{
+		std::lock_guard<std::mutex> lk(_dirtyMutex);
+		if (_dirtyChunks.empty()) return;
+		toRemesh.assign(_dirtyChunks.begin(), _dirtyChunks.end());
+		_dirtyChunks.clear();
+	}
+	for (const auto& p : toRemesh) {
+		if (auto c = getChunk(p)) c->sendFacesToDisplay();
+	}
 }
 
 void World::setRunning(std::mutex *runningMutex, bool *isRunning) {
-    _isRunning = isRunning;
-    _runningMutex = runningMutex;
+	_isRunning = isRunning;
+	_runningMutex = runningMutex;
 }
 
 bool World::getIsRunning() {
-    std::lock_guard<std::mutex> lockGuard(*_runningMutex);
-    return *_isRunning;
+	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
+	return *_isRunning;
 }
 
 void World::loadTopChunks(int render, ivec2 &chunkPos, int resolution) {
-    int z = 0;
-    for (int x = 0; x < render && getIsRunning(); x++)
-        loadChunk(x, z, render, chunkPos, resolution);
+	int z = 0;
+	for (int x = 0; x < render && getIsRunning(); x++)
+		loadChunk(x, z, render, chunkPos, resolution);
 }
 void World::loadBotChunks(int render, ivec2 &chunkPos, int resolution) {
-    int z = render - 1;
-    for (int x = render - 1; getIsRunning() && x >= 0; x--)
-        loadChunk(x, z, render, chunkPos, resolution);
+	int z = render - 1;
+	for (int x = render - 1; getIsRunning() && x >= 0; x--)
+		loadChunk(x, z, render, chunkPos, resolution);
 }
 void World::loadRightChunks(int render, ivec2 &chunkPos, int resolution) {
-    int x = render - 1;
-    for (int z = 1; z < render - 1 && getIsRunning(); z++) // avoid corners
-        loadChunk(x, z, render, chunkPos, resolution);
+	int x = render - 1;
+	for (int z = 1; z < render - 1 && getIsRunning(); z++) // avoid corners
+		loadChunk(x, z, render, chunkPos, resolution);
 }
 void World::loadLeftChunks(int render, ivec2 &chunkPos, int resolution) {
-    int x = 0;
-    for (int z = render - 2; getIsRunning() && z > 0; z--) // avoid corners
-        loadChunk(x, z, render, chunkPos, resolution);
+	int x = 0;
+	for (int z = render - 2; getIsRunning() && z > 0; z--) // avoid corners
+		loadChunk(x, z, render, chunkPos, resolution);
 }
 
 void World::loadFirstChunks(ivec2 &chunkPos) {
-    int renderDistance = _renderDistance;
+	int renderDistance = _renderDistance;
 
-    int resolution = RESOLUTION;
-    _threshold = LOD_THRESHOLD;
+	int resolution = RESOLUTION;
+	_threshold = LOD_THRESHOLD;
 
-    std::vector<std::future<void>> retLst;
-    _currentRender = 0;
-    for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
-    {
-        std::future<void> retTop;
-        std::future<void> retBot;
-        std::future<void> retRight;
-        std::future<void> retLeft;
+	std::vector<std::future<void>> retLst;
+	_currentRender = 0;
+	for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
+	{
+		std::future<void> retTop;
+		std::future<void> retBot;
+		std::future<void> retRight;
+		std::future<void> retLeft;
 
-        retTop   = _threadPool.enqueue(&World::loadTopChunks,   this, render, chunkPos, resolution);
-        retBot   = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution);
-        retRight = _threadPool.enqueue(&World::loadBotChunks,   this, render, chunkPos, resolution);
-        retLeft  = _threadPool.enqueue(&World::loadLeftChunks,  this, render, chunkPos, resolution);
+		retTop   = _threadPool.enqueue(&World::loadTopChunks,   this, render, chunkPos, resolution);
+		retBot   = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution);
+		retRight = _threadPool.enqueue(&World::loadBotChunks,   this, render, chunkPos, resolution);
+		retLeft  = _threadPool.enqueue(&World::loadLeftChunks,  this, render, chunkPos, resolution);
 
-        retTop.get(); retBot.get(); retRight.get(); retLeft.get();
+		retTop.get(); retBot.get(); retRight.get(); retLeft.get();
 
-        if (render >= _threshold && resolution < CHUNK_SIZE) {
-            resolution *= 2;
-            _threshold = _threshold * 2;
-        }
-        retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
-        if (hasMoved(chunkPos)) break;
-        _currentRender = render + 2;
-    }
-    for (auto &ret : retLst) ret.get();
+		if (render >= _threshold && resolution < CHUNK_SIZE) {
+			resolution *= 2;
+			_threshold = _threshold * 2;
+		}
+		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
+		if (hasMoved(chunkPos)) break;
+		_currentRender = render + 2;
+	}
+	for (auto &ret : retLst) ret.get();
 }
 
 bool World::hasMoved(ivec2 &oldPos)
@@ -409,8 +418,8 @@ size_t *World::getMemorySizePtr() { return &_memorySize; }
 
 void World::unLoadNextChunks(ivec2 &newCamChunk)
 {
-    // make sure queued edits + dirty meshes are up-to-date
-    flushDirtyChunks();
+	// make sure queued edits + dirty meshes are up-to-date
+	flushDirtyChunks();
 
 	std::vector<ivec2> toErase;
 	{
@@ -460,100 +469,85 @@ void World::updateFillData()
 
 SubChunk* World::getSubChunk(ivec3 &position) {
 	Chunk* c = nullptr;
-    {
-        std::lock_guard<std::mutex> lk(_chunksMutex);
-        auto it = _chunks.find(ivec2(position.x, position.z));
-        if (it != _chunks.end()) c = it->second;
-    }
-    return c ? c->getSubChunk(position.y) : nullptr;
+	{
+		std::lock_guard<std::mutex> lk(_chunksMutex);
+		auto it = _chunks.find(ivec2(position.x, position.z));
+		if (it != _chunks.end()) c = it->second;
+	}
+	return c ? c->getSubChunk(position.y) : nullptr;
 }
 
 Chunk *World::getChunk(const ivec2& pos) {
-    std::lock_guard<std::mutex> lock(_chunksMutex);
-    auto it = _chunks.find(pos);
-    if (it == _chunks.end()) return {};
-    return it->second;
+	std::lock_guard<std::mutex> lock(_chunksMutex);
+	auto it = _chunks.find(pos);
+	if (it == _chunks.end()) return {};
+	return it->second;
 }
 
 void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentFillData) {
-    // snapshot displayed chunks
-    std::vector<Chunk *> snapshot;
-    {
-        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-        snapshot.reserve(_displayedChunks.size());
-        for (auto &kv : _displayedChunks) snapshot.push_back(kv.second);
-    }
+	// snapshot displayed chunks
+	std::vector<Chunk *> snapshot;
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		snapshot.reserve(_displayedChunks.size());
+		for (auto &kv : _displayedChunks) snapshot.push_back(kv.second);
+	}
 
-    for (const auto& c : snapshot) {
-        auto& ssbo = c->getSSBO();
+	for (const auto& c : snapshot) {
+		auto& ssbo = c->getSSBO();
 
-        // SOLID
-        uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
+		// SOLID
+		uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
 
-        auto& solidVerts = c->getVertices();
-        size_t vSizeBefore = fillData->vertexData.size();
-        fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
+		auto& solidVerts = c->getVertices();
+		size_t vSizeBefore = fillData->vertexData.size();
+		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
 
-        auto& ib = c->getIndirectData();
-        size_t solidCount = ib.size();
-        size_t ssboLimit  = std::min(ssbo.size(), solidCount);
-        for (size_t i = 0; i < solidCount; ++i) {
-            auto cmd = ib[i];
-            cmd.baseInstance += (uint32_t)vSizeBefore;
-            fillData->indirectBufferData.push_back(cmd);
+		auto& ib = c->getIndirectData();
+		size_t solidCount = ib.size();
+		size_t ssboLimit  = std::min(ssbo.size(), solidCount);
+		for (size_t i = 0; i < solidCount; ++i) {
+			auto cmd = ib[i];
+			cmd.baseInstance += (uint32_t)vSizeBefore;
+			fillData->indirectBufferData.push_back(cmd);
 
-            size_t idx = std::min(i, ssboLimit ? ssboLimit - 1 : (size_t)0);
-            glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
-            fillData->cmdAABBsSolid.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
-        }
+			size_t idx = std::min(i, ssboLimit ? ssboLimit - 1 : (size_t)0);
+			glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
+			fillData->cmdAABBsSolid.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
+		}
 
-        fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
-        fillData->chunkCmdRanges[c->getPosition()] = {
-            startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
-        };
+		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+		fillData->chunkCmdRanges[c->getPosition()] = {
+			startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
+		};
 
-        // TRANSPARENT
-        uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
+		// TRANSPARENT
+		uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
 
-        auto& transpVerts = c->getTransparentVertices();
-        size_t tvBefore = transparentFillData->vertexData.size();
-        transparentFillData->vertexData.insert(
-            transparentFillData->vertexData.end(), transpVerts.begin(), transpVerts.end()
-        );
+		auto& transpVerts = c->getTransparentVertices();
+		size_t tvBefore = transparentFillData->vertexData.size();
+		transparentFillData->vertexData.insert(
+			transparentFillData->vertexData.end(), transpVerts.begin(), transpVerts.end()
+		);
 
-        auto& tib = c->getTransparentIndirectData();
-        size_t transpCount = tib.size();
-        size_t ssboLimitT  = std::min(ssbo.size(), transpCount);
-        for (size_t i = 0; i < transpCount; ++i) {
-            auto cmd = tib[i];
-            cmd.baseInstance += (uint32_t)tvBefore;
-            transparentFillData->indirectBufferData.push_back(cmd);
+		auto& tib = c->getTransparentIndirectData();
+		size_t transpCount = tib.size();
+		size_t ssboLimitT  = std::min(ssbo.size(), transpCount);
+		for (size_t i = 0; i < transpCount; ++i) {
+			auto cmd = tib[i];
+			cmd.baseInstance += (uint32_t)tvBefore;
+			transparentFillData->indirectBufferData.push_back(cmd);
 
-            size_t idx = std::min(i, ssboLimitT ? ssboLimitT - 1 : (size_t)0);
-            glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
-            transparentFillData->cmdAABBsTransp.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
-        }
+			size_t idx = std::min(i, ssboLimitT ? ssboLimitT - 1 : (size_t)0);
+			glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
+			transparentFillData->cmdAABBsTransp.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
+		}
 
-        transparentFillData->chunkCmdRanges[c->getPosition()] = {
-            startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
-        };
-    }
+		transparentFillData->chunkCmdRanges[c->getPosition()] = {
+			startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
+		};
+	}
 }
-
-// void World::updateSSBO() {
-//     bool needUpdate = false;
-//     size_t size = _drawData->ssboData.size() * 2;
-//     while (size > _drawnSSBOSize) {
-//         _drawnSSBOSize *= 2;
-//         needUpdate = true;
-//     }
-//     if (needUpdate) {
-//         glDeleteBuffers(1, &_ssbo);
-//         glCreateBuffers(1, &_ssbo);
-//         glNamedBufferStorage(_ssbo, sizeof(vec4) * _drawnSSBOSize, nullptr, GL_DYNAMIC_STORAGE_BIT);
-//         glNamedBufferSubData(_ssbo, 0, sizeof(vec4) * _drawData->ssboData.size(), _drawData->ssboData.data());
-//     }
-// }
 
 void World::updateDrawData()
 {
@@ -614,7 +608,7 @@ int World::display()
 	if (_needUpdate) { pushVerticesToOpenGL(false); }
 	if (_solidDrawCount == 0) return 0;
 
-    runGpuCulling(false);
+	runGpuCulling(false);
 
 	// Bind per-pass SSBOs (single-buffer path)
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
@@ -626,12 +620,12 @@ int World::display()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
-    long long tris = 0;
-    for (const auto& c : _drawData->indirectBufferData) {
-        long long per = (c.count >= 3) ? (c.count - 2) : 0;
-        tris += (long long)c.instanceCount * per;
-    }
-    return (int)tris;
+	long long tris = 0;
+	for (const auto& c : _drawData->indirectBufferData) {
+		long long per = (c.count >= 3) ? (c.count - 2) : 0;
+		tris += (long long)c.instanceCount * per;
+	}
+	return (int)tris;
 }
 
 int World::displayTransparent()
@@ -640,7 +634,7 @@ int World::displayTransparent()
 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
 	if (_transpDrawCount == 0) return 0;
 
-    runGpuCulling(true);
+	runGpuCulling(true);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
@@ -673,13 +667,13 @@ void World::pushVerticesToOpenGL(bool transparent)
 			glNamedBufferSubData(buf, 0, neededBytes, data);
 	};
 
-    if (transparent)
-    {
-        const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
-        const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
-        const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
-        const GLsizeiptr bytesInst = nInst * sizeof(int);
-        const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
+	if (transparent)
+	{
+		const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
+		const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+		const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
+		const GLsizeiptr bytesInst = nInst * sizeof(int);
+		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
@@ -734,9 +728,9 @@ void World::pushVerticesToOpenGL(bool transparent)
 }
 
 void World::initGpuCulling() {
-    _cullProgram  = compileComputeShader("shaders/compute/frustum_cull.glsl");
-    _locNumDraws  = glGetUniformLocation(_cullProgram, "numDraws");
-    _locChunkSize = glGetUniformLocation(_cullProgram, "chunkSize");
+	_cullProgram  = compileComputeShader("shaders/compute/frustum_cull.glsl");
+	_locNumDraws  = glGetUniformLocation(_cullProgram, "numDraws");
+	_locChunkSize = glGetUniformLocation(_cullProgram, "chunkSize");
 
 	// Frustum UBO (6 vec4)
 	glCreateBuffers(1, &_frustumUBO);
@@ -782,15 +776,15 @@ void World::initGLBuffer()
 
 
 void World::updatePerlinMapResolution(PerlinMap *pMap, int newResolution) {
-    _perlinGenerator.updatePerlinMapResolution(pMap, newResolution);
+	_perlinGenerator.updatePerlinMapResolution(pMap, newResolution);
 }
 
 void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
-    Frustum f = Frustum::fromVP(proj * view);
-    glm::vec4 planes[6];
-    for (int i = 0; i < 6; ++i)
-        planes[i] = glm::vec4(f.p[i].n, f.p[i].d);
-    glNamedBufferSubData(_frustumUBO, 0, sizeof(planes), planes);
+	Frustum f = Frustum::fromVP(proj * view);
+	glm::vec4 planes[6];
+	for (int i = 0; i < 6; ++i)
+		planes[i] = glm::vec4(f.p[i].n, f.p[i].d);
+	glNamedBufferSubData(_frustumUBO, 0, sizeof(planes), planes);
 }
 
 void World::runGpuCulling(bool transparent)
@@ -798,14 +792,14 @@ void World::runGpuCulling(bool transparent)
 	GLuint templ = transparent ? _transpTemplIndirectBuffer : _templIndirectBuffer;
 	GLuint out   = transparent ? _transparentIndirectBuffer : _indirectBuffer;
 
-    const GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
-    if (count <= 0) return;
+	const GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
+	if (count <= 0) return;
 
 	// ensure previous uploads visible to compute
 	glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
-    GLint prevProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
-    glUseProgram(_cullProgram);
+	GLint prevProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+	glUseProgram(_cullProgram);
 
 	// Bind pass' pos/res buffer
 	GLuint posBuf = transparent ? _transpPosSSBO : _solidPosSSBO;
@@ -814,12 +808,12 @@ void World::runGpuCulling(bool transparent)
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, out);
 	glBindBufferBase(GL_UNIFORM_BUFFER,        3, _frustumUBO);
 
-    glUniform1ui(_locNumDraws, (GLuint)count);
-    glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
+	glUniform1ui(_locNumDraws, (GLuint)count);
+	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
 
-    const GLuint groups = ((GLuint)count + 63u) / 64u;
-    glDispatchCompute(groups, 1, 1);
+	const GLuint groups = ((GLuint)count + 63u) / 64u;
+	glDispatchCompute(groups, 1, 1);
 
-    glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-    glUseProgram(prevProg ? (GLuint)prevProg : 0);
+	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+	glUseProgram(prevProg ? (GLuint)prevProg : 0);
 }

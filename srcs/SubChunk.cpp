@@ -68,32 +68,32 @@ void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)
 }
 
 void SubChunk::plantTree(int x, int y, int z, double /*proba*/) {
-    // vertical unit step in WORLD voxels
-    const int trunkH = 10;
-    const int totalH = 13;
+	// vertical unit step in WORLD voxels
+	const int trunkH = 10;
+	const int totalH = 13;
 
-    for (int i = 0; i <= totalH; ++i) {
-        int yy = y + i;                 // step = 1, not _resolution
-        if (i <= trunkH) setBlock(x, yy, z, LOG);
-        else             setBlock(x, yy, z, LEAF);
+	for (int i = 0; i <= totalH; ++i) {
+		int yy = y + i;                 // step = 1, not _resolution
+		if (i <= trunkH) setBlock(x, yy, z, LOG);
+		else             setBlock(x, yy, z, LEAF);
 
-        if (i >= 4 && i <= 10) {
-            setBlock(x + 1, yy, z, LEAF);
-            setBlock(x - 1, yy, z, LEAF);
-            setBlock(x, yy, z + 1, LEAF);
-            setBlock(x, yy, z - 1, LEAF);
-        }
-        if (i >= 5 && i <= 7) {
-            setBlock(x + 2, yy, z, LEAF);
-            setBlock(x - 2, yy, z, LEAF);
-            setBlock(x, yy, z + 2, LEAF);
-            setBlock(x, yy, z - 2, LEAF);
-            setBlock(x + 1, yy, z + 1, LEAF);
-            setBlock(x - 1, yy, z + 1, LEAF);
-            setBlock(x + 1, yy, z - 1, LEAF);
-            setBlock(x - 1, yy, z - 1, LEAF);
-        }
-    }
+		if (i >= 4 && i <= 10) {
+			setBlock(x + 1, yy, z, LEAF);
+			setBlock(x - 1, yy, z, LEAF);
+			setBlock(x, yy, z + 1, LEAF);
+			setBlock(x, yy, z - 1, LEAF);
+		}
+		if (i >= 5 && i <= 7) {
+			setBlock(x + 2, yy, z, LEAF);
+			setBlock(x - 2, yy, z, LEAF);
+			setBlock(x, yy, z + 2, LEAF);
+			setBlock(x, yy, z - 2, LEAF);
+			setBlock(x + 1, yy, z + 1, LEAF);
+			setBlock(x - 1, yy, z + 1, LEAF);
+			setBlock(x + 1, yy, z - 1, LEAF);
+			setBlock(x - 1, yy, z - 1, LEAF);
+		}
+	}
 }
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
@@ -118,7 +118,7 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 }
 
 void SubChunk::markLoaded(bool loaded) {
-    _isFullyLoaded = loaded;
+	_isFullyLoaded = loaded;
 }
 
 void SubChunk::loadBiome(int prevResolution)
@@ -177,49 +177,49 @@ SubChunk::~SubChunk()
 
 void SubChunk::setBlock(int x, int y, int z, char block)
 {
-    // x,y,z are subchunk-local voxel coords (can be outside [0..CHUNK_SIZE) to spill into neighbors)
+	// x,y,z are subchunk-local voxel coords (can be outside [0..CHUNK_SIZE) to spill into neighbors)
 
-    // Convert to absolute world voxel coordinates
-    const int wx = x + _position.x * CHUNK_SIZE;
-    const int wy = y + _position.y * CHUNK_SIZE;
-    const int wz = z + _position.z * CHUNK_SIZE;
+	// Convert to absolute world voxel coordinates
+	const int wx = x + _position.x * CHUNK_SIZE;
+	const int wy = y + _position.y * CHUNK_SIZE;
+	const int wz = z + _position.z * CHUNK_SIZE;
 
-    // floor-div that works with negatives
-    auto fdiv = [](int a, int b) -> int {
-        return (int)std::floor((double)a / (double)b);
-    };
+	// floor-div that works with negatives
+	auto fdiv = [](int a, int b) -> int {
+		return (int)std::floor((double)a / (double)b);
+	};
 
-    // Which chunk column / subchunk does this absolute voxel land in?
-    const ivec2 targetChunk = { fdiv(wx, CHUNK_SIZE), fdiv(wz, CHUNK_SIZE) };
-    const int   targetSubY  = fdiv(wy, CHUNK_SIZE);
+	// Which chunk column / subchunk does this absolute voxel land in?
+	const ivec2 targetChunk = { fdiv(wx, CHUNK_SIZE), fdiv(wz, CHUNK_SIZE) };
+	const int   targetSubY  = fdiv(wy, CHUNK_SIZE);
 
-    // Is it inside THIS subchunk?
-    const bool inThisChunk = (targetChunk.x == _position.x && targetChunk.y == _position.z);
-    const bool inThisSubY  = (targetSubY     == _position.y);
+	// Is it inside THIS subchunk?
+	const bool inThisChunk = (targetChunk.x == _position.x && targetChunk.y == _position.z);
+	const bool inThisSubY  = (targetSubY     == _position.y);
 
-    if (inThisChunk && inThisSubY)
-    {
-        if (_chunkSize <= 0) return;
+	if (inThisChunk && inThisSubY)
+	{
+		if (_chunkSize <= 0) return;
 
-        // Local indices inside this subchunk’s voxel grid
-        int lx = (wx % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-        int ly = (wy % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-        int lz = (wz % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+		// Local indices inside this subchunk’s voxel grid
+		int lx = (wx % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+		int ly = (wy % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+		int lz = (wz % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 
-        // Downscale to this subchunk’s resolution
-        lx /= _resolution;
-        ly /= _resolution;
-        lz /= _resolution;
+		// Downscale to this subchunk’s resolution
+		lx /= _resolution;
+		ly /= _resolution;
+		lz /= _resolution;
 
-        if (lx >= 0 && ly >= 0 && lz >= 0 &&
-            lx < _chunkSize && ly < _chunkSize && lz < _chunkSize)
-        {
-            _blocks[lx + (lz * _chunkSize) + (ly * _chunkSize * _chunkSize)] = block;
-        }
-        return;
-    }
+		if (lx >= 0 && ly >= 0 && lz >= 0 &&
+			lx < _chunkSize && ly < _chunkSize && lz < _chunkSize)
+		{
+			_blocks[lx + (lz * _chunkSize) + (ly * _chunkSize * _chunkSize)] = block;
+		}
+		return;
+	}
 
-    // Otherwise, delegate to World using ABSOLUTE world coords
+	// Otherwise, delegate to World using ABSOLUTE world coords
 	_world.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block));
 	_world.markChunkDirty(targetChunk);
 }
@@ -278,70 +278,70 @@ void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture,
 
 void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-    if (position.z != 0) {
-        if (isNeighborTransparent(ivec3(position.x, position.y, position.z - _resolution), NORTH, current, _resolution))
-            return addFace(position, NORTH, texture, isTransparent);
-        return;
-    }
-    auto chunk = _chunk.getNorthChunk();      // shared_ptr
-    if (!chunk) return;
+	if (position.z != 0) {
+		if (isNeighborTransparent(ivec3(position.x, position.y, position.z - _resolution), NORTH, current, _resolution))
+			return addFace(position, NORTH, texture, isTransparent);
+		return;
+	}
+	auto chunk = _chunk.getNorthChunk();      // shared_ptr
+	if (!chunk) return;
 
-    SubChunk* subChunk = chunk->getSubChunk(_position.y);
-    if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
-        return;
+	SubChunk* subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
+		return;
 
-    addFace(position, NORTH, texture, isTransparent);
+	addFace(position, NORTH, texture, isTransparent);
 }
 
 void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-    if (position.z != CHUNK_SIZE - _resolution) {
-        if (isNeighborTransparent(ivec3(position.x, position.y, position.z + _resolution), SOUTH, current, _resolution))
-            return addFace(position, SOUTH, texture, isTransparent);
-        return;
-    }
-    auto chunk = _chunk.getSouthChunk();
-    if (!chunk) return;
+	if (position.z != CHUNK_SIZE - _resolution) {
+		if (isNeighborTransparent(ivec3(position.x, position.y, position.z + _resolution), SOUTH, current, _resolution))
+			return addFace(position, SOUTH, texture, isTransparent);
+		return;
+	}
+	auto chunk = _chunk.getSouthChunk();
+	if (!chunk) return;
 
-    SubChunk* subChunk = chunk->getSubChunk(_position.y);
-    if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
-        return;
+	SubChunk* subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
+		return;
 
-    addFace(position, SOUTH, texture, isTransparent);
+	addFace(position, SOUTH, texture, isTransparent);
 }
 
 void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-    if (position.x != 0) {
-        if (isNeighborTransparent(ivec3(position.x - _resolution, position.y, position.z), WEST, current, _resolution))
-            return addFace(position, WEST, texture, isTransparent);
-        return;
-    }
-    auto chunk = _chunk.getWestChunk();
-    if (!chunk) return;
+	if (position.x != 0) {
+		if (isNeighborTransparent(ivec3(position.x - _resolution, position.y, position.z), WEST, current, _resolution))
+			return addFace(position, WEST, texture, isTransparent);
+		return;
+	}
+	auto chunk = _chunk.getWestChunk();
+	if (!chunk) return;
 
-    SubChunk* subChunk = chunk->getSubChunk(_position.y);
-    if (!subChunk || !subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
-        return;
+	SubChunk* subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
+		return;
 
-    addFace(position, WEST, texture, isTransparent);
+	addFace(position, WEST, texture, isTransparent);
 }
 
 void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
 {
-    if (position.x != CHUNK_SIZE - _resolution) {
-        if (isNeighborTransparent(ivec3(position.x + _resolution, position.y, position.z), EAST, current, _resolution))
-            return addFace(position, EAST, texture, isTransparent);
-        return;
-    }
-    auto chunk = _chunk.getEastChunk();
-    if (!chunk) return;
+	if (position.x != CHUNK_SIZE - _resolution) {
+		if (isNeighborTransparent(ivec3(position.x + _resolution, position.y, position.z), EAST, current, _resolution))
+			return addFace(position, EAST, texture, isTransparent);
+		return;
+	}
+	auto chunk = _chunk.getEastChunk();
+	if (!chunk) return;
 
-    SubChunk* subChunk = chunk->getSubChunk(_position.y);
-    if (!subChunk || !subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))
-        return;
+	SubChunk* subChunk = chunk->getSubChunk(_position.y);
+	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))
+		return;
 
-    addFace(position, EAST, texture, isTransparent);
+	addFace(position, EAST, texture, isTransparent);
 }
 
 void SubChunk::addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool isTransparent = false)
