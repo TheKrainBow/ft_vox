@@ -155,6 +155,11 @@ void StoneEngine::initData()
 	camTopBlock.pos.y = 0.0;
 	camTopBlock.type = AIR;
 	camTopBlock.height = 0;
+
+	// Biome data
+	_biome = 0;
+	_humidity = 0.0;
+	_temperature = 0.0;
 }
 
 void StoneEngine::initTextures()
@@ -404,6 +409,9 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
 	debugBox.addLine("time: ", Textbox::INT, &timeValue);
 	debugBox.addLine("Facing: ", Textbox::DIRECTION, facing_direction);
+	debugBox.addLine("Biome: ", Textbox::BIOME, &_biome);
+	debugBox.addLine("Temperature: ", Textbox::DOUBLE, &_temperature);
+	debugBox.addLine("Humidity: ", Textbox::DOUBLE, &_humidity);
 
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
@@ -1135,6 +1143,15 @@ void StoneEngine::updateChunkWorker()
 	}
 }
 
+void StoneEngine::updateBiomeData()
+{
+	vec3 viewPos = camera.getWorldPosition();
+	ivec2 blockPos = {int(viewPos.x), int(viewPos.z)};
+	_biome = int(noise_gen.getBiome(blockPos, noise_gen.getHeight(blockPos)));
+	_humidity = noise_gen.getHumidityNoise(noise_gen.getBiomeBorderWarping(blockPos.x, blockPos.y));
+	_temperature = noise_gen.getTemperatureNoise(blockPos);
+}
+
 void StoneEngine::update()
 {
 	// Check for delta and apply to move and rotation speeds
@@ -1177,6 +1194,7 @@ void StoneEngine::update()
 	// Update player position and orientation
 	updatePlayerDirection();
 	updateMovement();
+	updateBiomeData();
 	display();
 }
 

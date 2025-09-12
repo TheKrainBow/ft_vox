@@ -146,6 +146,75 @@ ivec2 NoiseGenerator::getBorderWarping(double x, double z)
 	return offset;
 }
 
+double NoiseGenerator::getTemperatureNoise(ivec2 pos)
+{
+	NoiseData tempData = {
+		1.0,
+		0.0001,
+		0.5,
+		2.5,
+		4
+	};
+
+	_data = tempData;
+	double tempNoise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return tempNoise;
+}
+
+double NoiseGenerator::getHumidityNoise(ivec2 pos)
+{
+	NoiseData humidData = {
+		1.0,
+		0.0003,
+		0.4,
+		2.5,
+		4
+	};
+
+	_data = humidData;
+	double humidNoise = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return humidNoise;
+}
+
+ivec2 NoiseGenerator::getBiomeBorderWarping(int x, int z)
+{
+	NoiseData nData = {
+		1.0,  // amplitude
+		0.1, // frequency
+		0.5,  // persistence
+		2.5,  // lacunarity
+		5     // nb_octaves
+	};
+
+	setNoiseData(nData);
+	double noiseX = noise(x, z);
+	double noiseY = noise(z, x);
+	setNoiseData(NoiseData());
+	ivec2 offset;
+	offset.x = x + (noiseX * CHUNK_SIZE);
+	offset.y = z + (noiseY * CHUNK_SIZE);
+	return offset;
+}
+
+Biome NoiseGenerator::getBiome(ivec2 pos, double height)
+{
+	pos = getBiomeBorderWarping(pos.x, pos.y);
+	double temp = getTemperatureNoise(pos);
+	double humidity = getHumidityNoise(pos);
+
+	if (height >= MOUNT_HEIGHT)
+		return Biome::MOUNTAINS;
+	// Desert: low humidity, high temp, mid/low height
+	if (humidity < 0.3 && temp > 0.4)
+		return Biome::DESERT;
+	// Mountains: High height
+	if (temp < -0.2)
+		return Biome::SNOWY;
+	return Biome::PLAINS;
+}
+
 double smoothBlend(double a, double b, double blendFactor)
 {
 	// Smoothstep
@@ -204,8 +273,9 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 				continue;
 
 			double height = getHeight({(map->position.x * map->size) + x, (map->position.y * map->size) + z});
+			Biome biome = getBiome({(map->position.x * map->size) + x, (map->position.y * map->size) + z}, height);
 			map->heightMap[z * map->size + x] = height;
-
+			map->biomeMap[z * map->size + x] = biome;
 			if (height > map->heighest)
 				map->heighest = height;
 			if (height < map->lowest)
@@ -221,27 +291,34 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
 	resolution = 1;
-	PerlinMap *newMap = new PerlinMap();
-	newMap->size = size;
-	newMap->heightMap = new double[size * size];
-	newMap->caveMap = new double[size * size * size];
-	newMap->resolution = resolution;
-	newMap->position = pos;
-	newMap->heighest = 0;
-	newMap->lowest = 2048;
+	PerlinMap *map = new PerlinMap();
+	map->size = size;
+	map->heightMap = new double[size * size];
+	map->biomeMap = new Biome[size * size];
+	map->resolution = resolution;
+	map->position = pos;
+	map->heighest = 0;
+	map->lowest = 2048;
 
 	for (int x = 0; x < size; x += resolution)
+	{
 		for (int z = 0; z < size; z += resolution)
 		{
-			newMap->heightMap[z * size + x] = getHeight({(pos.x * size) + x, (pos.y * size) + z});
-			if (newMap->heightMap[z * size + x] > newMap->heighest)
-				newMap->heighest = newMap->heightMap[z * size + x];
-			if (newMap->heightMap[z * size + x] < newMap->lowest)
-				newMap->lowest = newMap->heightMap[z * size + x];
+			int index = z * size + x;
+			double height = getHeight({(pos.x * size) + x, (pos.y * size) + z});
+			Biome biome = getBiome({(map->position.x * map->size) + x, (map->position.y * map->size) + z}, height);
+				
+			map->heightMap[index] = height;
+			map->biomeMap[index] = biome;
+			if (map->heightMap[index] > map->heighest)
+				map->heighest = map->heightMap[index];
+			if (map->heightMap[index] < map->lowest)
+				map->lowest = map->heightMap[index];
 		}
-	buildTreeMap(newMap, 1);
-	_perlinMaps[pos] = newMap;
-	return (newMap);
+	}
+	buildTreeMap(map, 1);
+	_perlinMaps[pos] = map;
+	return (map);
 }
 
 void NoiseGenerator::removePerlinMap(int x, int z)

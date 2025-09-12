@@ -110,6 +110,9 @@ class StoneEngine {
 		TopBlock camTopBlock;
 		movedir playerDir;
 		int _bestRender = 0;
+		int	_biome;
+		double _humidity;
+		double _temperature;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -164,6 +167,7 @@ class StoneEngine {
 		void updatePlayerDirection();
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
+		void updateBiomeData();
 	
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();

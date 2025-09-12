@@ -129,6 +129,9 @@ void Textbox::render() {
 			case DIRECTION:
 			text = line.label + directionTab[std::clamp(*(int *)(line.value), 0, 7)].name;
 				break;
+			case BIOME:
+			text = line.label + biomeTab[*(int *)(line.value)].name;
+				break;
 			case SIZE_T:
 			text = line.label + printMemory(*((size_t *)(line.value)));
 				break;

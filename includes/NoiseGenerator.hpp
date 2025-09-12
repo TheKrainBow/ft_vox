@@ -4,6 +4,18 @@
 #include "define.hpp"
 #include "SplineInterpolator.hpp"
 
+// Update nb_biomes when adding a new one for debug box
+#define NB_BIOMES 7
+enum Biome {
+	PLAINS,
+	DESERT,
+	SNOWY,
+	MOUNTAINS,
+	FOREST,
+	OCEAN,
+	BEACH
+};
+
 struct NoiseData {
 	double amplitude = 1.0;
 	double frequency = 0.001;
@@ -22,8 +34,8 @@ class NoiseGenerator {
 	public:
 		struct PerlinMap {
 			double *heightMap = nullptr;
-			double *caveMap = nullptr;
 			double *treeMap = nullptr;
+			Biome *biomeMap = nullptr;
 			ivec2	position;
 			double	heighest = std::numeric_limits<double>::min();
 			double	lowest = std::numeric_limits<double>::max();
@@ -31,7 +43,8 @@ class NoiseGenerator {
 			int		size = CHUNK_SIZE;
 			~PerlinMap() {
 				if (heightMap) delete [] heightMap;
-				if (caveMap) delete [] caveMap;};
+				if (biomeMap) delete [] biomeMap;
+			};
 		};
 	public:
 		NoiseGenerator(size_t seed);
@@ -47,6 +60,12 @@ class NoiseGenerator {
 		void removePerlinMap(int x, int z);
 		ivec2 getBorderWarping(double x, double z);
 		double getHeight(ivec2 pos);
+
+		// Biomes
+		ivec2 getBiomeBorderWarping(int x, int z);
+		double getTemperatureNoise(ivec2 pos);
+		double getHumidityNoise(ivec2 pos);
+		Biome getBiome(ivec2 pos, double height);
 	private:
 		double singleNoise(double x, double y) const;
 		double fade(double t) const;

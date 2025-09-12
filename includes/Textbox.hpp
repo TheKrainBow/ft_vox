@@ -9,11 +9,26 @@
 #include "Camera.hpp"
 #include "stb_truetype.hpp"
 #include "stb_image.h"
+#include "NoiseGenerator.hpp"
 
 struct direction_pair
 {
 	e_direction direction;
 	std::string name;
+};
+
+struct biome_pair
+{
+	Biome biome;
+	std::string name;
+};
+
+const biome_pair biomeTab[NB_BIOMES] = {
+	{PLAINS, "Plains"},
+	{DESERT, "Desert"},
+	{SNOWY, "Snow"},
+	{MOUNTAINS, "Mountains"},
+	{FOREST, "Forest"}
 };
 
 const direction_pair directionTab[8] = {
@@ -34,6 +49,7 @@ public:
 		INT,
 		FLOAT,
 		DIRECTION,
+		BIOME,
 		SIZE_T
 	};
 private:
