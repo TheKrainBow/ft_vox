@@ -3,6 +3,7 @@
 uniform vec3 lightColor;
 uniform int timeValue;
 uniform mat4 view;
+uniform vec3 cameraPos; // explicit camera world position
 uniform sampler2DArray textureArray;
 
 in vec2 TexCoord;
@@ -13,7 +14,7 @@ in vec3 FragPos;
 out vec4 FragColor;
 
 vec3 computeSunPosition(float time) {
-	vec3 viewPos = vec3(inverse(view)[3]);
+	vec3 viewPos = cameraPos;
 	float pi = 3.14159265359;
 	float radius = 6000.0;
 	float angle = (time / 86400.0) * (2.0 * pi);
@@ -51,7 +52,7 @@ float calculateAmbientLight(float time) {
 }
 
 float calculateSpecularLight(float time, vec3 lightDir) {
-	vec3 viewPos = vec3(inverse(view)[3]);
+	vec3 viewPos = cameraPos;
 	vec3 norm = normalize(Normal);
 	float specularStrength = (TextureID == 6) ? 0.1 : 0.2;
 	vec3 viewDir = normalize(viewPos - FragPos);
@@ -62,7 +63,7 @@ float calculateSpecularLight(float time, vec3 lightDir) {
 }
 
 void main() {
-	vec3 viewPos = vec3(inverse(view)[3]);
+	vec3 viewPos = cameraPos;
 	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
 	vec3 lightDir = normalize(FragPos - computeSunPosition(timeValue));
 
@@ -94,7 +95,7 @@ void main() {
 
 	float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular, 0.0, 1.0);
 	vec3 result = totalLight * lightColor * texColor.rgb;
-	
+
 	// Face direction debug whitens the face depending on normal
 	// if (Normal.x == -1)
 	// 	result.rgb *= 10;

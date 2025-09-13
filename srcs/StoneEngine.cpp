@@ -445,19 +445,26 @@ void StoneEngine::activateRenderShader()
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	mat4 viewMatrix = mat4(1.0f);
-	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+	// Build rotation-only view for rendering to keep coordinates small in shaders
+	mat4 viewRot = mat4(1.0f);
+	viewRot = rotate(viewRot, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = rotate(viewRot, radX, vec3(0.0f, -1.0f, 0.0f));
 
-	this->viewMatrix = viewMatrix;
+	// Build full view (with translation) for culling and CPU-side use
+	mat4 viewFull = viewRot;
+	viewFull = translate(viewFull, vec3(camera.getPosition()));
+
+	this->viewMatrix = viewFull;
 	_world.setViewProj(this->viewMatrix, projectionMatrix);
 
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+	// Pass camera world position explicitly for camera-relative rendering
+	vec3 camWorld = camera.getWorldPosition();
+	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -476,12 +483,16 @@ void StoneEngine::activateTransparentShader()
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	mat4 viewMatrix = mat4(1.0f);
-	viewMatrix = rotate(viewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewMatrix = rotate(viewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	viewMatrix = translate(viewMatrix, vec3(camera.getPosition()));
+	// Rotation-only for rendering
+	mat4 viewRot = mat4(1.0f);
+	viewRot = rotate(viewRot, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = rotate(viewRot, radX, vec3(0.0f, -1.0f, 0.0f));
 
-	this->viewMatrix = viewMatrix;
+	// Full view for culling
+	mat4 viewFull = viewRot;
+	viewFull = translate(viewFull, vec3(camera.getPosition()));
+
+	this->viewMatrix = viewFull;
 	_world.setViewProj(this->viewMatrix, projectionMatrix);
 
 	vec3 viewPos = camera.getWorldPosition();
@@ -491,11 +502,12 @@ void StoneEngine::activateTransparentShader()
 	// Matrices & camera
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
+	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "cameraPos"),    1, value_ptr(viewPos));
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
 	glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
-	
+
 	// Provide global water plane height to the water shader (for underwater depth-based effects)
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "waterHeight"),      OCEAN_HEIGHT + 2);
 
@@ -567,11 +579,12 @@ void StoneEngine::display() {
 	prepareRenderPipeline();
 
 	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
-	renderSceneToFBO();
+	renderSolidObjects();
 	resolveMsaaToFbo();
 	screenshotFBOBuffer(writeFBO, readFBO);
-	// postProcessGreedyFix();
-	// screenshotFBOBuffer(writeFBO, readFBO);
+
+	postProcessGreedyFix();
+	screenshotFBOBuffer(writeFBO, readFBO);
 
 	// Delay greedy-fix until after transparent pass so it applies to the final scene
 	displaySun();
@@ -589,7 +602,6 @@ void StoneEngine::display() {
 		renderTransparentObjects();
 	}
 	screenshotFBOBuffer(writeFBO, readFBO);
-
 	// Now run greedy-fix so it affects the combined scene
 	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
@@ -745,6 +757,7 @@ void StoneEngine::prepareRenderPipeline() {
 	}
 	else {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		// glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 	}
 
@@ -755,11 +768,11 @@ void StoneEngine::prepareRenderPipeline() {
 	glMatrixMode(GL_MODELVIEW);
 }
 
-void StoneEngine::renderSceneToFBO() {
+void StoneEngine::renderSolidObjects() {
 	activateRenderShader();
 	_world.updateDrawData();
 	_world.setViewProj(viewMatrix, projectionMatrix);
-	drawnTriangles = _world.display();
+	drawnTriangles = _world.displaySolid();
 }
 
 void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
@@ -1068,7 +1081,9 @@ void StoneEngine::updateMovement()
 	if (newPos != oldPos)
 	{
 		glUseProgram(shaderProgram);
+		// legacy: viewPos may not be used; keep harmless
 		glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, value_ptr(newPos));
+		glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(newPos));
 	}
 }
 

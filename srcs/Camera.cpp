@@ -13,6 +13,7 @@ void Camera::reset()
 {
 	_positionMutex.lock();
 	position = vec3(0.0, 0.0, 0.0);
+	y_pos = 0;
 	_positionMutex.unlock();
 	angle.x = 0.0;
 	angle.y = 0.0;
@@ -51,6 +52,12 @@ vec3 *Camera::getPositionPtr()
 {
 	std::lock_guard<std::mutex> lock(_positionMutex);
 	return &position;
+}
+
+float *Camera::getYPtr()
+{
+	std::lock_guard<std::mutex> lock(_positionMutex);
+	return &y_pos;
 }
 
 fvec2 *Camera::getAnglesPtr()
@@ -103,12 +110,13 @@ void Camera::updateMousePos(int x, int y)
 void Camera::setPos(const float &x, const float &y, const float &z)
 {
 	position = {x, y, z};
+	y_pos = -y;
 }
 
 void Camera::setPos(const vec3 &newPos)
 {
 	position = newPos;
-
+	y_pos = -newPos.y;
 }
 
 vec3 Camera::getForwardVector() const
@@ -116,7 +124,6 @@ vec3 Camera::getForwardVector() const
 	float yawRad = angle.x * (M_PI / 180.0f);
 	return vec3(
 		sin(yawRad),	// X axis
-		
 		0.0f,
 		cos(yawRad)		// Z axis
 	);
@@ -141,6 +148,7 @@ void Camera::move(const vec3 offset)
 	position.x += offset.x * movementspeed;
 	position.y += offset.y * movementspeed;
 	position.z += offset.z * movementspeed;
+	y_pos = -(position.y);
 }
 
 /*

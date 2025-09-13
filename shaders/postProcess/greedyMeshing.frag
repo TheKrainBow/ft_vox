@@ -45,10 +45,6 @@ void main()
 		finalDepth = currentDepth;
 	}
 
-	// if (isUnderwater == 1)
-	// {
-	// }
-
-	FragColor = vec4(finalColor, 1.0);
 	gl_FragDepth = finalDepth;
+	FragColor = vec4(finalColor, 1.0);
 }

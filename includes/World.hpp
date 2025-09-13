@@ -172,7 +172,7 @@ public:
 	void applyPendingFor(const ivec2& pos);
 
 	// Display
-	int display();
+	int displaySolid();
 	int displayTransparent();
 
 	// Runtime update

@@ -6,6 +6,7 @@ layout(location = 0) in ivec3 aPos;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform vec3 cameraPos; // world-space camera position
 uniform float time;
 
 layout(std430, binding = 3) readonly buffer ssbo1 { vec4 ssbo[]; };
@@ -64,7 +65,9 @@ void main()
 	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
 	finalUV *= vec2(lengthX, lengthY);
 
-	gl_Position = projection * view * model * vec4(worldPosition, 1.0);
+	// Camera-relative to avoid precision seams
+	vec3 relPos = worldPosition - cameraPos;
+	gl_Position = projection * view * model * vec4(relPos, 1.0);
 	TexCoord = finalUV;
 	TextureID = textureID;
 	Normal = mat3(transpose(inverse(model))) * normal;

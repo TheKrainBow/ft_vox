@@ -602,7 +602,7 @@ void World::updateDrawData()
 	}
 }
 
-int World::display()
+int World::displaySolid()
 {
 	if (!_drawData) return 0;
 	if (_needUpdate) { pushVerticesToOpenGL(false); }

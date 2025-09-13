@@ -55,92 +55,92 @@ void SubChunk::loadHeight(int prevResolution)
 
 void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)
 {
-    int y;
+	int y;
 
-    // Fill water from sea level down to ground
-    for (y = adjustOceanHeight; y > (int)ground; y--)
-        setBlock(x, y - _position.y * CHUNK_SIZE, z, WATER);
+	// Fill water from sea level down to ground
+	for (y = adjustOceanHeight; y > (int)ground; y--)
+		setBlock(x, y - _position.y * CHUNK_SIZE, z, WATER);
 
-    // Sea floor composition: thinner sand near shore, thicker slightly deeper
-    // Depth measured in blocks below sea level
-    int depth = (int)adjustOceanHeight - (int)ground;
-    int sandLayers = std::clamp(depth / 3, 1, 2); // 1 for very shallow, 2 for moderate
+	// Sea floor composition: thinner sand near shore, thicker slightly deeper
+	// Depth measured in blocks below sea level
+	int depth = (int)adjustOceanHeight - (int)ground;
+	int sandLayers = std::clamp(depth / 3, 1, 2); // 1 for very shallow, 2 for moderate
 
-    // Place a sand cap at ground and a few layers beneath
-    setBlock(x, ((int)ground) - _position.y * CHUNK_SIZE, z, SAND);
-    for (int i = 1; i <= sandLayers; ++i)
-        setBlock(x, ((int)ground - i) - _position.y * CHUNK_SIZE, z, SAND);
+	// Place a sand cap at ground and a few layers beneath
+	setBlock(x, ((int)ground) - _position.y * CHUNK_SIZE, z, SAND);
+	for (int i = 1; i <= sandLayers; ++i)
+		setBlock(x, ((int)ground - i) - _position.y * CHUNK_SIZE, z, SAND);
 
-    // Transition to dirt below sand
-    for (int i = sandLayers + 1; i <= sandLayers + 4; ++i)
-        setBlock(x, ((int)ground - i) - _position.y * CHUNK_SIZE, z, DIRT);
+	// Transition to dirt below sand
+	for (int i = sandLayers + 1; i <= sandLayers + 4; ++i)
+		setBlock(x, ((int)ground - i) - _position.y * CHUNK_SIZE, z, DIRT);
 }
 
 void SubChunk::plantTree(int x, int y, int z, double /*proba*/) {
-    // vertical unit step in WORLD voxels
-    const int trunkH = 10;
-    const int totalH = 13;
+	// vertical unit step in WORLD voxels
+	const int trunkH = 10;
+	const int totalH = 13;
 
-    // World-space coordinates of the planting base
-    const int baseWX = x + _position.x * CHUNK_SIZE;
-    const int baseWY = y + _position.y * CHUNK_SIZE;
-    const int baseWZ = z + _position.z * CHUNK_SIZE;
+	// World-space coordinates of the planting base
+	const int baseWX = x + _position.x * CHUNK_SIZE;
+	const int baseWY = y + _position.y * CHUNK_SIZE;
+	const int baseWZ = z + _position.z * CHUNK_SIZE;
 
-    auto chunkOf = [](int wx, int wz) -> ivec2 {
-        return ivec2((int)std::floor((double)wx / (double)CHUNK_SIZE),
-                     (int)std::floor((double)wz / (double)CHUNK_SIZE));
-    };
-    auto isAir = [&](int wx, int wy, int wz) -> bool {
-        ivec2 cpos = chunkOf(wx, wz);
-        return _world.getBlock(cpos, ivec3(wx, wy, wz)) == AIR;
-    };
+	auto chunkOf = [](int wx, int wz) -> ivec2 {
+		return ivec2((int)std::floor((double)wx / (double)CHUNK_SIZE),
+						(int)std::floor((double)wz / (double)CHUNK_SIZE));
+	};
+	auto isAir = [&](int wx, int wy, int wz) -> bool {
+		ivec2 cpos = chunkOf(wx, wz);
+		return _world.getBlock(cpos, ivec3(wx, wy, wz)) == AIR;
+	};
 
-    // Ensure space is clear for trunk column and canopy envelope before planting
-    for (int i = 0; i <= totalH; ++i) {
-        int wy = baseWY + i;
-        if (!isAir(baseWX, wy, baseWZ)) return; // trunk collision
+	// Ensure space is clear for trunk column and canopy envelope before planting
+	for (int i = 0; i <= totalH; ++i) {
+		int wy = baseWY + i;
+		if (!isAir(baseWX, wy, baseWZ)) return; // trunk collision
 
-        if (i >= 4 && i <= 10) {
-            if (!isAir(baseWX + 1, wy, baseWZ)) return;
-            if (!isAir(baseWX - 1, wy, baseWZ)) return;
-            if (!isAir(baseWX, wy, baseWZ + 1)) return;
-            if (!isAir(baseWX, wy, baseWZ - 1)) return;
-        }
-        if (i >= 5 && i <= 7) {
-            if (!isAir(baseWX + 2, wy, baseWZ)) return;
-            if (!isAir(baseWX - 2, wy, baseWZ)) return;
-            if (!isAir(baseWX, wy, baseWZ + 2)) return;
-            if (!isAir(baseWX, wy, baseWZ - 2)) return;
-            if (!isAir(baseWX + 1, wy, baseWZ + 1)) return;
-            if (!isAir(baseWX - 1, wy, baseWZ + 1)) return;
-            if (!isAir(baseWX + 1, wy, baseWZ - 1)) return;
-            if (!isAir(baseWX - 1, wy, baseWZ - 1)) return;
-        }
-    }
+		if (i >= 4 && i <= 10) {
+			if (!isAir(baseWX + 1, wy, baseWZ)) return;
+			if (!isAir(baseWX - 1, wy, baseWZ)) return;
+			if (!isAir(baseWX, wy, baseWZ + 1)) return;
+			if (!isAir(baseWX, wy, baseWZ - 1)) return;
+		}
+		if (i >= 5 && i <= 7) {
+			if (!isAir(baseWX + 2, wy, baseWZ)) return;
+			if (!isAir(baseWX - 2, wy, baseWZ)) return;
+			if (!isAir(baseWX, wy, baseWZ + 2)) return;
+			if (!isAir(baseWX, wy, baseWZ - 2)) return;
+			if (!isAir(baseWX + 1, wy, baseWZ + 1)) return;
+			if (!isAir(baseWX - 1, wy, baseWZ + 1)) return;
+			if (!isAir(baseWX + 1, wy, baseWZ - 1)) return;
+			if (!isAir(baseWX - 1, wy, baseWZ - 1)) return;
+		}
+	}
 
-    // Place trunk and leaves
-    for (int i = 0; i <= totalH; ++i) {
-        int yy = y + i;                 // step = 1, not _resolution
-        if (i <= trunkH) setBlock(x, yy, z, LOG);
-        else             setBlock(x, yy, z, LEAF);
+	// Place trunk and leaves
+	for (int i = 0; i <= totalH; ++i) {
+		int yy = y + i;                 // step = 1, not _resolution
+		if (i <= trunkH) setBlock(x, yy, z, LOG);
+		else             setBlock(x, yy, z, LEAF);
 
-        if (i >= 4 && i <= 10) {
-            setBlock(x + 1, yy, z, LEAF);
-            setBlock(x - 1, yy, z, LEAF);
-            setBlock(x, yy, z + 1, LEAF);
-            setBlock(x, yy, z - 1, LEAF);
-        }
-        if (i >= 5 && i <= 7) {
-            setBlock(x + 2, yy, z, LEAF);
-            setBlock(x - 2, yy, z, LEAF);
-            setBlock(x, yy, z + 2, LEAF);
-            setBlock(x, yy, z - 2, LEAF);
-            setBlock(x + 1, yy, z + 1, LEAF);
-            setBlock(x - 1, yy, z + 1, LEAF);
-            setBlock(x + 1, yy, z - 1, LEAF);
-            setBlock(x - 1, yy, z - 1, LEAF);
-        }
-    }
+		if (i >= 4 && i <= 10) {
+			setBlock(x + 1, yy, z, LEAF);
+			setBlock(x - 1, yy, z, LEAF);
+			setBlock(x, yy, z + 1, LEAF);
+			setBlock(x, yy, z - 1, LEAF);
+		}
+		if (i >= 5 && i <= 7) {
+			setBlock(x + 2, yy, z, LEAF);
+			setBlock(x - 2, yy, z, LEAF);
+			setBlock(x, yy, z + 2, LEAF);
+			setBlock(x, yy, z - 2, LEAF);
+			setBlock(x + 1, yy, z + 1, LEAF);
+			setBlock(x - 1, yy, z + 1, LEAF);
+			setBlock(x + 1, yy, z - 1, LEAF);
+			setBlock(x - 1, yy, z - 1, LEAF);
+		}
+	}
 }
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
@@ -166,73 +166,73 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 
 void SubChunk::loadDesert(int x, int z, size_t ground)
 {
-    int y = ground - _position.y * CHUNK_SIZE;
+	int y = ground - _position.y * CHUNK_SIZE;
 
-    setBlock(x, y, z, SAND);
-    for (int i = 1; i <= 4; i++)
-        setBlock(x, y - (i * _resolution), z, SAND);
+	setBlock(x, y, z, SAND);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, SAND);
 }
 
 void SubChunk::loadBeach(int x, int z, size_t ground)
 {
-    // Nudge beaches up to meet sea level to avoid lower-than-water beaches
-    int beachTopWorldY = std::max((int)ground, (int)OCEAN_HEIGHT);
+	// Nudge beaches up to meet sea level to avoid lower-than-water beaches
+	int beachTopWorldY = std::max((int)ground, (int)OCEAN_HEIGHT);
 
-    // Fill from existing ground up to beachTopWorldY with sand
-    for (int wy = (int)ground; wy <= beachTopWorldY; ++wy)
-        setBlock(x, wy - _position.y * CHUNK_SIZE, z, SAND);
+	// Fill from existing ground up to beachTopWorldY with sand
+	for (int wy = (int)ground; wy <= beachTopWorldY; ++wy)
+		setBlock(x, wy - _position.y * CHUNK_SIZE, z, SAND);
 
-    // Add a little thickness below
-    for (int i = 1; i <= 2; ++i)
-        setBlock(x, (beachTopWorldY - i) - _position.y * CHUNK_SIZE, z, SAND);
+	// Add a little thickness below
+	for (int i = 1; i <= 2; ++i)
+		setBlock(x, (beachTopWorldY - i) - _position.y * CHUNK_SIZE, z, SAND);
 }
 
 void SubChunk::loadSnowy(int x, int z, size_t ground)
 {
-    int y = ground - _position.y * CHUNK_SIZE;
+	int y = ground - _position.y * CHUNK_SIZE;
 
-    // Snow on top, frozen soil below
-    if (getBlock({x, y, z}) == STONE)
-        setBlock(x, y, z, SNOW);
-    for (int i = 1; i <= 3; i++)
-        if (getBlock({x, y - (i * _resolution), z}) == STONE)
-            setBlock(x, y - (i * _resolution), z, DIRT);
+	// Snow on top, frozen soil below
+	if (getBlock({x, y, z}) == STONE)
+		setBlock(x, y, z, SNOW);
+	for (int i = 1; i <= 3; i++)
+		if (getBlock({x, y - (i * _resolution), z}) == STONE)
+			setBlock(x, y - (i * _resolution), z, DIRT);
 }
 
 void SubChunk::loadForest(int x, int z, size_t ground)
 {
-    // Base like plains
-    loadPlaine(x, z, ground);
+	// Base like plains
+	loadPlaine(x, z, ground);
 
-    // Denser than plains, but enforce spacing via local maxima
-    const int groundSnap = (int)ground - ((int)ground % _resolution);
-    const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
-    if (yLocal < 0 || yLocal >= CHUNK_SIZE) return;
+	// Denser than plains, but enforce spacing via local maxima
+	const int groundSnap = (int)ground - ((int)ground % _resolution);
+	const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
+	if (yLocal < 0 || yLocal >= CHUNK_SIZE) return;
 
-    if (getBlock({x, yLocal, z}) != GRASS) return;
+	if (getBlock({x, yLocal, z}) != GRASS) return;
 
-    const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
-    if (treeP <= 0.64) return; // slightly denser than before
+	const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
+	if (treeP <= 0.64) return; // slightly denser than before
 
-    const int radius = 4;
-    const double* tmap = *_treeMap;
-    for (int dz = -radius; dz <= radius; ++dz) {
-        int nz = z + dz;
-        if (nz < 0 || nz >= CHUNK_SIZE) continue;
-        for (int dx = -radius; dx <= radius; ++dx) {
-            int nx = x + dx;
-            if (nx < 0 || nx >= CHUNK_SIZE) continue;
-            if (dx == 0 && dz == 0) continue;
-            if (tmap[nz * CHUNK_SIZE + nx] > treeP) return; // not a local maximum
-        }
-    }
+	const int radius = 4;
+	const double* tmap = *_treeMap;
+	for (int dz = -radius; dz <= radius; ++dz) {
+		int nz = z + dz;
+		if (nz < 0 || nz >= CHUNK_SIZE) continue;
+		for (int dx = -radius; dx <= radius; ++dx) {
+			int nx = x + dx;
+			if (nx < 0 || nx >= CHUNK_SIZE) continue;
+			if (dx == 0 && dz == 0) continue;
+			if (tmap[nz * CHUNK_SIZE + nx] > treeP) return; // not a local maximum
+		}
+	}
 
-    plantTree(x, yLocal + 1, z, treeP);
+	plantTree(x, yLocal + 1, z, treeP);
 }
 
 void SubChunk::loadTree(int x, int z)
 {
-    const int ground = (int)(*_heightMap)[z * CHUNK_SIZE + x];
+	const int ground = (int)(*_heightMap)[z * CHUNK_SIZE + x];
 
 	// snap to the same quantization used during terrain write
 	const int groundSnap = ground - (ground % _resolution);
@@ -241,28 +241,28 @@ void SubChunk::loadTree(int x, int z)
 	const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
 	if (yLocal < 0 || yLocal >= CHUNK_SIZE) return ;
 
-    // only plant on grass
-    if (getBlock({x, yLocal, z}) != GRASS) return ;
+	// only plant on grass
+	if (getBlock({x, yLocal, z}) != GRASS) return ;
 
-    const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
-    if (treeP <= 0.85) return ;
+	const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
+	if (treeP <= 0.85) return ;
 
-    // Poisson-like spacing: only plant if local maximum within radius
-    const int radius = 4;
-    const double* tmap = *_treeMap;
-    for (int dz = -radius; dz <= radius; ++dz) {
-        int nz = z + dz;
-        if (nz < 0 || nz >= CHUNK_SIZE) continue;
-        for (int dx = -radius; dx <= radius; ++dx) {
-            int nx = x + dx;
-            if (nx < 0 || nx >= CHUNK_SIZE) continue;
-            if (dx == 0 && dz == 0) continue;
-            if (tmap[nz * CHUNK_SIZE + nx] > treeP) return; // not a local maximum
-        }
-    }
+	// Poisson-like spacing: only plant if local maximum within radius
+	const int radius = 4;
+	const double* tmap = *_treeMap;
+	for (int dz = -radius; dz <= radius; ++dz) {
+		int nz = z + dz;
+		if (nz < 0 || nz >= CHUNK_SIZE) continue;
+		for (int dx = -radius; dx <= radius; ++dx) {
+			int nx = x + dx;
+			if (nx < 0 || nx >= CHUNK_SIZE) continue;
+			if (dx == 0 && dz == 0) continue;
+			if (tmap[nz * CHUNK_SIZE + nx] > treeP) return; // not a local maximum
+		}
+	}
 
-    // base just above groundSnap
-    plantTree(x, yLocal + 1, z, treeP);
+	// base just above groundSnap
+	plantTree(x, yLocal + 1, z, treeP);
 }
 
 void SubChunk::markLoaded(bool loaded) {
@@ -272,48 +272,48 @@ void SubChunk::markLoaded(bool loaded) {
 
 void SubChunk::loadBiome(int prevResolution)
 {
-    (void)prevResolution;
-    for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
-    {
-        for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
-        {
-            Biome biome = (*_biomeMap)[z * CHUNK_SIZE + x];
-            double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
-            surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
-            int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
-            switch (biome)
-            {
-                case PLAINS:
-                    loadPlaine(x, z, surfaceLevel);
-                    break ;
-                case DESERT:
-                    loadDesert(x, z, surfaceLevel);
-                    break;
-                case MOUNTAINS:
-                    loadMountain(x, z, surfaceLevel);
-                    break;
-                case SNOWY:
-                    loadSnowy(x, z, surfaceLevel);
-                    break;
-                case FOREST:
-                    loadForest(x, z, surfaceLevel);
-                    break;
-                case OCEAN:
-                    // Use a smaller offset to reduce visible sand walls near shores
-                    loadOcean(x, z, surfaceLevel + 1, adjustOceanHeight);
-                    break;
-                case BEACH:
-                    loadBeach(x, z, surfaceLevel);
-                    break;
-                default :
-                    break;
-            }
-            // Default tree planting only for non-forest grasslands
-            if (biome == PLAINS)
-                loadTree(x, z);
-        }
-    }
-        _isFullyLoaded = true;
+	(void)prevResolution;
+	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+	{
+		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
+		{
+			Biome biome = (*_biomeMap)[z * CHUNK_SIZE + x];
+			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
+			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
+			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+			switch (biome)
+			{
+				case PLAINS:
+					loadPlaine(x, z, surfaceLevel);
+					break ;
+				case DESERT:
+					loadDesert(x, z, surfaceLevel);
+					break;
+				case MOUNTAINS:
+					loadMountain(x, z, surfaceLevel);
+					break;
+				case SNOWY:
+					loadSnowy(x, z, surfaceLevel);
+					break;
+				case FOREST:
+					loadForest(x, z, surfaceLevel);
+					break;
+				case OCEAN:
+					// Use a smaller offset to reduce visible sand walls near shores
+					loadOcean(x, z, surfaceLevel + 1, adjustOceanHeight);
+					break;
+				case BEACH:
+					loadBeach(x, z, surfaceLevel);
+					break;
+				default :
+					break;
+			}
+			// Default tree planting only for non-forest grasslands
+			if (biome == PLAINS)
+				loadTree(x, z);
+		}
+	}
+		_isFullyLoaded = true;
 }
 
 

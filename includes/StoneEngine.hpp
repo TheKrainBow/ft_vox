@@ -149,7 +149,7 @@ class StoneEngine {
 		void renderOverlayAndUI();
 		void finalizeFrame();
 		void renderTransparentObjects();
-		void renderSceneToFBO();
+		void renderSolidObjects();
 		void resolveMsaaToFbo();
 		void prepareRenderPipeline();
 		void displaySun();
