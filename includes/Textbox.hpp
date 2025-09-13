@@ -28,7 +28,9 @@ const biome_pair biomeTab[NB_BIOMES] = {
 	{DESERT, "Desert"},
 	{SNOWY, "Snow"},
 	{MOUNTAINS, "Mountains"},
-	{FOREST, "Forest"}
+	{FOREST, "Forest"},
+	{OCEAN, "Ocean"},
+	{BEACH, "Beach"}
 };
 
 const direction_pair directionTab[8] = {

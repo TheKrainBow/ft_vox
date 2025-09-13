@@ -7,6 +7,7 @@ SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen,
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
 	_treeMap = &perlinMap->treeMap;
+	_biomeMap = &perlinMap->biomeMap;
 	_chunkSize = CHUNK_SIZE / resolution;
 	size_t size = _chunkSize * _chunkSize * _chunkSize;
 	_blocks = std::make_unique<uint8_t[]>(size);
@@ -117,58 +118,125 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 			setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
+void SubChunk::loadDesert(int x, int z, size_t ground)
+{
+	int y = ground - _position.y * CHUNK_SIZE;
+
+	setBlock(x, y, z, SAND);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, SAND);
+}
+
+void SubChunk::loadTree(int x, int z)
+{
+	const int ground = (int)(*_heightMap)[z * CHUNK_SIZE + x];
+
+	// snap to the same quantization used during terrain write
+	const int groundSnap = ground - (ground % _resolution);
+
+	// local to this subchunk
+	const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
+	if (yLocal < 0 || yLocal >= CHUNK_SIZE) return ;
+
+	// only plant on grass
+	if (getBlock({x, yLocal, z}) != GRASS) return ;
+
+	const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
+	if (treeP <= 0.72) return ;
+
+	// base just above groundSnap
+	plantTree(x, yLocal + 1, z, treeP);
+}
+
 void SubChunk::markLoaded(bool loaded) {
 	_isFullyLoaded = loaded;
 }
 
+
 void SubChunk::loadBiome(int prevResolution)
 {
-	(void)prevResolution
-;	NoiseGenerator &noisegen = _world.getNoiseGenerator();
-	noisegen.setNoiseData({
-		1.0, 0.9, 0.02, 0.5, 12
-	});
-
-	const int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
-
+	(void)prevResolution;
 	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
-			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
-			ground = ground - (int(ground) % _resolution);
-		
-			if (ground <= OCEAN_HEIGHT)
-				loadOcean(x, z, ground + 3, adjustOceanHeight);
-			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
-				loadMountain(x, z, ground);
-			else if (ground)
-				loadPlaine(x, z, ground);
+			Biome biome = (*_biomeMap)[z * CHUNK_SIZE + x];
+			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
+			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
+			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+			switch (biome)
+			{
+				case PLAINS:
+					loadPlaine(x, z, surfaceLevel);
+					break ;
+				case DESERT:
+					loadDesert(x, z, surfaceLevel);
+					break;
+				case MOUNTAINS:
+					loadMountain(x, z, surfaceLevel);
+					break;
+				case OCEAN:
+					loadOcean(x, z, surfaceLevel + 3, adjustOceanHeight);
+					break;
+				default :
+					break;
+			}
+			loadTree(x, z);
 		}
 	}
-	for (int x = 0; x < CHUNK_SIZE; ++x) {
-		for (int z = 0; z < CHUNK_SIZE; ++z) {
-			const int ground = (int)(*_heightMap)[z * CHUNK_SIZE + x];
-
-			// snap to the same quantization used during terrain write
-			const int groundSnap = ground - (ground % _resolution);
-
-			// local to this subchunk
-			const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
-			if (yLocal < 0 || yLocal >= CHUNK_SIZE) continue;
-
-			// only plant on grass
-			if (getBlock({x, yLocal, z}) != GRASS) continue;
-
-			const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
-			if (treeP <= 0.72) continue;
-
-			// base just above groundSnap
-			plantTree(x, yLocal + 1, z, treeP);
-		}
-	}
-	_isFullyLoaded = true;
+		_isFullyLoaded = true;
 }
+
+
+// void SubChunk::loadBiome(int prevResolution)
+// {
+// 	(void)prevResolution
+// ;	NoiseGenerator &noisegen = _world.getNoiseGenerator();
+// 	noisegen.setNoiseData({
+// 		1.0, 0.9, 0.02, 0.5, 12
+// 	});
+
+// 	const int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+
+// 	for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+// 	{
+// 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
+// 		{
+// 			double ground = (*_heightMap)[z * CHUNK_SIZE + x];
+// 			ground = ground - (int(ground) % _resolution);
+		
+// 			if (ground <= OCEAN_HEIGHT)
+// 				loadOcean(x, z, ground + 3, adjustOceanHeight);
+// 			else if (ground >= MOUNT_HEIGHT + (noisegen.noise(x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE) * 15))
+// 				loadMountain(x, z, ground);
+// 			else if (ground)
+// 				loadPlaine(x, z, ground);
+// 		}
+// 	}
+
+// 	for (int x = 0; x < CHUNK_SIZE; ++x) {
+// 		for (int z = 0; z < CHUNK_SIZE; ++z) {
+// 			const int ground = (int)(*_heightMap)[z * CHUNK_SIZE + x];
+
+// 			// snap to the same quantization used during terrain write
+// 			const int groundSnap = ground - (ground % _resolution);
+
+// 			// local to this subchunk
+// 			const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
+// 			if (yLocal < 0 || yLocal >= CHUNK_SIZE) continue;
+
+// 			// only plant on grass
+// 			if (getBlock({x, yLocal, z}) != GRASS) continue;
+
+// 			const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
+// 			if (treeP <= 0.72) continue;
+
+// 			// base just above groundSnap
+// 			plantTree(x, yLocal + 1, z, treeP);
+// 		}
+// 	}
+// 	_isFullyLoaded = true;
+// }
 
 SubChunk::~SubChunk()
 {

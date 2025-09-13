@@ -28,6 +28,7 @@ class SubChunk
 		int							_chunkSize;
 		std::unique_ptr<uint8_t[]>	_blocks;
 		double						**_heightMap;
+		Biome						**_biomeMap;
 		double						**_treeMap;
 		World						&_world;
 		Chunk						&_chunk;
@@ -62,7 +63,9 @@ class SubChunk
 		void loadOcean(int x, int z, size_t ground, size_t adjustedOceanHeight);
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
+		void loadDesert(int x, int z, size_t ground);
 		void plantTree(int x, int y, int z, double proba);
+		void loadTree(int x, int z);
 		ivec3 getPosition(void);
 		char getBlock(ivec3 position);
 		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);

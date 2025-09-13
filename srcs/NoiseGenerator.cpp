@@ -206,8 +206,11 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 
 	if (height >= MOUNT_HEIGHT)
 		return Biome::MOUNTAINS;
+	if (height <= OCEAN_HEIGHT)
+		return Biome::OCEAN;
+
 	// Desert: low humidity, high temp, mid/low height
-	if (humidity < 0.3 && temp > 0.4)
+	if (humidity < 0.2 && temp > 0.4)
 		return Biome::DESERT;
 	// Mountains: High height
 	if (temp < -0.2)
