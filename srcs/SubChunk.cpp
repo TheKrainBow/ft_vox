@@ -38,11 +38,10 @@ void SubChunk::loadHeight(int prevResolution)
 					continue;
 				}
 				// Default: solid below surface
-
 				if (globalY > maxHeight)
 					break;
-	
-				if (_resolution != 1 || !_caveGen.isAir(
+				
+				if (!CAVES || _resolution != 1 || !_caveGen.isAir(
 						x + _position.x * CHUNK_SIZE,
 						globalY,
 						z + _position.z * CHUNK_SIZE,
