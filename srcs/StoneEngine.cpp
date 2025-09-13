@@ -1165,9 +1165,30 @@ void StoneEngine::updateBiomeData()
 {
 	vec3 viewPos = camera.getWorldPosition();
 	ivec2 blockPos = {int(viewPos.x), int(viewPos.z)};
-	_biome = int(noise_gen.getBiome(blockPos, noise_gen.getHeight(blockPos)));
-	_humidity = noise_gen.getHumidityNoise(noise_gen.getBiomeBorderWarping(blockPos.x, blockPos.y));
-	_temperature = noise_gen.getTemperatureNoise(blockPos);
+	double height = noise_gen.getHeight(blockPos);
+	_biome = int(noise_gen.getBiome(blockPos, height));
+
+
+	// Latitudinal bands (very low frequency): use trigs to create belts
+	double alt01 = std::clamp((height - (double)OCEAN_HEIGHT) / (double)(MOUNT_HEIGHT - OCEAN_HEIGHT), 0.0, 1.0);
+
+	double latS = std::sin(blockPos.x * 0.00003);
+	double latC = std::cos(blockPos.y * 0.000008);
+
+	// Continentalness: interiors tend to be drier
+	double continental = noise_gen.getContinentalNoise(blockPos); // [-1, 1]
+	double tempBias = (latS * 0.6) + (latC * 0.2) - (alt01 * 0.8);
+	double humidBias = (-continental * 0.5)              // wetter near coasts (low continentalness)
+						+ ((1.0 - alt01) * 0.2)             // more humidity at low elevations
+						+ (std::cos(blockPos.y * 0.00002) * 0.3); // tropical/rain belts
+
+	// Base noises in [-1, 1]
+	double temp = noise_gen.getTemperatureNoise(blockPos);
+	double humidity = noise_gen.getHumidityNoise(blockPos);
+	temp = std::clamp(temp + tempBias, -1.0, 1.0);
+	humidity = std::clamp(humidity + humidBias, -1.0, 1.0);
+	_humidity = humidity;
+	_temperature = temp;
 }
 
 void StoneEngine::update()

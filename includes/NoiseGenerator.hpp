@@ -60,6 +60,7 @@ class NoiseGenerator {
 		void removePerlinMap(int x, int z);
 		ivec2 getBorderWarping(double x, double z);
 		double getHeight(ivec2 pos);
+		double getContinentalNoise(ivec2 pos);
 
 		// Biomes
 		ivec2 getBiomeBorderWarping(int x, int z);
@@ -71,7 +72,6 @@ class NoiseGenerator {
 		double fade(double t) const;
 		double lerp(double a, double b, double t) const;
 		double grad(int hash, double x, double y) const;
-		double getContinentalNoise(ivec2 pos);
 		double getErosionNoise(ivec2 pos);
 		double getOceanNoise(ivec2 pos);
 		double getPeaksValleysNoise(ivec2 pos);

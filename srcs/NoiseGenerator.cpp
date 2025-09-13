@@ -212,7 +212,7 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 	double alt01 = std::clamp((height - (double)OCEAN_HEIGHT) / (double)(MOUNT_HEIGHT - OCEAN_HEIGHT), 0.0, 1.0);
 
 	// Latitudinal bands (very low frequency): use trigs to create belts
-	double latS = std::sin(pos.y * 0.00003);
+	double latS = std::sin(pos.x * 0.00003);
 	double latC = std::cos(pos.y * 0.000008);
 
 	// Continentalness: interiors tend to be drier
@@ -222,7 +222,7 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 	double tempBias = (latS * 0.6) + (latC * 0.2) - (alt01 * 0.8);
 	double humidBias = (-continental * 0.5)              // wetter near coasts (low continentalness)
 						+ ((1.0 - alt01) * 0.2)             // more humidity at low elevations
-						+ (std::cos(pos.y * 0.00002) * 0.3);// tropical/rain belts
+						+ (std::cos(pos.y * 0.00002) * 0.3); // tropical/rain belts
 
 	temp = std::clamp(temp + tempBias, -1.0, 1.0);
 	humidity = std::clamp(humidity + humidBias, -1.0, 1.0);
@@ -239,11 +239,11 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 
 	// Climate-driven biomes
 	// Desert: dry + warm
-	if (humidity < -0.25 && temp > 0.2)
+	if (humidity <= -0.1 && temp > 0.2)
 		return Biome::DESERT;
 
 	// Snowy/taiga: cold
-	if (temp <= -0.1)
+	if (temp <= -0.2)
 		return Biome::SNOWY;
 
 	// Forest: humid and not too cold
