@@ -147,20 +147,20 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
-	if (getBlock({x, y, z}) == STONE)
+	if (getBlock({x, y, z}) != AIR)
 		setBlock(x, y, z, GRASS);
 	for (int i = 1; i <= 4; i++)
-		if (getBlock({x, y - (i * _resolution), z}) == STONE)
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
 			setBlock(x, y - (i * _resolution), z, DIRT);
 }
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
-	if (getBlock({x, y, z}) == STONE)
+	if (getBlock({x, y, z}) != AIR)
 		setBlock(x, y, z, SNOW);
-	for (int i = 1; i <= 4; i++)
-		if (getBlock({x, y - (i * _resolution), z}) == STONE)
+	for (int i = 1; i <= 5; i++)
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
 			setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
@@ -192,11 +192,11 @@ void SubChunk::loadSnowy(int x, int z, size_t ground)
 	int y = ground - _position.y * CHUNK_SIZE;
 
 	// Snow on top, frozen soil below
-	if (getBlock({x, y, z}) == STONE)
+	if (getBlock({x, y, z}) != AIR)
 		setBlock(x, y, z, SNOW);
-	for (int i = 1; i <= 3; i++)
-		if (getBlock({x, y - (i * _resolution), z}) == STONE)
-			setBlock(x, y - (i * _resolution), z, DIRT);
+	for (int i = 1; i <= 5; i++)
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
+			setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
 void SubChunk::loadForest(int x, int z, size_t ground)
