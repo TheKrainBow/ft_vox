@@ -175,16 +175,24 @@ void SubChunk::loadDesert(int x, int z, size_t ground)
 
 void SubChunk::loadBeach(int x, int z, size_t ground)
 {
-	// Nudge beaches up to meet sea level to avoid lower-than-water beaches
-	int beachTopWorldY = std::max((int)ground, (int)OCEAN_HEIGHT);
+    // Decide beach material (sand vs snow) based on local temperature
+    NoiseGenerator &ng = _world.getNoiseGenerator();
+    ivec2 worldXZ = { x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE };
+    double temp = ng.getTemperatureNoise(worldXZ);
+    bool coldBeach = (temp <= -0.30);
+    BlockType topMat = coldBeach ? SNOW : SAND;
+    BlockType underMat = coldBeach ? SNOW : SAND;
 
-	// Fill from existing ground up to beachTopWorldY with sand
-	for (int wy = (int)ground; wy <= beachTopWorldY; ++wy)
-		setBlock(x, wy - _position.y * CHUNK_SIZE, z, SAND);
+    // Raise up to meet sea level to avoid lower-than-water rims
+    int beachTopWorldY = std::max((int)ground, (int)OCEAN_HEIGHT);
 
-	// Add a little thickness below
-	for (int i = 1; i <= 2; ++i)
-		setBlock(x, (beachTopWorldY - i) - _position.y * CHUNK_SIZE, z, SAND);
+    // Cap from ground up to sea level
+    for (int wy = (int)ground; wy <= beachTopWorldY; ++wy)
+        setBlock(x, wy - _position.y * CHUNK_SIZE, z, topMat);
+
+    // A bit of thickness underneath
+    for (int i = 1; i <= 2; ++i)
+        setBlock(x, (beachTopWorldY - i) - _position.y * CHUNK_SIZE, z, underMat);
 }
 
 void SubChunk::loadSnowy(int x, int z, size_t ground)
