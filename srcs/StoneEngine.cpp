@@ -394,6 +394,7 @@ void StoneEngine::initDebugTextBox()
 	vec3 *camPos = camera.getPositionPtr();
 	fvec2 *camAngle = camera.getAnglesPtr();
 	e_direction *facing_direction = camera.getDirectionPtr();
+	float		*yPos = camera.getYPtr();
 
 	debugBox.initData(_window, 0, 0, 200, 200);
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
@@ -403,7 +404,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("RenderDistance: ", Textbox::INT, _world.getRenderDistancePtr());
 	debugBox.addLine("CurrentRender: ", Textbox::INT, _world.getCurrentRenderPtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
-	debugBox.addLine("y: ", Textbox::FLOAT, &camPos->y);
+	debugBox.addLine("y: ", Textbox::FLOAT, yPos);
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
 	debugBox.addLine("xangle: ", Textbox::FLOAT, &camAngle->x);
 	debugBox.addLine("yangle: ", Textbox::FLOAT, &camAngle->y);
@@ -569,6 +570,8 @@ void StoneEngine::display() {
 	renderSceneToFBO();
 	resolveMsaaToFbo();
 	screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGreedyFix();
+	// screenshotFBOBuffer(writeFBO, readFBO);
 
 	// Delay greedy-fix until after transparent pass so it applies to the final scene
 	displaySun();

@@ -40,6 +40,7 @@ class Camera {
 		fvec2 *getAnglesPtr();
 		vec3 getDirection() const;
 		e_direction *getDirectionPtr();
+		float *getYPtr();
 		void rotate(float xAngle, float yAngle, double rotationSpeed);
 		void invert();
 		void setPos(const float &x, const float &y, const float &z);
@@ -55,4 +56,5 @@ class Camera {
 		ivec2 mousePos;
 		std::mutex _positionMutex;
 		e_direction _facing;
+		float y_pos;
 };
