@@ -200,22 +200,58 @@ ivec2 NoiseGenerator::getBiomeBorderWarping(int x, int z)
 
 Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 {
-	pos = getBiomeBorderWarping(pos.x, pos.y);
-	double temp = getTemperatureNoise(pos);
-	double humidity = getHumidityNoise(pos);
+    // Domain warp to avoid grid-aligned borders for sampling
+    pos = getBiomeBorderWarping(pos.x, pos.y);
 
-	if (height >= MOUNT_HEIGHT)
-		return Biome::MOUNTAINS;
-	if (height <= OCEAN_HEIGHT)
-		return Biome::OCEAN;
+    // Base noises in [-1, 1]
+    double temp = getTemperatureNoise(pos);
+    double humidity = getHumidityNoise(pos);
 
-	// Desert: low humidity, high temp, mid/low height
-	if (humidity < 0.2 && temp > 0.4)
-		return Biome::DESERT;
-	// Mountains: High height
-	if (temp < -0.2)
-		return Biome::SNOWY;
-	return Biome::PLAINS;
+    // Add large-scale variation and physically-inspired biases
+    // Elevation (cooler and drier as we go up)
+    double alt01 = std::clamp((height - (double)OCEAN_HEIGHT) / (double)(MOUNT_HEIGHT - OCEAN_HEIGHT), 0.0, 1.0);
+
+    // Latitudinal bands (very low frequency): use trigs to create belts
+    double latS = std::sin(pos.y * 0.00003);
+    double latC = std::cos(pos.y * 0.000008);
+
+    // Continentalness: interiors tend to be drier
+    double continental = getContinentalNoise(pos); // [-1, 1]
+
+    // Apply biases
+    double tempBias = (latS * 0.6) + (latC * 0.2) - (alt01 * 0.8);
+    double humidBias = (-continental * 0.5)              // wetter near coasts (low continentalness)
+                     + ((1.0 - alt01) * 0.2)             // more humidity at low elevations
+                     + (std::cos(pos.y * 0.00002) * 0.3);// tropical/rain belts
+
+    temp = std::clamp(temp + tempBias, -1.0, 1.0);
+    humidity = std::clamp(humidity + humidBias, -1.0, 1.0);
+
+    // Height-gated biomes first
+    if (height >= MOUNT_HEIGHT)
+        return Biome::MOUNTAINS;
+
+    // Oceans and beaches around sea level
+    if (height <= OCEAN_HEIGHT - 2)
+        return Biome::OCEAN;
+    if (height <= OCEAN_HEIGHT + 3)
+        return Biome::BEACH;
+
+    // Climate-driven biomes
+    // Desert: dry + warm
+    if (humidity < -0.25 && temp > 0.2)
+        return Biome::DESERT;
+
+    // Snowy/taiga: cold
+    if (temp < -0.3)
+        return Biome::SNOWY;
+
+    // Forest: humid and not too cold
+    if (humidity > 0.35 && temp > -0.2)
+        return Biome::FOREST;
+
+    // Default mid conditions
+    return Biome::PLAINS;
 }
 
 double smoothBlend(double a, double b, double blendFactor)
@@ -227,15 +263,41 @@ double smoothBlend(double a, double b, double blendFactor)
 
 double NoiseGenerator::getHeight(ivec2 pos)
 {
-	pos = getBorderWarping(pos.x, pos.y);
-	double continentalNoise = getContinentalNoise(pos);
-	double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
-	double erosionNoise = getErosionNoise(pos);
-	double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
-	double erosionMask = (erosionNoise + 1.0) * 0.5;
-	double peaksNoise = getPeaksValleysNoise(pos);
-	double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 2.0;
-	double peaksMask = (peaksNoise + 1.0) * 0.5;
+    pos = getBorderWarping(pos.x, pos.y);
+    double continentalNoise = getContinentalNoise(pos);
+    double surfaceHeight = spline.continentalSpline.interpolate(continentalNoise);
+    double erosionNoise = getErosionNoise(pos);
+    double erosionHeight = spline.erosionSpline.interpolate(erosionNoise);
+    double erosionMask = (erosionNoise + 1.0) * 0.5;
+    double peaksNoise = getPeaksValleysNoise(pos);
+    double peaksHeight = spline.peaksValleysSpline.interpolate(peaksNoise) * 1.8; // slightly reduce global peak scale
+    double peaksMask = (peaksNoise + 1.0) * 0.5;
+
+    // Large-scale "flatness" modulation to create occasional flatter regions
+    // Uses a very low-frequency noise field to locally damp erosion/peaks contributions
+    NoiseData flatData = {
+        1.0,      // amplitude
+        0.000015, // frequency: very low for broad patches
+        0.5,      // persistence
+        2.0,      // lacunarity
+        3         // octaves
+    };
+    setNoiseData(flatData);
+    double flatNoise = noise(pos.x, pos.y); // [-1, 1]
+    setNoiseData(NoiseData());
+    double flat01 = (flatNoise + 1.0) * 0.5; // [0, 1]
+    // Smoothstep and threshold gate so flats are rare
+    double flatSupp = flat01 * flat01 * (3.0 - 2.0 * flat01); // [0, 1]
+    // Only engage when very flat (top ~15%)
+    double gateT = std::clamp((flatSupp - 0.85) / 0.15, 0.0, 1.0);
+    double flatGate = gateT * gateT * (3.0 - 2.0 * gateT);
+
+    // Suppress roughness only when gate is active
+    double erosionWeight = 1.0 - 0.65 * flatGate; // keep some erosion
+    double peaksWeight   = 1.0 - 0.75 * flatGate; // strongly reduce peaks
+    erosionMask = std::clamp(erosionMask * erosionWeight, 0.0, 1.0);
+    peaksMask   = std::clamp(peaksMask   * peaksWeight,   0.0, 1.0);
+    peaksHeight *= (1.0 - 0.5 * flatGate);
 
 	// Calculate ocean noise and mask
 	// double oceanNoise = 0.2 * getOceanNoise(pos);
@@ -244,8 +306,8 @@ double NoiseGenerator::getHeight(ivec2 pos)
 
 	// Base terrain height
 	double height;
-	height = smoothBlend(surfaceHeight, erosionHeight, erosionMask);
-	height = smoothBlend(height, peaksHeight, peaksMask);
+    height = smoothBlend(surfaceHeight, erosionHeight, erosionMask);
+    height = smoothBlend(height,         peaksHeight,   peaksMask);
 
 	// // Apply ocean mask
 	// if (oceanMask < oceanThreshold)

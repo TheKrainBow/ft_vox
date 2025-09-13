@@ -64,6 +64,9 @@ class SubChunk
 		void loadPlaine(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
 		void loadDesert(int x, int z, size_t ground);
+		void loadBeach(int x, int z, size_t ground);
+		void loadSnowy(int x, int z, size_t ground);
+		void loadForest(int x, int z, size_t ground);
 		void plantTree(int x, int y, int z, double proba);
 		void loadTree(int x, int z);
 		ivec3 getPosition(void);
