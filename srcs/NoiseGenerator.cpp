@@ -293,7 +293,6 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 
 PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 {
-	resolution = 1;
 	PerlinMap *map = new PerlinMap();
 	map->size = size;
 	map->heightMap = new double[size * size];
@@ -319,7 +318,7 @@ PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 				map->lowest = map->heightMap[index];
 		}
 	}
-	buildTreeMap(map, 1);
+	buildTreeMap(map, resolution);
 	_perlinMaps[pos] = map;
 	return (map);
 }

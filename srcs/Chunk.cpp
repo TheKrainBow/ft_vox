@@ -270,13 +270,30 @@ void Chunk::sendFacesToDisplay()
 	std::lock_guard<std::mutex> lkSend(_sendFacesMutex);
 	clearFaces();
 
+	// First pass: build subchunk meshes and compute total sizes to reserve
+	size_t totalSolid = 0;
+	size_t totalTrans = 0;
+	for (SubChunk* sc : subs) {
+		if (!sc) continue;
+		sc->sendFacesToDisplay();
+		totalSolid += sc->getVertices().size();
+		totalTrans += sc->getTransparentVertices().size();
+	}
+
+	// Reserve to reduce reallocations
+	_indirectBufferData.reserve(_indirectBufferData.size() + subs.size());
+	_transparentIndirectBufferData.reserve(_transparentIndirectBufferData.size() + subs.size());
+	_ssboData.reserve(_ssboData.size() + subs.size());
+	_vertexData.reserve(_vertexData.size() + totalSolid);
+	_transparentVertexData.reserve(_transparentVertexData.size() + totalTrans);
+
+	// Second pass: emit draw commands and append streams (no extra copies)
 	for (SubChunk* sc : subs)
 	{
 		if (!sc) continue;
-		sc->sendFacesToDisplay();
 
-		std::vector<int> vertices              = sc->getVertices();
-		std::vector<int> transparentVertices   = sc->getTransparentVertices();
+		auto &vertices            = sc->getVertices();
+		auto &transparentVertices = sc->getTransparentVertices();
 
 		// ---- SOLID draw cmd ----
 		_indirectBufferData.push_back(DrawArraysIndirectCommand{
@@ -286,7 +303,7 @@ void Chunk::sendFacesToDisplay()
 			static_cast<uint32_t>(_vertexData.size())
 		});
 
-		// ---- TRANSPARENT draw cmd (missing before) ----
+		// ---- TRANSPARENT draw cmd ----
 		_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{
 			4,
 			static_cast<uint32_t>(transparentVertices.size()),
@@ -294,7 +311,7 @@ void Chunk::sendFacesToDisplay()
 			static_cast<uint32_t>(_transparentVertexData.size())
 		});
 
-		// Per-draw origin/res for *both* passes; index i must match draw i
+		// Per-draw origin/res for both passes
 		ivec3 pos = sc->getPosition();
 		_ssboData.push_back(vec4{
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
@@ -302,8 +319,7 @@ void Chunk::sendFacesToDisplay()
 
 		// Append instance streams
 		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-		_transparentVertexData.insert(_transparentVertexData.end(),
-		transparentVertices.begin(), transparentVertices.end());
+		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 	}
 	_facesSent = true;
 }
