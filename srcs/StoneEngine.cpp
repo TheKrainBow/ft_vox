@@ -205,11 +205,27 @@ glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& camera
 {
 	const float pi = 3.14159265f;
 	const float radius = 6000.0f;
+	const float dayStart = 42000.0f;          // sunrise
+	const float dayLen   = 86400.0f - dayStart; // 44400 (day duration)
+	const float nightLen = dayStart;           // 42000 (night duration)
 
-	float angle = (timeValue / 86400.0f) * 2.0f * pi;
+	float t = static_cast<float>(timeValue);
+	float angle;
+	if (t < dayStart)
+	{
+		// Night: traverse pi..2pi across [0, dayStart)
+		float phase = glm::clamp(t / nightLen, 0.0f, 1.0f);
+		angle = pi + phase * pi;
+	}
+	else
+	{
+		// Day: traverse 0..pi across [dayStart, 86400]
+		float phase = glm::clamp((t - dayStart) / dayLen, 0.0f, 1.0f);
+		angle = phase * pi;
+	}
 
 	float x = radius * cos(angle);
-	float y = -radius * sin(angle);
+	float y = radius * sin(angle); // y>0 during day, y<0 during night
 	float z = 0.0f;
 
 	return cameraPos + glm::vec3(x, y, z);
