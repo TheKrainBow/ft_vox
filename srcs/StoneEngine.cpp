@@ -1,5 +1,26 @@
 #include "StoneEngine.hpp"
 
+static glm::mat4 makeObliqueProjection(const glm::mat4& proj,
+										const glm::mat4& view,
+										const glm::vec4& planeWorld)
+{
+	glm::vec4 planeVS = glm::transpose(glm::inverse(view)) * planeWorld;
+
+	glm::mat4 P = proj;
+	glm::vec4 q;
+	q.x = (glm::sign(planeVS.x) + P[0][2]) / P[0][0];
+	q.y = (glm::sign(planeVS.y) + P[1][2]) / P[1][1];
+	q.z = -1.0f;
+	q.w = (1.0f + P[2][2]) / P[2][3];
+
+	glm::vec4 c = planeVS * (2.0f / glm::dot(planeVS, q));
+	P[0][2] = c.x;
+	P[1][2] = c.y;
+	P[2][2] = c.z + 1.0f;
+	P[3][2] = c.w;
+	return P;
+}
+
 float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {
 	return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
 }
@@ -402,7 +423,6 @@ void StoneEngine::initFboShaders()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
 	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
-	// New single-pass light shafts implementation
 	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/lightshafts.frag");
 }
 
@@ -558,6 +578,35 @@ void StoneEngine::activateTransparentShader()
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
+	// --- Planar reflection source (tmpFBO) ---
+	{
+		const float waterY = OCEAN_HEIGHT + 2.0f;
+		float radY = camera.getAngles().y * (M_PI / 180.0f);
+		float radX = camera.getAngles().x * (M_PI / 180.0f);
+	
+		glm::mat4 viewRotMirror(1.0f);
+		viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+		viewRotMirror = glm::rotate(viewRotMirror,  radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+	
+		glm::vec3 camW   = camera.getWorldPosition();
+		glm::vec3 camMir = glm::vec3(camW.x, 2.0f * waterY - camW.y, camW.z);
+	
+		glm::mat4 viewFullMirror = viewRotMirror;
+		viewFullMirror = glm::translate(viewFullMirror, glm::vec3(-camMir.x, -camMir.y, -camMir.z));
+	
+		glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
+		glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
+	
+		glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "planarView"),       1, GL_FALSE, glm::value_ptr(viewFullMirror));
+		glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "planarProjection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	
+		// --- Planar reflection source (tmpFBO) ---
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, tmpFBO.texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glUniform1i(glGetUniformLocation(waterShaderProgram, "planarTexture"), 3);
+	}
 
 	// Blending and depth settings for transparent pass
 	glDepthMask(GL_FALSE);
@@ -608,6 +657,8 @@ void StoneEngine::display() {
 	// Delay greedy-fix until after transparent pass so it applies to the final scene
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
+	
+	renderPlanarReflection();
 	
 	// Render transparent objects with MSAA (same path as solids), then resolve
 	if (!showTriangleMesh) {
@@ -767,6 +818,55 @@ void StoneEngine::postProcessGodRays()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::renderPlanarReflection()
+{
+	if (showTriangleMesh) return;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, tmpFBO.fbo);
+	glViewport(0, 0, windowWidth, windowHeight);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	const float waterY = OCEAN_HEIGHT + 2.0f;
+
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+
+	glm::mat4 viewRotMirror(1.0f);
+	viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRotMirror = glm::rotate(viewRotMirror,  radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+
+	glm::vec3 camW   = camera.getWorldPosition();
+	glm::vec3 camMir = glm::vec3(camW.x, 2.0f * waterY - camW.y, camW.z);
+
+	glm::mat4 viewFullMirror = viewRotMirror;
+	viewFullMirror = glm::translate(viewFullMirror, glm::vec3(-camMir.x, -camMir.y, -camMir.z));
+
+	// Plane in world space: 0*x + 1*y + 0*z - waterY = 0
+	glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
+	glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
+
+	glUseProgram(shaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, glm::value_ptr(viewRotMirror));
+	glUniform3fv     (glGetUniformLocation(shaderProgram, "cameraPos"),    1, glm::value_ptr(camMir));
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
+	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
+
+	GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+	if (cullWasEnabled) glDisable(GL_CULL_FACE);
+
+	glm::mat4 prevView = this->viewMatrix;
+	_world.setViewProj(viewFullMirror, projOblique);   // <- use oblique for culling too
+	_world.updateDrawData();
+	_world.displaySolid();
+	_world.setViewProj(prevView, projectionMatrix);
+
+	if (cullWasEnabled) glEnable(GL_CULL_FACE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void StoneEngine::prepareRenderPipeline() {

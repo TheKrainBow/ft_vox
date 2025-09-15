@@ -79,10 +79,15 @@ uniform sampler2D normalMap;
 uniform vec3  viewPos;
 uniform float time;
 uniform mat4  view;         // rotation-only (unchanged)
-uniform mat4  viewOpaque;   // NEW: full camera matrix used for opaque pass
+uniform mat4  viewOpaque;
 uniform mat4  projection;
 uniform int   isUnderwater;
 uniform float waterHeight;
+
+// SSR offscreen fallback
+uniform sampler2D planarTexture;
+uniform mat4  planarView;
+uniform mat4  planarProjection;
 
 out vec4 FragColor;
 
@@ -167,6 +172,36 @@ float distanceAlpha(vec3 cam, vec3 frag) {
 	return mix(ALPHA_NEAR_VALUE, ALPHA_FAR_VALUE, t);
 }
 
+vec3 samplePlanar(vec3 refPointWS, out bool outOfBounds) {
+	vec4 c = planarProjection * planarView * vec4(refPointWS, 1.0);
+	if (c.w <= 0.0) { outOfBounds = true; return SKY_COLOR; }
+	vec2 uv = toUV(c, outOfBounds);
+	return outOfBounds ? SKY_COLOR : texture(planarTexture, uv).rgb;
+}
+
+// tiny hash for dithering the seam (breaks the straight line)
+float hash12(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// Planar sample that also returns UV so we can blur only near seam
+vec3 samplePlanarUV(vec3 refPointWS, out vec2 uv, out bool outOfBounds) {
+	vec4 c = planarProjection * planarView * vec4(refPointWS, 1.0);
+	if (c.w <= 0.0) { outOfBounds = true; uv = vec2(0.5); return SKY_COLOR; }
+	uv = toUV(c, outOfBounds);
+	return outOfBounds ? SKY_COLOR : texture(planarTexture, uv).rgb;
+}
+
+vec3 samplePlanarBlur(vec2 uv) {               // very small 5-tap blur
+	vec2 texel = 1.0 / vec2(textureSize(planarTexture, 0));
+	vec3 c  = texture(planarTexture, uv).rgb;
+			c += texture(planarTexture, uv + vec2( texel.x, 0.0)).rgb;
+			c += texture(planarTexture, uv + vec2(-texel.x, 0.0)).rgb;
+			c += texture(planarTexture, uv + vec2(0.0,  texel.y)).rgb;
+			c += texture(planarTexture, uv + vec2(0.0, -texel.y)).rgb;
+	return c * 0.2;
+}
+
 // ============================================================================
 // Main
 // ============================================================================
@@ -196,9 +231,42 @@ void main() {
 		reflectedBase = sampleReflection(uv);
 	}
 	else { // REFLECTION_SOURCE == 2
-		bool outOfBounds = (clip.w <= 0.0);
-		vec2 uv = outOfBounds ? vec2(0.5) : toUV(clip, outOfBounds);
-		reflectedBase = outOfBounds ? SKY_COLOR : sampleReflection(uv);
+		// SSR ray
+		bool oobSSR = (clip.w <= 0.0);
+		vec2 uvSSR  = oobSSR ? vec2(0.5) : toUV(clip, oobSSR);
+		vec3 ssrCol = oobSSR ? vec3(0.0) : sampleReflection(uvSSR);
+
+		// Planar from the *reflected point*
+		bool oobPlanar = false;
+		vec2 uvPlanar;
+		vec3 planarCol = samplePlanarUV(reflectedPoint, uvPlanar, oobPlanar);
+		vec3 planarOrSky = oobPlanar ? SKY_COLOR : planarCol;
+
+		// --- Wider, adaptive feather right at the screen edge ---
+		float edgeMin = oobSSR ? 0.0
+							: min(min(uvSSR.x, uvSSR.y), min(1.0 - uvSSR.x, 1.0 - uvSSR.y));
+
+		// Stronger feather (wider window) that increases when looking down
+		float tilt = clamp(-viewDir.y, 0.0, 1.0);          // 0 (level) → 1 (down)
+		float s0   = mix(0.010, 0.030, tilt);              // start of blend
+		float s1   = mix(0.060, 0.140, tilt);              // end of blend
+		float seamBase = oobSSR ? 1.0 : (1.0 - smoothstep(s0, s1, edgeMin));
+
+		// If SSR/planar disagree a lot, widen the blend a bit
+		float lumSSR = dot(ssrCol, vec3(0.299, 0.587, 0.114));
+		float lumPla = dot(planarOrSky, vec3(0.299, 0.587, 0.114));
+		float diff   = clamp(abs(lumSSR - lumPla) * 3.0, 0.0, 1.0);
+		float seam   = clamp(seamBase * mix(0.7, 1.0, diff), 0.0, 1.0);
+
+		// Tiny stochastic dither so the boundary isn’t a perfect line
+		seam += (hash12(gl_FragCoord.xy) - 0.5) * 0.06 * seam;
+		seam = clamp(seam, 0.0, 1.0);
+
+		// Soften planar only where we actually blend
+		vec3 planarSoft = (seam > 0.0 && !oobPlanar) ? samplePlanarBlur(uvPlanar) : planarOrSky;
+
+		// Final choice: SSR inside, planar at/outside edge
+		reflectedBase = mix(ssrCol, planarSoft, seam);
 	}
 
 	vec3 reflection = mix(reflectedBase, BLUE_TINT, REFLECTION_BLUE_MIX);

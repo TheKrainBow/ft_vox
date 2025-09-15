@@ -159,7 +159,6 @@ bool World::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value) {
 		return false;
 	}
 
-	// NEW: defer edits while chunk is building its subchunks
 	if (chunk->isBuilding()) {
 		std::lock_guard<std::mutex> lk(_pendingMutex);
 		_pendingEdits[chunkPos].push_back({worldPos, value});

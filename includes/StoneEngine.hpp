@@ -156,8 +156,7 @@ class StoneEngine {
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
-		void activateFboShader();
-		void triangleMeshToggle();
+		void renderPlanarReflection();
 		ivec2 getChunkPos(vec2 camPosXZ);
 		bool canMove(const glm::vec3& offset, float extra);
 		void updatePlayerStates();
