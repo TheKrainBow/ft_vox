@@ -34,7 +34,7 @@
 # define EPS 0.02f
 
 # define KHR_DEBUG false
-# define CAVES false
+# define CAVES true
 
 # define RESOLUTION 1
 
