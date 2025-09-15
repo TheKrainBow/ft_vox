@@ -4,70 +4,69 @@
 // TWEAKABLES CONSTANTS
 // ============================================================================
 // Waves (matches simple sin/cos surface)
-const float WAVE_FREQ			= 0.001;
-const float WAVE_AMP			= 0.03;
-const float WAVE_SPEED			= 0.01;
+const float WAVE_FREQ            = 0.001;
+const float WAVE_AMP             = 0.03;
+const float WAVE_SPEED           = 0.01;
 
 // Normal-map ripples
-const float RIPPLE_UV_SCALE			= 0.05;
-const float RIPPLE_SCROLL_X			= 0.0002;
-const float RIPPLE_SCROLL_Y			= 0.00015;
-const float RIPPLE_STRENGTH			= 0.05;   // 0..1, blend toward up-vector to soften
-const float NORMAL_Z_ATTENUATION	= 0.10;   // <1 flattens screen-space Z wobble
+const float RIPPLE_UV_SCALE         = 0.05;
+const float RIPPLE_SCROLL_X         = 0.0002;
+const float RIPPLE_SCROLL_Y         = 0.00015;
+const float RIPPLE_STRENGTH         = 0.05;   // 0..1, blend toward up-vector to soften
+const float NORMAL_Z_ATTENUATION    = 0.10;   // <1 flattens screen-space Z wobble
 
 // Second ripple layer to reduce tiling/repetition
-const float RIPPLE2_UV_SCALE	= 0.020;   // larger ripples
-const float RIPPLE2_SCROLL_X	= -0.00012;
-const float RIPPLE2_SCROLL_Y	=  0.00009;
-const float RIPPLE_LERP			= 0.50;	// 0..1 blend of layer1→layer2
-
+const float RIPPLE2_UV_SCALE    = 0.020;   // larger ripples
+const float RIPPLE2_SCROLL_X    = -0.00012;
+const float RIPPLE2_SCROLL_Y    =  0.00009;
+const float RIPPLE_LERP         = 0.50;   // 0..1 blend of layer1→layer2
 
 // Reflection + colors
-const float REFLECT_DISTANCE	= 5000.0;
-const vec3  SKY_COLOR			= vec3(0.53, 0.81, 0.92);
-const vec3  BLUE_TINT			= vec3(0.10, 0.20, 0.50);
-const vec3  WATER_BASE			= vec3(0.07, 0.14, 0.55);
-const vec3  UNDERWATER_COLOR	= vec3(0.00, 0.10, 0.30);
+const float REFLECT_DISTANCE    = 5000.0;
+const vec3  SKY_COLOR           = vec3(0.53, 0.81, 0.92);
+const vec3  BLUE_TINT           = vec3(0.10, 0.20, 0.50);
+const vec3  WATER_BASE          = vec3(0.07, 0.14, 0.55);
+const vec3  UNDERWATER_COLOR    = vec3(0.00, 0.10, 0.30);
 
 // Distance → color gradient (near = turquoise, far = deep blue)
-const vec3  NEAR_TURQUOISE	= vec3(0.07, 0.24, 0.28);
-const vec3  FAR_DEEP_BLUE	= vec3(0.02, 0.07, 0.18);
-const float TINT_NEAR_DIST	= 5.0;	// start of fade (meters)
-const float TINT_FAR_DIST	= 50.0;	// end of fade (meters)
+const vec3  NEAR_TURQUOISE      = vec3(0.07, 0.24, 0.28);
+const vec3  FAR_DEEP_BLUE       = vec3(0.02, 0.07, 0.18);
+const float TINT_NEAR_DIST      = 5.0;   // start of fade (meters)
+const float TINT_FAR_DIST       = 50.0;  // end of fade (meters)
 
 // Height fade (weakens reflection as camera rises above the surface)
-const float HEIGHT_FADE_RANGE	= 25.0;
-const float HEIGHT_FADE_MAX		= 0.80;
+const float HEIGHT_FADE_RANGE   = 25.0;
+const float HEIGHT_FADE_MAX     = 0.80;
 
 // Small brightness lift from normal B channel (micro-variation)
-const float NORMAL_OFFSET_SCALE  = 0.20;
+const float NORMAL_OFFSET_SCALE = 0.20;
 
 // Fresnel / overall reflection strength
-const float FRESNEL_F0				= 0.02; // ~2% for water
-const float REFLECTION_STRENGTH_CAP	= 0.65; // clamp max reflection contribution
-const float REFLECTION_BLUE_MIX		= 0.10; // bias reflection slightly toward blue
+const float FRESNEL_F0              = 0.02; // ~2% for water
+const float REFLECTION_STRENGTH_CAP = 0.65; // clamp max reflection contribution
+const float REFLECTION_BLUE_MIX     = 0.10; // bias reflection slightly toward blue
 
 // Optional tweaks
-const bool  USE_FRAGMENT_Y_WAVE	= false; // add per-fragment Y wave (keep false if vertex animates)
-const bool  USE_REFLECTION_BLUR	= false; // small 4-tap blur to soften mirror look
-const float BLUR_UV_OFFSET		= 0.001;
+const bool  USE_FRAGMENT_Y_WAVE = false; // add per-fragment Y wave (keep false if vertex animates)
+const bool  USE_REFLECTION_BLUR = false; // small 4-tap blur to soften mirror look
+const float BLUR_UV_OFFSET      = 0.001;
 
 // Choose reflection source:
 // 0 = sample screenTexture normally
 // 1 = ALWAYS use SKY_COLOR  <-- default
 // 2 = screenTexture but fall back to SKY_COLOR when OOB/behind camera
-const int   REFLECTION_SOURCE	= 2;
+const int   REFLECTION_SOURCE   = 2;
 
 // Optional tonemapping for reflection (kept OFF to avoid gray look)
-const bool  USE_REFLECTION_TONE	= false;
-const float REFLECTION_GAMMA	= 1.60;   // used only if USE_REFLECTION_TONE = true
-const float REFLECTION_SCALE	= 0.65;   // used only if USE_REFLECTION_TONE = true
+const bool  USE_REFLECTION_TONE = false;
+const float REFLECTION_GAMMA    = 1.60;   // used only if USE_REFLECTION_TONE = true
+const float REFLECTION_SCALE    = 0.65;   // used only if USE_REFLECTION_TONE = true
 
 // Final alpha
-const float ALPHA_NEAR_VALUE	= 0.80;
-const float ALPHA_FAR_VALUE		= 0.90;
-const float ALPHA_NEAR_DIST		= 5.0;
-const float ALPHA_FAR_DIST		= 50.0;
+const float ALPHA_NEAR_VALUE    = 0.80;
+const float ALPHA_FAR_VALUE     = 0.90;
+const float ALPHA_NEAR_DIST     = 5.0;
+const float ALPHA_FAR_DIST      = 50.0;
 
 // ============================================================================
 // REQUIRED UNIFORMS
@@ -79,13 +78,13 @@ uniform sampler2D normalMap;
 
 uniform vec3  viewPos;
 uniform float time;
-uniform mat4  view;
+uniform mat4  view;         // rotation-only (unchanged)
+uniform mat4  viewOpaque;   // NEW: full camera matrix used for opaque pass
 uniform mat4  projection;
 uniform int   isUnderwater;
 uniform float waterHeight;
 
 out vec4 FragColor;
-
 
 // ============================================================================
 // Helpers
@@ -107,10 +106,7 @@ float computeHeightFade(vec3 cam, vec3 frag) {
 	return clamp(base, 0.0, HEIGHT_FADE_MAX);
 }
 
-struct NormalInfo {
-	vec3  normal;
-	float offset;
-};
+struct NormalInfo { vec3 normal; float offset; };
 
 NormalInfo computeWaterNormal(vec3 fragPos) {
 	vec2 uv1 = fragPos.xz * RIPPLE_UV_SCALE
@@ -159,7 +155,6 @@ vec3 toneReflection(vec3 color) {
 	return toned;
 }
 
-// Camera distance based methods for color and opacity
 vec3 distanceTint(vec3 cam, vec3 frag) {
 	float d = length(cam - frag);
 	float t = smoothstep(TINT_NEAR_DIST, TINT_FAR_DIST, d); // 0 near → 1 far
@@ -185,45 +180,39 @@ void main() {
 	NormalInfo nfo = computeWaterNormal(waveFragPos);
 	float heightFade = computeHeightFade(viewPos, waveFragPos);
 
-	// Reflection ray/project
-	vec3 reflectedDir	= reflect(viewDir, nfo.normal);
-	vec3 reflectedPoint	= waveFragPos + reflectedDir * REFLECT_DISTANCE;
-	vec4 clip			= projection * view * vec4(reflectedPoint, 1.0);
+	// Reflection ray/project (ONLY CHANGE: use viewOpaque here)
+	vec3 reflectedDir   = reflect(viewDir, nfo.normal);
+	vec3 reflectedPoint = waveFragPos + reflectedDir * REFLECT_DISTANCE;
+	vec4 clip           = projection * viewOpaque * vec4(reflectedPoint, 1.0);
 
 	// Determine base reflection color per selected source
 	vec3 reflectedBase;
 	if (REFLECTION_SOURCE == 1) {
-		// Always the nice sky color
 		reflectedBase = SKY_COLOR;
 	}
 	else if (REFLECTION_SOURCE == 0) {
-		// Always sample screen texture
 		bool dummyOOB = false;
 		vec2 uv = (clip.w <= 0.0) ? vec2(0.5) : toUV(clip, dummyOOB);
 		reflectedBase = sampleReflection(uv);
 	}
 	else { // REFLECTION_SOURCE == 2
-		// Sample screen; fall back to sky when OOB/behind camera
 		bool outOfBounds = (clip.w <= 0.0);
 		vec2 uv = outOfBounds ? vec2(0.5) : toUV(clip, outOfBounds);
 		reflectedBase = outOfBounds ? SKY_COLOR : sampleReflection(uv);
 	}
 
-	// Gentle blue bias and optional tone (tone OFF by default to avoid gray)
 	vec3 reflection = mix(reflectedBase, BLUE_TINT, REFLECTION_BLUE_MIX);
 	reflection = toneReflection(reflection);
 
-	// Fresnel with low F0 (limits straight-on reflectance)
-	float cosTheta	= max(dot(-viewDir, nfo.normal), 0.0);
-	float fres		= fresnelSchlick(cosTheta, FRESNEL_F0);
+	float cosTheta = max(dot(-viewDir, nfo.normal), 0.0);
+	float fres     = fresnelSchlick(cosTheta, FRESNEL_F0);
 
-	float baseStrength	= clamp(fres * heightFade, 0.0, 1.0);
-	float reflMix		= baseStrength * REFLECTION_STRENGTH_CAP;
+	float baseStrength = clamp(fres * heightFade, 0.0, 1.0);
+	float reflMix      = baseStrength * REFLECTION_STRENGTH_CAP;
 
 	vec3 finalColor;
 	if (isUnderwater == 1)
 	{
-		// Underwater: no reflections; use same distance-based tinting as outside
 		vec3 baseTintUW = distanceTint(viewPos, waveFragPos);
 		finalColor = baseTintUW;
 		finalColor += nfo.offset;
@@ -238,10 +227,9 @@ void main() {
 
 	float alpha = distanceAlpha(viewPos, waveFragPos);
 	if (isUnderwater == 1) {
-		// Underwater: reduce opacity so above-surface scene remains visible
 		float depthUnder = clamp((waterHeight - viewPos.y) / 30.0, 0.0, 1.0);
-		float cosTheta = max(dot(-viewDir, nfo.normal), 0.0);
-		float viewFactor = 1.0 - cosTheta;
+		float cosThetaUW = max(dot(-viewDir, nfo.normal), 0.0);
+		float viewFactor = 1.0 - cosThetaUW;
 		float alphaUW = mix(0.25, 0.60, depthUnder);
 		alphaUW *= mix(0.60, 1.00, viewFactor);
 		alphaUW = clamp(alphaUW, 0.15, 0.70);

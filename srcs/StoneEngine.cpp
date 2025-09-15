@@ -479,6 +479,7 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+
 	// Pass camera world position explicitly for camera-relative rendering
 	vec3 camWorld = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
@@ -520,6 +521,7 @@ void StoneEngine::activateTransparentShader()
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "viewOpaque"), 1, GL_FALSE, value_ptr(viewFull));
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "cameraPos"),    1, value_ptr(viewPos));
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
