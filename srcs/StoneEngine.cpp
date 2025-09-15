@@ -14,9 +14,10 @@ bool isTransparent(char block)
 	return block == AIR || block == WATER || block == LOG;
 }
 
-bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
+// Display logs only if sides
+bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
-	return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && neighborBlock != LOG);
+	return ((isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && (dir <= EAST)));
 }
 
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
@@ -599,8 +600,8 @@ void StoneEngine::display() {
 	resolveMsaaToFbo();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
-	postProcessGreedyFix();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGreedyFix();
+	// screenshotFBOBuffer(writeFBO, readFBO);
 
 	// Delay greedy-fix until after transparent pass so it applies to the final scene
 	displaySun();

@@ -66,7 +66,7 @@ typedef char BlockType;
 bool isWSL();
 GLuint compileShader(const char* filePath, GLenum shaderType);
 GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath);
-bool faceDisplayCondition(char blockToDisplay, char neighborBlock);
+bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir);
 GLuint compileComputeShader(const char* src);
 
 struct ivec2_hash {

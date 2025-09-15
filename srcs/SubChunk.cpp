@@ -450,7 +450,7 @@ void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType textur
 		else
 			block = underChunk->getBlock({position.x, CHUNK_SIZE - _resolution, position.z});
 	}
-	if (faceDisplayCondition(current, block))
+	if (faceDisplayCondition(current, block, DOWN))
 		addFace(position, DOWN, texture, isTransparent);
 }
 
@@ -468,7 +468,7 @@ void SubChunk::addUpFace(BlockType current, ivec3 position, TextureType texture,
 			block = AIR;
 
 	}
-	if (faceDisplayCondition(current, block))
+	if (faceDisplayCondition(current, block, UP))
 		addFace(position, UP, texture, isTransparent);
 }
 
@@ -717,7 +717,7 @@ std::vector<int> &SubChunk::getTransparentVertices()
 
 bool SubChunk::isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution) {
 	if (viewerResolution == _resolution)
-		return (faceDisplayCondition(viewerBlock, getBlock(position)));
+		return (faceDisplayCondition(viewerBlock, getBlock(position), dir));
 	if (viewerResolution < _resolution)
 		return (IS_SOLID);
 	position /= _resolution;
@@ -726,7 +726,7 @@ bool SubChunk::isNeighborTransparent(ivec3 position, Direction dir, char viewerB
 	for (int x = 0; x < res2; x += _resolution) {
 		for (int y = 0; y < res2; y += _resolution) {
 			for (int z = 0; z < res2; z += _resolution) {
-				if (faceDisplayCondition(viewerBlock, getBlock(ivec3(position.x + x, position.y + y, position.z + z))))
+				if (faceDisplayCondition(viewerBlock, getBlock(ivec3(position.x + x, position.y + y, position.z + z)), dir))
 					return IS_TRANSPARENT;
 				if (dir == NORTH || dir == SOUTH)
 					break ;
