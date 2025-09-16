@@ -15,6 +15,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <limits>
 
 class Chunk;
 
@@ -199,6 +200,14 @@ public:
 
 	// Explicit GL teardown (call before destroying the GL context)
 	void shutdownGL();
+
+	bool raycastHit(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance,
+		glm::ivec3& outBlock);
+	bool raycastDeleteOne(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance = 5.0f);
 private:
 	// Chunk loading
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
@@ -208,7 +217,7 @@ private:
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadLeftChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void unloadChunk();
-	void initBigSSBO(GLsizeiptr bytes);
+	void scheduleDisplayUpdate();
 
 	// Runtime info
 	bool hasMoved(ivec2 &oldPos);

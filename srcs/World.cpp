@@ -816,3 +816,111 @@ void World::runGpuCulling(bool transparent)
 	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 	glUseProgram(prevProg ? (GLuint)prevProg : 0);
 }
+
+static inline bool isSolidDeletable(BlockType b) {
+	return (b != AIR && b != WATER && b != BEDROCK);
+}
+
+bool World::raycastHit(const glm::vec3& originWorld,
+						const glm::vec3& dirWorld,
+						float maxDistance,
+						glm::ivec3& outBlock)
+{
+	if (maxDistance <= 0.0f) return false;
+
+	glm::vec3 dir = dirWorld;
+	float dlen = glm::length(dir);
+	if (dlen < 1e-8f) return false;
+	dir /= dlen;
+
+	glm::vec3 ro = originWorld + dir * 0.001f; // nudge
+	glm::ivec3 voxel(
+		(int)std::floor(ro.x),
+		(int)std::floor(ro.y),
+		(int)std::floor(ro.z)
+	);
+
+	glm::ivec3 step(
+		(dir.x > 0.f) ? 1 : (dir.x < 0.f) ? -1 : 0,
+		(dir.y > 0.f) ? 1 : (dir.y < 0.f) ? -1 : 0,
+		(dir.z > 0.f) ? 1 : (dir.z < 0.f) ? -1 : 0
+	);
+
+	const float INF = std::numeric_limits<float>::infinity();
+	glm::vec3 tDelta(
+		(step.x != 0) ? 1.0f / std::abs(dir.x) : INF,
+		(step.y != 0) ? 1.0f / std::abs(dir.y) : INF,
+		(step.z != 0) ? 1.0f / std::abs(dir.z) : INF
+	);
+
+	auto firstBoundaryT = [&](float r, int v, int s, float d) -> float {
+		if (s > 0) return ((float(v) + 1.0f) - r) / d;
+		if (s < 0) return (r - float(v)) / -d;
+		return INF;
+	};
+	glm::vec3 tMaxV(
+		firstBoundaryT(ro.x, voxel.x, step.x, dir.x),
+		firstBoundaryT(ro.y, voxel.y, step.y, dir.y),
+		firstBoundaryT(ro.z, voxel.z, step.z, dir.z)
+	);
+
+	float t = 0.0f;
+	const int MAX_STEPS = 512;
+
+	for (int i = 0; i < MAX_STEPS; ++i) {
+		// step to next voxel
+		if (tMaxV.x < tMaxV.y) {
+			if (tMaxV.x < tMaxV.z)	{ voxel.x += step.x; t = tMaxV.x; tMaxV.x += tDelta.x; }
+			else					{ voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		} else {
+			if (tMaxV.y < tMaxV.z)	{ voxel.y += step.y; t = tMaxV.y; tMaxV.y += tDelta.y; }
+			else					{ voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		}
+		if (t > maxDistance) return false;
+
+		ivec2 chunkPos(
+			(int)std::floor((float)voxel.x / (float)CHUNK_SIZE),
+			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
+		);
+		BlockType b = getBlock(chunkPos, voxel);
+		if (isSolidDeletable(b)) {
+			outBlock = voxel;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool World::raycastDeleteOne(const glm::vec3& originWorld,
+	const glm::vec3& dirWorld,
+	float maxDistance)
+{
+	glm::ivec3 hit;
+	if (!raycastHit(originWorld, dirWorld, maxDistance, hit))
+	return false;
+
+	ivec2 chunkPos(
+	(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
+	(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
+	);
+
+	// Try immediate write; queue if chunk not ready
+	bool wroteNow = setBlockOrQueue(chunkPos, hit, AIR);
+
+	if (wroteNow) {
+	// Rebuild ONLY this chunk’s mesh right away
+	if (Chunk* c = getChunk(chunkPos)) {
+	c->sendFacesToDisplay();
+	}
+	// Then schedule the global staging rebuild OFF the main thread
+	scheduleDisplayUpdate();
+	}
+	return true;
+}
+
+void World::scheduleDisplayUpdate()
+{
+	// If a build is already running or queued, do nothing; updateFillData itself fixes it
+	if (_buildingDisplay) return;
+	_threadPool.enqueue(&World::updateFillData, this);
+}

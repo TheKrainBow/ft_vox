@@ -26,6 +26,7 @@ class StoneEngine {
 			GREEDYFIX = 0,
 			FOG = 1,
 			GODRAYS = 2,
+			CROSSHAIR = 3,
 		} ShaderType;
 	private:
 		// Display
@@ -113,6 +114,8 @@ class StoneEngine {
 		int	_biome;
 		double _humidity;
 		double _temperature;
+		GLuint _wireVAO = 0, _wireVBO = 0;
+		GLuint _wireProgram = 0;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -123,12 +126,16 @@ class StoneEngine {
 		void mouseAction(double x, double y);
 		void reshapeAction(int width, int height);
 		void scrollAction(double yoffset);
+		void mouseButtonAction(int button, int action, int mods);
+		void postProcessCrosshair();
+		
 
 		// Event hook callbacks
 		static void reshape(GLFWwindow* window, int width, int height); 
 		static void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
 		static void mouseCallback(GLFWwindow* window, double x, double y);
 		static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+		static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 
 		// Init methods
 		void	initData();
@@ -142,6 +149,8 @@ class StoneEngine {
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
+		void   initWireframeResources();
+		void   renderAimHighlight();
 
 		// Runtime methods
 		void calculateFps();

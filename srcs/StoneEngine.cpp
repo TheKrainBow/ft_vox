@@ -277,12 +277,45 @@ void initSunQuad(GLuint &vao, GLuint &vbo)
 	glBindVertexArray(0);
 }
 
+void StoneEngine::initWireframeResources()
+{
+	_wireProgram = createShaderProgram("shaders/postProcess/outline.vert", "shaders/postProcess/outline.frag");
+	// 12 edges * 2 endpoints = 24 vertices (unit cube corners)
+	const GLfloat lines[] = {
+		// bottom rectangle (y=0)
+		0,0,0,  1,0,0,
+		1,0,0,  1,0,1,
+		1,0,1,  0,0,1,
+		0,0,1,  0,0,0,
+		// top rectangle (y=1)
+		0,1,0,  1,1,0,
+		1,1,0,  1,1,1,
+		1,1,1,  0,1,1,
+		0,1,1,  0,1,0,
+		// vertical pillars
+		0,0,0,  0,1,0,
+		1,0,0,  1,1,0,
+		1,0,1,  1,1,1,
+		0,0,1,  0,1,1,
+	};
+
+	glGenVertexArrays(1, &_wireVAO);
+	glGenBuffers(1, &_wireVBO);
+	glBindVertexArray(_wireVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, _wireVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(lines), lines, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	glBindVertexArray(0);
+}
+
 void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/render/terrain.vert", "shaders/render/terrain.frag");
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
 	initSunQuad(sunVAO, sunVBO);
+	initWireframeResources();
 }
 
 void StoneEngine::displaySun()
@@ -424,6 +457,11 @@ void StoneEngine::initFboShaders()
 	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
 	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
 	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/lightshafts.frag");
+	createPostProcessShader(
+		postProcessShaders[CROSSHAIR],
+		"shaders/postProcess/postProcess.vert",
+		"shaders/postProcess/crosshair.frag"
+	);
 }
 
 void StoneEngine::initDebugTextBox()
@@ -664,6 +702,7 @@ void StoneEngine::display() {
 	if (!showTriangleMesh) {
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		renderTransparentObjects();
+		renderAimHighlight();
 		resolveMsaaToFbo();
 	}
 	else
@@ -686,9 +725,77 @@ void StoneEngine::display() {
 	postProcessGodRays();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
+	if (showDebugInfo)
+	{
+		postProcessCrosshair();
+		screenshotFBOBuffer(writeFBO, readFBO);
+	}
+
 	sendPostProcessFBOToDispay();
 	renderOverlayAndUI();
 	finalizeFrame();
+}
+
+void StoneEngine::renderAimHighlight()
+{
+	if (showTriangleMesh) return;
+
+	// Raycast
+	glm::ivec3 hit;
+	if (!_world.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
+		return;
+
+	// Setup state
+	glUseProgram(_wireProgram);
+	glBindVertexArray(_wireVAO);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glLineWidth(2.0f);
+
+	// Same transforms as terrain: projection + rotation-only view
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "view"),       1, GL_FALSE, glm::value_ptr(viewRot));
+	glm::vec3 camW = camera.getWorldPosition();
+	glUniform3fv(glGetUniformLocation(_wireProgram, "cameraPos"), 1, glm::value_ptr(camW));
+	glUniform3fv(glGetUniformLocation(_wireProgram, "worldOffset"), 1, glm::value_ptr(glm::vec3(hit)));
+	glUniform3f(glGetUniformLocation(_wireProgram, "color"), 0.06f, 0.06f, 0.06f);
+	glUniform1f(glGetUniformLocation(_wireProgram, "expand"),    0.003f);   // ~3 mm at 1m/unit
+	glUniform1f(glGetUniformLocation(_wireProgram, "depthBias"), 0.0008f);  // tiny, but effective
+	
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	// Test against scene depth but don't write (so we don't disturb later passes)
+	glDepthMask(GL_FALSE);
+	
+	glBindVertexArray(_wireVAO);
+	glLineWidth(2.0f);
+	glDrawArrays(GL_LINES, 0, 24);
+	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::postProcessCrosshair()
+{
+	if (showTriangleMesh) return;
+
+	PostProcessShader& shader = postProcessShaders[CROSSHAIR];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 void StoneEngine::postProcessFog()
@@ -1381,6 +1488,28 @@ void StoneEngine::resetFrameBuffers()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 }
 
+void StoneEngine::mouseButtonAction(int button, int action, int mods)
+{
+	(void)mods;
+	// Only when mouse is captured (so clicks aren't for UI) — match your toggle
+	if (!mouseCaptureToggle) return;
+
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection(); // already normalized by Camera
+
+		// Delete the first solid block within 5 blocks of reach
+		_world.raycastDeleteOne(origin, dir, 5.0f);
+	}
+}
+
+void StoneEngine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+	StoneEngine* engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+	if (engine) engine->mouseButtonAction(button, action, mods);
+}
 
 void StoneEngine::reshapeAction(int width, int height)
 {
@@ -1514,6 +1643,7 @@ int StoneEngine::initGLFW()
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
 	glfwSetScrollCallback(_window, scrollCallback);
+	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
 	glfwMakeContextCurrent(_window);
 	glfwSwapInterval(0);
 	if (!isWSL())
