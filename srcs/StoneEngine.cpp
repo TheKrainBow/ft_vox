@@ -144,9 +144,15 @@ void StoneEngine::initData()
 	jumping				= JUMPING;
 	isUnderWater		= UNDERWATER;
 	ascending		= ASCENDING;
-	_jumpCooldown		= std::chrono::steady_clock::now();
 	selectedBlock		= AIR;
 	selectedBlockDebug	= air;
+	placing				= KEY_INIT;
+	
+	// Cooldowns
+	now						= std::chrono::steady_clock::now();
+	_jumpCooldown			= now;
+	_placeCooldown			= now;
+	_swimUpCooldownOnRise	= now;
 	
 	// Gets the max MSAA (anti aliasing) samples
 	_maxSamples = 0;
@@ -1537,12 +1543,26 @@ void StoneEngine::update()
 		BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
 		isUnderWater = (camHeadBlock == WATER);
 	}
-
-	// Update player position and orientation
+	// Update player data
+	updatePlacing();
 	updatePlayerDirection();
 	updateMovement();
 	updateBiomeData();
 	display();
+}
+
+void StoneEngine::updatePlacing()
+{
+	if (placing && now > _placeCooldown)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+
+		// Place block 5 block range
+		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		_placeCooldown = now + std::chrono::milliseconds(150);
+	}
 }
 
 void StoneEngine::resetFrameBuffers()
@@ -1591,9 +1611,15 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 origin = camera.getWorldPosition();
 		glm::vec3 dir    = camera.getDirection();
 
-		// Delete the first solid block within 5 blocks of reach
+		// Place block 5 bloock range
 		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		placing = true;
+
+		// Start cooldown immediately to avoid a second place on the same frame
+		_placeCooldown = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
 	}
+	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE && selectedBlock != AIR)
+		placing = false;
 	else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
 	{
 		// Ray origin and direction in WORLD space

@@ -110,6 +110,7 @@ class StoneEngine {
 		std::atomic_int timeValue;
 		std::chrono::steady_clock::time_point _jumpCooldown;
 		std::chrono::steady_clock::time_point _swimUpCooldownOnRise;
+		std::chrono::steady_clock::time_point _placeCooldown;
 		std::chrono::steady_clock::time_point now;
 		TopBlock camTopBlock;
 		movedir playerDir;
@@ -123,6 +124,7 @@ class StoneEngine {
 		// Selected block for placement
 		BlockType	selectedBlock;
 		block_types	selectedBlockDebug;
+		bool placing;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -203,7 +205,7 @@ class StoneEngine {
 		void update();
 		void updateMovement();
 		void updateGameTick();
-
+		void updatePlacing();
 		void updateChunkWorker();
 
 		bool getIsRunning();
