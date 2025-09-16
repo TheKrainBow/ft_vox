@@ -551,6 +551,82 @@ void StoneEngine::activateRenderShader()
 	glFrontFace(GL_CCW);
 }
 
+void StoneEngine::renderChunkGrid()
+{
+	if (_gridMode == GRID_OFF || showTriangleMesh) return;
+
+	// Snapshot chunk list
+	std::vector<glm::ivec2> chunks;
+	_world.getDisplayedChunksSnapshot(chunks);
+	if (chunks.empty()) return;
+
+	// Common state and matrices
+	glUseProgram(_wireProgram);
+	glBindVertexArray(_wireVAO);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glDepthMask(GL_FALSE);          // test, don’t write
+	glLineWidth(1.0f);
+
+	// rotation-only view (same as terrain)
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1,0,0));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0,-1,0));
+
+	glm::vec3 camW = camera.getWorldPosition();
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "view"),       1, GL_FALSE, glm::value_ptr(viewRot));
+	glUniform3fv      (glGetUniformLocation(_wireProgram, "cameraPos"),  1, glm::value_ptr(camW));
+	glUniform1f       (glGetUniformLocation(_wireProgram, "expand"),     0.003f);
+	glUniform1f       (glGetUniformLocation(_wireProgram, "depthBias"),  0.0008f);
+
+	const float CS = float(CHUNK_SIZE);
+
+	// Vertical window around camera, in subchunks
+	float camY = camW.y;
+	int camSY  = int(std::floor(camY / CS));
+	const int below = 2;            // draw 2 subchunks below camera
+	const int above = 5;            // and 5 above (tweak as you like)
+	int sy0 = camSY - below;
+	int sy1 = camSY + above;
+
+	// Colors
+	GLint uColor = glGetUniformLocation(_wireProgram, "color");
+	GLint uScale = glGetUniformLocation(_wireProgram, "scale");
+	GLint uOff   = glGetUniformLocation(_wireProgram, "worldOffset");
+
+	for (const auto& cpos : chunks)
+	{
+		glm::vec3 base = glm::vec3(cpos.x * CS, 0.0f, cpos.y * CS);
+
+		if (_gridMode == GRID_CHUNKS || _gridMode == GRID_BOTH)
+		{
+			float y0    = sy0 * CS;
+			float spanY = float((sy1 - sy0 + 1)) * CS; // cover the vertical window with one tall box
+			glUniform3f(uColor, 0.05f, 0.45f, 0.85f);  // chunk color (soft cyan)
+			glUniform3f(uScale, CS, spanY, CS);
+			glUniform3f(uOff,   base.x, y0, base.z);
+			glDrawArrays(GL_LINES, 0, 24);
+		}
+
+		if (_gridMode == GRID_SUBCHUNKS || _gridMode == GRID_BOTH)
+		{
+			glUniform3f(uColor, 0.90f, 0.35f, 0.70f);  // subchunk color (magenta-ish)
+			glUniform3f(uScale, CS, CS, CS);
+			for (int sy = sy0; sy <= sy1; ++sy) {
+				float y = sy * CS;
+				glUniform3f(uOff, base.x, y, base.z);
+				glDrawArrays(GL_LINES, 0, 24);
+			}
+		}
+	}
+
+	glDepthMask(GL_TRUE);
+	glBindVertexArray(0);
+}
+
 void StoneEngine::activateTransparentShader()
 {
 	mat4 modelMatrix = mat4(1.0f);
@@ -703,6 +779,7 @@ void StoneEngine::display() {
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		renderTransparentObjects();
 		renderAimHighlight();
+		renderChunkGrid();
 		resolveMsaaToFbo();
 	}
 	else
@@ -767,6 +844,8 @@ void StoneEngine::renderAimHighlight()
 	glUniform3f(glGetUniformLocation(_wireProgram, "color"), 0.06f, 0.06f, 0.06f);
 	glUniform1f(glGetUniformLocation(_wireProgram, "expand"),    0.003f);   // ~3 mm at 1m/unit
 	glUniform1f(glGetUniformLocation(_wireProgram, "depthBias"), 0.0008f);  // tiny, but effective
+	glUniform3f(glGetUniformLocation(_wireProgram, "scale"), 1.f, 1.f, 1.f);
+
 	
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -1550,6 +1629,9 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 	if (action == GLFW_PRESS) keyStates[key] = true;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F6) {
+		_gridMode = static_cast<GridDebugMode>((int(_gridMode) + 1) % 4);
+	}
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
 }
 

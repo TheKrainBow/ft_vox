@@ -197,6 +197,7 @@ public:
 	bool setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value);
 	void setViewProj(const glm::mat4& view, const glm::mat4& proj);
 	void markChunkDirty(const ivec2& pos);
+	void getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
 
 	// Explicit GL teardown (call before destroying the GL context)
 	void shutdownGL();

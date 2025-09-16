@@ -924,3 +924,10 @@ void World::scheduleDisplayUpdate()
 	if (_buildingDisplay) return;
 	_threadPool.enqueue(&World::updateFillData, this);
 }
+
+void World::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
+	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+	out.clear();
+	out.reserve(_displayedChunks.size());
+	for (const auto& kv : _displayedChunks) out.push_back(kv.first);
+}

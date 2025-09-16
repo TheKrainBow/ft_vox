@@ -10,6 +10,8 @@
 
 class StoneEngine {
 	public:
+
+	enum GridDebugMode { GRID_OFF=0, GRID_CHUNKS=1, GRID_SUBCHUNKS=2, GRID_BOTH=3 };
 	typedef struct s_PostProcessShader {
 		GLuint vao;
 		GLuint vbo;
@@ -76,6 +78,7 @@ class StoneEngine {
 		bool jumping;
 		bool isUnderWater;
 		bool ascending;
+		GridDebugMode _gridMode = GRID_OFF;
 
 		// Player speed
 		float moveSpeed;
@@ -176,6 +179,7 @@ class StoneEngine {
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
 		void updateBiomeData();
+		void renderChunkGrid();
 	
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
