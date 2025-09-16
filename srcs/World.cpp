@@ -890,7 +890,6 @@ bool World::raycastHit(const glm::vec3& originWorld,
 	}
 	return false;
 }
-
 bool World::raycastDeleteOne(const glm::vec3& originWorld,
 	const glm::vec3& dirWorld,
 	float maxDistance)
@@ -899,28 +898,46 @@ bool World::raycastDeleteOne(const glm::vec3& originWorld,
 	if (!raycastHit(originWorld, dirWorld, maxDistance, hit))
 	return false;
 
+	// Chunk that owns the hit voxel
 	ivec2 chunkPos(
 	(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
 	(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
 	);
 
-	// Try immediate write; queue if chunk not ready
+	// Try to apply immediately (falls back to queue if chunk not ready)
 	bool wroteNow = setBlockOrQueue(chunkPos, hit, AIR);
 
 	if (wroteNow) {
-	// Rebuild ONLY this chunk’s mesh right away
+	// 1) Rebuild current chunk mesh
 	if (Chunk* c = getChunk(chunkPos)) {
 	c->sendFacesToDisplay();
 	}
-	// Then schedule the global staging rebuild OFF the main thread
-	scheduleDisplayUpdate();
+
+	// 2) If at border, rebuild neighbor meshes that share the broken face
+	const int lx = (hit.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+	const int lz = (hit.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+
+	ivec2 neighbors[4];
+	int n = 0;
+	if (lx == 0)               neighbors[n++] = { chunkPos.x - 1, chunkPos.y };
+	if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { chunkPos.x + 1, chunkPos.y };
+	if (lz == 0)               neighbors[n++] = { chunkPos.x,     chunkPos.y - 1 };
+	if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { chunkPos.x,     chunkPos.y + 1 };
+
+	for (int i = 0; i < n; ++i) {
+	if (Chunk* nc = getChunk(neighbors[i])) {
+	nc->sendFacesToDisplay();
+	}
+	}
+
+	// 3) Stage a fresh display snapshot off-thread (coalesced)
+	scheduleDisplayUpdate();   // as added earlier
 	}
 	return true;
 }
 
-void World::scheduleDisplayUpdate()
-{
-	// If a build is already running or queued, do nothing; updateFillData itself fixes it
+
+void World::scheduleDisplayUpdate() {
 	if (_buildingDisplay) return;
 	_threadPool.enqueue(&World::updateFillData, this);
 }
