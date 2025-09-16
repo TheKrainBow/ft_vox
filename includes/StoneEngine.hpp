@@ -119,6 +119,10 @@ class StoneEngine {
 		double _temperature;
 		GLuint _wireVAO = 0, _wireVBO = 0;
 		GLuint _wireProgram = 0;
+
+		// Selected block for placement
+		BlockType	selectedBlock;
+		block_types	selectedBlockDebug;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();

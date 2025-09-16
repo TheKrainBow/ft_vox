@@ -135,6 +135,9 @@ void Textbox::render() {
 			case SIZE_T:
 			text = line.label + printMemory(*((size_t *)(line.value)));
 				break;
+			case BLOCK:
+			text = line.label + blockTab[*(int *)(line.value)].name;
+				break;
 		}
 		float startX = positionX + 5;
 		for (const char& ch : text) {

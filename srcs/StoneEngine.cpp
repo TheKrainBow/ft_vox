@@ -145,6 +145,8 @@ void StoneEngine::initData()
 	isUnderWater		= UNDERWATER;
 	ascending		= ASCENDING;
 	_jumpCooldown		= std::chrono::steady_clock::now();
+	selectedBlock		= AIR;
+	selectedBlockDebug	= air;
 	
 	// Gets the max MSAA (anti aliasing) samples
 	_maxSamples = 0;
@@ -488,6 +490,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("Biome: ", Textbox::BIOME, &_biome);
 	debugBox.addLine("Temperature: ", Textbox::DOUBLE, &_temperature);
 	debugBox.addLine("Humidity: ", Textbox::DOUBLE, &_humidity);
+	debugBox.addLine("Selected block: ", Textbox::BLOCK, &selectedBlockDebug);
 
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
@@ -1570,17 +1573,52 @@ void StoneEngine::resetFrameBuffers()
 void StoneEngine::mouseButtonAction(int button, int action, int mods)
 {
 	(void)mods;
-	// Only when mouse is captured (so clicks aren't for UI) — match your toggle
+	// Only when mouse is captured (so clicks aren't for UI)
 	if (!mouseCaptureToggle) return;
 
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
 	{
 		// Ray origin and direction in WORLD space
 		glm::vec3 origin = camera.getWorldPosition();
-		glm::vec3 dir    = camera.getDirection(); // already normalized by Camera
+		glm::vec3 dir    = camera.getDirection();
 
 		// Delete the first solid block within 5 blocks of reach
 		_world.raycastDeleteOne(origin, dir, 5.0f);
+	}
+	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+
+		// Delete the first solid block within 5 blocks of reach
+		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+	}
+	else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+		glm::ivec3 hit;
+		BlockType blockFound;
+
+		blockFound = _world.raycastHitFetch(origin, dir, 5.0f, hit);
+
+		// Guard from selecting any type of blocks
+		if (blockFound != BEDROCK && blockFound != AIR)
+		{
+			selectedBlock = blockFound;
+
+			// For debug textbox
+			for (size_t i = 0; i < NB_BLOCKS; i++)
+			{
+				if (blockDebugTab[i].correspondance == blockFound)
+				{
+					selectedBlockDebug = blockDebugTab[i].block;
+					return ;
+				}
+			}
+		}
 	}
 }
 
