@@ -1601,6 +1601,13 @@ void StoneEngine::reshapeAction(int width, int height)
 	float y = mapExpo(_fov, 1.0f, 90.0f, 10.0f, 0.1f);
 	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, 9600.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+
+	// Update post-process shaders with new texel size so screen-space effects (e.g., crosshair)
+	// remain correctly centered after a resize.
+	for (auto &entry : postProcessShaders)
+	{
+	    updateFboWindowSize(entry.second);
+	}
 }
 
 void StoneEngine::reshape(GLFWwindow* window, int width, int height)
