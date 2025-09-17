@@ -182,7 +182,10 @@ void World::applyPendingFor(const ivec2& pos) {
 
 	for (const auto& e : edits) setBlock(pos, e.worldPos, e.value);
 
-	if (auto c = getChunk(pos)) c->sendFacesToDisplay();
+	if (auto c = getChunk(pos)) {
+		c->setAsModified();
+		c->sendFacesToDisplay();
+	}
 	updateFillData();
 }
 
@@ -193,71 +196,73 @@ void World::markChunkDirty(const ivec2& pos) {
 
 void World::unloadChunk()
 {
-	//TODO Save or do not unload modified chunks (delete block)
-	//(Add a isModified boolean in Chunk or SubChunk class)
+	// Skip if cache not exceeded
 	_chunksListMutex.lock();
 	size_t chunksNb = _chunkList.size();
 	_chunksListMutex.unlock();
 
 	if (chunksNb <= CACHE_SIZE)
-		return ;
+		return;
 
-	// Get player position in chunk coordinates (true floor division)
+	// Player position in chunk coordinates (true floor division)
 	vec3 playerPos = _camera.getWorldPosition();
-	int playerChunkX = static_cast<int>(std::floor(playerPos.x / static_cast<float>(CHUNK_SIZE)));
-	int playerChunkZ = static_cast<int>(std::floor(playerPos.z / static_cast<float>(CHUNK_SIZE)));
+	const int playerChunkX = static_cast<int>(std::floor(playerPos.x / static_cast<float>(CHUNK_SIZE)));
+	const int playerChunkZ = static_cast<int>(std::floor(playerPos.z / static_cast<float>(CHUNK_SIZE)));
 
-	// Find the farthest chunk
+	// Snapshot displayed chunks and pending-edits chunks to avoid lock juggling
+	std::unordered_set<ivec2, ivec2_hash> displayed;
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		for (const auto& kv : _displayedChunks) displayed.insert(kv.first);
+	}
+	std::unordered_set<ivec2, ivec2_hash> pending;
+	{
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		for (const auto& kv : _pendingEdits) pending.insert(kv.first);
+	}
+
+	// Find the farthest deletable chunk (not displayed, not pending, not building, not modified)
 	_chunksListMutex.lock();
-	auto farthestChunkIt = _chunkList.end();
-	float maxDistance = -1.0f;
+	auto bestIt = _chunkList.end();
+	long long bestD2 = -1;
 	for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it)
 	{
 		Chunk* chunk = *it;
-		int chunkX = chunk->getPosition().x;
-		int chunkZ = chunk->getPosition().y;
-		float distance = sqrt(pow(chunkX - playerChunkX, 2) + pow(chunkZ - playerChunkZ, 2));
-		if (distance > maxDistance)
-		{
-			maxDistance = distance;
-			farthestChunkIt = it;
-		}
+		if (!chunk) continue;
+		ivec2 pos = chunk->getPosition();
+
+		if (displayed.count(pos) > 0) continue;
+		if (pending.count(pos)  > 0) continue;
+		if (chunk->isBuilding() || chunk->getModified()) continue;
+
+		long long dx = (long long)pos.x - (long long)playerChunkX;
+		long long dz = (long long)pos.y - (long long)playerChunkZ;
+		long long d2 = dx*dx + dz*dz;
+		if (d2 > bestD2) { bestD2 = d2; bestIt = it; }
 	}
 
-	if (farthestChunkIt != _chunkList.end())
-	{
-		Chunk* chunkToRemove = *farthestChunkIt;
-		// Remove from _chunkList
-		_chunkList.erase(farthestChunkIt);
+	if (bestIt == _chunkList.end()) {
 		_chunksListMutex.unlock();
-		
-		ivec2 pos = chunkToRemove->getPosition();
-		
-		// Check if chunk is being displayed
-		_displayedChunksMutex.lock();
-		bool isDisplayed = false;
-		auto endDisplay = _displayedChunks.end();
-		auto displayIt = _displayedChunks.find(pos);
-		isDisplayed = endDisplay != displayIt;
-		_displayedChunksMutex.unlock();
-		if (isDisplayed)
-			return ;
-
-		// Remove from _chunks
-		_chunksMutex.lock();
-		_chunks.erase(pos);
-		_chunksMutex.unlock();
-
-		// Clean up memory
-		_perlinGenerator.removePerlinMap(pos.x, pos.y);
-		chunkToRemove->unloadNeighbors();
-		chunkToRemove->freeSubChunks();
-		delete chunkToRemove;
+		return; // nothing unloadable right now
 	}
-	else
-	{
-		_chunksListMutex.unlock();
-	}
+
+	Chunk* chunkToRemove = *bestIt;
+	ivec2 pos = chunkToRemove->getPosition();
+	_chunkList.erase(bestIt);
+	_chunksListMutex.unlock();
+
+	// Remove from _chunks
+	_chunksMutex.lock();
+	_chunks.erase(pos);
+	_chunksMutex.unlock();
+
+	// Clean up memory
+	if (_memorySize >= chunkToRemove->getMemorySize())
+		_memorySize -= chunkToRemove->getMemorySize();
+	_perlinGenerator.removePerlinMap(pos.x, pos.y);
+	chunkToRemove->unloadNeighbors();
+	chunkToRemove->freeSubChunks();
+	delete chunkToRemove;
 }
 
 Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
@@ -491,38 +496,41 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 		snapshot.reserve(_displayedChunks.size());
 		for (auto &kv : _displayedChunks) snapshot.push_back(kv.second);
 	}
+	// Pre-reserve to minimize reallocations during build
+	size_t totalSolidVerts = 0, totalTransVerts = 0;
+	size_t totalSolidCmds  = 0, totalTransCmds  = 0;
+	size_t totalSSBO       = 0;
+	for (const auto& c : snapshot) {
+		totalSolidVerts += c->getVertices().size();
+		totalTransVerts += c->getTransparentVertices().size();
+		totalSolidCmds  += c->getIndirectData().size();
+		totalTransCmds  += c->getTransparentIndirectData().size();
+		totalSSBO       += c->getSSBO().size();
+	}
+	fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
+	fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
+	fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBO);
+	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
+	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
 
 	for (const auto& c : snapshot) {
 		auto& ssbo = c->getSSBO();
 
 		// SOLID
-		uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
-
 		auto& solidVerts = c->getVertices();
 		size_t vSizeBefore = fillData->vertexData.size();
 		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
 
 		auto& ib = c->getIndirectData();
 		size_t solidCount = ib.size();
-		size_t ssboLimit  = std::min(ssbo.size(), solidCount);
 		for (size_t i = 0; i < solidCount; ++i) {
 			auto cmd = ib[i];
 			cmd.baseInstance += (uint32_t)vSizeBefore;
 			fillData->indirectBufferData.push_back(cmd);
-
-			size_t idx = std::min(i, ssboLimit ? ssboLimit - 1 : (size_t)0);
-			glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
-			fillData->cmdAABBsSolid.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
 		}
-
 		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
-		fillData->chunkCmdRanges[c->getPosition()] = {
-			startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
-		};
 
 		// TRANSPARENT
-		uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
-
 		auto& transpVerts = c->getTransparentVertices();
 		size_t tvBefore = transparentFillData->vertexData.size();
 		transparentFillData->vertexData.insert(
@@ -531,20 +539,11 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 
 		auto& tib = c->getTransparentIndirectData();
 		size_t transpCount = tib.size();
-		size_t ssboLimitT  = std::min(ssbo.size(), transpCount);
 		for (size_t i = 0; i < transpCount; ++i) {
 			auto cmd = tib[i];
 			cmd.baseInstance += (uint32_t)tvBefore;
 			transparentFillData->indirectBufferData.push_back(cmd);
-
-			size_t idx = std::min(i, ssboLimitT ? ssboLimitT - 1 : (size_t)0);
-			glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
-			transparentFillData->cmdAABBsTransp.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
 		}
-
-		transparentFillData->chunkCmdRanges[c->getPosition()] = {
-			startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
-		};
 	}
 }
 
@@ -587,16 +586,18 @@ void World::updateDrawData()
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
 	if (_drawData) {
-		if (_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
+		if (!_drawData->indirectBufferData.empty() &&
+			_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
 			std::cout << "[CULL] Mismatch solid: ssbo=" << _drawData->ssboData.size()
-					<< " cmds=" << _drawData->indirectBufferData.size() << std::endl;
+						<< " cmds=" << _drawData->indirectBufferData.size() << std::endl;
 		}
 	}
 	// Transparent sanity (uses the same SSBO)
 	if (_transparentDrawData) {
-		if (_drawData && _drawData->ssboData.size() != _transparentDrawData->indirectBufferData.size()) {
+		if (_drawData && !_transparentDrawData->indirectBufferData.empty() &&
+			_drawData->ssboData.size() != _transparentDrawData->indirectBufferData.size()) {
 			std::cout << "[CULL] Mismatch transp: ssbo=" << _drawData->ssboData.size()
-					<< " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
+						<< " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
 		}
 	}
 }
@@ -619,10 +620,25 @@ int World::displaySolid()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
+	// Prefer cached triangles count if CPU buffers were discarded
 	long long tris = 0;
-	for (const auto& c : _drawData->indirectBufferData) {
-		long long per = (c.count >= 3) ? (c.count - 2) : 0;
-		tris += (long long)c.instanceCount * per;
+	if (!_drawData->indirectBufferData.empty()) {
+		for (const auto& c : _drawData->indirectBufferData) {
+			long long per = (c.count >= 3) ? (c.count - 2) : 0;
+			tris += (long long)c.instanceCount * per;
+		}
+		_lastSolidTris = tris;
+	} else {
+		tris = _lastSolidTris;
+	}
+
+	// After solid upload/draw, CPU-side solid draw data is no longer needed
+	// Keep ssboData for the transparent pass upload
+	if (!_needUpdate) {
+		_drawData->vertexData.clear();
+		_drawData->indirectBufferData.clear();
+		std::vector<int>().swap(_drawData->vertexData);
+		std::vector<DrawArraysIndirectCommand>().swap(_drawData->indirectBufferData);
 	}
 	return (int)tris;
 }
@@ -645,6 +661,18 @@ int World::displayTransparent()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
+	// After transparent upload/draw, CPU-side transparent draw data is no longer needed
+	if (!_needTransparentUpdate) {
+		_transparentDrawData->vertexData.clear();
+		_transparentDrawData->indirectBufferData.clear();
+		std::vector<int>().swap(_transparentDrawData->vertexData);
+		std::vector<DrawArraysIndirectCommand>().swap(_transparentDrawData->indirectBufferData);
+		// We can also drop ssboData now as both passes have uploaded positions
+		if (_drawData) {
+			_drawData->ssboData.clear();
+			std::vector<vec4>().swap(_drawData->ssboData);
+		}
+	}
 	return (int)_transpDrawCount;
 }
 
@@ -722,6 +750,13 @@ void World::pushVerticesToOpenGL(bool transparent)
 			_drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
 		_solidDrawCount = (GLsizei)nCmd;
+		// Compute triangles count once while CPU data is present
+		long long tris = 0;
+		for (const auto& c : _drawData->indirectBufferData) {
+			long long per = (c.count >= 3) ? (c.count - 2) : 0;
+			tris += (long long)c.instanceCount * per;
+		}
+		_lastSolidTris = tris;
 		_needUpdate = false;
 	}
 }
@@ -982,7 +1017,10 @@ bool World::raycastDeleteOne(const glm::vec3& originWorld,
 	{
 		// 1) Rebuild current chunk mesh
 		if (Chunk* c = getChunk(chunkPos))
+		{
+			c->setAsModified();
 			c->sendFacesToDisplay();
+		}
 
 		// 2) If at border, rebuild neighbor meshes that share the broken face
 		const int lx = (hit.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
@@ -1107,7 +1145,10 @@ bool World::raycastPlaceOne(const glm::vec3& originWorld,
 			if (wroteNow) {
 				// Rebuild current chunk mesh
 				if (Chunk* c = getChunk(placeChunk))
+				{
+					c->setAsModified();
 					c->sendFacesToDisplay();
+				}
 
 				// If at border, also rebuild neighbors that share faces
 				const int lx = (prev.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;

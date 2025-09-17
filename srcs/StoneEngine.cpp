@@ -1673,7 +1673,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	// remain correctly centered after a resize.
 	for (auto &entry : postProcessShaders)
 	{
-	    updateFboWindowSize(entry.second);
+		updateFboWindowSize(entry.second);
 	}
 }
 

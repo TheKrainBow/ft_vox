@@ -32,18 +32,10 @@ struct ChunkElement {
 	int displayPos;
 };
 
-struct CmdRange { uint32_t start; uint32_t count; };
-struct AABB { vec3 mn, mx; };
-
 struct DisplayData {
 	std::vector<vec4>                       ssboData;
 	std::vector<int>                        vertexData;
 	std::vector<DrawArraysIndirectCommand>  indirectBufferData;
-
-	std::unordered_map<ivec2, CmdRange, ivec2_hash> chunkCmdRanges;
-
-	std::vector<AABB> cmdAABBsSolid;
-	std::vector<AABB> cmdAABBsTransp;
 };
 
 struct FrustumPlane { glm::vec3 n; float d; };
@@ -148,6 +140,9 @@ private:
 	GLsizei									_transpDrawCount = 0;
 	GLint									_locNumDraws = -1;
 	GLint									_locChunkSize = -1;
+
+	// Debug/metrics (avoid re-reading CPU buffers after upload)
+	long long								_lastSolidTris = 0;
 
 	// Buffer capacities to minimize reallocations (amortize uploads)
 	GLsizeiptr								_capTemplSolidCmd  = 0;

@@ -12,7 +12,8 @@ _perlinMap(perlinMap),
 _caveGen(caveGen),
 _resolution(resolution),
 _pool(pool),
-_isBuilding(false)
+_isBuilding(false),
+_isModified(false)
 {
 }
 
@@ -423,3 +424,7 @@ void Chunk::snapshotDisplayData(
 }
 
 bool Chunk::isBuilding() const { return _isBuilding.load(); }
+
+// If a block was destroyed/placed mark this chunk dirty
+void Chunk::setAsModified() { _isModified = true; };
+bool Chunk::getModified() const { return _isModified.load(); }
