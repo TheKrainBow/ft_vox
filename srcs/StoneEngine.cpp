@@ -832,6 +832,26 @@ void StoneEngine::renderAimHighlight()
 	if (!_world.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
 		return;
 
+	// Determine block type at hit to adapt highlight bbox (logs are visually inset)
+	glm::ivec2 hitChunkPos(
+		(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
+		(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
+	);
+	BlockType hitBlock = _world.getBlock(hitChunkPos, hit);
+
+	// Default: full block
+	glm::vec3 bboxOffset = glm::vec3(hit);
+	glm::vec3 bboxScale  = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	// Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
+	if (hitBlock == LOG) {
+		const float inset = 0.10f;
+		bboxOffset.x += inset;
+		bboxOffset.z += inset;
+		bboxScale.x = 1.0f - 2.0f * inset;
+		bboxScale.z = 1.0f - 2.0f * inset;
+	}
+
 	// Setup state
 	glUseProgram(_wireProgram);
 	glBindVertexArray(_wireVAO);
@@ -850,18 +870,18 @@ void StoneEngine::renderAimHighlight()
 	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "view"),       1, GL_FALSE, glm::value_ptr(viewRot));
 	glm::vec3 camW = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(_wireProgram, "cameraPos"), 1, glm::value_ptr(camW));
-	glUniform3fv(glGetUniformLocation(_wireProgram, "worldOffset"), 1, glm::value_ptr(glm::vec3(hit)));
+	glUniform3fv(glGetUniformLocation(_wireProgram, "worldOffset"), 1, glm::value_ptr(bboxOffset));
 	glUniform3f(glGetUniformLocation(_wireProgram, "color"), 0.06f, 0.06f, 0.06f);
 	glUniform1f(glGetUniformLocation(_wireProgram, "expand"),    0.003f);   // ~3 mm at 1m/unit
 	glUniform1f(glGetUniformLocation(_wireProgram, "depthBias"), 0.0008f);  // tiny, but effective
-	glUniform3f(glGetUniformLocation(_wireProgram, "scale"), 1.f, 1.f, 1.f);
+	glUniform3f(glGetUniformLocation(_wireProgram, "scale"), bboxScale.x, bboxScale.y, bboxScale.z);
 
-	
+
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	// Test against scene depth but don't write (so we don't disturb later passes)
 	glDepthMask(GL_FALSE);
-	
+
 	glBindVertexArray(_wireVAO);
 	glLineWidth(2.0f);
 	glDrawArrays(GL_LINES, 0, 24);
