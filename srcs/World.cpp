@@ -410,11 +410,13 @@ void World::loadFirstChunks(ivec2 &chunkPos) {
 
 bool World::hasMoved(ivec2 &oldPos)
 {
+	// Debounce movement: only signal a cancel if we moved more than 1 chunk
+	// away from the load center. This avoids restarting rings too aggressively
+	// when sprinting or moving quickly.
 	ivec2 camChunk = _camera.getChunkPosition(CHUNK_SIZE);
-
-	if (((floor(oldPos.x) != floor(camChunk.x) || floor(oldPos.y) != floor(camChunk.y))))
-		return true;
-	return false;
+	int dx = std::abs((int)std::floor(oldPos.x) - (int)std::floor(camChunk.x));
+	int dz = std::abs((int)std::floor(oldPos.y) - (int)std::floor(camChunk.y));
+	return (std::max(dx, dz) > 1);
 }
 
 int *World::getCurrentRenderPtr() { return &_currentRender; }
