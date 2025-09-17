@@ -1117,7 +1117,7 @@ bool World::raycastPlaceOne(const glm::vec3& originWorld,
 			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
 		);
 		BlockType b = getBlock(chunkPos, voxel);
-		if (isSolidDeletable(b)) {
+		if (b == BEDROCK || isSolidDeletable(b)) {
 			// Place into the previous (empty) voxel we were in before entering the hit voxel
 			ivec2 placeChunk(
 				(int)std::floor((float)prev.x / (float)CHUNK_SIZE),
