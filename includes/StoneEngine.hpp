@@ -78,6 +78,7 @@ class StoneEngine {
 		bool jumping;
 		bool isUnderWater;
 		bool ascending;
+		bool sprinting;
 		GridDebugMode _gridMode = GRID_OFF;
 
 		// Player speed

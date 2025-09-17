@@ -12,6 +12,7 @@
 # define JUMPING false
 # define UNDERWATER false
 # define ASCENDING false
+# define SPRINTING false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 

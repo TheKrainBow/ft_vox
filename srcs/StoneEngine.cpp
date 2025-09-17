@@ -144,6 +144,7 @@ void StoneEngine::initData()
 	jumping				= JUMPING;
 	isUnderWater		= UNDERWATER;
 	ascending		= ASCENDING;
+	sprinting		= SPRINTING;
 	selectedBlock		= AIR;
 	selectedBlockDebug	= air;
 	placing				= KEY_INIT;
@@ -1168,7 +1169,9 @@ void StoneEngine::findMoveRotationSpeed()
 
 
 	// Apply delta to rotation and movespeed
-	if (keyStates[GLFW_KEY_LEFT_CONTROL])
+	if (!gravity && keyStates[GLFW_KEY_LEFT_CONTROL])
+		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
+	else if (gravity && sprinting)
 		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
@@ -1703,6 +1706,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_F6) {
 		_gridMode = static_cast<GridDebugMode>((int(_gridMode) + 1) % 4);
 	}
+	if (action == GLFW_PRESS && key == GLFW_KEY_LEFT_CONTROL) sprinting = !sprinting;
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
 }
 
