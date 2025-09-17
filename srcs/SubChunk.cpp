@@ -408,10 +408,14 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 		ly /= _resolution;
 		lz /= _resolution;
 
-		if (lx >= 0 && ly >= 0 && lz >= 0 &&
-			lx < _chunkSize && ly < _chunkSize && lz < _chunkSize)
+		// Write guarded to avoid races with LOD changes
 		{
-			_blocks[lx + (lz * _chunkSize) + (ly * _chunkSize * _chunkSize)] = block;
+			std::lock_guard<std::mutex> lk(_dataMutex);
+			if (lx >= 0 && ly >= 0 && lz >= 0 &&
+				lx < _chunkSize && ly < _chunkSize && lz < _chunkSize)
+			{
+				_blocks[lx + (lz * _chunkSize) + (ly * _chunkSize * _chunkSize)] = block;
+			}
 		}
 		return;
 	}
@@ -424,16 +428,31 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 
 char SubChunk::getBlock(ivec3 position)
 {
+	// Guard concurrent mutations of _blocks / _chunkSize
+	std::lock_guard<std::mutex> lk(_dataMutex);
+
+	if (_chunkSize <= 0 || !_blocks)
+		return AIR;
+
 	int x = position.x;
 	int y = position.y;
 	int z = position.z;
 
+	// Convert to local cell coordinates at this subchunk's resolution
 	x /= _resolution;
 	y /= _resolution;
 	z /= _resolution;
-	if (x >= _chunkSize || y >= _chunkSize || z >= _chunkSize || x < 0 || y < 0 || z < 0)
-		return 0;
-	return _blocks[x + (z * _chunkSize) + (y * _chunkSize * _chunkSize)];
+	if (x < 0 || y < 0 || z < 0 || x >= _chunkSize || y >= _chunkSize || z >= _chunkSize)
+		return AIR;
+
+	const size_t plane = static_cast<size_t>(_chunkSize) * static_cast<size_t>(_chunkSize);
+	const size_t idx = static_cast<size_t>(x)
+		+ static_cast<size_t>(z) * static_cast<size_t>(_chunkSize)
+		+ static_cast<size_t>(y) * plane;
+	const size_t maxSize = plane * static_cast<size_t>(_chunkSize);
+	if (idx >= maxSize)
+		return AIR;
+	return _blocks[idx];
 }
 
 void SubChunk::addDownFace(BlockType current, ivec3 position, TextureType texture, bool isTransparent)
@@ -584,13 +603,25 @@ void SubChunk::clearFaces() {
 
 void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 {
+	// Prevent readers during rebuild
+	markLoaded(false);
+
 	int prevResolution = _resolution;
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
 
-	_chunkSize = CHUNK_SIZE / resolution;
-	size_t size = _chunkSize * _chunkSize * _chunkSize;
-	_blocks = std::make_unique<uint8_t[]>(size);
+	// Publish a fresh buffer sized for the new LOD
+	{
+		_chunkSize = CHUNK_SIZE / resolution;
+		size_t size = _chunkSize * _chunkSize * _chunkSize;
+		std::unique_ptr<uint8_t[]> fresh(new uint8_t[size]()); // zero-initialize
+		{
+			std::lock_guard<std::mutex> lk(_dataMutex);
+			_blocks.swap(fresh);
+		}
+	}
+
+	// Rebuild content at the new resolution
 	loadHeight(prevResolution);
 	loadBiome(prevResolution);
 }
