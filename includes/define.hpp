@@ -18,7 +18,7 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 31
+# define RENDER_DISTANCE 200
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -29,6 +29,11 @@
 # define MOVEMENT_SPEED 0.5f
 # define FALL_INCREMENT 9.8f / 40.0f
 # define FALL_INCREMENT_WATER 9.8f / 1000.0f
+
+// --- Simulation helpers (convert old per-tick gravity to per-second) ---
+#define TICK_RATE 20.0f
+#define GRAVITY_PER_SEC (FALL_INCREMENT * TICK_RATE)
+#define FALL_DAMP_PER_TICK 0.98f
 
 # define PLAYER_HEIGHT 1.8f
 # define EYE_HEIGHT 1.62f

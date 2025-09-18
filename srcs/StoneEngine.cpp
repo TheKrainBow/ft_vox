@@ -66,8 +66,8 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _t
 
 StoneEngine::~StoneEngine()
 {
-    // Ensure World GL resources are freed before destroying the context
-    _world.shutdownGL();
+	// Ensure World GL resources are freed before destroying the context
+	_world.shutdownGL();
 
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
@@ -82,15 +82,15 @@ StoneEngine::~StoneEngine()
 	}
 	postProcessShaders.clear();
 
-    // Delete sun resources and water normal map
-    if (sunVAO) glDeleteVertexArrays(1, &sunVAO);
-    if (sunVBO) glDeleteBuffers(1, &sunVBO);
-    if (waterNormalMap) glDeleteTextures(1, &waterNormalMap);
+	// Delete sun resources and water normal map
+	if (sunVAO) glDeleteVertexArrays(1, &sunVAO);
+	if (sunVBO) glDeleteBuffers(1, &sunVBO);
+	if (waterNormalMap) glDeleteTextures(1, &waterNormalMap);
 
-    // Delete wireframe/highlight resources
-    if (_wireVAO) glDeleteVertexArrays(1, &_wireVAO);
-    if (_wireVBO) glDeleteBuffers(1, &_wireVBO);
-    if (_wireProgram) glDeleteProgram(_wireProgram);
+	// Delete wireframe/highlight resources
+	if (_wireVAO) glDeleteVertexArrays(1, &_wireVAO);
+	if (_wireVBO) glDeleteBuffers(1, &_wireVBO);
+	if (_wireProgram) glDeleteProgram(_wireProgram);
 
 	// Delete tmp and MSAA framebuffers/renderbuffers
 	if (tmpFBO.fbo) glDeleteFramebuffers(1, &tmpFBO.fbo);
@@ -1251,6 +1251,15 @@ void StoneEngine::updateFalling(vec3 &worldPos, int &blockHeight)
 		fallSpeed = 0.0f;
 		camera.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
 	}
+	if (gravity && !swimming && falling)
+	{
+		fallSpeed -= GRAVITY_PER_SEC * deltaTime;
+
+		float decay = std::pow(FALL_DAMP_PER_TICK, TICK_RATE * deltaTime);
+		fallSpeed *= decay;
+	}
+
+	// Integrate vertical position
 	camera.move({0.0f, -(fallSpeed * deltaTime), 0.0f});
 }
 
@@ -1465,16 +1474,8 @@ void StoneEngine::updateGameTick()
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
 		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 58500);
 	}
-	// Update gravity and falling values (legacy integration)
-	if (!swimming)
-	{
-		if (gravity && falling)
-		{
-			fallSpeed -= FALL_INCREMENT;
-			fallSpeed *= 0.98f;
-		}
-	}
-	else
+	// Water tweaks stay here (land gravity moved to updateFalling())
+   	if (swimming)
 	{
 		if (gravity && falling)
 		{
@@ -1556,12 +1557,17 @@ void StoneEngine::update()
 	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	start = end; // Reset start time for next frame
 
-	// Check if it's time to update the game tick (20 times per second)
-	static auto lastGameTick = std::chrono::steady_clock::now();
-	if (std::chrono::duration_cast<std::chrono::milliseconds>(end - lastGameTick).count() >= (1000 / 20))
-	{
+	// Fixed 20 Hz world tick (day/night, water nudges), independent of FPS
+	static auto tickPrev = std::chrono::steady_clock::now();
+	static double tickAcc = 0.0;
+	const double tickStep = 1.0 / 20.0;
+	tickAcc += std::chrono::duration<double>(end - tickPrev).count();
+	tickPrev = end;
+	int safety = 0;
+	while (tickAcc >= tickStep && safety < 8) {
 		updateGameTick();
-		lastGameTick = end; // Reset game tick timer
+		tickAcc -= tickStep;
+		++safety;
 	}
 
 	// Update player states
