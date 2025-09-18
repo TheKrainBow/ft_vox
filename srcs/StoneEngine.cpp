@@ -1564,7 +1564,7 @@ void StoneEngine::update()
 	tickAcc += std::chrono::duration<double>(end - tickPrev).count();
 	tickPrev = end;
 	int safety = 0;
-	while (tickAcc >= tickStep && safety < 8) {
+	while (tickAcc >= tickStep && safety < 20) {
 		updateGameTick();
 		tickAcc -= tickStep;
 		++safety;
