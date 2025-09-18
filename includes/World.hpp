@@ -15,6 +15,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <limits>
 
 class Chunk;
 
@@ -31,18 +32,10 @@ struct ChunkElement {
 	int displayPos;
 };
 
-struct CmdRange { uint32_t start; uint32_t count; };
-struct AABB { vec3 mn, mx; };
-
 struct DisplayData {
 	std::vector<vec4>                       ssboData;
 	std::vector<int>                        vertexData;
 	std::vector<DrawArraysIndirectCommand>  indirectBufferData;
-
-	std::unordered_map<ivec2, CmdRange, ivec2_hash> chunkCmdRanges;
-
-	std::vector<AABB> cmdAABBsSolid;
-	std::vector<AABB> cmdAABBsTransp;
 };
 
 struct FrustumPlane { glm::vec3 n; float d; };
@@ -148,6 +141,9 @@ private:
 	GLint									_locNumDraws = -1;
 	GLint									_locChunkSize = -1;
 
+	// Debug/metrics (avoid re-reading CPU buffers after upload)
+	long long								_lastSolidTris = 0;
+
 	// Buffer capacities to minimize reallocations (amortize uploads)
 	GLsizeiptr								_capTemplSolidCmd  = 0;
 	GLsizeiptr								_capOutSolidCmd    = 0;
@@ -196,9 +192,26 @@ public:
 	bool setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value);
 	void setViewProj(const glm::mat4& view, const glm::mat4& proj);
 	void markChunkDirty(const ivec2& pos);
+	void getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
 
 	// Explicit GL teardown (call before destroying the GL context)
 	void shutdownGL();
+
+	bool raycastHit(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance,
+		glm::ivec3& outBlock);
+	BlockType raycastHitFetch(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance,
+		glm::ivec3& outBlock);
+	bool raycastDeleteOne(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance = 5.0f);
+	bool raycastPlaceOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block);
 private:
 	// Chunk loading
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
@@ -208,7 +221,7 @@ private:
 	void loadBotChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void loadLeftChunks(int render, ivec2 &camPosition, int resolution = 1);
 	void unloadChunk();
-	void initBigSSBO(GLsizeiptr bytes);
+	void scheduleDisplayUpdate();
 
 	// Runtime info
 	bool hasMoved(ivec2 &oldPos);

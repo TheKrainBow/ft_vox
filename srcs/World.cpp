@@ -159,7 +159,6 @@ bool World::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value) {
 		return false;
 	}
 
-	// NEW: defer edits while chunk is building its subchunks
 	if (chunk->isBuilding()) {
 		std::lock_guard<std::mutex> lk(_pendingMutex);
 		_pendingEdits[chunkPos].push_back({worldPos, value});
@@ -183,7 +182,10 @@ void World::applyPendingFor(const ivec2& pos) {
 
 	for (const auto& e : edits) setBlock(pos, e.worldPos, e.value);
 
-	if (auto c = getChunk(pos)) c->sendFacesToDisplay();
+	if (auto c = getChunk(pos)) {
+		c->setAsModified();
+		c->sendFacesToDisplay();
+	}
 	updateFillData();
 }
 
@@ -194,71 +196,73 @@ void World::markChunkDirty(const ivec2& pos) {
 
 void World::unloadChunk()
 {
-	//TODO Save or do not unload modified chunks (delete block)
-	//(Add a isModified boolean in Chunk or SubChunk class)
+	// Skip if cache not exceeded
 	_chunksListMutex.lock();
 	size_t chunksNb = _chunkList.size();
 	_chunksListMutex.unlock();
 
 	if (chunksNb <= CACHE_SIZE)
-		return ;
+		return;
 
-	// Get player position in chunk coordinates (true floor division)
+	// Player position in chunk coordinates (true floor division)
 	vec3 playerPos = _camera.getWorldPosition();
-	int playerChunkX = static_cast<int>(std::floor(playerPos.x / static_cast<float>(CHUNK_SIZE)));
-	int playerChunkZ = static_cast<int>(std::floor(playerPos.z / static_cast<float>(CHUNK_SIZE)));
+	const int playerChunkX = static_cast<int>(std::floor(playerPos.x / static_cast<float>(CHUNK_SIZE)));
+	const int playerChunkZ = static_cast<int>(std::floor(playerPos.z / static_cast<float>(CHUNK_SIZE)));
 
-	// Find the farthest chunk
+	// Snapshot displayed chunks and pending-edits chunks to avoid lock juggling
+	std::unordered_set<ivec2, ivec2_hash> displayed;
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		for (const auto& kv : _displayedChunks) displayed.insert(kv.first);
+	}
+	std::unordered_set<ivec2, ivec2_hash> pending;
+	{
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		for (const auto& kv : _pendingEdits) pending.insert(kv.first);
+	}
+
+	// Find the farthest deletable chunk (not displayed, not pending, not building, not modified)
 	_chunksListMutex.lock();
-	auto farthestChunkIt = _chunkList.end();
-	float maxDistance = -1.0f;
+	auto bestIt = _chunkList.end();
+	long long bestD2 = -1;
 	for (auto it = _chunkList.begin(); it != _chunkList.end(); ++it)
 	{
 		Chunk* chunk = *it;
-		int chunkX = chunk->getPosition().x;
-		int chunkZ = chunk->getPosition().y;
-		float distance = sqrt(pow(chunkX - playerChunkX, 2) + pow(chunkZ - playerChunkZ, 2));
-		if (distance > maxDistance)
-		{
-			maxDistance = distance;
-			farthestChunkIt = it;
-		}
+		if (!chunk) continue;
+		ivec2 pos = chunk->getPosition();
+
+		if (displayed.count(pos) > 0) continue;
+		if (pending.count(pos)  > 0) continue;
+		if (chunk->isBuilding() || chunk->getModified()) continue;
+
+		long long dx = (long long)pos.x - (long long)playerChunkX;
+		long long dz = (long long)pos.y - (long long)playerChunkZ;
+		long long d2 = dx*dx + dz*dz;
+		if (d2 > bestD2) { bestD2 = d2; bestIt = it; }
 	}
 
-	if (farthestChunkIt != _chunkList.end())
-	{
-		Chunk* chunkToRemove = *farthestChunkIt;
-		// Remove from _chunkList
-		_chunkList.erase(farthestChunkIt);
+	if (bestIt == _chunkList.end()) {
 		_chunksListMutex.unlock();
-		
-		ivec2 pos = chunkToRemove->getPosition();
-		
-		// Check if chunk is being displayed
-		_displayedChunksMutex.lock();
-		bool isDisplayed = false;
-		auto endDisplay = _displayedChunks.end();
-		auto displayIt = _displayedChunks.find(pos);
-		isDisplayed = endDisplay != displayIt;
-		_displayedChunksMutex.unlock();
-		if (isDisplayed)
-			return ;
-
-		// Remove from _chunks
-		_chunksMutex.lock();
-		_chunks.erase(pos);
-		_chunksMutex.unlock();
-
-		// Clean up memory
-		_perlinGenerator.removePerlinMap(pos.x, pos.y);
-		chunkToRemove->unloadNeighbors();
-		chunkToRemove->freeSubChunks();
-		delete chunkToRemove;
+		return; // nothing unloadable right now
 	}
-	else
-	{
-		_chunksListMutex.unlock();
-	}
+
+	Chunk* chunkToRemove = *bestIt;
+	ivec2 pos = chunkToRemove->getPosition();
+	_chunkList.erase(bestIt);
+	_chunksListMutex.unlock();
+
+	// Remove from _chunks
+	_chunksMutex.lock();
+	_chunks.erase(pos);
+	_chunksMutex.unlock();
+
+	// Clean up memory
+	if (_memorySize >= chunkToRemove->getMemorySize())
+		_memorySize -= chunkToRemove->getMemorySize();
+	_perlinGenerator.removePerlinMap(pos.x, pos.y);
+	chunkToRemove->unloadNeighbors();
+	chunkToRemove->freeSubChunks();
+	delete chunkToRemove;
 }
 
 Chunk *World::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
@@ -406,11 +410,13 @@ void World::loadFirstChunks(ivec2 &chunkPos) {
 
 bool World::hasMoved(ivec2 &oldPos)
 {
+	// Debounce movement: only signal a cancel if we moved more than 1 chunk
+	// away from the load center. This avoids restarting rings too aggressively
+	// when sprinting or moving quickly.
 	ivec2 camChunk = _camera.getChunkPosition(CHUNK_SIZE);
-
-	if (((floor(oldPos.x) != floor(camChunk.x) || floor(oldPos.y) != floor(camChunk.y))))
-		return true;
-	return false;
+	int dx = std::abs((int)std::floor(oldPos.x) - (int)std::floor(camChunk.x));
+	int dz = std::abs((int)std::floor(oldPos.y) - (int)std::floor(camChunk.y));
+	return (std::max(dx, dz) > 1);
 }
 
 int *World::getCurrentRenderPtr() { return &_currentRender; }
@@ -492,38 +498,41 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 		snapshot.reserve(_displayedChunks.size());
 		for (auto &kv : _displayedChunks) snapshot.push_back(kv.second);
 	}
+	// Pre-reserve to minimize reallocations during build
+	size_t totalSolidVerts = 0, totalTransVerts = 0;
+	size_t totalSolidCmds  = 0, totalTransCmds  = 0;
+	size_t totalSSBO       = 0;
+	for (const auto& c : snapshot) {
+		totalSolidVerts += c->getVertices().size();
+		totalTransVerts += c->getTransparentVertices().size();
+		totalSolidCmds  += c->getIndirectData().size();
+		totalTransCmds  += c->getTransparentIndirectData().size();
+		totalSSBO       += c->getSSBO().size();
+	}
+	fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
+	fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
+	fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBO);
+	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
+	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
 
 	for (const auto& c : snapshot) {
 		auto& ssbo = c->getSSBO();
 
 		// SOLID
-		uint32_t startSolid = (uint32_t)fillData->indirectBufferData.size();
-
 		auto& solidVerts = c->getVertices();
 		size_t vSizeBefore = fillData->vertexData.size();
 		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
 
 		auto& ib = c->getIndirectData();
 		size_t solidCount = ib.size();
-		size_t ssboLimit  = std::min(ssbo.size(), solidCount);
 		for (size_t i = 0; i < solidCount; ++i) {
 			auto cmd = ib[i];
 			cmd.baseInstance += (uint32_t)vSizeBefore;
 			fillData->indirectBufferData.push_back(cmd);
-
-			size_t idx = std::min(i, ssboLimit ? ssboLimit - 1 : (size_t)0);
-			glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
-			fillData->cmdAABBsSolid.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
 		}
-
 		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
-		fillData->chunkCmdRanges[c->getPosition()] = {
-			startSolid, (uint32_t)(fillData->indirectBufferData.size() - startSolid)
-		};
 
 		// TRANSPARENT
-		uint32_t startT = (uint32_t)transparentFillData->indirectBufferData.size();
-
 		auto& transpVerts = c->getTransparentVertices();
 		size_t tvBefore = transparentFillData->vertexData.size();
 		transparentFillData->vertexData.insert(
@@ -532,20 +541,11 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 
 		auto& tib = c->getTransparentIndirectData();
 		size_t transpCount = tib.size();
-		size_t ssboLimitT  = std::min(ssbo.size(), transpCount);
 		for (size_t i = 0; i < transpCount; ++i) {
 			auto cmd = tib[i];
 			cmd.baseInstance += (uint32_t)tvBefore;
 			transparentFillData->indirectBufferData.push_back(cmd);
-
-			size_t idx = std::min(i, ssboLimitT ? ssboLimitT - 1 : (size_t)0);
-			glm::vec3 o = glm::vec3(ssbo[idx].x, ssbo[idx].y, ssbo[idx].z);
-			transparentFillData->cmdAABBsTransp.push_back({ o, o + glm::vec3(CHUNK_SIZE) });
 		}
-
-		transparentFillData->chunkCmdRanges[c->getPosition()] = {
-			startT, (uint32_t)(transparentFillData->indirectBufferData.size() - startT)
-		};
 	}
 }
 
@@ -588,16 +588,18 @@ void World::updateDrawData()
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
 	if (_drawData) {
-		if (_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
+		if (!_drawData->indirectBufferData.empty() &&
+			_drawData->ssboData.size() != _drawData->indirectBufferData.size()) {
 			std::cout << "[CULL] Mismatch solid: ssbo=" << _drawData->ssboData.size()
-					<< " cmds=" << _drawData->indirectBufferData.size() << std::endl;
+						<< " cmds=" << _drawData->indirectBufferData.size() << std::endl;
 		}
 	}
 	// Transparent sanity (uses the same SSBO)
 	if (_transparentDrawData) {
-		if (_drawData && _drawData->ssboData.size() != _transparentDrawData->indirectBufferData.size()) {
+		if (_drawData && !_transparentDrawData->indirectBufferData.empty() &&
+			_drawData->ssboData.size() != _transparentDrawData->indirectBufferData.size()) {
 			std::cout << "[CULL] Mismatch transp: ssbo=" << _drawData->ssboData.size()
-					<< " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
+						<< " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
 		}
 	}
 }
@@ -620,10 +622,25 @@ int World::displaySolid()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
+	// Prefer cached triangles count if CPU buffers were discarded
 	long long tris = 0;
-	for (const auto& c : _drawData->indirectBufferData) {
-		long long per = (c.count >= 3) ? (c.count - 2) : 0;
-		tris += (long long)c.instanceCount * per;
+	if (!_drawData->indirectBufferData.empty()) {
+		for (const auto& c : _drawData->indirectBufferData) {
+			long long per = (c.count >= 3) ? (c.count - 2) : 0;
+			tris += (long long)c.instanceCount * per;
+		}
+		_lastSolidTris = tris;
+	} else {
+		tris = _lastSolidTris;
+	}
+
+	// After solid upload/draw, CPU-side solid draw data is no longer needed
+	// Keep ssboData for the transparent pass upload
+	if (!_needUpdate) {
+		_drawData->vertexData.clear();
+		_drawData->indirectBufferData.clear();
+		std::vector<int>().swap(_drawData->vertexData);
+		std::vector<DrawArraysIndirectCommand>().swap(_drawData->indirectBufferData);
 	}
 	return (int)tris;
 }
@@ -646,6 +663,18 @@ int World::displayTransparent()
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 	glBindVertexArray(0);
 
+	// After transparent upload/draw, CPU-side transparent draw data is no longer needed
+	if (!_needTransparentUpdate) {
+		_transparentDrawData->vertexData.clear();
+		_transparentDrawData->indirectBufferData.clear();
+		std::vector<int>().swap(_transparentDrawData->vertexData);
+		std::vector<DrawArraysIndirectCommand>().swap(_transparentDrawData->indirectBufferData);
+		// We can also drop ssboData now as both passes have uploaded positions
+		if (_drawData) {
+			_drawData->ssboData.clear();
+			std::vector<vec4>().swap(_drawData->ssboData);
+		}
+	}
 	return (int)_transpDrawCount;
 }
 
@@ -723,6 +752,13 @@ void World::pushVerticesToOpenGL(bool transparent)
 			_drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
 		_solidDrawCount = (GLsizei)nCmd;
+		// Compute triangles count once while CPU data is present
+		long long tris = 0;
+		for (const auto& c : _drawData->indirectBufferData) {
+			long long per = (c.count >= 3) ? (c.count - 2) : 0;
+			tris += (long long)c.instanceCount * per;
+		}
+		_lastSolidTris = tris;
 		_needUpdate = false;
 	}
 }
@@ -816,4 +852,338 @@ void World::runGpuCulling(bool transparent)
 
 	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 	glUseProgram(prevProg ? (GLuint)prevProg : 0);
+}
+
+static inline bool isSolidDeletable(BlockType b) {
+	return (b != AIR && b != WATER && b != BEDROCK);
+}
+
+bool World::raycastHit(const glm::vec3& originWorld,
+						const glm::vec3& dirWorld,
+						float maxDistance,
+						glm::ivec3& outBlock)
+{
+	if (maxDistance <= 0.0f) return false;
+
+	glm::vec3 dir = dirWorld;
+	float dlen = glm::length(dir);
+	if (dlen < 1e-8f) return false;
+	dir /= dlen;
+
+	glm::vec3 ro = originWorld + dir * 0.001f; // nudge
+	glm::ivec3 voxel(
+		(int)std::floor(ro.x),
+		(int)std::floor(ro.y),
+		(int)std::floor(ro.z)
+	);
+
+	glm::ivec3 step(
+		(dir.x > 0.f) ? 1 : (dir.x < 0.f) ? -1 : 0,
+		(dir.y > 0.f) ? 1 : (dir.y < 0.f) ? -1 : 0,
+		(dir.z > 0.f) ? 1 : (dir.z < 0.f) ? -1 : 0
+	);
+
+	const float INF = std::numeric_limits<float>::infinity();
+	glm::vec3 tDelta(
+		(step.x != 0) ? 1.0f / std::abs(dir.x) : INF,
+		(step.y != 0) ? 1.0f / std::abs(dir.y) : INF,
+		(step.z != 0) ? 1.0f / std::abs(dir.z) : INF
+	);
+
+	auto firstBoundaryT = [&](float r, int v, int s, float d) -> float {
+		if (s > 0) return ((float(v) + 1.0f) - r) / d;
+		if (s < 0) return (r - float(v)) / -d;
+		return INF;
+	};
+	glm::vec3 tMaxV(
+		firstBoundaryT(ro.x, voxel.x, step.x, dir.x),
+		firstBoundaryT(ro.y, voxel.y, step.y, dir.y),
+		firstBoundaryT(ro.z, voxel.z, step.z, dir.z)
+	);
+
+	float t = 0.0f;
+	const int MAX_STEPS = 512;
+
+	for (int i = 0; i < MAX_STEPS; ++i) {
+		// step to next voxel
+		if (tMaxV.x < tMaxV.y) {
+			if (tMaxV.x < tMaxV.z)	{ voxel.x += step.x; t = tMaxV.x; tMaxV.x += tDelta.x; }
+			else					{ voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		} else {
+			if (tMaxV.y < tMaxV.z)	{ voxel.y += step.y; t = tMaxV.y; tMaxV.y += tDelta.y; }
+			else					{ voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		}
+		if (t > maxDistance) return false;
+
+		ivec2 chunkPos(
+			(int)std::floor((float)voxel.x / (float)CHUNK_SIZE),
+			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
+		);
+		BlockType b = getBlock(chunkPos, voxel);
+		if (isSolidDeletable(b)) {
+			outBlock = voxel;
+			return true;
+		}
+	}
+	return false;
+}
+
+BlockType World::raycastHitFetch(const glm::vec3& originWorld,
+						const glm::vec3& dirWorld,
+						float maxDistance,
+						glm::ivec3& outBlock)
+{
+	if (maxDistance <= 0.0f) return AIR;
+
+	glm::vec3 dir = dirWorld;
+	float dlen = glm::length(dir);
+	if (dlen < 1e-8f) return AIR;
+	dir /= dlen;
+
+	glm::vec3 ro = originWorld + dir * 0.001f; // nudge
+	glm::ivec3 voxel(
+		(int)std::floor(ro.x),
+		(int)std::floor(ro.y),
+		(int)std::floor(ro.z)
+	);
+
+	glm::ivec3 step(
+		(dir.x > 0.f) ? 1 : (dir.x < 0.f) ? -1 : 0,
+		(dir.y > 0.f) ? 1 : (dir.y < 0.f) ? -1 : 0,
+		(dir.z > 0.f) ? 1 : (dir.z < 0.f) ? -1 : 0
+	);
+
+	const float INF = std::numeric_limits<float>::infinity();
+	glm::vec3 tDelta(
+		(step.x != 0) ? 1.0f / std::abs(dir.x) : INF,
+		(step.y != 0) ? 1.0f / std::abs(dir.y) : INF,
+		(step.z != 0) ? 1.0f / std::abs(dir.z) : INF
+	);
+
+	auto firstBoundaryT = [&](float r, int v, int s, float d) -> float {
+		if (s > 0) return ((float(v) + 1.0f) - r) / d;
+		if (s < 0) return (r - float(v)) / -d;
+		return INF;
+	};
+	glm::vec3 tMaxV(
+		firstBoundaryT(ro.x, voxel.x, step.x, dir.x),
+		firstBoundaryT(ro.y, voxel.y, step.y, dir.y),
+		firstBoundaryT(ro.z, voxel.z, step.z, dir.z)
+	);
+
+	float t = 0.0f;
+	const int MAX_STEPS = 512;
+
+	for (int i = 0; i < MAX_STEPS; ++i) {
+		// step to next voxel
+		if (tMaxV.x < tMaxV.y) {
+			if (tMaxV.x < tMaxV.z)	{ voxel.x += step.x; t = tMaxV.x; tMaxV.x += tDelta.x; }
+			else					{ voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		} else {
+			if (tMaxV.y < tMaxV.z)	{ voxel.y += step.y; t = tMaxV.y; tMaxV.y += tDelta.y; }
+			else					{ voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		}
+		if (t > maxDistance) return AIR;
+
+		ivec2 chunkPos(
+			(int)std::floor((float)voxel.x / (float)CHUNK_SIZE),
+			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
+		);
+		BlockType b = getBlock(chunkPos, voxel);
+		if (isSolidDeletable(b)) {
+			outBlock = voxel;
+			return b;
+		}
+	}
+	return AIR;
+}
+
+bool World::raycastDeleteOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance)
+{
+	glm::ivec3 hit;
+	if (!raycastHit(originWorld, dirWorld, maxDistance, hit))
+		return false;
+
+	// Chunk that owns the hit voxel
+	ivec2 chunkPos(
+		(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
+		(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
+	);
+
+	// Try to apply immediately (falls back to queue if chunk not ready)
+	bool wroteNow = setBlockOrQueue(chunkPos, hit, AIR);
+
+	if (wroteNow)
+	{
+		// 1) Rebuild current chunk mesh
+		if (Chunk* c = getChunk(chunkPos))
+		{
+			c->setAsModified();
+			c->sendFacesToDisplay();
+		}
+
+		// 2) If at border, rebuild neighbor meshes that share the broken face
+		const int lx = (hit.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+		const int lz = (hit.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+
+		ivec2 neighbors[4];
+		int n = 0;
+		if (lx == 0)               neighbors[n++] = { chunkPos.x - 1, chunkPos.y };
+		if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { chunkPos.x + 1, chunkPos.y };
+		if (lz == 0)               neighbors[n++] = { chunkPos.x,     chunkPos.y - 1 };
+		if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { chunkPos.x,     chunkPos.y + 1 };
+
+		for (int i = 0; i < n; ++i)
+			if (Chunk* nc = getChunk(neighbors[i]))
+				nc->sendFacesToDisplay();
+
+		// 3) Stage a fresh display snapshot off-thread (coalesced)
+		scheduleDisplayUpdate();
+	}
+	return true;
+}
+
+bool World::raycastPlaceOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block)
+{
+	// Perform a DDA raycast but place the block on the empty voxel in front
+	// of the hit block (the voxel we were in before entering the solid block),
+	// matching Minecraft behavior.
+
+	if (maxDistance <= 0.0f) return false;
+
+	// Normalize direction
+	glm::vec3 dir = dirWorld;
+	float dlen = glm::length(dir);
+	if (dlen < 1e-8f) return false;
+	dir /= dlen;
+
+	// Nudge origin slightly to avoid self-intersection at boundaries
+	glm::vec3 ro = originWorld + dir * 0.001f;
+
+	// Current voxel and the previous voxel we were in before stepping
+	glm::ivec3 voxel(
+		(int)std::floor(ro.x),
+		(int)std::floor(ro.y),
+		(int)std::floor(ro.z)
+	);
+	glm::ivec3 prev = voxel;
+
+	// Step for each axis
+	glm::ivec3 step(
+		(dir.x > 0.f) ? 1 : (dir.x < 0.f) ? -1 : 0,
+		(dir.y > 0.f) ? 1 : (dir.y < 0.f) ? -1 : 0,
+		(dir.z > 0.f) ? 1 : (dir.z < 0.f) ? -1 : 0
+	);
+
+	const float INF = std::numeric_limits<float>::infinity();
+	glm::vec3 tDelta(
+		(step.x != 0) ? 1.0f / std::abs(dir.x) : INF,
+		(step.y != 0) ? 1.0f / std::abs(dir.y) : INF,
+		(step.z != 0) ? 1.0f / std::abs(dir.z) : INF
+	);
+
+	auto firstBoundaryT = [&](float r, int v, int s, float d) -> float {
+		if (s > 0) return ((float(v) + 1.0f) - r) / d;
+		if (s < 0) return (r - float(v)) / -d;
+		return INF;
+	};
+
+	glm::vec3 tMaxV(
+		firstBoundaryT(ro.x, voxel.x, step.x, dir.x),
+		firstBoundaryT(ro.y, voxel.y, step.y, dir.y),
+		firstBoundaryT(ro.z, voxel.z, step.z, dir.z)
+	);
+
+	float t = 0.0f;
+	const int MAX_STEPS = 512;
+
+	for (int i = 0; i < MAX_STEPS; ++i) {
+		// Step to next voxel, remember where we came from
+		if (tMaxV.x < tMaxV.y) {
+			if (tMaxV.x < tMaxV.z) { prev = voxel; voxel.x += step.x; t = tMaxV.x; tMaxV.x += tDelta.x; }
+			else                   { prev = voxel; voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		} else {
+			if (tMaxV.y < tMaxV.z) { prev = voxel; voxel.y += step.y; t = tMaxV.y; tMaxV.y += tDelta.y; }
+			else                   { prev = voxel; voxel.z += step.z; t = tMaxV.z; tMaxV.z += tDelta.z; }
+		}
+
+		if (t > maxDistance) return false;
+
+		ivec2 chunkPos(
+			(int)std::floor((float)voxel.x / (float)CHUNK_SIZE),
+			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
+		);
+		BlockType b = getBlock(chunkPos, voxel);
+		if (b == BEDROCK || isSolidDeletable(b)) {
+			// Place into the previous (empty) voxel we were in before entering the hit voxel
+			ivec2 placeChunk(
+				(int)std::floor((float)prev.x / (float)CHUNK_SIZE),
+				(int)std::floor((float)prev.z / (float)CHUNK_SIZE)
+			);
+
+			// Prevent placing a block inside the player's occupied cells (feet/head)
+			{
+				glm::vec3 camW = _camera.getWorldPosition();
+				int px = static_cast<int>(std::floor(camW.x));
+				int pz = static_cast<int>(std::floor(camW.z));
+				int footY = static_cast<int>(std::floor(camW.y - EYE_HEIGHT + EPS));
+				glm::ivec3 feet = { px, footY, pz };
+				glm::ivec3 head = { px, footY + 1, pz };
+				if (prev == feet || prev == head) {
+					return false; // would collide with player
+				}
+			}
+
+			// Only place if target is empty or replaceable (AIR/WATER).
+			BlockType current = getBlock(placeChunk, prev);
+			if (!(current == AIR || current == WATER)) return false;
+
+			bool wroteNow = setBlockOrQueue(placeChunk, prev, block);
+			if (wroteNow) {
+				// Rebuild current chunk mesh
+				if (Chunk* c = getChunk(placeChunk))
+				{
+					c->setAsModified();
+					c->sendFacesToDisplay();
+				}
+
+				// If at border, also rebuild neighbors that share faces
+				const int lx = (prev.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+				const int lz = (prev.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+
+				ivec2 neighbors[4];
+				int n = 0;
+				if (lx == 0)               neighbors[n++] = { placeChunk.x - 1, placeChunk.y };
+				if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x + 1, placeChunk.y };
+				if (lz == 0)               neighbors[n++] = { placeChunk.x,     placeChunk.y - 1 };
+				if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x,     placeChunk.y + 1 };
+
+				for (int i2 = 0; i2 < n; ++i2)
+					if (Chunk* nc = getChunk(neighbors[i2]))
+						nc->sendFacesToDisplay();
+
+				// Stage a fresh display snapshot off-thread (coalesced)
+				scheduleDisplayUpdate();
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+void World::scheduleDisplayUpdate() {
+	if (_buildingDisplay) return;
+	_threadPool.enqueue(&World::updateFillData, this);
+}
+
+void World::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
+	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+	out.clear();
+	out.reserve(_displayedChunks.size());
+	for (const auto& kv : _displayedChunks) out.push_back(kv.first);
 }

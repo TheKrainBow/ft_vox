@@ -10,6 +10,8 @@
 
 class StoneEngine {
 	public:
+
+	enum GridDebugMode { GRID_OFF=0, GRID_CHUNKS=1, GRID_SUBCHUNKS=2, GRID_BOTH=3 };
 	typedef struct s_PostProcessShader {
 		GLuint vao;
 		GLuint vbo;
@@ -26,6 +28,7 @@ class StoneEngine {
 			GREEDYFIX = 0,
 			FOG = 1,
 			GODRAYS = 2,
+			CROSSHAIR = 3,
 		} ShaderType;
 	private:
 		// Display
@@ -75,6 +78,8 @@ class StoneEngine {
 		bool jumping;
 		bool isUnderWater;
 		bool ascending;
+		bool sprinting;
+		GridDebugMode _gridMode = GRID_OFF;
 
 		// Player speed
 		float moveSpeed;
@@ -106,6 +111,7 @@ class StoneEngine {
 		std::atomic_int timeValue;
 		std::chrono::steady_clock::time_point _jumpCooldown;
 		std::chrono::steady_clock::time_point _swimUpCooldownOnRise;
+		std::chrono::steady_clock::time_point _placeCooldown;
 		std::chrono::steady_clock::time_point now;
 		TopBlock camTopBlock;
 		movedir playerDir;
@@ -113,6 +119,13 @@ class StoneEngine {
 		int	_biome;
 		double _humidity;
 		double _temperature;
+		GLuint _wireVAO = 0, _wireVBO = 0;
+		GLuint _wireProgram = 0;
+
+		// Selected block for placement
+		BlockType	selectedBlock;
+		block_types	selectedBlockDebug;
+		bool placing;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -123,12 +136,16 @@ class StoneEngine {
 		void mouseAction(double x, double y);
 		void reshapeAction(int width, int height);
 		void scrollAction(double yoffset);
+		void mouseButtonAction(int button, int action, int mods);
+		void postProcessCrosshair();
+		
 
 		// Event hook callbacks
 		static void reshape(GLFWwindow* window, int width, int height); 
 		static void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
 		static void mouseCallback(GLFWwindow* window, double x, double y);
 		static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+		static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 
 		// Init methods
 		void	initData();
@@ -142,6 +159,8 @@ class StoneEngine {
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
+		void   initWireframeResources();
+		void   renderAimHighlight();
 
 		// Runtime methods
 		void calculateFps();
@@ -156,8 +175,7 @@ class StoneEngine {
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
-		void activateFboShader();
-		void triangleMeshToggle();
+		void renderPlanarReflection();
 		ivec2 getChunkPos(vec2 camPosXZ);
 		bool canMove(const glm::vec3& offset, float extra);
 		void updatePlayerStates();
@@ -168,6 +186,7 @@ class StoneEngine {
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
 		void updateBiomeData();
+		void renderChunkGrid();
 	
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
@@ -187,7 +206,7 @@ class StoneEngine {
 		void update();
 		void updateMovement();
 		void updateGameTick();
-
+		void updatePlacing();
 		void updateChunkWorker();
 
 		bool getIsRunning();

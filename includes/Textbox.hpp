@@ -23,6 +23,26 @@ struct biome_pair
 	std::string name;
 };
 
+struct block_pair
+{
+	BlockType block;
+	std::string name;
+};
+
+const block_pair blockTab[NB_BLOCKS] = {
+	{air, "None"},
+	{stone, "Stone"},
+	{cobble, "Cobble"},
+	{bedrock, "Bedrock"},
+	{dirt, "Dirt"},
+	{grass, "Grass"},
+	{sand, "Sand"},
+	{water, "Water"},
+	{snow, "Snow"},
+	{oak_log, "Oak log"},
+	{leaf, "Leaf"}
+};
+
 const biome_pair biomeTab[NB_BIOMES] = {
 	{PLAINS, "Plains"},
 	{DESERT, "Desert"},
@@ -52,7 +72,8 @@ public:
 		FLOAT,
 		DIRECTION,
 		BIOME,
-		SIZE_T
+		SIZE_T,
+		BLOCK
 	};
 private:
 	struct Line {

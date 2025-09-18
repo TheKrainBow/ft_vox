@@ -1,5 +1,26 @@
 #include "StoneEngine.hpp"
 
+static glm::mat4 makeObliqueProjection(const glm::mat4& proj,
+										const glm::mat4& view,
+										const glm::vec4& planeWorld)
+{
+	glm::vec4 planeVS = glm::transpose(glm::inverse(view)) * planeWorld;
+
+	glm::mat4 P = proj;
+	glm::vec4 q;
+	q.x = (glm::sign(planeVS.x) + P[0][2]) / P[0][0];
+	q.y = (glm::sign(planeVS.y) + P[1][2]) / P[1][1];
+	q.z = -1.0f;
+	q.w = (1.0f + P[2][2]) / P[2][3];
+
+	glm::vec4 c = planeVS * (2.0f / glm::dot(planeVS, q));
+	P[0][2] = c.x;
+	P[1][2] = c.y;
+	P[2][2] = c.z + 1.0f;
+	P[3][2] = c.w;
+	return P;
+}
+
 float mapRange(float x, float in_min, float in_max, float out_min, float out_max) {
 	return out_max - (x - in_min) * (out_max - out_min) / (in_max - in_min);
 }
@@ -14,9 +35,10 @@ bool isTransparent(char block)
 	return block == AIR || block == WATER || block == LOG;
 }
 
-bool faceDisplayCondition(char blockToDisplay, char neighborBlock)
+// Display logs only if sides
+bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
-	return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && neighborBlock != LOG);
+	return ((isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && (dir <= EAST)));
 }
 
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
@@ -122,7 +144,16 @@ void StoneEngine::initData()
 	jumping				= JUMPING;
 	isUnderWater		= UNDERWATER;
 	ascending		= ASCENDING;
-	_jumpCooldown		= std::chrono::steady_clock::now();
+	sprinting		= SPRINTING;
+	selectedBlock		= AIR;
+	selectedBlockDebug	= air;
+	placing				= KEY_INIT;
+	
+	// Cooldowns
+	now						= std::chrono::steady_clock::now();
+	_jumpCooldown			= now;
+	_placeCooldown			= now;
+	_swimUpCooldownOnRise	= now;
 	
 	// Gets the max MSAA (anti aliasing) samples
 	_maxSamples = 0;
@@ -205,11 +236,27 @@ glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& camera
 {
 	const float pi = 3.14159265f;
 	const float radius = 6000.0f;
+	const float dayStart = 42000.0f;          // sunrise
+	const float dayLen   = 86400.0f - dayStart; // 44400 (day duration)
+	const float nightLen = dayStart;           // 42000 (night duration)
 
-	float angle = (timeValue / 86400.0f) * 2.0f * pi;
+	float t = static_cast<float>(timeValue);
+	float angle;
+	if (t < dayStart)
+	{
+		// Night: traverse pi..2pi across [0, dayStart)
+		float phase = glm::clamp(t / nightLen, 0.0f, 1.0f);
+		angle = pi + phase * pi;
+	}
+	else
+	{
+		// Day: traverse 0..pi across [dayStart, 86400]
+		float phase = glm::clamp((t - dayStart) / dayLen, 0.0f, 1.0f);
+		angle = phase * pi;
+	}
 
 	float x = radius * cos(angle);
-	float y = -radius * sin(angle);
+	float y = radius * sin(angle); // y>0 during day, y<0 during night
 	float z = 0.0f;
 
 	return cameraPos + glm::vec3(x, y, z);
@@ -239,12 +286,45 @@ void initSunQuad(GLuint &vao, GLuint &vbo)
 	glBindVertexArray(0);
 }
 
+void StoneEngine::initWireframeResources()
+{
+	_wireProgram = createShaderProgram("shaders/postProcess/outline.vert", "shaders/postProcess/outline.frag");
+	// 12 edges * 2 endpoints = 24 vertices (unit cube corners)
+	const GLfloat lines[] = {
+		// bottom rectangle (y=0)
+		0,0,0,  1,0,0,
+		1,0,0,  1,0,1,
+		1,0,1,  0,0,1,
+		0,0,1,  0,0,0,
+		// top rectangle (y=1)
+		0,1,0,  1,1,0,
+		1,1,0,  1,1,1,
+		1,1,1,  0,1,1,
+		0,1,1,  0,1,0,
+		// vertical pillars
+		0,0,0,  0,1,0,
+		1,0,0,  1,1,0,
+		1,0,1,  1,1,1,
+		0,0,1,  0,1,1,
+	};
+
+	glGenVertexArrays(1, &_wireVAO);
+	glGenBuffers(1, &_wireVBO);
+	glBindVertexArray(_wireVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, _wireVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(lines), lines, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	glBindVertexArray(0);
+}
+
 void StoneEngine::initRenderShaders()
 {
 	shaderProgram = createShaderProgram("shaders/render/terrain.vert", "shaders/render/terrain.frag");
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
 	initSunQuad(sunVAO, sunVBO);
+	initWireframeResources();
 }
 
 void StoneEngine::displaySun()
@@ -385,8 +465,12 @@ void StoneEngine::initFboShaders()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
 	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
-	// New single-pass light shafts implementation
 	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/lightshafts.frag");
+	createPostProcessShader(
+		postProcessShaders[CROSSHAIR],
+		"shaders/postProcess/postProcess.vert",
+		"shaders/postProcess/crosshair.frag"
+	);
 }
 
 void StoneEngine::initDebugTextBox()
@@ -413,6 +497,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("Biome: ", Textbox::BIOME, &_biome);
 	debugBox.addLine("Temperature: ", Textbox::DOUBLE, &_temperature);
 	debugBox.addLine("Humidity: ", Textbox::DOUBLE, &_humidity);
+	debugBox.addLine("Selected block: ", Textbox::BLOCK, &selectedBlockDebug);
 
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
@@ -462,6 +547,7 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+
 	// Pass camera world position explicitly for camera-relative rendering
 	vec3 camWorld = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
@@ -473,6 +559,82 @@ void StoneEngine::activateRenderShader()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	glFrontFace(GL_CCW);
+}
+
+void StoneEngine::renderChunkGrid()
+{
+	if (_gridMode == GRID_OFF || showTriangleMesh) return;
+
+	// Snapshot chunk list
+	std::vector<glm::ivec2> chunks;
+	_world.getDisplayedChunksSnapshot(chunks);
+	if (chunks.empty()) return;
+
+	// Common state and matrices
+	glUseProgram(_wireProgram);
+	glBindVertexArray(_wireVAO);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glDepthMask(GL_FALSE);          // test, don’t write
+	glLineWidth(1.0f);
+
+	// rotation-only view (same as terrain)
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1,0,0));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0,-1,0));
+
+	glm::vec3 camW = camera.getWorldPosition();
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "view"),       1, GL_FALSE, glm::value_ptr(viewRot));
+	glUniform3fv      (glGetUniformLocation(_wireProgram, "cameraPos"),  1, glm::value_ptr(camW));
+	glUniform1f       (glGetUniformLocation(_wireProgram, "expand"),     0.003f);
+	glUniform1f       (glGetUniformLocation(_wireProgram, "depthBias"),  0.0008f);
+
+	const float CS = float(CHUNK_SIZE);
+
+	// Vertical window around camera, in subchunks
+	float camY = camW.y;
+	int camSY  = int(std::floor(camY / CS));
+	const int below = 2;            // draw 2 subchunks below camera
+	const int above = 5;            // and 5 above (tweak as you like)
+	int sy0 = camSY - below;
+	int sy1 = camSY + above;
+
+	// Colors
+	GLint uColor = glGetUniformLocation(_wireProgram, "color");
+	GLint uScale = glGetUniformLocation(_wireProgram, "scale");
+	GLint uOff   = glGetUniformLocation(_wireProgram, "worldOffset");
+
+	for (const auto& cpos : chunks)
+	{
+		glm::vec3 base = glm::vec3(cpos.x * CS, 0.0f, cpos.y * CS);
+
+		if (_gridMode == GRID_CHUNKS || _gridMode == GRID_BOTH)
+		{
+			float y0    = sy0 * CS;
+			float spanY = float((sy1 - sy0 + 1)) * CS; // cover the vertical window with one tall box
+			glUniform3f(uColor, 0.05f, 0.45f, 0.85f);  // chunk color (soft cyan)
+			glUniform3f(uScale, CS, spanY, CS);
+			glUniform3f(uOff,   base.x, y0, base.z);
+			glDrawArrays(GL_LINES, 0, 24);
+		}
+
+		if (_gridMode == GRID_SUBCHUNKS || _gridMode == GRID_BOTH)
+		{
+			glUniform3f(uColor, 0.90f, 0.35f, 0.70f);  // subchunk color (magenta-ish)
+			glUniform3f(uScale, CS, CS, CS);
+			for (int sy = sy0; sy <= sy1; ++sy) {
+				float y = sy * CS;
+				glUniform3f(uOff, base.x, y, base.z);
+				glDrawArrays(GL_LINES, 0, 24);
+			}
+		}
+	}
+
+	glDepthMask(GL_TRUE);
+	glBindVertexArray(0);
 }
 
 void StoneEngine::activateTransparentShader()
@@ -503,6 +665,7 @@ void StoneEngine::activateTransparentShader()
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
+	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "viewOpaque"), 1, GL_FALSE, value_ptr(viewFull));
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "viewPos"),      1, value_ptr(viewPos));
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "cameraPos"),    1, value_ptr(viewPos));
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
@@ -539,6 +702,35 @@ void StoneEngine::activateTransparentShader()
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, waterNormalMap);
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "normalMap"), 2);
+	// --- Planar reflection source (tmpFBO) ---
+	{
+		const float waterY = OCEAN_HEIGHT + 2.0f;
+		float radY = camera.getAngles().y * (M_PI / 180.0f);
+		float radX = camera.getAngles().x * (M_PI / 180.0f);
+	
+		glm::mat4 viewRotMirror(1.0f);
+		viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+		viewRotMirror = glm::rotate(viewRotMirror,  radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+	
+		glm::vec3 camW   = camera.getWorldPosition();
+		glm::vec3 camMir = glm::vec3(camW.x, 2.0f * waterY - camW.y, camW.z);
+	
+		glm::mat4 viewFullMirror = viewRotMirror;
+		viewFullMirror = glm::translate(viewFullMirror, glm::vec3(-camMir.x, -camMir.y, -camMir.z));
+	
+		glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
+		glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
+	
+		glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "planarView"),       1, GL_FALSE, glm::value_ptr(viewFullMirror));
+		glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "planarProjection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	
+		// --- Planar reflection source (tmpFBO) ---
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, tmpFBO.texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glUniform1i(glGetUniformLocation(waterShaderProgram, "planarTexture"), 3);
+	}
 
 	// Blending and depth settings for transparent pass
 	glDepthMask(GL_FALSE);
@@ -583,17 +775,21 @@ void StoneEngine::display() {
 	resolveMsaaToFbo();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
-	postProcessGreedyFix();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	// postProcessGreedyFix();
+	// screenshotFBOBuffer(writeFBO, readFBO);
 
 	// Delay greedy-fix until after transparent pass so it applies to the final scene
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
 	
+	renderPlanarReflection();
+	
 	// Render transparent objects with MSAA (same path as solids), then resolve
 	if (!showTriangleMesh) {
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		renderTransparentObjects();
+		renderAimHighlight();
+		renderChunkGrid();
 		resolveMsaaToFbo();
 	}
 	else
@@ -616,9 +812,99 @@ void StoneEngine::display() {
 	postProcessGodRays();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
+	if (showDebugInfo)
+	{
+		postProcessCrosshair();
+		screenshotFBOBuffer(writeFBO, readFBO);
+	}
+
 	sendPostProcessFBOToDispay();
 	renderOverlayAndUI();
 	finalizeFrame();
+}
+
+void StoneEngine::renderAimHighlight()
+{
+	if (showTriangleMesh) return;
+
+	// Raycast
+	glm::ivec3 hit;
+	if (!_world.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
+		return;
+
+	// Determine block type at hit to adapt highlight bbox (logs are visually inset)
+	glm::ivec2 hitChunkPos(
+		(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
+		(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
+	);
+	BlockType hitBlock = _world.getBlock(hitChunkPos, hit);
+
+	// Default: full block
+	glm::vec3 bboxOffset = glm::vec3(hit);
+	glm::vec3 bboxScale  = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	// Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
+	if (hitBlock == LOG) {
+		const float inset = 0.10f;
+		bboxOffset.x += inset;
+		bboxOffset.z += inset;
+		bboxScale.x = 1.0f - 2.0f * inset;
+		bboxScale.z = 1.0f - 2.0f * inset;
+	}
+
+	// Setup state
+	glUseProgram(_wireProgram);
+	glBindVertexArray(_wireVAO);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glLineWidth(2.0f);
+
+	// Same transforms as terrain: projection + rotation-only view
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(_wireProgram, "view"),       1, GL_FALSE, glm::value_ptr(viewRot));
+	glm::vec3 camW = camera.getWorldPosition();
+	glUniform3fv(glGetUniformLocation(_wireProgram, "cameraPos"), 1, glm::value_ptr(camW));
+	glUniform3fv(glGetUniformLocation(_wireProgram, "worldOffset"), 1, glm::value_ptr(bboxOffset));
+	glUniform3f(glGetUniformLocation(_wireProgram, "color"), 0.06f, 0.06f, 0.06f);
+	glUniform1f(glGetUniformLocation(_wireProgram, "expand"),    0.003f);   // ~3 mm at 1m/unit
+	glUniform1f(glGetUniformLocation(_wireProgram, "depthBias"), 0.0008f);  // tiny, but effective
+	glUniform3f(glGetUniformLocation(_wireProgram, "scale"), bboxScale.x, bboxScale.y, bboxScale.z);
+
+
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	// Test against scene depth but don't write (so we don't disturb later passes)
+	glDepthMask(GL_FALSE);
+
+	glBindVertexArray(_wireVAO);
+	glLineWidth(2.0f);
+	glDrawArrays(GL_LINES, 0, 24);
+	glDepthMask(GL_TRUE);
+}
+
+void StoneEngine::postProcessCrosshair()
+{
+	if (showTriangleMesh) return;
+
+	PostProcessShader& shader = postProcessShaders[CROSSHAIR];
+
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 void StoneEngine::postProcessFog()
@@ -750,6 +1036,55 @@ void StoneEngine::postProcessGodRays()
 	glDepthMask(GL_TRUE);
 }
 
+void StoneEngine::renderPlanarReflection()
+{
+	if (showTriangleMesh) return;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, tmpFBO.fbo);
+	glViewport(0, 0, windowWidth, windowHeight);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	const float waterY = OCEAN_HEIGHT + 2.0f;
+
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+
+	glm::mat4 viewRotMirror(1.0f);
+	viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRotMirror = glm::rotate(viewRotMirror,  radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+
+	glm::vec3 camW   = camera.getWorldPosition();
+	glm::vec3 camMir = glm::vec3(camW.x, 2.0f * waterY - camW.y, camW.z);
+
+	glm::mat4 viewFullMirror = viewRotMirror;
+	viewFullMirror = glm::translate(viewFullMirror, glm::vec3(-camMir.x, -camMir.y, -camMir.z));
+
+	// Plane in world space: 0*x + 1*y + 0*z - waterY = 0
+	glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
+	glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
+
+	glUseProgram(shaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, glm::value_ptr(viewRotMirror));
+	glUniform3fv     (glGetUniformLocation(shaderProgram, "cameraPos"),    1, glm::value_ptr(camMir));
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
+	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
+
+	GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+	if (cullWasEnabled) glDisable(GL_CULL_FACE);
+
+	glm::mat4 prevView = this->viewMatrix;
+	_world.setViewProj(viewFullMirror, projOblique);   // <- use oblique for culling too
+	_world.updateDrawData();
+	_world.displaySolid();
+	_world.setViewProj(prevView, projectionMatrix);
+
+	if (cullWasEnabled) glEnable(GL_CULL_FACE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 void StoneEngine::prepareRenderPipeline() {
 	if (showTriangleMesh) {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -854,7 +1189,9 @@ void StoneEngine::findMoveRotationSpeed()
 
 
 	// Apply delta to rotation and movespeed
-	if (keyStates[GLFW_KEY_LEFT_CONTROL])
+	if (!gravity && keyStates[GLFW_KEY_LEFT_CONTROL])
+		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
+	else if (gravity && sprinting)
 		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
@@ -1229,12 +1566,26 @@ void StoneEngine::update()
 		BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
 		isUnderWater = (camHeadBlock == WATER);
 	}
-
-	// Update player position and orientation
+	// Update player data
+	updatePlacing();
 	updatePlayerDirection();
 	updateMovement();
 	updateBiomeData();
 	display();
+}
+
+void StoneEngine::updatePlacing()
+{
+	if (placing && now > _placeCooldown)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+
+		// Place block 5 block range
+		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		_placeCooldown = now + std::chrono::milliseconds(150);
+	}
 }
 
 void StoneEngine::resetFrameBuffers()
@@ -1262,6 +1613,69 @@ void StoneEngine::resetFrameBuffers()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 }
 
+void StoneEngine::mouseButtonAction(int button, int action, int mods)
+{
+	(void)mods;
+	// Only when mouse is captured (so clicks aren't for UI)
+	if (!mouseCaptureToggle) return;
+
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+
+		// Delete the first solid block within 5 blocks of reach
+		_world.raycastDeleteOne(origin, dir, 5.0f);
+	}
+	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+
+		// Place block 5 bloock range
+		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		placing = true;
+
+		// Start cooldown immediately to avoid a second place on the same frame
+		_placeCooldown = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+	}
+	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE && selectedBlock != AIR)
+		placing = false;
+	else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
+	{
+		// Ray origin and direction in WORLD space
+		glm::vec3 origin = camera.getWorldPosition();
+		glm::vec3 dir    = camera.getDirection();
+		glm::ivec3 hit;
+		BlockType blockFound;
+
+		blockFound = _world.raycastHitFetch(origin, dir, 5.0f, hit);
+
+		// Guard from selecting any type of blocks
+		if (blockFound != BEDROCK && blockFound != AIR)
+		{
+			selectedBlock = blockFound;
+
+			// For debug textbox
+			for (size_t i = 0; i < NB_BLOCKS; i++)
+			{
+				if (blockDebugTab[i].correspondance == blockFound)
+				{
+					selectedBlockDebug = blockDebugTab[i].block;
+					return ;
+				}
+			}
+		}
+	}
+}
+
+void StoneEngine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+	StoneEngine* engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+	if (engine) engine->mouseButtonAction(button, action, mods);
+}
 
 void StoneEngine::reshapeAction(int width, int height)
 {
@@ -1274,6 +1688,13 @@ void StoneEngine::reshapeAction(int width, int height)
 	float y = mapExpo(_fov, 1.0f, 90.0f, 10.0f, 0.1f);
 	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, 9600.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
+
+	// Update post-process shaders with new texel size so screen-space effects (e.g., crosshair)
+	// remain correctly centered after a resize.
+	for (auto &entry : postProcessShaders)
+	{
+		updateFboWindowSize(entry.second);
+	}
 }
 
 void StoneEngine::reshape(GLFWwindow* window, int width, int height)
@@ -1302,6 +1723,10 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 	if (action == GLFW_PRESS) keyStates[key] = true;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F6) {
+		_gridMode = static_cast<GridDebugMode>((int(_gridMode) + 1) % 4);
+	}
+	if (action == GLFW_PRESS && key == GLFW_KEY_LEFT_CONTROL) sprinting = !sprinting;
 	else if (action == GLFW_RELEASE) keyStates[key] = false;
 }
 
@@ -1395,6 +1820,7 @@ int StoneEngine::initGLFW()
 	glfwSetFramebufferSizeCallback(_window, reshape);
 	glfwSetKeyCallback(_window, keyPress);
 	glfwSetScrollCallback(_window, scrollCallback);
+	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
 	glfwMakeContextCurrent(_window);
 	glfwSwapInterval(0);
 	if (!isWSL())

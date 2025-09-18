@@ -66,8 +66,11 @@ typedef char BlockType;
 bool isWSL();
 GLuint compileShader(const char* filePath, GLenum shaderType);
 GLuint createShaderProgram(const char* vertexShaderPath, const char* fragmentShaderPath);
-bool faceDisplayCondition(char blockToDisplay, char neighborBlock);
+bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir);
 GLuint compileComputeShader(const char* src);
+// static glm::mat4 makeObliqueProjection(const glm::mat4& proj,
+// 	const glm::mat4& view,
+// 	const glm::vec4& planeWorld);
 
 struct ivec2_hash {
 	std::size_t operator () (const ivec2 vec) const {

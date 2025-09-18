@@ -12,6 +12,7 @@
 # define JUMPING false
 # define UNDERWATER false
 # define ASCENDING false
+# define SPRINTING false
 # define IGNORE_MOUSE false
 # define KEY_INIT false
 
@@ -34,7 +35,7 @@
 # define EPS 0.02f
 
 # define KHR_DEBUG false
-# define CAVES false
+# define CAVES true
 
 # define RESOLUTION 1
 
@@ -54,6 +55,42 @@
 # define SNOW 'w'
 # define LOG 'l'
 # define LEAF 'L'
+
+// Update this number when adding new blocks (debug textbox importance)
+#define NB_BLOCKS 11
+// AND the enum list (pls)
+enum block_types {
+	air,
+	stone,
+	cobble,
+	bedrock,
+	dirt,
+	grass,
+	sand,
+	water,
+	snow,
+	oak_log,
+	leaf
+};
+struct block_correspondance
+{
+	block_types block;
+	char correspondance;
+};
+// AND the correspondance chart (pls v2)
+const block_correspondance blockDebugTab[NB_BLOCKS] = {
+	{air, AIR},
+	{stone, STONE},
+	{cobble, COBBLE},
+	{bedrock, BEDROCK},
+	{dirt, DIRT},
+	{grass, GRASS},
+	{sand, SAND},
+	{water, WATER},
+	{snow, SNOW},
+	{oak_log, LOG},	// ambiguous name so had to specify
+	{leaf, LEAF}
+};
 
 typedef  struct {
 	uint  count;

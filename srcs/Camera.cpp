@@ -1,6 +1,6 @@
 #include "Camera.hpp"
 
-Camera::Camera() : position{800, -131, 800}, angle(0, 12) {
+Camera::Camera() : position{865, -131, 1237}, angle(0, 12) {
 	_facing = e_direction(int(angle.x) / 45);
 };
 

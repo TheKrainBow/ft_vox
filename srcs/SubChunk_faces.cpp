@@ -74,7 +74,8 @@ void SubChunk::processUpVertex(std::vector<Face> *faces, std::vector<int> *verte
 	Face newFace;
 	for (Face face : faces[UP])
 	{
-		if (isFirst || newFace.size.y > 31 || newFace.texture != face.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution)
+		// Prevent merging of UP faces for logs (top caps never touch)
+		if (isFirst || newFace.size.y > 31 || newFace.texture != face.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || face.texture == T_LOG_TOP)
 		{
 			if (isFirst == false)
 				mergedFacesZ.push_back(newFace);
@@ -89,7 +90,8 @@ void SubChunk::processUpVertex(std::vector<Face> *faces, std::vector<int> *verte
 	isFirst = true;
 	for (Face face : mergedFacesZ)
 	{
-		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || newFace.size.y != face.size.y)
+		// Prevent merging of UP faces for logs (top caps never touch)
+		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || newFace.size.y != face.size.y || face.texture == T_LOG_TOP)
 		{
 			if (!isFirst)
 				mergedFaces.push_back(newFace);
@@ -119,7 +121,8 @@ void SubChunk::processDownVertex(std::vector<Face> *faces, std::vector<int> *ver
 	Face newFace;
 	for (Face face : faces[DOWN])
 	{
-		if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution)
+		// Prevent merging of DOWN faces for logs (bottom caps never touch)
+		if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || face.texture == T_LOG_TOP)
 		{
 			if (!isFirst)
 				mergedFacesZ.push_back(newFace);
@@ -135,7 +138,8 @@ void SubChunk::processDownVertex(std::vector<Face> *faces, std::vector<int> *ver
 	isFirst = true;
 	for (Face face : mergedFacesZ)
 	{
-		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || newFace.size.y != face.size.y)
+		// Prevent merging of DOWN faces for logs (bottom caps never touch)
+		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || newFace.size.y != face.size.y || face.texture == T_LOG_TOP)
 		{
 			if (!isFirst)
 				mergedFaces.push_back(newFace);
@@ -165,7 +169,9 @@ void SubChunk::processNorthVertex(std::vector<Face> *faces, std::vector<int> *ve
 	Face newFace;
 	for (Face face : faces[NORTH])
 	{
-		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution)
+		// Disable horizontal (X-axis) merging for log side faces to avoid elongated quads
+		// when multiple logs sit side-by-side. Vertical (Y) merging remains
+		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || face.texture == T_LOG_SIDE)
 		{
 			if (!isFirst)
 				mergedFacesZ.push_back(newFace);
@@ -211,7 +217,8 @@ void SubChunk::processSouthVertex(std::vector<Face> *faces, std::vector<int> *ve
 	Face newFace;
 	for (Face face : faces[SOUTH])
 	{
-		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution)
+		// Disable horizontal (X-axis) merging for log side faces for SOUTH-facing quads
+		if (isFirst || newFace.size.x > 31 || face.texture != newFace.texture || face.position.y != newFace.position.y || face.position.z != newFace.position.z || lastFace.position.x != face.position.x - _resolution || face.texture == T_LOG_SIDE)
 		{
 			if (!isFirst)
 				mergedFacesZ.push_back(newFace);
@@ -272,7 +279,8 @@ void SubChunk::processEastVertex(std::vector<Face> *faces, std::vector<int> *ver
 	isFirst = true;
 	for (Face face : mergedFacesZ)
 	{
-		if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || newFace.size.x != face.size.x)
+		// Disable horizontal (Z-axis) merging for log side faces to avoid elongated quads
+		if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || newFace.size.x != face.size.x || face.texture == T_LOG_SIDE)
 		{
 			if (!isFirst)
 				mergedFaces.push_back(newFace);
@@ -317,7 +325,8 @@ void SubChunk::processWestVertex(std::vector<Face> *faces, std::vector<int> *ver
 	isFirst = true;
 	for (Face face : mergedFacesZ)
 	{
-		if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || newFace.size.x != face.size.x)
+		// Disable horizontal (Z-axis) merging for log side faces on WEST-facing quads
+		if (isFirst || newFace.size.y > 31 || face.texture != newFace.texture || face.position.x != newFace.position.x || face.position.y != newFace.position.y || lastFace.position.z != face.position.z - _resolution || newFace.size.x != face.size.x || face.texture == T_LOG_SIDE)
 		{
 			if (!isFirst)
 				mergedFaces.push_back(newFace);
