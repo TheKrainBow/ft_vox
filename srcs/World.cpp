@@ -396,16 +396,16 @@ void World::loadFirstChunks(ivec2 &chunkPos) {
 		retRight = _threadPool.enqueue(&World::loadBotChunks,   this, render, chunkPos, resolution);
 		retLeft  = _threadPool.enqueue(&World::loadLeftChunks,  this, render, chunkPos, resolution);
 
-	// Wait for ring loaders, but allow shutdown to break out quickly
-	auto wait_ready = [&](std::future<void>& f) {
-		while (f.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
-			if (!getIsRunning()) return false;
+		// Wait for ring loaders, but allow shutdown to break out quickly
+		auto wait_ready = [&](std::future<void>& f) {
+			while (f.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
+				if (!getIsRunning()) return false;
+			}
+			return true;
+		};
+		if (!wait_ready(retTop) || !wait_ready(retBot) || !wait_ready(retRight) || !wait_ready(retLeft)) {
+			return; // shutting down; don't block
 		}
-		return true;
-	};
-	if (!wait_ready(retTop) || !wait_ready(retBot) || !wait_ready(retRight) || !wait_ready(retLeft)) {
-		return; // shutting down; don't block
-	}
 
 		if (render >= _threshold && resolution < CHUNK_SIZE) {
 			resolution *= 2;
@@ -521,6 +521,8 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 	size_t totalSolidCmds  = 0, totalTransCmds  = 0;
 	size_t totalSSBO       = 0;
 	for (const auto& c : snapshot) {
+		if (!getIsRunning())
+			return ;
 		totalSolidVerts += c->getVertices().size();
 		totalTransVerts += c->getTransparentVertices().size();
 		totalSolidCmds  += c->getIndirectData().size();
@@ -534,6 +536,8 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
 
 	for (const auto& c : snapshot) {
+		if (!getIsRunning())
+			return ;
 		auto& ssbo = c->getSSBO();
 
 		// SOLID
@@ -543,7 +547,7 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 
 		auto& ib = c->getIndirectData();
 		size_t solidCount = ib.size();
-		for (size_t i = 0; i < solidCount; ++i) {
+		for (size_t i = 0; getIsRunning() && i < solidCount; ++i) {
 			auto cmd = ib[i];
 			cmd.baseInstance += (uint32_t)vSizeBefore;
 			fillData->indirectBufferData.push_back(cmd);
@@ -559,7 +563,7 @@ void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentF
 
 		auto& tib = c->getTransparentIndirectData();
 		size_t transpCount = tib.size();
-		for (size_t i = 0; i < transpCount; ++i) {
+		for (size_t i = 0; getIsRunning() &&  i < transpCount; ++i) {
 			auto cmd = tib[i];
 			cmd.baseInstance += (uint32_t)tvBefore;
 			transparentFillData->indirectBufferData.push_back(cmd);
