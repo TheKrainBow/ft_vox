@@ -62,7 +62,7 @@ class StoneEngine {
 		float _fov = 80.0f;
 
 		std::mutex		_isRunningMutex;
-		bool			_isRunning = false;
+		std::atomic_bool	_isRunning = false;
 
 		// Keys states and runtime booleans
 		bool keyStates[348];

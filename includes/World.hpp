@@ -100,8 +100,6 @@ private:
 	int             _renderDistance = 0;
 	int             _currentRender  = 0;
 	int             _maxRender      = 1000;
-	bool           *_isRunning      = nullptr;
-	std::mutex     *_runningMutex   = nullptr;
 	Chrono          _chronoHelper;
 
 	// Display / Runtime data
@@ -156,12 +154,13 @@ private:
 
 	// Concurrency guard to avoid concurrent/stacked heavy builds
 	std::atomic_bool						_buildingDisplay = false;
+	std::atomic_bool *_isRunning      = nullptr;
 public:
 	// Init
-	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool);
+	World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool, std::atomic_bool *isRunning);
 	~World();
 	void init(int renderDistance = RENDER_DISTANCE);
-	void setRunning(std::mutex *runningMutex, bool *isRunning);
+	void initSpawn();
 
 	// Edits (queue if chunk not ready)
 	bool setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value);
@@ -212,6 +211,7 @@ public:
 				const glm::vec3& dirWorld,
 				float maxDistance,
 				BlockType block);
+	bool getIsRunning();
 private:
 	// Chunk loading
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
@@ -225,7 +225,6 @@ private:
 
 	// Runtime info
 	bool hasMoved(ivec2 &oldPos);
-	bool getIsRunning();
 	void initGpuCulling();
 	void runGpuCulling(bool transparent);
 

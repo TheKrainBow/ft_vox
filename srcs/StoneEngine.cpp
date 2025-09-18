@@ -51,7 +51,7 @@ void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
 	glUniform2f(texelSizeLoc, texelX, texelY);
 }
 
-StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _textureManager, camera, pool), _pool(pool), noise_gen(seed)
+StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _textureManager, camera, pool, &_isRunning), _pool(pool), noise_gen(seed)
 {
 	initData();
 	initGLFW();
@@ -62,13 +62,12 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _t
 	initFboShaders();
 	reshapeAction(windowWidth, windowHeight);
 	_world.init(RENDER_DISTANCE);
-	_world.setRunning(&_isRunningMutex, &_isRunning);
 }
 
 StoneEngine::~StoneEngine()
 {
-	// Ensure World GL resources are freed before destroying the context
-	_world.shutdownGL();
+    // Ensure World GL resources are freed before destroying the context
+    _world.shutdownGL();
 
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
@@ -83,10 +82,15 @@ StoneEngine::~StoneEngine()
 	}
 	postProcessShaders.clear();
 
-	// Delete sun resources and water normal map
-	if (sunVAO) glDeleteVertexArrays(1, &sunVAO);
-	if (sunVBO) glDeleteBuffers(1, &sunVBO);
-	if (waterNormalMap) glDeleteTextures(1, &waterNormalMap);
+    // Delete sun resources and water normal map
+    if (sunVAO) glDeleteVertexArrays(1, &sunVAO);
+    if (sunVBO) glDeleteBuffers(1, &sunVBO);
+    if (waterNormalMap) glDeleteTextures(1, &waterNormalMap);
+
+    // Delete wireframe/highlight resources
+    if (_wireVAO) glDeleteVertexArrays(1, &_wireVAO);
+    if (_wireVBO) glDeleteBuffers(1, &_wireVBO);
+    if (_wireProgram) glDeleteProgram(_wireProgram);
 
 	// Delete tmp and MSAA framebuffers/renderbuffers
 	if (tmpFBO.fbo) glDeleteFramebuffers(1, &tmpFBO.fbo);
@@ -111,6 +115,9 @@ StoneEngine::~StoneEngine()
 void StoneEngine::run()
 {
 	_isRunning = true;
+
+	// Set spawn point chunk and player pos
+	_world.initSpawn();
 
 	// Run the orchestrator on a dedicated thread so it doesn't consume a pool worker
 	std::thread chunkThread(&StoneEngine::updateChunkWorker, this);
@@ -1172,8 +1179,18 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 		unloadRet = _pool.enqueue(&World::unLoadNextChunks, &_world, newCamChunk);
 	if (getIsRunning())
 		loadRet = _pool.enqueue(&World::loadFirstChunks, &_world, newCamChunk);
-	unloadRet.get();
-	loadRet.get();
+
+	// Wait with shutdown-aware polling
+	if (unloadRet.valid()) {
+		while (unloadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
+			if (!getIsRunning()) break;
+		}
+	}
+	if (loadRet.valid()) {
+		while (loadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
+			if (!getIsRunning()) break;
+		}
+	}
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChrono(0);
 }
@@ -1188,16 +1205,16 @@ void StoneEngine::findMoveRotationSpeed()
 	lastTime = currentTime;
 
 
-	// Apply delta to rotation and movespeed
+	// Apply delta to rotation and movespeed (legacy scheme)
 	if (!gravity && keyStates[GLFW_KEY_LEFT_CONTROL])
 		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
 	else if (gravity && sprinting)
 		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
 	else
 		moveSpeed = MOVEMENT_SPEED * deltaTime;
-	
+
 	if (swimming)
-		moveSpeed *= 0.5;
+		moveSpeed *= 0.5f;
 
 	//ZOOM
 	if (keyStates[GLFW_KEY_KP_ADD]) {timeValue+=50;}
@@ -1448,24 +1465,24 @@ void StoneEngine::updateGameTick()
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
 		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 58500);
 	}
-	// Update gravity and falling values
+	// Update gravity and falling values (legacy integration)
 	if (!swimming)
 	{
 		if (gravity && falling)
 		{
 			fallSpeed -= FALL_INCREMENT;
-			fallSpeed *= 0.98;
+			fallSpeed *= 0.98f;
 		}
 	}
 	else
 	{
 		if (gravity && falling)
 		{
-			fallSpeed = -0.25;
+			fallSpeed = -0.25f;
 		}
 		if (keyStates[GLFW_KEY_SPACE] && std::chrono::steady_clock::now() > _swimUpCooldownOnRise)
 		{
-			fallSpeed += 0.75;
+			fallSpeed += 0.75f;
 		}
 	}
 }
@@ -1714,7 +1731,15 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		reshapeAction(windowWidth, windowHeight);
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
-	if (action == GLFW_PRESS && key == GLFW_KEY_G) gravity = !gravity;
+	if (action == GLFW_PRESS && key == GLFW_KEY_G) {
+		bool newG = !gravity;
+		gravity = newG;
+		if (newG) {
+			// Smoothly re-enter gravity: reset vertical velocity so we don't snap
+			falling = true;
+			fallSpeed = 0.0f;
+		}
+	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;

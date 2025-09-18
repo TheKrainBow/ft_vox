@@ -30,7 +30,7 @@ void Chunk::loadBlocks() {
 	std::vector<std::future<std::pair<int, SubChunk*>>> futures;
 	futures.reserve(maxYIdx - minYIdx + 1);
 
-	for (int idx = minYIdx; idx <= maxYIdx; ++idx) {
+	for (int idx = minYIdx; _world.getIsRunning() && idx <= maxYIdx; ++idx) {
 		futures.emplace_back(_pool.enqueue([this, idx]() -> std::pair<int, SubChunk*>
 		{
 			auto* sub = new SubChunk(

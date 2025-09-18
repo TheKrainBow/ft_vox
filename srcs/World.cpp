@@ -12,12 +12,13 @@ static inline int floor_div(int a, int b) {
 	return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
 }
 
-World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool)
-: _threadPool(pool)
-, _textureManager(textureManager)
-, _camera(camera)
-, _perlinGenerator(seed)
-, _caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, 42)
+World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPool &pool, std::atomic_bool *isRunning)
+: _threadPool(pool),
+_textureManager(textureManager),
+_camera(camera),
+_perlinGenerator(seed),
+_caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, 42),
+_isRunning(isRunning)
 {
 	_needUpdate = true;
 	_needTransparentUpdate = true;
@@ -29,15 +30,18 @@ World::World(int seed, TextureManager &textureManager, Camera &camera, ThreadPoo
 
 	_drawData = nullptr;
 	_transparentDrawData = nullptr;
+}
 
+void World::initSpawn()
+{
 	// Load first chunk under the player, and pop their position on top of it
-	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
-	vec3 worldPos  = camera.getWorldPosition();
+	ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
+	vec3 worldPos  = _camera.getWorldPosition();
 	loadChunk(0, 0, 0, chunkPos, 1);
 	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-	const vec3 &camPos = camera.getPosition();
+	const vec3 &camPos = _camera.getPosition();
 	// Place camera: feet on ground
-	camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
+	_camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
 }
 
 TopBlock World::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
@@ -344,13 +348,10 @@ void World::flushDirtyChunks() {
 	}
 }
 
-void World::setRunning(std::mutex *runningMutex, bool *isRunning) {
-	_isRunning = isRunning;
-	_runningMutex = runningMutex;
-}
-
 bool World::getIsRunning() {
-	std::lock_guard<std::mutex> lockGuard(*_runningMutex);
+	// During early construction, running mutex/flag may not be wired yet
+	if (_isRunning == nullptr)
+		return true;
 	return *_isRunning;
 }
 
@@ -395,7 +396,16 @@ void World::loadFirstChunks(ivec2 &chunkPos) {
 		retRight = _threadPool.enqueue(&World::loadBotChunks,   this, render, chunkPos, resolution);
 		retLeft  = _threadPool.enqueue(&World::loadLeftChunks,  this, render, chunkPos, resolution);
 
-		retTop.get(); retBot.get(); retRight.get(); retLeft.get();
+	// Wait for ring loaders, but allow shutdown to break out quickly
+	auto wait_ready = [&](std::future<void>& f) {
+		while (f.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
+			if (!getIsRunning()) return false;
+		}
+		return true;
+	};
+	if (!wait_ready(retTop) || !wait_ready(retBot) || !wait_ready(retRight) || !wait_ready(retLeft)) {
+		return; // shutting down; don't block
+	}
 
 		if (render >= _threshold && resolution < CHUNK_SIZE) {
 			resolution *= 2;
@@ -405,7 +415,11 @@ void World::loadFirstChunks(ivec2 &chunkPos) {
 		if (hasMoved(chunkPos)) break;
 		_currentRender = render + 2;
 	}
-	for (auto &ret : retLst) ret.get();
+	for (auto &ret : retLst) {
+		while (ret.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
+			if (!getIsRunning()) break;
+		}
+	}
 }
 
 bool World::hasMoved(ivec2 &oldPos)
@@ -449,6 +463,10 @@ void World::unLoadNextChunks(ivec2 &newCamChunk)
 
 void World::updateFillData()
 {
+	// If the engine is shutting down, skip any deferred heavy work
+	if (!getIsRunning()) {
+		return;
+	}
 	// Avoid piling up heavy builds and starving the render thread
 	if (_buildingDisplay.exchange(true))
 		return;
@@ -1178,6 +1196,7 @@ bool World::raycastPlaceOne(const glm::vec3& originWorld,
 
 void World::scheduleDisplayUpdate() {
 	if (_buildingDisplay) return;
+	if (!getIsRunning()) return;
 	_threadPool.enqueue(&World::updateFillData, this);
 }
 

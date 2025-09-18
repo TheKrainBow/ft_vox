@@ -42,8 +42,9 @@ class NoiseGenerator {
 			double	resolution = 1;
 			int		size = CHUNK_SIZE;
 			~PerlinMap() {
-				if (heightMap) delete [] heightMap;
-				if (biomeMap) delete [] biomeMap;
+				if (heightMap) { delete [] heightMap; heightMap = nullptr; }
+				if (biomeMap)  { delete [] biomeMap;  biomeMap  = nullptr; }
+				if (treeMap)   { delete [] treeMap;   treeMap   = nullptr; }
 			};
 		};
 	public:

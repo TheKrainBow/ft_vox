@@ -46,6 +46,7 @@ class Chunk : public std::enable_shared_from_this<Chunk>
 		ThreadPool								&_pool;
 		std::atomic_bool						_isBuilding;
 		std::atomic_bool						_isModified;
+		
 	public:
 		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution = 1);
 		~Chunk();
