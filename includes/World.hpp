@@ -119,6 +119,8 @@ private:
 	// Single-buffer (no triple PB) SSBOs per pass
 	GLuint									_solidPosSSBO = 0;      // binding=3 for SOLID
 	GLuint									_transpPosSSBO = 0;     // binding=3 for TRANSPARENT
+	GLuint									_solidPosSrcSSBO = 0;   // binding 0 for solid pass
+	GLuint									_transpPosSrcSSBO = 0;  // binding 0 for transparent pass
 	GLuint									_solidInstSSBO = 0;     // binding=4 for SOLID
 	GLuint									_transpInstSSBO = 0;    // binding=4 for TRANSPARENT
 
@@ -134,6 +136,9 @@ private:
 	GLuint									_frustumUBO  = 0;
 	GLuint									_templIndirectBuffer = 0;
 	GLuint									_transpTemplIndirectBuffer = 0;
+	GLuint									_solidParamsBuf = 0;
+	GLuint									_transpParamsBuf = 0;
+	
 	GLsizei									_solidDrawCount = 0;
 	GLsizei									_transpDrawCount = 0;
 	GLint									_locNumDraws = -1;
@@ -151,6 +156,9 @@ private:
 	GLsizeiptr								_capOutTranspCmd   = 0;
 	GLsizeiptr								_capTranspInst     = 0;
 	GLsizeiptr								_capTranspSSBO     = 0;
+	// --- NEW caps for the source pos buffers ---
+	GLsizeiptr								_capSolidSSBOSrc  = 0;
+	GLsizeiptr								_capTranspSSBOSrc = 0;
 
 	// Concurrency guard to avoid concurrent/stacked heavy builds
 	std::atomic_bool						_buildingDisplay = false;

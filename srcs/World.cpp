@@ -120,6 +120,8 @@ void World::shutdownGL()
 	if (_transpPosSSBO) { glDeleteBuffers(1, &_transpPosSSBO); _transpPosSSBO = 0; }
 	if (_solidInstSSBO) { glDeleteBuffers(1, &_solidInstSSBO); _solidInstSSBO = 0; }
 	if (_transpInstSSBO) { glDeleteBuffers(1, &_transpInstSSBO); _transpInstSSBO = 0; }
+	if (_solidPosSrcSSBO)  { glDeleteBuffers(1, &_solidPosSrcSSBO);  _solidPosSrcSSBO = 0; }
+	if (_transpPosSrcSSBO) { glDeleteBuffers(1, &_transpPosSrcSSBO); _transpPosSrcSSBO = 0; }
 }
 
 NoiseGenerator &World::getNoiseGenerator() { return _perlinGenerator; }
@@ -640,9 +642,12 @@ int World::displaySolid()
 
 	glBindVertexArray(_vao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount, 0);
+	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf); // contains uint drawCount
+	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
+								   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
+								   sizeof(DrawArraysIndirectCommand));
+	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-	glBindVertexArray(0);
 
 	// Prefer cached triangles count if CPU buffers were discarded
 	long long tris = 0;
@@ -681,9 +686,11 @@ int World::displayTransparent()
 	glDisable(GL_CULL_FACE);
 	glBindVertexArray(_transparentVao);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
-	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount, 0);
+	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
+	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, nullptr, 0, _transpDrawCount,
+								   sizeof(DrawArraysIndirectCommand));
+	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-	glBindVertexArray(0);
 
 	// After transparent upload/draw, CPU-side transparent draw data is no longer needed
 	if (!_needTransparentUpdate) {
@@ -703,6 +710,16 @@ int World::displayTransparent()
 void World::pushVerticesToOpenGL(bool transparent)
 {
 	std::lock_guard<std::mutex> lock(_drawDataMutex);
+	auto ensureCapacityOnly = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, GLenum usage)
+	{
+		if (cap < neededBytes)
+		{
+			GLsizeiptr newCap = cap > 0 ? cap : (GLsizeiptr)4096;
+			while (newCap < neededBytes) newCap *= 2;
+			glNamedBufferData(buf, newCap, nullptr, usage);
+			cap = newCap;
+		}
+	};
 
 	// Helper to grow buffers once and update with SubData (reduces realloc waiting)
 	auto ensureCapacityAndUpload = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, const void* data, GLenum usage)
@@ -728,9 +745,10 @@ void World::pushVerticesToOpenGL(bool transparent)
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
-		if (!_transpPosSSBO)  glCreateBuffers(1, &_transpPosSSBO);
+		if (!_transpPosSSBO)  glCreateBuffers(1, &_transpPosSSBO);     // DESTINATION (compute writes)
+		if (!_transpPosSrcSSBO) glCreateBuffers(1, &_transpPosSrcSSBO); // SOURCE (we upload)
 
-		// Upload template and out buffers (compute read/write) with capacity growth
+		// Upload template + out commands (as before)
 		ensureCapacityAndUpload(_transpTemplIndirectBuffer, _capTemplTranspCmd, bytesCmd,
 			_transparentDrawData->indirectBufferData.data(), GL_STATIC_DRAW);
 		ensureCapacityAndUpload(_transparentIndirectBuffer, _capOutTranspCmd, bytesCmd,
@@ -740,9 +758,13 @@ void World::pushVerticesToOpenGL(bool transparent)
 		ensureCapacityAndUpload(_transpInstSSBO, _capTranspInst, bytesInst,
 			_transparentDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
-		// Upload pos/res SSBO (binding=3). Share capacity with solid path via _capSSBO
-		ensureCapacityAndUpload(_transpPosSSBO, _capTranspSSBO, bytesSSBO,
+		// Upload SOURCE pos SSBO (binding=0 for compute)
+		ensureCapacityAndUpload(_transpPosSrcSSBO, _capTranspSSBOSrc, bytesSSBO,
 			_drawData->ssboData.data(), GL_DYNAMIC_DRAW);
+
+		// Ensure DESTINATION pos SSBO (binding=6 for compute, later bound for draw)
+		// NOTE: no SubData upload; compute shader fills it.
+		ensureCapacityOnly(_transpPosSSBO, _capTranspSSBO, bytesSSBO, GL_DYNAMIC_DRAW);
 
 		_transpDrawCount = (GLsizei)nCmd;
 		_needTransparentUpdate = false;
@@ -756,10 +778,11 @@ void World::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_drawData->ssboData.size() * sizeof(glm::vec4);
 
 		// Ensure buffers exist
-		if (!_solidInstSSBO) glCreateBuffers(1, &_solidInstSSBO);
-		if (!_solidPosSSBO)  glCreateBuffers(1, &_solidPosSSBO);
+		if (!_solidInstSSBO)  glCreateBuffers(1, &_solidInstSSBO);
+		if (!_solidPosSSBO)   glCreateBuffers(1, &_solidPosSSBO);      // DESTINATION
+		if (!_solidPosSrcSSBO) glCreateBuffers(1, &_solidPosSrcSSBO);  // SOURCE
 
-		// Upload template and out buffers (compute read/write) with capacity growth
+		// Upload template and out command buffers
 		ensureCapacityAndUpload(_templIndirectBuffer, _capTemplSolidCmd, bytesCmd,
 			_drawData->indirectBufferData.data(), GL_STATIC_DRAW);
 		ensureCapacityAndUpload(_indirectBuffer, _capOutSolidCmd, bytesCmd,
@@ -769,12 +792,15 @@ void World::pushVerticesToOpenGL(bool transparent)
 		ensureCapacityAndUpload(_solidInstSSBO, _capSolidInst, bytesInst,
 			_drawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
-		// Upload pos/res SSBO (binding=3)
-		ensureCapacityAndUpload(_solidPosSSBO, _capSolidSSBO, bytesSSBO,
+		// Upload SOURCE pos SSBO (binding=0 for compute)
+		ensureCapacityAndUpload(_solidPosSrcSSBO, _capSolidSSBOSrc, bytesSSBO,
 			_drawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
+		// Ensure DESTINATION pos SSBO (binding=6 for compute, later bound for draw)
+		ensureCapacityOnly(_solidPosSSBO, _capSolidSSBO, bytesSSBO, GL_DYNAMIC_DRAW);
+
 		_solidDrawCount = (GLsizei)nCmd;
-		// Compute triangles count once while CPU data is present
+		// Compute triangles count once while CPU data is present (unchanged)
 		long long tris = 0;
 		for (const auto& c : _drawData->indirectBufferData) {
 			long long per = (c.count >= 3) ? (c.count - 2) : 0;
@@ -828,6 +854,12 @@ void World::initGLBuffer()
 	glCreateBuffers(1, &_templIndirectBuffer);
 	glCreateBuffers(1, &_transpTemplIndirectBuffer);
 
+	glCreateBuffers(1, &_solidParamsBuf);
+	glNamedBufferStorage(_solidParamsBuf, sizeof(GLuint), nullptr,
+		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
+	glCreateBuffers(1, &_transpParamsBuf);
+	glNamedBufferStorage(_transpParamsBuf, sizeof(GLuint), nullptr,
+		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
 	initGpuCulling();
 	_hasBufferInitialized = true;
 }
@@ -845,35 +877,39 @@ void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
 	glNamedBufferSubData(_frustumUBO, 0, sizeof(planes), planes);
 }
 
-void World::runGpuCulling(bool transparent)
-{
+void World::runGpuCulling(bool transparent) {
 	GLuint templ = transparent ? _transpTemplIndirectBuffer : _templIndirectBuffer;
 	GLuint out   = transparent ? _transparentIndirectBuffer : _indirectBuffer;
-
-	const GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
+	GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
 	if (count <= 0) return;
 
-	// ensure previous uploads visible to compute
+	// reset counter to 0
+	GLuint zero = 0;
+	GLuint param = transparent ? _transpParamsBuf : _solidParamsBuf;
+	glNamedBufferSubData(param, 0, sizeof(GLuint), &zero);
+
 	glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
-	GLint prevProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+	GLint prev = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prev);
 	glUseProgram(_cullProgram);
+	GLuint posSrc = transparent ? _transpPosSrcSSBO : _solidPosSrcSSBO; // binding 0
+	GLuint posDst = transparent ? _transpPosSSBO    : _solidPosSSBO;    // binding 6
 
-	// Bind pass' pos/res buffer
-	GLuint posBuf = transparent ? _transpPosSSBO : _solidPosSSBO;
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, posBuf);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, templ);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, out);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, posSrc); // read
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, templ);  // read
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, out);    // write (commands)
 	glBindBufferBase(GL_UNIFORM_BUFFER,        3, _frustumUBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, param);  // counter
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, posDst); // write (compacted posRes)
 
 	glUniform1ui(_locNumDraws, (GLuint)count);
 	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
 
-	const GLuint groups = ((GLuint)count + 63u) / 64u;
+	GLuint groups = (count + 63u) / 64u;
 	glDispatchCompute(groups, 1, 1);
 
 	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-	glUseProgram(prevProg ? (GLuint)prevProg : 0);
+	glUseProgram(prev ? (GLuint)prev : 0);
 }
 
 static inline bool isSolidDeletable(BlockType b) {
