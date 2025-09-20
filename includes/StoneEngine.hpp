@@ -169,9 +169,9 @@ class StoneEngine {
 		void finalizeFrame();
 		void renderTransparentObjects();
 		void renderSolidObjects();
-		void resolveMsaaToFbo();
+		void resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth);
 		void prepareRenderPipeline();
-		void displaySun();
+		void displaySun(FBODatas &targetFBO);
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
@@ -187,12 +187,13 @@ class StoneEngine {
 		void activateTransparentShader();
 		void updateBiomeData();
 		void renderChunkGrid();
-	
+		void swapPingPongBuffers();
+
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
 		void postProcessFog();
 		void postProcessGodRays();
-		void sendPostProcessFBOToDispay();
+		void sendPostProcessFBOToDispay(const FBODatas &sourceFBO);
 	
 		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
 

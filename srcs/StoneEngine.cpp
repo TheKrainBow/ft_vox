@@ -334,11 +334,11 @@ void StoneEngine::initRenderShaders()
 	initWireframeResources();
 }
 
-void StoneEngine::displaySun()
+void StoneEngine::displaySun(FBODatas &targetFBO)
 {
 	if (showTriangleMesh)
 		return ;
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, targetFBO.fbo);
 	// glDepthFunc(GL_LESS);
 	vec3 camPos = camera.getWorldPosition();
 	// Compute current sun position based on time
@@ -750,26 +750,28 @@ void StoneEngine::activateTransparentShader()
 	glFrontFace(GL_CCW);
 }
 
-void StoneEngine::resolveMsaaToFbo()
+void StoneEngine::resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth)
 {
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);    // Source: MSAA
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO.fbo);  // Destination: regular FBO
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, destinationFBO.fbo);  // Destination: single-sample FBO
 
-	// Blit COLOR
+	GLbitfield mask = GL_COLOR_BUFFER_BIT;
+	if (resolveDepth)
+		mask |= GL_DEPTH_BUFFER_BIT;
+
 	glBlitFramebuffer(
 		0, 0, windowWidth, windowHeight,
 		0, 0, windowWidth, windowHeight,
-		GL_COLOR_BUFFER_BIT,
+		mask,
 		GL_NEAREST
 	);
 
-	// Resolve DEPTH
-	glBlitFramebuffer(
-		0, 0, windowWidth, windowHeight,
-		0, 0, windowWidth, windowHeight,
-		GL_DEPTH_BUFFER_BIT,
-		GL_NEAREST
-	);
+	GLenum attachmentsToDiscard[2];
+	GLsizei attachmentCount = 0;
+	attachmentsToDiscard[attachmentCount++] = GL_COLOR_ATTACHMENT0;
+	if (resolveDepth)
+		attachmentsToDiscard[attachmentCount++] = GL_DEPTH_ATTACHMENT;
+	glInvalidateFramebuffer(GL_READ_FRAMEBUFFER, attachmentCount, attachmentsToDiscard);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -777,55 +779,49 @@ void StoneEngine::resolveMsaaToFbo()
 void StoneEngine::display() {
 	prepareRenderPipeline();
 
-	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
 	renderSolidObjects();
-	resolveMsaaToFbo();
-	screenshotFBOBuffer(writeFBO, readFBO);
 
-	// postProcessGreedyFix();
-	// screenshotFBOBuffer(writeFBO, readFBO);
-
-	// Delay greedy-fix until after transparent pass so it applies to the final scene
-	displaySun();
-	screenshotFBOBuffer(writeFBO, readFBO);
-	
-	renderPlanarReflection();
-	
-	// Render transparent objects with MSAA (same path as solids), then resolve
 	if (!showTriangleMesh) {
+		displaySun(msaaFBO);
+	}
+
+	renderPlanarReflection();
+
+	if (!showTriangleMesh) {
+		resolveMsaaToFbo(readFBO, true);
+
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		renderTransparentObjects();
 		renderAimHighlight();
 		renderChunkGrid();
-		resolveMsaaToFbo();
+		resolveMsaaToFbo(writeFBO, true);
+		swapPingPongBuffers();
 	}
-	else
-	{
+	else {
 		// Wireframe: draw directly to current framebuffer
 		renderTransparentObjects();
 	}
-	screenshotFBOBuffer(writeFBO, readFBO);
-	// Now run greedy-fix so it affects the combined scene
-	postProcessGreedyFix();
-	screenshotFBOBuffer(writeFBO, readFBO);
 
-	postProcessFog();
-	
-	// Display sun because FOG erased it
-	displaySun();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	if (!showTriangleMesh) {
+		postProcessGreedyFix();
+		swapPingPongBuffers();
 
-	// Godrays: single-pass over scene+depth to add shafts
-	postProcessGodRays();
-	screenshotFBOBuffer(writeFBO, readFBO);
+		postProcessFog();
+		swapPingPongBuffers();
 
-	if (showDebugInfo)
-	{
-		postProcessCrosshair();
-		screenshotFBOBuffer(writeFBO, readFBO);
+		displaySun(readFBO);
+
+		postProcessGodRays();
+		swapPingPongBuffers();
+
+		if (showDebugInfo) {
+			postProcessCrosshair();
+			swapPingPongBuffers();
+		}
+
+		sendPostProcessFBOToDispay(readFBO);
 	}
 
-	sendPostProcessFBOToDispay();
 	renderOverlayAndUI();
 	finalizeFrame();
 }
@@ -1047,11 +1043,18 @@ void StoneEngine::renderPlanarReflection()
 {
 	if (showTriangleMesh) return;
 
+	const float waterY = OCEAN_HEIGHT + 2.0f;
+	glm::vec3 camPos = camera.getWorldPosition();
+	const float verticalDistance = glm::abs(camPos.y - waterY);
+	const float planarUpdateMaxDistance = 256.0f;
+
+	if (!isUnderWater && verticalDistance > planarUpdateMaxDistance) {
+		return;
+	}
+
 	glBindFramebuffer(GL_FRAMEBUFFER, tmpFBO.fbo);
 	glViewport(0, 0, windowWidth, windowHeight);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	const float waterY = OCEAN_HEIGHT + 2.0f;
 
 	float radY = camera.getAngles().y * (M_PI / 180.0f);
 	float radX = camera.getAngles().x * (M_PI / 180.0f);
@@ -1060,8 +1063,7 @@ void StoneEngine::renderPlanarReflection()
 	viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewRotMirror = glm::rotate(viewRotMirror,  radX, glm::vec3( 0.0f,-1.0f, 0.0f));
 
-	glm::vec3 camW   = camera.getWorldPosition();
-	glm::vec3 camMir = glm::vec3(camW.x, 2.0f * waterY - camW.y, camW.z);
+	glm::vec3 camMir = glm::vec3(camPos.x, 2.0f * waterY - camPos.y, camPos.z);
 
 	glm::mat4 viewFullMirror = viewRotMirror;
 	viewFullMirror = glm::translate(viewFullMirror, glm::vec3(-camMir.x, -camMir.y, -camMir.z));
@@ -1128,15 +1130,27 @@ void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
 					  GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 }
 
-void StoneEngine::sendPostProcessFBOToDispay() {
+void StoneEngine::swapPingPongBuffers() {
+	if (showTriangleMesh)
+		return;
+
+	FBODatas tmp = writeFBO;
+	writeFBO = readFBO;
+	readFBO = tmp;
+}
+
+void StoneEngine::sendPostProcessFBOToDispay(const FBODatas &sourceFBO) {
 	if (showTriangleMesh)
 		return ;
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, sourceFBO.fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
 						0, 0, windowWidth, windowHeight,
-						GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+						GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	glDepthMask(GL_TRUE);
+	glClear(GL_DEPTH_BUFFER_BIT);
 }
 
 void StoneEngine::renderTransparentObjects() {
