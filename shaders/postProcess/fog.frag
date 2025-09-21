@@ -40,8 +40,8 @@ void main()
 	float fogStart = renderDistance * 5.0;
 	float fogEnd   = renderDistance * 15.0;
 
-    // Linearize using provided near/far plane
-    // float linearDepth = linearizeDepth(currentDepth);
+	// Linearize using provided near/far plane
+	// float linearDepth = linearizeDepth(currentDepth);
 	float near = 0.1;
 	float far  = 9000.0;
 	float z = currentDepth * 2.0 - 1.0;

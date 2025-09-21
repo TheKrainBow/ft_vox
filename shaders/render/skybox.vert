@@ -9,8 +9,8 @@ uniform mat4 projection;
 
 void main()
 {
-    TexCoords = aPos;
-    vec4 pos = projection * view * vec4(aPos, 1.0);
-    // Push depth to far plane to avoid clipping and ensure proper background
-    gl_Position = vec4(pos.xy, pos.w, pos.w);
+	TexCoords = aPos;
+	vec4 pos = projection * view * vec4(aPos, 1.0);
+	// Push depth to far plane to avoid clipping and ensure proper background
+	gl_Position = vec4(pos.xy, pos.w, pos.w);
 }

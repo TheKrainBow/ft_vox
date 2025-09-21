@@ -51,7 +51,7 @@
 
 // Camera frustum planes
 #ifndef NEAR_PLANE
-# define NEAR_PLANE 1.0f
+# define NEAR_PLANE 0.1f
 #endif
 #ifndef FAR_PLANE
 # define FAR_PLANE 9600.0f

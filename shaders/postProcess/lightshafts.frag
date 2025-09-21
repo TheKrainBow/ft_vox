@@ -28,9 +28,9 @@ const int   numSamples = 56;
 
 float skyMask(vec2 uv)
 {
-	// Treat depth ~1.0 as sky; anything else blocks
+	// Treat only cleared depth (very close to 1.0) as sky
 	float d = texture(depthTexture, uv).r;
-	return d >= 0.9999 ? 1.0 : 0.0;
+	return d >= 0.9999999 ? 1.0 : 0.0;
 }
 
 void main()
