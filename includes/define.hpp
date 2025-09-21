@@ -18,7 +18,7 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 31
+# define RENDER_DISTANCE 120
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -48,6 +48,19 @@
 # define MOUNT_HEIGHT 260
 
 # define SCHOOL_SAMPLES 1
+
+// Camera frustum planes
+#ifndef NEAR_PLANE
+# define NEAR_PLANE 1.0f
+#endif
+#ifndef FAR_PLANE
+# define FAR_PLANE 9600.0f
+#endif
+
+// Single-file cubemap PNG (cross/strip/grid). If present, used first.
+#ifndef SKYBOX_SINGLE_PNG
+# define SKYBOX_SINGLE_PNG "textures/cloud1.png"
+#endif
 
 # define AIR 0
 # define STONE 'S'

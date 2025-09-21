@@ -7,6 +7,7 @@
 #include "Textbox.hpp"
 #include "define.hpp"
 #include "Chrono.hpp"
+#include "Skybox.hpp"
 
 class StoneEngine {
 	public:
@@ -24,12 +25,13 @@ class StoneEngine {
 		GLuint depth;
 	} FBODatas;
 
-		typedef enum {
-			GREEDYFIX = 0,
-			FOG = 1,
-			GODRAYS = 2,
-			CROSSHAIR = 3,
-		} ShaderType;
+        typedef enum {
+            GREEDYFIX = 0,
+            FOG = 1,
+            GODRAYS = 2,
+            CROSSHAIR = 3,
+            SKYBOX_COMPOSITE = 4,
+        } ShaderType;
 	private:
 		// Display
 		GLFWwindow* _window;
@@ -40,7 +42,12 @@ class StoneEngine {
 
 		GLuint sunShaderProgram;
 		GLuint sunVAO;
-		GLuint sunVBO;
+        GLuint sunVBO;
+
+        // Skybox
+        GLuint skyboxProgram = 0;
+        Skybox _skybox;
+        bool _hasSkybox = false;
 
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
@@ -152,7 +159,8 @@ class StoneEngine {
 		void	initGLEW();
 		int		initGLFW();
 		void	initTextures();
-		void	initRenderShaders();
+        void	initRenderShaders();
+        void	initSkybox();
 		void	initDebugTextBox();
 		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
 		void	initFboShaders();
@@ -160,11 +168,13 @@ class StoneEngine {
 		void	updateFboWindowSize(PostProcessShader &shader);
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
 		void   initWireframeResources();
-		void   renderAimHighlight();
+        void   renderAimHighlight();
+        void   postProcessSkyboxComposite();
 
 		// Runtime methods
 		void calculateFps();
-		void display();
+        void display();
+        void renderSkybox();
 		void renderOverlayAndUI();
 		void finalizeFrame();
 		void renderTransparentObjects();
