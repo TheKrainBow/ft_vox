@@ -212,7 +212,7 @@ void StoneEngine::initData()
 
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
-	timeValue = 39800;
+	timeValue = 42000;
 	camTopBlock.pos.x = 0.0;
 	camTopBlock.pos.y = 0.0;
 	camTopBlock.type = AIR;
@@ -829,6 +829,9 @@ void StoneEngine::display() {
 	// Resolve OPAQUE
 	resolveMsaaToFbo(writeFBO, true);
 	blitColorDepth(writeFBO, readFBO);
+
+	displaySun(writeFBO);
+	blitColor(writeFBO, readFBO);
 
 	renderPlanarReflection();
 
