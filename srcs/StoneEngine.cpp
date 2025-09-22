@@ -362,13 +362,13 @@ void StoneEngine::initRenderShaders()
 
 void StoneEngine::initSkybox()
 {
-	std::cerr << "[Skybox] Init starting..." << std::endl;
+	// std::cerr << "[Skybox] Init starting..." << std::endl;
 	// First: single-file PNG (cross/strip/grid)
 	{
 		std::ifstream f(SKYBOX_SINGLE_PNG, std::ios::binary);
 		if (f.is_open()) {
 			_hasSkybox = _skybox.loadFromSinglePNG(SKYBOX_SINGLE_PNG, /*fixSeams=*/true);
-			if (_hasSkybox) std::cerr << "[Skybox] Using single-file PNG: " << SKYBOX_SINGLE_PNG << std::endl;
+			// if (_hasSkybox) std::cerr << "[Skybox] Using single-file PNG: " << SKYBOX_SINGLE_PNG << std::endl;
 		}
 	}
 	if (!_hasSkybox) {
@@ -1264,7 +1264,8 @@ void StoneEngine::renderSkybox()
 
 	glUseProgram(skyboxProgram);
 	// Debug: verify texture/program once
-	static bool infoOnce=false; if(!infoOnce){ std::cerr << "[Skybox] Render with program=" << skyboxProgram << " tex=" << _skybox.getTextureID() << std::endl; infoOnce=true; }
+	// static bool infoOnce=false;
+	// if(!infoOnce){ std::cerr << "[Skybox] Render with program=" << skyboxProgram << " tex=" << _skybox.getTextureID() << std::endl; infoOnce=true; }
 	glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRot));
 	glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 

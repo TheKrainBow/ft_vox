@@ -239,8 +239,8 @@ bool Skybox::loadFromEquirectPNG(const char* filename, int faceSize)
 	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
 	stbi_image_free(data);
-	std::cerr << "[Skybox] Built cubemap from equirect PNG: " << filename
-				<< " faceSize=" << faceSize << std::endl;
+	// std::cerr << "[Skybox] Built cubemap from equirect PNG: " << filename
+	// 			<< " faceSize=" << faceSize << std::endl;
 	return true;
 }
 
@@ -439,6 +439,6 @@ bool Skybox::loadFromSinglePNG(const char* filename, bool fixSeams)
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-	std::cerr << "[Skybox] Built cubemap from single PNG: " << filename << " faceSize="<<face<<" layout="<<layout << std::endl;
+	// std::cerr << "[Skybox] Built cubemap from single PNG: " << filename << " faceSize="<<face<<" layout="<<layout << std::endl;
 return true;
 }
