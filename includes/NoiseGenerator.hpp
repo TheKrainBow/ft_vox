@@ -61,6 +61,8 @@ class NoiseGenerator {
 		ivec2 getBorderWarping(double x, double z);
 		double getHeight(ivec2 pos);
 		double getContinentalNoise(ivec2 pos);
+		double getForestFbm(ivec2 pos);
+		double forestMaskAt(ivec2 pos, double temp, double humid, double slope, double height);
 
 		// Biomes
 		ivec2 getBiomeBorderWarping(int x, int z);

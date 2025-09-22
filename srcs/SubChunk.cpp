@@ -143,6 +143,102 @@ void SubChunk::plantTree(int x, int y, int z, double /*proba*/) {
 	}
 }
 
+void SubChunk::plantPlainTree(int x, int y, int z, double /*proba*/) {
+	// --- Size profile (tweak to taste) ---
+	const int trunkH         = 4;   // trunk height
+	const int canopyBelow    = 1;   // how many layers start below trunk top
+	const int canopyAbove    = 2;   // how many layers extend above trunk top
+
+	// Layered radius around trunk top (dy relative to trunk top)
+	auto radiusAt = [&](int dyRel) -> int {
+		switch (dyRel) {
+			case -2: return 2; // widest lower skirt
+			case -1: return 3; // widest layer
+			case  0: return 3; // keep wide at the crown
+			case  1: return 2;
+			case  2: return 1;
+			case  3: return 1; // small cap
+			default: return 0;
+		}
+	};
+
+	// --- World-space base (handles cross-chunk lookups safely) ---
+	const int baseWX = x + _position.x * CHUNK_SIZE;
+	const int baseWY = y + _position.y * CHUNK_SIZE;
+	const int baseWZ = z + _position.z * CHUNK_SIZE;
+
+	auto chunkOf = [](int wx, int wz) -> ivec2 {
+		return ivec2((int)std::floor((double)wx / (double)CHUNK_SIZE),
+				(int)std::floor((double)wz / (double)CHUNK_SIZE));
+	};
+	auto isAir = [&](int wx, int wy, int wz) -> bool {
+		ivec2 cpos = chunkOf(wx, wz);
+		return _world.getBlock(cpos, ivec3(wx, wy, wz)) == AIR;
+	};
+
+	// --- Clearance check: trunk column + canopy envelope ---
+	// Trunk must be clear
+	for (int i = 0; i <= trunkH + canopyAbove; ++i) {
+		if (!isAir(baseWX, baseWY + i, baseWZ)) return;
+	}
+
+	// Canopy must be clear in its layers
+	for (int dyRel = -canopyBelow; dyRel <= canopyAbove; ++dyRel) {
+		int rad = radiusAt(dyRel);
+		if (rad <= 0) continue;
+		int wy = baseWY + trunkH + dyRel;
+		for (int dx = -rad; dx <= rad; ++dx) {
+			for (int dz = -rad; dz <= rad; ++dz) {
+				// circular-ish layer (soft corners); +1 slack to avoid too boxy look
+				if (dx*dx + dz*dz <= rad*rad + 1) {
+					if (!isAir(baseWX + dx, wy, baseWZ + dz)) return;
+				}
+			}
+		}
+	}
+
+	// --- Place trunk ---
+	for (int i = 0; i <= trunkH; ++i) {
+		setBlock(x, y + i, z, LOG);
+	}
+
+	// --- Place canopy (leaves) ---
+	for (int dyRel = -canopyBelow; dyRel <= canopyAbove; ++dyRel) {
+		int rad = radiusAt(dyRel);
+		if (rad <= 0) continue;
+		int yy = y + trunkH + dyRel;
+
+		for (int dx = -rad; dx <= rad; ++dx) {
+			for (int dz = -rad; dz <= rad; ++dz) {
+				if (dx == 0 && dz == 0) continue; // keep trunk cell as LOG
+				if (dx*dx + dz*dz <= rad*rad + 1) {
+					setBlock(x + dx, yy, z + dz, LEAF);
+				}
+			}
+		}
+
+		// Add a light “skirt” to reduce flat silhouettes on wide layers
+		if (rad >= 3 && dyRel <= 0) {
+			// Cardinal overhangs
+			setBlock(x + rad + 0, yy, z, LEAF);
+			setBlock(x - rad - 0, yy, z, LEAF);
+			setBlock(x, yy, z + rad + 0, LEAF);
+			setBlock(x, yy, z - rad - 0, LEAF);
+			// A bit of droop one level lower for organic feel
+			if (dyRel == -1) {
+				int yy2 = yy - 1;
+				setBlock(x + 1, yy2, z, LEAF);
+				setBlock(x - 1, yy2, z, LEAF);
+				setBlock(x, yy2, z + 1, LEAF);
+				setBlock(x, yy2, z - 1, LEAF);
+			}
+		}
+	}
+
+	// --- Tiny top cap to avoid flat top ---
+	setBlock(x, y + trunkH + canopyAbove + 1, z, LEAF);
+}
+
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -153,6 +249,7 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 		if (getBlock({x, y - (i * _resolution), z}) != AIR)
 			setBlock(x, y - (i * _resolution), z, DIRT);
 }
+
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -175,24 +272,24 @@ void SubChunk::loadDesert(int x, int z, size_t ground)
 
 void SubChunk::loadBeach(int x, int z, size_t ground)
 {
-    // Decide beach material (sand vs snow) based on local temperature
-    NoiseGenerator &ng = _world.getNoiseGenerator();
-    ivec2 worldXZ = { x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE };
-    double temp = ng.getTemperatureNoise(worldXZ);
-    bool coldBeach = (temp <= -0.30);
-    BlockType topMat = coldBeach ? SNOW : SAND;
-    BlockType underMat = coldBeach ? SNOW : SAND;
+	// Decide beach material (sand vs snow) based on local temperature
+	NoiseGenerator &ng = _world.getNoiseGenerator();
+	ivec2 worldXZ = { x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE };
+	double temp = ng.getTemperatureNoise(worldXZ);
+	bool coldBeach = (temp <= -0.30);
+	BlockType topMat = coldBeach ? SNOW : SAND;
+	BlockType underMat = coldBeach ? SNOW : SAND;
 
-    // Raise up to meet sea level to avoid lower-than-water rims
-    int beachTopWorldY = std::max((int)ground, (int)OCEAN_HEIGHT);
+	// Raise up to meet sea level to avoid lower-than-water rims
+	int beachTopWorldY = std::max((int)ground, (int)OCEAN_HEIGHT);
 
-    // Cap from ground up to sea level
-    for (int wy = (int)ground; wy <= beachTopWorldY; ++wy)
-        setBlock(x, wy - _position.y * CHUNK_SIZE, z, topMat);
+	// Cap from ground up to sea level
+	for (int wy = (int)ground; wy <= beachTopWorldY; ++wy)
+		setBlock(x, wy - _position.y * CHUNK_SIZE, z, topMat);
 
-    // A bit of thickness underneath
-    for (int i = 1; i <= 2; ++i)
-        setBlock(x, (beachTopWorldY - i) - _position.y * CHUNK_SIZE, z, underMat);
+	// A bit of thickness underneath
+	for (int i = 1; i <= 2; ++i)
+		setBlock(x, (beachTopWorldY - i) - _position.y * CHUNK_SIZE, z, underMat);
 }
 
 void SubChunk::loadSnowy(int x, int z, size_t ground)
@@ -207,20 +304,17 @@ void SubChunk::loadSnowy(int x, int z, size_t ground)
 			setBlock(x, y - (i * _resolution), z, SNOW);
 }
 
-void SubChunk::loadForest(int x, int z, size_t ground)
+void SubChunk::loadForest(int x, int z, size_t ground, float density, Biome biome)
 {
-	// Base like plains
-	loadPlaine(x, z, ground);
-
 	// Denser than plains, but enforce spacing via local maxima
 	const int groundSnap = (int)ground - ((int)ground % _resolution);
 	const int yLocal = groundSnap - _position.y * CHUNK_SIZE;
 	if (yLocal < 0 || yLocal >= CHUNK_SIZE) return;
 
-	if (getBlock({x, yLocal, z}) != GRASS) return;
+	// if (getBlock({x, yLocal, z}) != GRASS) return;
 
 	const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
-	if (treeP <= 0.64) return; // slightly denser than before
+	if (treeP <= density) return; // slightly denser than before
 
 	const int radius = 4;
 	const double* tmap = *_treeMap;
@@ -234,8 +328,10 @@ void SubChunk::loadForest(int x, int z, size_t ground)
 			if (tmap[nz * CHUNK_SIZE + nx] > treeP) return; // not a local maximum
 		}
 	}
-
-	plantTree(x, yLocal + 1, z, treeP);
+	if (biome == FOREST || biome == SNOWY)
+		plantTree(x, yLocal + 1, z, treeP);
+	else
+		plantPlainTree(x, yLocal + 1, z, treeP);
 }
 
 void SubChunk::loadTree(int x, int z)
@@ -277,7 +373,6 @@ void SubChunk::markLoaded(bool loaded) {
 	_isFullyLoaded = loaded;
 }
 
-
 void SubChunk::loadBiome(int prevResolution)
 {
 	(void)prevResolution;
@@ -293,6 +388,7 @@ void SubChunk::loadBiome(int prevResolution)
 			{
 				case PLAINS:
 					loadPlaine(x, z, surfaceLevel);
+					loadForest(x, z, surfaceLevel, 0.68, PLAINS);
 					break ;
 				case DESERT:
 					loadDesert(x, z, surfaceLevel);
@@ -302,9 +398,11 @@ void SubChunk::loadBiome(int prevResolution)
 					break;
 				case SNOWY:
 					loadSnowy(x, z, surfaceLevel);
+					loadForest(x, z, surfaceLevel, 0.725, SNOWY);
 					break;
 				case FOREST:
-					loadForest(x, z, surfaceLevel);
+					loadPlaine(x, z, surfaceLevel);
+					loadForest(x, z, surfaceLevel, 0.64f, FOREST);
 					break;
 				case OCEAN:
 					// Use a smaller offset to reduce visible sand walls near shores
@@ -316,14 +414,10 @@ void SubChunk::loadBiome(int prevResolution)
 				default :
 					break;
 			}
-			// Default tree planting only for non-forest grasslands
-			if (biome == PLAINS)
-				loadTree(x, z);
 		}
 	}
 		_isFullyLoaded = true;
 }
-
 
 // void SubChunk::loadBiome(int prevResolution)
 // {
