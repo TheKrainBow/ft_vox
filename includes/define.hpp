@@ -49,6 +49,19 @@
 
 # define SCHOOL_SAMPLES 1
 
+// Camera frustum planes
+#ifndef NEAR_PLANE
+# define NEAR_PLANE 0.1f
+#endif
+#ifndef FAR_PLANE
+# define FAR_PLANE 9600.0f
+#endif
+
+// Single-file cubemap PNG (cross/strip/grid). If present, used first.
+#ifndef SKYBOX_SINGLE_PNG
+# define SKYBOX_SINGLE_PNG "textures/cloud1.png"
+#endif
+
 # define AIR 0
 # define STONE 'S'
 # define COBBLE 'C'

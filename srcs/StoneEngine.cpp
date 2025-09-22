@@ -354,8 +354,26 @@ void StoneEngine::initRenderShaders()
 	shaderProgram = createShaderProgram("shaders/render/terrain.vert", "shaders/render/terrain.frag");
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
+	skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
+	initSkybox();
+}
+
+void StoneEngine::initSkybox()
+{
+	std::cerr << "[Skybox] Init starting..." << std::endl;
+	// First: single-file PNG (cross/strip/grid)
+	{
+		std::ifstream f(SKYBOX_SINGLE_PNG, std::ios::binary);
+		if (f.is_open()) {
+			_hasSkybox = _skybox.loadFromSinglePNG(SKYBOX_SINGLE_PNG, /*fixSeams=*/true);
+			if (_hasSkybox) std::cerr << "[Skybox] Using single-file PNG: " << SKYBOX_SINGLE_PNG << std::endl;
+		}
+	}
+	if (!_hasSkybox) {
+		std::cerr << "[Skybox] No skybox loaded (PNG)." << std::endl;
+	}
 }
 
 void StoneEngine::displaySun()
@@ -502,6 +520,9 @@ void StoneEngine::initFboShaders()
 		"shaders/postProcess/postProcess.vert",
 		"shaders/postProcess/crosshair.frag"
 	);
+	createPostProcessShader(postProcessShaders[SKYBOX_COMPOSITE],
+		"shaders/postProcess/postProcess.vert",
+		"shaders/postProcess/skyboxComposite.frag");
 }
 
 void StoneEngine::initDebugTextBox()
@@ -706,8 +727,8 @@ void StoneEngine::activateTransparentShader()
 	// Provide global water plane height to the water shader (for underwater depth-based effects)
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "waterHeight"),      OCEAN_HEIGHT + 2);
 
-	const float nearPlane = 1;
-	const float farPlane  = 9600;
+	const float nearPlane = 0.1f;
+	const float farPlane  = FAR_PLANE;
 	glUniform1f(glGetUniformLocation(waterShaderProgram, "nearPlane"), nearPlane);
 	glUniform1f(glGetUniformLocation(waterShaderProgram, "farPlane"),  farPlane);
 
@@ -802,50 +823,45 @@ void StoneEngine::resolveMsaaToFbo()
 void StoneEngine::display() {
 	prepareRenderPipeline();
 
-	// The scene is rendered to MSAA framebuffer then resolved to the unsampled write buffer
+	// Draw background skybox into MSAA target (depth test on, no depth writes)
+	renderSkybox();
+
+	// Opaque to MSAA
 	renderSolidObjects();
 	resolveMsaaToFbo();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
-	// postProcessGreedyFix();
-	// screenshotFBOBuffer(writeFBO, readFBO);
-
-	// Delay greedy-fix until after transparent pass so it applies to the final scene
-	displaySun();
-	screenshotFBOBuffer(writeFBO, readFBO);
-	
+	// Planar reflection source
 	renderPlanarReflection();
-	
-	// Render transparent objects with MSAA (same path as solids), then resolve
+
+	// Transparent to MSAA, resolve, copy to readFBO
 	if (!showTriangleMesh) {
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		renderTransparentObjects();
 		renderAimHighlight();
 		renderChunkGrid();
 		resolveMsaaToFbo();
-	}
-	else
-	{
-		// Wireframe: draw directly to current framebuffer
+	} else {
 		renderTransparentObjects();
 	}
 	screenshotFBOBuffer(writeFBO, readFBO);
-	// Now run greedy-fix so it affects the combined scene
+
 	postProcessGreedyFix();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
 	postProcessFog();
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	postProcessSkyboxComposite();
+	screenshotFBOBuffer(writeFBO, readFBO);
+
+	postProcessGodRays();
+	screenshotFBOBuffer(writeFBO, readFBO);
 	
-	// Display sun because FOG erased it
 	displaySun();
 	screenshotFBOBuffer(writeFBO, readFBO);
 
-	// Godrays: single-pass over scene+depth to add shafts
-	postProcessGodRays();
-	screenshotFBOBuffer(writeFBO, readFBO);
-
-	if (showDebugInfo)
-	{
+	if (showDebugInfo) {
 		postProcessCrosshair();
 		screenshotFBOBuffer(writeFBO, readFBO);
 	}
@@ -853,6 +869,53 @@ void StoneEngine::display() {
 	sendPostProcessFBOToDispay();
 	renderOverlayAndUI();
 	finalizeFrame();
+}
+
+
+void StoneEngine::postProcessSkyboxComposite()
+{
+	if (showTriangleMesh) return;
+
+	PostProcessShader &shader = postProcessShaders[SKYBOX_COMPOSITE];
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+
+	// Inputs: scene color and depth
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
+	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
+
+	// Cubemap
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
+	glUniform1i(glGetUniformLocation(shader.program, "skybox"), 2);
+
+	// Matrices and params
+	glm::mat4 invProj = glm::inverse(projectionMatrix);
+	glUniformMatrix4fv(glGetUniformLocation(shader.program, "invProjection"), 1, GL_FALSE, glm::value_ptr(invProj));
+	// Build rotation-only view and pass its inverse (transpose for pure rotation)
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+	glm::mat3 invViewRot = glm::transpose(glm::mat3(viewRot));
+	glUniformMatrix3fv(glGetUniformLocation(shader.program, "invViewRot"), 1, GL_FALSE, glm::value_ptr(invViewRot));
+	// Treat only truly empty pixels (cleared depth ~= 1.0) as sky; keep far terrain
+	glUniform1f(glGetUniformLocation(shader.program, "depthThreshold"), 0.9999999f);
+	glUniform1i(glGetUniformLocation(shader.program, "useLod0"), 1);
+	glUniform1f(glGetUniformLocation(shader.program, "edgeBias"), 0.998f);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glDepthMask(GL_TRUE);
 }
 
 void StoneEngine::renderAimHighlight()
@@ -938,55 +1001,50 @@ void StoneEngine::postProcessCrosshair()
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
-
 void StoneEngine::postProcessFog()
 {
-	if (showTriangleMesh)
-		return ;
-	PostProcessShader& shader = postProcessShaders[FOG];
+	if (showTriangleMesh) return;
 
+	PostProcessShader& shader = postProcessShaders[FOG];
 	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-	glClear(GL_COLOR_BUFFER_BIT);
 	glUseProgram(shader.program);
 	glBindVertexArray(shader.vao);
 	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
 
-	// Bind screen texture (color)
+	// Inputs
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
-	// Bind depth texture
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO.depth);  // If shared, keep using dboTexture
+	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
 	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
 
-	// Send render distance for adaptative fog
-	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
-	// glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+	glUniform1f(glGetUniformLocation(shader.program, "nearPlane"),  NEAR_PLANE);
+	glUniform1f(glGetUniformLocation(shader.program, "farPlane"),   FAR_PLANE);
+	glUniform1f(glGetUniformLocation(shader.program, "skyDepthThreshold"), 0.9999999f);
+	glUniform3f(glGetUniformLocation(shader.program, "fogColor"),
+			0.46f, 0.49f, 0.52f);
 
-	// Set uniforms (after glUseProgram!)
 	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
 	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
 	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
-	const float nearPlane = 1.0f;
-	const float farPlane  = 9600.0f;
-	glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), nearPlane);
-	glUniform1f(glGetUniformLocation(shader.program, "farPlane"),  farPlane);
 
-	auto render = _world.getCurrentRenderPtr();
-	if (render) {
-		if (*render > _bestRender) {
-			_bestRender = *render;
-		}
+	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
+	if (auto render = _world.getCurrentRenderPtr(); render) {
+		_bestRender = std::max(_bestRender, *render);
 		glUniform1f(loc, _bestRender - 5);
-	}
-	else
+	} else {
 		glUniform1f(loc, RENDER_DISTANCE);
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glDepthMask(GL_TRUE);
 }
+
 
 void StoneEngine::postProcessGreedyFix()
 {
@@ -1167,6 +1225,43 @@ void StoneEngine::sendPostProcessFBOToDispay() {
 void StoneEngine::renderTransparentObjects() {
 	activateTransparentShader();
 	drawnTriangles += _world.displayTransparent();
+}
+
+void StoneEngine::renderSkybox()
+{
+	if (showTriangleMesh) return; // keep wireframe clean
+	if (!_hasSkybox || skyboxProgram == 0) {
+		static bool once=false; if(!once){ std::cerr << "[Skybox] Skip render: has=" << _hasSkybox << " prog=" << skyboxProgram << std::endl; once=true; }
+		return;
+	}
+
+	// Ensure we're drawing to the current MSAA target
+	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+
+	// Rotation-only view so the cube follows the camera
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+
+	glUseProgram(skyboxProgram);
+	// Debug: verify texture/program once
+	static bool infoOnce=false; if(!infoOnce){ std::cerr << "[Skybox] Render with program=" << skyboxProgram << " tex=" << _skybox.getTextureID() << std::endl; infoOnce=true; }
+	glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRot));
+	glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
+	glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);
+
+	// Render inside of the cube. Disable face culling to avoid orientation issues.
+	GLboolean cullEnabled = glIsEnabled(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
+
+	_skybox.render();
+
+	if (cullEnabled) glEnable(GL_CULL_FACE);
 }
 
 void StoneEngine::renderOverlayAndUI() {
@@ -1745,8 +1840,8 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	float y = mapExpo(_fov, 1.0f, 90.0f, 10.0f, 0.1f);
-	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, 9600.0f);
+	float y = NEAR_PLANE;
+	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, FAR_PLANE);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 
 	// Update post-process shaders with new texel size so screen-space effects (e.g., crosshair)
@@ -1903,6 +1998,10 @@ void StoneEngine::initGLEW()
 	{
 		std::cerr << "GLEW initialization failed: " << glewGetErrorString(err) << std::endl;
 		return ;
+	}
+	// Reduce seams when sampling across cube faces, especially with mipmaps
+	if (GLEW_ARB_seamless_cube_map || GLEW_VERSION_3_2) {
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	}
 }
 

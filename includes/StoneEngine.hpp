@@ -9,6 +9,7 @@
 #include "Textbox.hpp"
 #include "define.hpp"
 #include "Chrono.hpp"
+#include "Skybox.hpp"
 
 class StoneEngine {
 	public:
@@ -31,6 +32,7 @@ class StoneEngine {
 			FOG = 1,
 			GODRAYS = 2,
 			CROSSHAIR = 3,
+			SKYBOX_COMPOSITE = 4,
 		} ShaderType;
 	private:
 		// Display
@@ -43,6 +45,11 @@ class StoneEngine {
 		GLuint sunShaderProgram;
 		GLuint sunVAO;
 		GLuint sunVBO;
+
+		// Skybox
+		GLuint skyboxProgram = 0;
+		Skybox _skybox;
+		bool _hasSkybox = false;
 
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
@@ -156,6 +163,7 @@ class StoneEngine {
 		int		initGLFW();
 		void	initTextures();
 		void	initRenderShaders();
+		void	initSkybox();
 		void	initDebugTextBox();
 		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
 		void	initFboShaders();
@@ -164,10 +172,12 @@ class StoneEngine {
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
 		void   initWireframeResources();
 		void   renderAimHighlight();
+		void   postProcessSkyboxComposite();
 
 		// Runtime methods
 		void calculateFps();
 		void display();
+		void renderSkybox();
 		void renderOverlayAndUI();
 		void finalizeFrame();
 		void renderTransparentObjects();
