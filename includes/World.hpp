@@ -41,6 +41,9 @@ struct DisplayData {
 struct FrustumPlane { glm::vec3 n; float d; };
 struct Frustum {
 	FrustumPlane p[6]; // L,R,B,T,N,F
+	Frustum() {
+		for (auto &pl : p) { pl.n = glm::vec3(0.0f); pl.d = 0.0f; }
+	}
 	static Frustum fromVP(const glm::mat4& VP) {
 		Frustum f{}; const glm::mat4& m = VP; auto norm = [](FrustumPlane& pl){
 			float inv = 1.0f / glm::length(pl.n); pl.n *= inv; pl.d *= inv;
