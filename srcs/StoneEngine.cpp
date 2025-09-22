@@ -376,11 +376,11 @@ void StoneEngine::initSkybox()
 	}
 }
 
-void StoneEngine::displaySun()
+void StoneEngine::displaySun(FBODatas &targetFBO)
 {
 	if (showTriangleMesh)
 		return ;
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, targetFBO.fbo);
 	// glDepthFunc(GL_LESS);
 	vec3 camPos = camera.getWorldPosition();
 	// Compute current sun position based on time
@@ -796,81 +796,80 @@ void StoneEngine::activateTransparentShader()
 	glFrontFace(GL_CCW);
 }
 
-void StoneEngine::resolveMsaaToFbo()
-{
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);    // Source: MSAA
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, writeFBO.fbo);  // Destination: regular FBO
-
-	// Blit COLOR
-	glBlitFramebuffer(
-		0, 0, windowWidth, windowHeight,
-		0, 0, windowWidth, windowHeight,
-		GL_COLOR_BUFFER_BIT,
-		GL_NEAREST
-	);
-
-	// Resolve DEPTH
-	glBlitFramebuffer(
-		0, 0, windowWidth, windowHeight,
-		0, 0, windowWidth, windowHeight,
-		GL_DEPTH_BUFFER_BIT,
-		GL_NEAREST
-	);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+void StoneEngine::blitColor(FBODatas& src, FBODatas& dst) {
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, src.fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst.fbo);
+	glBlitFramebuffer(0,0,windowWidth,windowHeight, 0,0,windowWidth,windowHeight,
+					GL_COLOR_BUFFER_BIT, GL_NEAREST);
 }
 
+void StoneEngine::blitColorDepth(FBODatas& src, FBODatas& dst) {
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, src.fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst.fbo);
+	glBlitFramebuffer(0,0,windowWidth,windowHeight, 0,0,windowWidth,windowHeight,
+						GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+}
+
+void StoneEngine::resolveMsaaToFbo(FBODatas& dst, bool copyDepth) {
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFBO.fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst.fbo);
+
+	GLbitfield mask = GL_COLOR_BUFFER_BIT;
+	if (copyDepth) mask |= GL_DEPTH_BUFFER_BIT;
+	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
+						0, 0, windowWidth, windowHeight,
+						mask, GL_NEAREST);
+}
 void StoneEngine::display() {
 	prepareRenderPipeline();
 
-	// Draw background skybox into MSAA target (depth test on, no depth writes)
-	renderSkybox();
+	renderSkybox();                 // -> msaaFBO
+	renderSolidObjects();           // -> msaaFBO
 
-	// Opaque to MSAA
-	renderSolidObjects();
-	resolveMsaaToFbo();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	// Resolve OPAQUE
+	resolveMsaaToFbo(writeFBO, true);
+	blitColorDepth(writeFBO, readFBO);
 
-	// Planar reflection source
 	renderPlanarReflection();
 
-	// Transparent to MSAA, resolve, copy to readFBO
+	// TRANSPARENT
 	if (!showTriangleMesh) {
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		renderTransparentObjects();
 		renderAimHighlight();
 		renderChunkGrid();
-		resolveMsaaToFbo();
+
+		resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
+		blitColorDepth(writeFBO, readFBO);
 	} else {
-		renderTransparentObjects();
+		renderTransparentObjects(); // direct
 	}
-	screenshotFBOBuffer(writeFBO, readFBO);
 
+	// Greedy fix (needs depth, may WRITE gl_FragDepth)
 	postProcessGreedyFix();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	blitColorDepth(writeFBO, readFBO);
 
+	// Fog
 	postProcessFog();
-	screenshotFBOBuffer(writeFBO, readFBO);
-
+	blitColor(writeFBO, readFBO);
 	postProcessSkyboxComposite();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	blitColor(writeFBO, readFBO);
 
 	postProcessGodRays();
-	screenshotFBOBuffer(writeFBO, readFBO);
-	
-	displaySun();
-	screenshotFBOBuffer(writeFBO, readFBO);
+	blitColor(writeFBO, readFBO);
+
+	displaySun(writeFBO);
+	blitColor(writeFBO, readFBO);
 
 	if (showDebugInfo) {
 		postProcessCrosshair();
-		screenshotFBOBuffer(writeFBO, readFBO);
+		blitColor(writeFBO, readFBO);
 	}
 
-	sendPostProcessFBOToDispay();
+	sendPostProcessFBOToDispay(writeFBO);
 	renderOverlayAndUI();
 	finalizeFrame();
 }
-
 
 void StoneEngine::postProcessSkyboxComposite()
 {
@@ -1130,11 +1129,18 @@ void StoneEngine::renderPlanarReflection()
 {
 	if (showTriangleMesh) return;
 
+	const float waterY = OCEAN_HEIGHT + 2.0f;
+	glm::vec3 camPos = camera.getWorldPosition();
+	const float verticalDistance = glm::abs(camPos.y - waterY);
+	const float planarUpdateMaxDistance = 256.0f;
+
+	if (!isUnderWater && verticalDistance > planarUpdateMaxDistance) {
+		return;
+	}
+
 	glBindFramebuffer(GL_FRAMEBUFFER, tmpFBO.fbo);
 	glViewport(0, 0, windowWidth, windowHeight);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	const float waterY = OCEAN_HEIGHT + 2.0f;
 
 	float radY = camera.getAngles().y * (M_PI / 180.0f);
 	float radX = camera.getAngles().x * (M_PI / 180.0f);
@@ -1143,8 +1149,7 @@ void StoneEngine::renderPlanarReflection()
 	viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewRotMirror = glm::rotate(viewRotMirror,  radX, glm::vec3( 0.0f,-1.0f, 0.0f));
 
-	glm::vec3 camW   = camera.getWorldPosition();
-	glm::vec3 camMir = glm::vec3(camW.x, 2.0f * waterY - camW.y, camW.z);
+	glm::vec3 camMir = glm::vec3(camPos.x, 2.0f * waterY - camPos.y, camPos.z);
 
 	glm::mat4 viewFullMirror = viewRotMirror;
 	viewFullMirror = glm::translate(viewFullMirror, glm::vec3(-camMir.x, -camMir.y, -camMir.z));
@@ -1211,15 +1216,27 @@ void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
 					  GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 }
 
-void StoneEngine::sendPostProcessFBOToDispay() {
+void StoneEngine::swapPingPongBuffers() {
+	if (showTriangleMesh)
+		return;
+
+	FBODatas tmp = writeFBO;
+	writeFBO = readFBO;
+	readFBO = tmp;
+}
+
+void StoneEngine::sendPostProcessFBOToDispay(const FBODatas &sourceFBO) {
 	if (showTriangleMesh)
 		return ;
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, writeFBO.fbo);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, sourceFBO.fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glBlitFramebuffer(0, 0, windowWidth, windowHeight,
 						0, 0, windowWidth, windowHeight,
-						GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+						GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	glDepthMask(GL_TRUE);
+	glClear(GL_DEPTH_BUFFER_BIT);
 }
 
 void StoneEngine::renderTransparentObjects() {
