@@ -609,6 +609,8 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	int prevResolution = _resolution;
 	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
+	_biomeMap  = &perlinMap->biomeMap;
+	_treeMap   = &perlinMap->treeMap;
 
 	// Publish a fresh buffer sized for the new LOD
 	{
@@ -619,6 +621,7 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 			std::lock_guard<std::mutex> lk(_dataMutex);
 			_blocks.swap(fresh);
 		}
+		_memorySize = sizeof(*this) + size;
 	}
 
 	// Rebuild content at the new resolution

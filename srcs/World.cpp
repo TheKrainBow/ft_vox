@@ -378,6 +378,24 @@ void World::loadLeftChunks(int render, ivec2 &chunkPos, int resolution) {
 		loadChunk(x, z, render, chunkPos, resolution);
 }
 
+void World::printSizes() const
+{
+	{
+		using namespace std::chrono;
+		steady_clock::time_point now;
+		now = steady_clock::now();
+		std::cout << "[-----------------------]" << std::endl;
+		std::cout << duration_cast<seconds>(now.time_since_epoch()).count() << std::endl;
+		std::cout << "PRINTING SIZES" << std::endl;
+		std::cout << "_stagedDataQueue " << _stagedDataQueue.size() << std::endl;
+		std::cout << "_transparentStagedDataQueue " <<  _transparentStagedDataQueue.size() << std::endl;
+		std::cout << "_chunkList " <<  _chunkList.size() << std::endl;
+		std::cout << "_chunks " <<  _chunks.size() << std::endl;
+		std::cout << "_displayedChunks " <<  _displayedChunks.size() << std::endl;
+		std::cout << "[-----------------------]" << std::endl;
+	}
+}
+
 void World::loadFirstChunks(ivec2 &chunkPos) {
 	int renderDistance = _renderDistance;
 
@@ -448,6 +466,8 @@ void World::unLoadNextChunks(ivec2 &newCamChunk)
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
 		for (auto &kv : _displayedChunks)
 		{
+			if (!getIsRunning())
+				break ;
 			Chunk *chunk = kv.second;
 			if (!chunk) continue;
 			ivec2 chunkPos = chunk->getPosition();
@@ -458,7 +478,12 @@ void World::unLoadNextChunks(ivec2 &newCamChunk)
 			}
 		}
 		for (const auto& key : toErase)
+		{
+			if (!getIsRunning())
+				break ;
 			_displayedChunks.erase(key);
+
+		}
 	}
 	updateFillData();
 }
@@ -481,7 +506,6 @@ void World::updateFillData()
 			return;
 		}
 	}
-
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -512,6 +536,8 @@ Chunk *World::getChunk(const ivec2& pos) {
 
 void World::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentFillData) {
 	// snapshot displayed chunks
+	if (!getIsRunning())
+		return ;
 	std::vector<Chunk *> snapshot;
 	{
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
@@ -578,13 +604,13 @@ void World::updateDrawData()
 	std::lock_guard<std::mutex> lock(_drawDataMutex);
 
 	// queues: keep only the newest staged data to minimize uploads
-	while (_stagedDataQueue.size() > 1)
+	while (getIsRunning() && _stagedDataQueue.size() > 1)
 	{
 		DisplayData *old = _stagedDataQueue.front();
 		_stagedDataQueue.pop();
 		delete old;
 	}
-	while (_transparentStagedDataQueue.size() > 1)
+	while (getIsRunning() && _transparentStagedDataQueue.size() > 1)
 	{
 		DisplayData *old = _transparentStagedDataQueue.front();
 		_transparentStagedDataQueue.pop();
@@ -630,6 +656,7 @@ void World::updateDrawData()
 
 int World::displaySolid()
 {
+	if (!getIsRunning()) return 0;
 	if (!_drawData) return 0;
 	if (_needUpdate) { pushVerticesToOpenGL(false); }
 	if (_solidDrawCount == 0) return 0;
@@ -674,6 +701,7 @@ int World::displaySolid()
 
 int World::displayTransparent()
 {
+	if (!getIsRunning()) return 0;
 	if (!_transparentDrawData) return 0;
 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
 	if (_transpDrawCount == 0) return 0;
@@ -878,6 +906,8 @@ void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
 }
 
 void World::runGpuCulling(bool transparent) {
+	if (!getIsRunning())
+		return ;
 	GLuint templ = transparent ? _transpTemplIndirectBuffer : _templIndirectBuffer;
 	GLuint out   = transparent ? _transparentIndirectBuffer : _indirectBuffer;
 	GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;

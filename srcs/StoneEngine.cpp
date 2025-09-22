@@ -1,5 +1,29 @@
 #include "StoneEngine.hpp"
 
+#include <fstream>
+
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
+namespace {
+	size_t readResidentMemoryBytes() {
+#if defined(__linux__)
+		std::ifstream statm("/proc/self/statm");
+		size_t totalPages = 0;
+		size_t residentPages = 0;
+		if (!(statm >> totalPages >> residentPages))
+			return 0;
+		long pageSize = sysconf(_SC_PAGESIZE);
+		if (pageSize <= 0)
+			pageSize = 4096;
+		return residentPages * static_cast<size_t>(pageSize);
+#else
+		return 0;
+#endif
+	}
+}
+
 static glm::mat4 makeObliqueProjection(const glm::mat4& proj,
 										const glm::mat4& view,
 										const glm::vec4& planeWorld)
@@ -491,7 +515,8 @@ void StoneEngine::initDebugTextBox()
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
-	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, _world.getMemorySizePtr());
+	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, &_processMemoryUsage);
+	debugBox.addLine("Chunk Memory: ", Textbox::SIZE_T, _world.getMemorySizePtr());
 	debugBox.addLine("RenderDistance: ", Textbox::INT, _world.getRenderDistancePtr());
 	debugBox.addLine("CurrentRender: ", Textbox::INT, _world.getCurrentRenderPtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
@@ -1191,6 +1216,8 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 			if (!getIsRunning()) break;
 		}
 	}
+	unloadRet.get();
+	loadRet.get();
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChrono(0);
 }
@@ -1418,6 +1445,15 @@ void StoneEngine::updatePlayerDirection()
 	}
 }
 
+void StoneEngine::updateProcessMemoryUsage()
+{
+	const size_t rss = readResidentMemoryBytes();
+	if (rss > 0)
+		_processMemoryUsage = rss;
+	else
+		_processMemoryUsage = *_world.getMemorySizePtr();
+}
+
 void StoneEngine::updateMovement()
 {
 	vec3 oldPos = camera.getWorldPosition();
@@ -1454,7 +1490,7 @@ void StoneEngine::updateGameTick()
 {
 	timeValue += 6; // Increment time value per game tick
 	//std::cout << "timeValue: " << timeValue << std::endl;
-
+	// _world.printSizes(); Debug container sizes
 	if (timeValue > 86400)
 		timeValue = 0;
 	if (timeValue < 0)
@@ -1594,6 +1630,7 @@ void StoneEngine::update()
 	updatePlayerDirection();
 	updateMovement();
 	updateBiomeData();
+	updateProcessMemoryUsage();
 	display();
 }
 

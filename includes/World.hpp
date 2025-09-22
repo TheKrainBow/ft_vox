@@ -200,6 +200,7 @@ public:
 	void setViewProj(const glm::mat4& view, const glm::mat4& proj);
 	void markChunkDirty(const ivec2& pos);
 	void getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
+	void printSizes() const;
 
 	// Explicit GL teardown (call before destroying the GL context)
 	void shutdownGL();

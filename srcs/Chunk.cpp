@@ -366,6 +366,16 @@ void Chunk::freeSubChunks() {
 }
 
 void Chunk::updateResolution(int newResolution) {
+	// No work if the resolution is already up-to-date.
+	const int current = _resolution.load();
+	if (newResolution == current)
+		return;
+
+	// Refresh the perlin data at the requested LOD before rebuilding subchunks.
+	PerlinMap *updatedMap = _world.getNoiseGenerator().getPerlinMap(_position, newResolution);
+	if (updatedMap)
+		_perlinMap = updatedMap;
+
 	_resolution = newResolution;
 
 	std::vector<SubChunk*> subs;

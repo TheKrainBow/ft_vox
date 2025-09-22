@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include "SubChunk.hpp"
 #include "World.hpp"
 #include "Camera.hpp"
@@ -96,6 +98,7 @@ class StoneEngine {
 		Chrono chronoHelper;
 		int drawnTriangles;
 		Textbox debugBox;
+		size_t _processMemoryUsage = 0;
 	
 		// World gen
 		NoiseGenerator noise_gen;
@@ -183,6 +186,7 @@ class StoneEngine {
 		void updateSwimming(BlockType block);
 		void updateJumping();
 		void updatePlayerDirection();
+		void updateProcessMemoryUsage();
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
 		void updateBiomeData();
