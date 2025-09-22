@@ -2,6 +2,7 @@
 #include "define.hpp"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 static inline int mod_floor(int a, int b) {
 	int r = a % b;
@@ -357,27 +358,6 @@ bool World::getIsRunning() {
 	return *_isRunning;
 }
 
-void World::loadTopChunks(int render, ivec2 &chunkPos, int resolution) {
-	int z = 0;
-	for (int x = 0; x < render && getIsRunning(); x++)
-		loadChunk(x, z, render, chunkPos, resolution);
-}
-void World::loadBotChunks(int render, ivec2 &chunkPos, int resolution) {
-	int z = render - 1;
-	for (int x = render - 1; getIsRunning() && x >= 0; x--)
-		loadChunk(x, z, render, chunkPos, resolution);
-}
-void World::loadRightChunks(int render, ivec2 &chunkPos, int resolution) {
-	int x = render - 1;
-	for (int z = 1; z < render - 1 && getIsRunning(); z++) // avoid corners
-		loadChunk(x, z, render, chunkPos, resolution);
-}
-void World::loadLeftChunks(int render, ivec2 &chunkPos, int resolution) {
-	int x = 0;
-	for (int z = render - 2; getIsRunning() && z > 0; z--) // avoid corners
-		loadChunk(x, z, render, chunkPos, resolution);
-}
-
 void World::printSizes() const
 {
 	{
@@ -397,47 +377,163 @@ void World::printSizes() const
 }
 
 void World::loadFirstChunks(ivec2 &chunkPos) {
-	int renderDistance = _renderDistance;
+	if (_renderDistance <= 0)
+		return;
 
-	int resolution = RESOLUTION;
-	_threshold = LOD_THRESHOLD;
+	const int renderDistance = _renderDistance;
+	const int baseResolution = RESOLUTION;
+	_threshold = std::numeric_limits<int>::max();
+
+	const int maxRadius = std::max(0, (renderDistance - 1) / 2);
+
+	struct CandidateInfo {
+		glm::ivec2 offset;
+		int radius;
+	};
+
+	std::vector<CandidateInfo> candidates;
+	candidates.reserve(static_cast<size_t>((maxRadius * 2) + 1) * static_cast<size_t>((maxRadius * 2) + 1));
+	for (int dz = -maxRadius; dz <= maxRadius; ++dz) {
+		for (int dx = -maxRadius; dx <= maxRadius; ++dx) {
+			glm::ivec2 offset(dx, dz);
+			candidates.push_back({offset, std::max(std::abs(dx), std::abs(dz))});
+		}
+	}
+
+	std::vector<char> processed(candidates.size(), 0);
+	size_t remaining = candidates.size();
 
 	std::vector<std::future<void>> retLst;
 	_currentRender = 0;
-	for (int render = 0; getIsRunning() && render < renderDistance; render += 2)
-	{
-		std::future<void> retTop;
-		std::future<void> retBot;
-		std::future<void> retRight;
-		std::future<void> retLeft;
+	const int updateBatch = 32;
+	int batchCounter = 0;
+	int maxRadiusLoaded = 0;
 
-		retTop   = _threadPool.enqueue(&World::loadTopChunks,   this, render, chunkPos, resolution);
-		retBot   = _threadPool.enqueue(&World::loadRightChunks, this, render, chunkPos, resolution);
-		retRight = _threadPool.enqueue(&World::loadBotChunks,   this, render, chunkPos, resolution);
-		retLeft  = _threadPool.enqueue(&World::loadLeftChunks,  this, render, chunkPos, resolution);
-
-		// Wait for ring loaders, but allow shutdown to break out quickly
-		auto wait_ready = [&](std::future<void>& f) {
-			while (f.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
-				if (!getIsRunning()) return false;
-			}
-			return true;
-		};
-		if (!wait_ready(retTop) || !wait_ready(retBot) || !wait_ready(retRight) || !wait_ready(retLeft)) {
-			return; // shutting down; don't block
-		}
-
-		if (render >= _threshold && resolution < CHUNK_SIZE) {
-			resolution *= 2;
-			_threshold = _threshold * 2;
-		}
+	auto enqueueUpdate = [&]() {
 		retLst.emplace_back(_threadPool.enqueue(&World::updateFillData, this));
-		if (hasMoved(chunkPos)) break;
-		_currentRender = render + 2;
+		batchCounter = 0;
+	};
+
+	const float fallbackCos = std::cos(glm::radians(70.0f));
+
+	while (remaining > 0 && getIsRunning()) {
+		Frustum localFrustum;
+		bool hasFrustum = false;
+		{
+			std::lock_guard<std::mutex> lk(_frustumMutex);
+			if (_hasCachedFrustum) {
+				localFrustum = _cachedFrustum;
+				hasFrustum = true;
+			}
+		}
+
+		glm::vec3 camWorld = _camera.getWorldPosition();
+		glm::vec3 camDir = _camera.getDirection();
+		glm::vec2 forward2D(camDir.x, camDir.z);
+		if (glm::length(forward2D) < 1e-5f)
+			forward2D = glm::vec2(0.0f, 1.0f);
+		else
+			forward2D = glm::normalize(forward2D);
+
+		size_t bestIndex = std::numeric_limits<size_t>::max();
+		bool bestVisible = false;
+		float bestForward = -2.0f;
+		float bestDistance = std::numeric_limits<float>::max();
+
+		for (size_t i = 0; i < candidates.size(); ++i) {
+			if (processed[i])
+				continue;
+
+			const CandidateInfo &cand = candidates[i];
+			glm::ivec2 chunkCoord = chunkPos + cand.offset;
+			glm::vec3 aabbMin(
+				static_cast<float>(chunkCoord.x * CHUNK_SIZE),
+				-2048.0f,
+				static_cast<float>(chunkCoord.y * CHUNK_SIZE));
+			glm::vec3 aabbMax = aabbMin + glm::vec3(CHUNK_SIZE, 4096.0f, CHUNK_SIZE);
+
+			float chunkCenterX = aabbMin.x + CHUNK_SIZE * 0.5f;
+			float chunkCenterZ = aabbMin.z + CHUNK_SIZE * 0.5f;
+			glm::vec2 toCenter2D(chunkCenterX - camWorld.x, chunkCenterZ - camWorld.z);
+			float len = glm::length(toCenter2D);
+			float forwardDot = len > 1e-5f ? glm::dot(toCenter2D / len, forward2D) : 1.0f;
+			float distance2 = toCenter2D.x * toCenter2D.x + toCenter2D.y * toCenter2D.y;
+
+			bool visible = false;
+			if (hasFrustum)
+				visible = localFrustum.aabbVisible(aabbMin, aabbMax);
+			else
+				visible = (forwardDot >= fallbackCos);
+
+			bool better = false;
+			if (bestIndex == std::numeric_limits<size_t>::max()) {
+				better = true;
+			} else if (visible != bestVisible) {
+				better = visible;
+			} else if (visible) {
+				if (distance2 != bestDistance) {
+					better = distance2 < bestDistance;
+				} else if (forwardDot != bestForward) {
+					better = forwardDot > bestForward;
+				} else {
+					better = cand.radius < candidates[bestIndex].radius;
+				}
+			} else {
+				if (forwardDot != bestForward) {
+					better = forwardDot > bestForward;
+				} else if (distance2 != bestDistance) {
+					better = distance2 < bestDistance;
+				} else {
+					better = cand.radius < candidates[bestIndex].radius;
+				}
+			}
+
+			if (better) {
+				bestIndex = i;
+				bestVisible = visible;
+				bestForward = forwardDot;
+				bestDistance = distance2;
+			}
+		}
+
+		if (bestIndex == std::numeric_limits<size_t>::max())
+			break;
+
+		const CandidateInfo &chosen = candidates[bestIndex];
+		int chunkResolution = baseResolution;
+		int thresholdStep = LOD_THRESHOLD;
+		while ((std::abs(chosen.offset.x) >= thresholdStep || std::abs(chosen.offset.y) >= thresholdStep) && chunkResolution < CHUNK_SIZE) {
+			chunkResolution = std::min(CHUNK_SIZE, chunkResolution * 2);
+			if (thresholdStep > std::numeric_limits<int>::max() / 2) {
+				thresholdStep = std::numeric_limits<int>::max();
+				break;
+			}
+			thresholdStep *= 2;
+			if (thresholdStep <= 0) {
+				thresholdStep = std::numeric_limits<int>::max();
+				break;
+			}
+		}
+		loadChunk(chosen.offset.x, chosen.offset.y, 0, chunkPos, chunkResolution);
+		processed[bestIndex] = 1;
+		--remaining;
+		maxRadiusLoaded = std::max(maxRadiusLoaded, chosen.radius);
+		_currentRender = std::min(renderDistance, maxRadiusLoaded * 2 + 2);
+
+		if (++batchCounter >= updateBatch)
+			enqueueUpdate();
+
+		if (hasMoved(chunkPos))
+			break;
 	}
+
+	if (batchCounter > 0)
+		enqueueUpdate();
+
 	for (auto &ret : retLst) {
 		while (ret.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
-			if (!getIsRunning()) break;
+			if (!getIsRunning())
+				break;
 		}
 	}
 }
@@ -903,6 +999,11 @@ void World::setViewProj(const glm::mat4& view, const glm::mat4& proj) {
 	for (int i = 0; i < 6; ++i)
 		planes[i] = glm::vec4(f.p[i].n, f.p[i].d);
 	glNamedBufferSubData(_frustumUBO, 0, sizeof(planes), planes);
+	{
+		std::lock_guard<std::mutex> lk(_frustumMutex);
+		_cachedFrustum = f;
+		_hasCachedFrustum = true;
+	}
 }
 
 void World::runGpuCulling(bool transparent) {
