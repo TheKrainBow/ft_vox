@@ -80,6 +80,7 @@ class StoneEngine {
 		bool showTriangleMesh;
 		bool mouseCaptureToggle;
 		bool showDebugInfo;
+		bool showUI;
 		bool showLight;
 		bool gravity;
 		bool falling;

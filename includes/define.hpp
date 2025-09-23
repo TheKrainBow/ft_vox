@@ -6,6 +6,7 @@
 # define RUNNING false
 # define CAPTURE_MOUSE true
 # define SHOW_LIGHTING false
+# define SHOW_UI true
 # define GRAVITY true
 # define FALLING false
 # define SWIMMING false

@@ -165,9 +165,10 @@ void StoneEngine::initData()
 	bzero(keyStates, sizeof(keyStates));
 	ignoreMouseEvent	= IGNORE_MOUSE;
 	updateChunk			= ENABLE_WORLD_GENERATION;
-	showDebugInfo		= SHOW_DEBUG;
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
+	showDebugInfo		= SHOW_DEBUG;
+	showUI				= SHOW_UI;
 	showLight			= SHOW_LIGHTING;
 	gravity				= GRAVITY;
 	falling				= FALLING;
@@ -864,7 +865,7 @@ void StoneEngine::display() {
 	displaySun(writeFBO);
 	blitColor(writeFBO, readFBO);
 
-	if (showDebugInfo) {
+	if (showUI) {
 		postProcessCrosshair();
 		blitColor(writeFBO, readFBO);
 	}
@@ -1899,9 +1900,10 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 			fallSpeed = 0.0f;
 		}
 	}
-	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F1) showUI = !showUI;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
