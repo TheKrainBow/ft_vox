@@ -30,7 +30,7 @@ class SubChunk
 		double						**_heightMap;
 		Biome						**_biomeMap;
 		double						**_treeMap;
-		World						&_world;
+		ChunkLoader				&_chunkMgr;
 		Chunk						&_chunk;
 
 		bool						_loaded = false;
@@ -47,13 +47,12 @@ class SubChunk
 		std::vector<Face>			_transparentFaces[6];
 		std::vector<int>			_transparentVertexData;
 
-		TextureManager				&_textManager;
 		bool						_needUpdate;
 		bool						_needTransparentUpdate;
 
 		CaveGenerator				&_caveGen;
 	public:
-		SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, World &world, TextureManager &textManager, int resolution = 1);
+		SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, ChunkLoader &chunkMgr, int resolution = 1);
 		~SubChunk();
 		void markLoaded(bool loaded = true);
 		void addTextureVertex(Face face, std::vector<int> *_vertexData);

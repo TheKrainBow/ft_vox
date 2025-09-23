@@ -2,7 +2,7 @@
 
 #include "ft_vox.hpp"
 #include "NoiseGenerator.hpp"
-#include "World.hpp"
+#include "ChunkLoader.hpp"
 #include "TextureManager.hpp"
 #include "SubChunk.hpp"
 #include "Chrono.hpp"
@@ -11,10 +11,10 @@
 #include <future>
 
 class SubChunk;
-class World;
+class ChunkLoader;
 class CaveGenerator;
 
-class Chunk : public std::enable_shared_from_this<Chunk>
+class Chunk
 {
 	private:
 		ivec2								_position;
@@ -25,8 +25,7 @@ class Chunk : public std::enable_shared_from_this<Chunk>
 		std::unordered_map<int, SubChunk *>	_subChunks;
 		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
-		World								&_world;
-		TextureManager						&_textureManager;
+		ChunkLoader						&_chunkMgr;
 		PerlinMap							*_perlinMap;
 		Chrono								_chrono;
 		Chunk *_north;
@@ -48,7 +47,7 @@ class Chunk : public std::enable_shared_from_this<Chunk>
 		std::atomic_bool						_isModified;
 		
 	public:
-		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution = 1);
+		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, ChunkLoader &chunkMgr, ThreadPool &pool, int resolution = 1);
 		~Chunk();
 		void getNeighbors();
 		SubChunk *getSubChunk(int y);

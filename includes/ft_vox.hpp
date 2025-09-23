@@ -49,6 +49,12 @@ struct TopBlock {
 	ivec2 pos = {0, 0};
 };
 
+struct DisplayData {
+	std::vector<vec4>                       ssboData;
+	std::vector<int>                        vertexData;
+	std::vector<DrawArraysIndirectCommand>  indirectBufferData;
+};
+
 const float rectangleVertices[] =
 {
 	// Coords	   // texCoords

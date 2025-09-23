@@ -1,13 +1,12 @@
 #include "Chunk.hpp"
 
-Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, World &world, TextureManager &textureManager, ThreadPool &pool, int resolution)
+Chunk::Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, ChunkLoader &chunkMgr, ThreadPool &pool, int resolution)
 :
 _position(pos),
 _facesSent(false),
 _hasAllNeighbors(false),
 _isInit(false),
-_world(world),
-_textureManager(textureManager),
+_chunkMgr(chunkMgr),
 _perlinMap(perlinMap),
 _caveGen(caveGen),
 _resolution(resolution),
@@ -30,12 +29,12 @@ void Chunk::loadBlocks() {
 	std::vector<std::future<std::pair<int, SubChunk*>>> futures;
 	futures.reserve(maxYIdx - minYIdx + 1);
 
-	for (int idx = minYIdx; _world.getIsRunning() && idx <= maxYIdx; ++idx) {
+	for (int idx = minYIdx; _chunkMgr.getIsRunning() && idx <= maxYIdx; ++idx) {
 		futures.emplace_back(_pool.enqueue([this, idx]() -> std::pair<int, SubChunk*>
 		{
 			auto* sub = new SubChunk(
 				{ _position.x, idx, _position.y },
-				_perlinMap, _caveGen, *this, _world, _textureManager, _resolution
+				_perlinMap, _caveGen, *this, _chunkMgr, _resolution
 			);
 			sub->loadHeight(0);
 			sub->loadBiome(0);
@@ -149,10 +148,10 @@ void Chunk::getNeighbors()
 	ivec2 southPos{_position.x, _position.y + 1};
 	ivec2 eastPos{_position.x + 1, _position.y};
 	ivec2 westPos{_position.x - 1, _position.y};
-	_north = _world.getChunk(northPos);
-	_south = _world.getChunk(southPos);
-	_east = _world.getChunk(eastPos);
-	_west = _world.getChunk(westPos);
+	_north = _chunkMgr.getChunk(northPos);
+	_south = _chunkMgr.getChunk(southPos);
+	_east = _chunkMgr.getChunk(eastPos);
+	_west = _chunkMgr.getChunk(westPos);
 
 	// Update our own neighbor-completeness flag so we can emit faces even if
 	// all neighbors already existed before this chunk was created.
@@ -227,7 +226,7 @@ SubChunk* Chunk::getOrCreateSubChunk(int subY, bool generate) {
 
 	auto* sc = new SubChunk(
 		{ _position.x, subY, _position.y },
-		_perlinMap, _caveGen, *this, _world, _textureManager, _resolution
+		_perlinMap, _caveGen, *this, _chunkMgr, _resolution
 	);
 
 	if (generate) {
@@ -372,7 +371,7 @@ void Chunk::updateResolution(int newResolution) {
 		return;
 
 	// Refresh the perlin data at the requested LOD before rebuilding subchunks.
-	PerlinMap *updatedMap = _world.getNoiseGenerator().getPerlinMap(_position, newResolution);
+	PerlinMap *updatedMap = _chunkMgr.getNoiseGenerator().getPerlinMap(_position, newResolution);
 	if (updatedMap)
 		_perlinMap = updatedMap;
 
