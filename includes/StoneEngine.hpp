@@ -46,6 +46,13 @@ class StoneEngine {
 		GLuint sunVAO;
 		GLuint sunVBO;
 
+		// Shadow mapping
+		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
+		GLuint shadowFBO = 0;             // FBO holding depth map
+		GLuint shadowMap = 0;             // depth texture
+		int    shadowMapSize = 2048;      // resolution (can tweak)
+		glm::mat4 lightSpaceMatrix{1.0f}; // light view-projection
+
 		// Skybox
 		GLuint skyboxProgram = 0;
 		Skybox _skybox;
@@ -164,6 +171,7 @@ class StoneEngine {
 		int		initGLFW();
 		void	initTextures();
 		void	initRenderShaders();
+		void	initShadowMapping();
 		void	initSkybox();
 		void	initDebugTextBox();
 		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
@@ -186,6 +194,7 @@ class StoneEngine {
 		void resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth);
 		void prepareRenderPipeline();
 		void displaySun(FBODatas &targetFBO);
+		void renderShadowMap();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();

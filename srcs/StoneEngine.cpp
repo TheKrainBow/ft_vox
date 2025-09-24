@@ -86,6 +86,7 @@ _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
 	initGLEW();
 	initTextures();
 	initRenderShaders();
+	initShadowMapping();
 	initDebugTextBox();
 	initFboShaders();
 	reshapeAction(windowWidth, windowHeight);
@@ -100,6 +101,7 @@ StoneEngine::~StoneEngine()
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
 	glDeleteProgram(sunShaderProgram);
+	if (shadowShaderProgram) glDeleteProgram(shadowShaderProgram);
 
 	// Clean up post-process shaders
 	for (auto& [type, shader] : postProcessShaders)
@@ -124,6 +126,10 @@ StoneEngine::~StoneEngine()
 	if (tmpFBO.fbo) glDeleteFramebuffers(1, &tmpFBO.fbo);
 	if (tmpFBO.texture) glDeleteTextures(1, &tmpFBO.texture);
 	if (tmpFBO.depth) glDeleteTextures(1, &tmpFBO.depth);
+
+	// Delete shadow map resources
+	if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
+	if (shadowMap) glDeleteTextures(1, &shadowMap);
 
 	if (msaaFBO.fbo) glDeleteFramebuffers(1, &msaaFBO.fbo);
 	if (msaaFBO.texture) glDeleteRenderbuffers(1, &msaaFBO.texture);
@@ -360,9 +366,36 @@ void StoneEngine::initRenderShaders()
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
 	skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
+	shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
 	initSkybox();
+}
+
+void StoneEngine::initShadowMapping()
+{
+	// Depth texture
+	glGenTextures(1, &shadowMap);
+	glBindTexture(GL_TEXTURE_2D, shadowMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowMapSize, shadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+	// FBO
+	glGenFramebuffers(1, &shadowFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE) {
+		std::cerr << "[Shadow] FBO incomplete: 0x" << std::hex << status << std::dec << std::endl;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void StoneEngine::initSkybox()
@@ -610,6 +643,12 @@ void StoneEngine::activateRenderShader()
 	vec3 camWorld = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
 
+	// Shadow map + matrix
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, shadowMap);
+	glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 4);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
@@ -617,6 +656,67 @@ void StoneEngine::activateRenderShader()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	glFrontFace(GL_CCW);
+}
+
+void StoneEngine::renderShadowMap()
+{
+	if (!shadowFBO || !shadowShaderProgram) return;
+
+	// Compute light matrices relative to camera position
+	glm::vec3 camPos = camera.getWorldPosition();
+	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+	glm::vec3 lightDir = glm::normalize(sunPos - camPos);
+
+	// Stable shadow box centered on camera position (not view dir)
+	glm::vec3 center = camPos;
+	float shadowDist = 300.0f;
+	// Place the light camera on the LIGHT side (along sunDir),
+	// so it looks in the same direction as incoming light rays.
+	glm::vec3 lightPos = center + lightDir * shadowDist;
+	glm::vec3 up(0.0f, 1.0f, 0.0f);
+	if (std::abs(glm::dot(lightDir, up)) > 0.99f) {
+		up = glm::vec3(0.0f, 0.0f, 1.0f);
+	}
+	glm::mat4 lightView = glm::lookAt(lightPos, center, up);
+	float half = 160.0f; // cover ~320x320 region
+	glm::mat4 lightProj = glm::ortho(-half, half, -half, half, 1.0f, 800.0f);
+
+	// Snap the light-space center to texel grid to reduce shimmering
+	float texelSize = (2.0f * half) / float(shadowMapSize);
+	glm::vec4 centerLS = lightView * glm::vec4(center, 1.0f);
+	glm::vec2 snapped = glm::floor(glm::vec2(centerLS) / texelSize) * texelSize;
+	glm::vec2 deltaLS = snapped - glm::vec2(centerLS);
+	glm::vec3 worldOffset = glm::transpose(glm::mat3(lightView)) * glm::vec3(deltaLS, 0.0f);
+	center += worldOffset;
+	lightPos += worldOffset;
+	lightView = glm::lookAt(lightPos, center, up);
+
+	lightSpaceMatrix = lightProj * lightView;
+
+	// Render depth
+	glViewport(0, 0, shadowMapSize, shadowMapSize);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT); // reduce self-shadowing
+	glEnable(GL_POLYGON_OFFSET_FILL);
+	glPolygonOffset(2.5f, 4.0f);
+
+	glUseProgram(shadowShaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+
+	// Cull based on light frustum for the shadow pass
+	_chunkMgr.setViewProj(lightView, lightProj);
+	_chunkMgr.updateDrawData();
+	_chunkMgr.renderSolidBlocks();
+
+	// Restore state
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, windowWidth, windowHeight);
 }
 
 void StoneEngine::renderChunkGrid()
@@ -834,6 +934,9 @@ void StoneEngine::resolveMsaaToFbo(FBODatas& dst, bool copyDepth) {
 						mask, GL_NEAREST);
 }
 void StoneEngine::display() {
+	// Pass 0: shadow map
+	renderShadowMap();
+
 	prepareRenderPipeline();
 
 	renderSkybox();                 // -> msaaFBO
