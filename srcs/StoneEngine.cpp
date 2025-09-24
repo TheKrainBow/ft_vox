@@ -1249,7 +1249,8 @@ void StoneEngine::sendPostProcessFBOToDispay(const FBODatas &sourceFBO) {
 
 void StoneEngine::renderTransparentObjects() {
 	activateTransparentShader();
-	drawnTriangles += _chunkMgr.renderSolidBlocks();
+	// Use the transparent draw path (water, leaves, etc.)
+	drawnTriangles += _chunkMgr.renderTransparentBlocks();
 }
 
 void StoneEngine::renderSkybox()
