@@ -190,10 +190,10 @@ void StoneEngine::initData()
 	_jumpCooldown			= now;
 	_placeCooldown			= now;
 	_swimUpCooldownOnRise	= now;
-	
+
 	// Gets the max MSAA (anti aliasing) samples
 	_maxSamples = 0;
-	// glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
+	glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
 
 	if (SCHOOL_SAMPLES)
 		_maxSamples = 8;

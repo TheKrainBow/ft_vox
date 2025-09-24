@@ -29,7 +29,7 @@ _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue)
 {
 	initData();
-	initSpawn();
+	// initSpawn();
 }
 
 ChunkLoader::~ChunkLoader()
@@ -303,7 +303,6 @@ void ChunkLoader::loadChunks(ivec2 &chunkPos) {
 				bestDistance = distance2;
 			}
 		}
-
 		if (bestIndex == std::numeric_limits<size_t>::max())
 			break;
 

@@ -10,6 +10,8 @@ _needUpdate(true),
 _needTransparentUpdate(true),
 _solidDrawDataMutex(solidDrawDataMutex),
 _transparentDrawDataMutex(transparentDrawDataMutex),
+_solidDrawData(nullptr),
+_transparentDrawData(nullptr),
 _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue),
 _hasBufferInitialized(false)
