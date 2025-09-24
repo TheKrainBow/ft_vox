@@ -1,22 +1,5 @@
 #pragma once
-#include "ft_vox.hpp"
-#include "NoiseGenerator.hpp"
-#include "SubChunk.hpp"
-#include "CaveGenerator.hpp"
-#include "Chunk.hpp"
-#include "Camera.hpp"
-#include "Chrono.hpp"
-#include "ThreadPool.hpp"
-#include "Frustum.hpp"
-
-#include <unordered_set>
-#include <queue>
-#include <list>
-#include <atomic>
-#include <mutex>
-#include <unordered_map>
-#include <vector>
-#include <limits>
+#include "ChunkManager.hpp"
 
 class ChunkLoader
 {
@@ -28,9 +11,9 @@ private:
 	};
 	std::unordered_map<glm::ivec2, std::vector<PendingBlock>, ivec2_hash> _pendingEdits;
 	
-	// Loaded chunks to be added to the display
-	std::queue<DisplayData *>	_stagedDataQueue;
-	std::queue<DisplayData *>	_transparentStagedDataQueue;
+	// Loaded chunks to be added to the display (common with ChunkRenderer)
+	std::queue<DisplayData *>	&_solidStagedDataQueue;
+	std::queue<DisplayData *>	&_transparentStagedDataQueue;
 	
 	// List of cached chunks in order
 	std::list<Chunk *>	_chunkList;
@@ -39,10 +22,10 @@ private:
 	std::mutex	_pendingMutex;
 	std::mutex	_chunksListMutex;
 	std::mutex	_chunksMutex;
-	std::mutex	_displayedChunksMutex;
 	std::mutex	_dirtyMutex;
 	std::mutex	_frustumMutex;
 	std::mutex	_drawDataMutex;
+	std::mutex	_displayedChunksMutex;
 
 	// Cached chunks
 	std::unordered_map<ivec2, Chunk *, ivec2_hash>	_chunks;
@@ -84,14 +67,11 @@ private:
 private:
 	// Init methods
 	void initData();
-	void initSpawn();
 
 	// Edits (queue if chunk not ready)
 	void applyPendingFor(const ivec2& pos);
 
 	// Runtime chunk loading/unloading
-	void loadChunks(ivec2 &camPosition);
-	void unloadChunks(ivec2 &newCamChunk);
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
 	bool hasMoved(ivec2 &oldPos);
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
@@ -100,27 +80,39 @@ private:
 	// Chunks edit tracking
 	void	flushDirtyChunks();
 public:
-	ChunkLoader(int seed,
+	ChunkLoader(
+		int seed,
 		Camera &camera,
 		ThreadPool &pool,
 		Chrono &chronoHelper,
-		std::atomic_bool *isRunning
+		std::atomic_bool *isRunning,
+		std::queue<DisplayData *>	&solidStagedDataQueue,
+		std::queue<DisplayData *>	&transparentStagedDataQueue
 	);
 	~ChunkLoader();
 
+	// Init methods
+	void initSpawn();
+
+	// Runtime chunk loading/unloading
+	void loadChunks(ivec2 &camPosition);
+	void unloadChunks(ivec2 &newCamChunk);
+
 	// Shared data getters
-	Chunk*		getChunk(const ivec2 &position);
-	SubChunk*	getSubChunk(ivec3 &position);
-	BlockType	getBlock(ivec2 chunkPos, ivec3 worldPos);
-	TopBlock	findTopBlockY(ivec2 chunkPos, ivec2 worldPos);
-	TopBlock	findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
-	bool		getIsRunning();
+	Chunk*			getChunk(const ivec2 &position);
+	SubChunk*		getSubChunk(ivec3 &position);
+	BlockType		getBlock(ivec2 chunkPos, ivec3 worldPos);
+	TopBlock		findTopBlockY(ivec2 chunkPos, ivec2 worldPos);
+	TopBlock		findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
+	bool			getIsRunning();
 	NoiseGenerator &getNoiseGenerator();
+	void			getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
 
 	// Shared data setters
 	bool	setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value);
 	void	markChunkDirty(const ivec2& pos);
 	bool	setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value);
+	void	setViewProj(Frustum &f);
 
 	// Debug shared data getters and prints
 	size_t	*getMemorySizePtr();

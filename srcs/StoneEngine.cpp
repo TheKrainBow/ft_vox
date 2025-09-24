@@ -75,7 +75,7 @@ void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
 	glUniform2f(texelSizeLoc, texelX, texelY);
 }
 
-StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _textureManager, camera, pool, &_isRunning), _pool(pool), noise_gen(seed)
+StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _pool(pool), noise_gen(seed), _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
 {
 	initData();
 	initGLFW();
@@ -85,13 +85,12 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _world(seed, _t
 	initDebugTextBox();
 	initFboShaders();
 	reshapeAction(windowWidth, windowHeight);
-	_world.init(RENDER_DISTANCE);
 }
 
 StoneEngine::~StoneEngine()
 {
-	// Ensure World GL resources are freed before destroying the context
-	_world.shutdownGL();
+	// Ensure _chunkMgr GL resources are freed before destroying the context
+	_chunkMgr.shutDownGL();
 
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
@@ -141,7 +140,7 @@ void StoneEngine::run()
 	_isRunning = true;
 
 	// Set spawn point chunk and player pos
-	_world.initSpawn();
+	_chunkMgr.initSpawn();
 
 	// Run the orchestrator on a dedicated thread so it doesn't consume a pool worker
 	std::thread chunkThread(&StoneEngine::updateChunkWorker, this);
@@ -538,9 +537,9 @@ void StoneEngine::initDebugTextBox()
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
 	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, &_processMemoryUsage);
-	debugBox.addLine("Chunk Memory: ", Textbox::SIZE_T, _world.getMemorySizePtr());
-	debugBox.addLine("RenderDistance: ", Textbox::INT, _world.getRenderDistancePtr());
-	debugBox.addLine("CurrentRender: ", Textbox::INT, _world.getCurrentRenderPtr());
+	debugBox.addLine("Chunk Memory: ", Textbox::SIZE_T, _chunkMgr.getMemorySizePtr());
+	debugBox.addLine("RenderDistance: ", Textbox::INT, _chunkMgr.getRenderDistancePtr());
+	debugBox.addLine("CurrentRender: ", Textbox::INT, _chunkMgr.getCurrentRenderPtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
 	debugBox.addLine("y: ", Textbox::FLOAT, yPos);
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);
@@ -594,7 +593,7 @@ void StoneEngine::activateRenderShader()
 	viewFull = translate(viewFull, vec3(camera.getPosition()));
 
 	this->viewMatrix = viewFull;
-	_world.setViewProj(this->viewMatrix, projectionMatrix);
+	_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -621,7 +620,7 @@ void StoneEngine::renderChunkGrid()
 
 	// Snapshot chunk list
 	std::vector<glm::ivec2> chunks;
-	_world.getDisplayedChunksSnapshot(chunks);
+	_chunkMgr.getDisplayedChunksSnapshot(chunks);
 	if (chunks.empty()) return;
 
 	// Common state and matrices
@@ -709,7 +708,7 @@ void StoneEngine::activateTransparentShader()
 	viewFull = translate(viewFull, vec3(camera.getPosition()));
 
 	this->viewMatrix = viewFull;
-	_world.setViewProj(this->viewMatrix, projectionMatrix);
+	_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 
 	vec3 viewPos = camera.getWorldPosition();
 
@@ -935,7 +934,7 @@ void StoneEngine::renderAimHighlight()
 		(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
 		(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
 	);
-	BlockType hitBlock = _world.getBlock(hitChunkPos, hit);
+	BlockType hitBlock = _chunkMgr.getBlock(hitChunkPos, hit);
 
 	// Default: full block
 	glm::vec3 bboxOffset = glm::vec3(hit);
@@ -1035,7 +1034,7 @@ void StoneEngine::postProcessFog()
 	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
 
 	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
-	if (auto render = _world.getCurrentRenderPtr(); render) {
+	if (auto render = _chunkMgr.getCurrentRenderPtr(); render) {
 		_bestRender = std::max(_bestRender, *render);
 		glUniform1f(loc, _bestRender - 5);
 	} else {
@@ -1175,10 +1174,10 @@ void StoneEngine::renderPlanarReflection()
 	if (cullWasEnabled) glDisable(GL_CULL_FACE);
 
 	glm::mat4 prevView = this->viewMatrix;
-	_world.setViewProj(viewFullMirror, projOblique);   // <- use oblique for culling too
-	_world.updateDrawData();
-	_world.displaySolid();
-	_world.setViewProj(prevView, projectionMatrix);
+	_chunkMgr.setViewProj(viewFullMirror, projOblique);   // <- use oblique for culling too
+	_chunkMgr.updateDrawData();
+	_chunkMgr.renderSolidBlocks();
+	_chunkMgr.setViewProj(prevView, projectionMatrix);
 
 	if (cullWasEnabled) glEnable(GL_CULL_FACE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1204,9 +1203,9 @@ void StoneEngine::prepareRenderPipeline() {
 
 void StoneEngine::renderSolidObjects() {
 	activateRenderShader();
-	_world.updateDrawData();
-	_world.setViewProj(viewMatrix, projectionMatrix);
-	drawnTriangles = _world.displaySolid();
+	_chunkMgr.updateDrawData();
+	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
+	drawnTriangles = _chunkMgr.renderSolidBlocks();
 }
 
 void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
@@ -1245,7 +1244,7 @@ void StoneEngine::sendPostProcessFBOToDispay(const FBODatas &sourceFBO) {
 
 void StoneEngine::renderTransparentObjects() {
 	activateTransparentShader();
-	drawnTriangles += _world.displayTransparent();
+	drawnTriangles += _chunkMgr.renderSolidBlocks();
 }
 
 void StoneEngine::renderSkybox()
@@ -1307,7 +1306,7 @@ void StoneEngine::loadFirstChunks()
 {
 	ivec2 chunkPos = camera.getChunkPosition(CHUNK_SIZE);
 	chronoHelper.startChrono(0, "Load chunks");
-	_world.loadFirstChunks(chunkPos);
+	_chunkMgr.loadChunks(chunkPos);
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChronos();
 }
@@ -1318,9 +1317,9 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	std::future<void> loadRet;
 	chronoHelper.startChrono(0, "Load chunks");
 	if (getIsRunning())
-		unloadRet = _pool.enqueue(&World::unLoadNextChunks, &_world, newCamChunk);
+		unloadRet = _pool.enqueue(&ChunkManager::loadChunks, &_chunkMgr, newCamChunk);
 	if (getIsRunning())
-		loadRet = _pool.enqueue(&World::loadFirstChunks, &_world, newCamChunk);
+		loadRet = _pool.enqueue(&ChunkManager::unloadChunks, &_chunkMgr, newCamChunk);
 
 	// Wait with shutdown-aware polling
 	if (unloadRet.valid()) {
@@ -1449,18 +1448,18 @@ void StoneEngine::updatePlayerStates()
 
 	// If the destination chunk or the needed subchunk is not yet loaded, avoid updating
 	// ground/physics to prevent erroneous falling while streaming catches up.
-	// if (Chunk* c = _world.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
+	// if (Chunk* c = _chunkMgr.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
 	// 	return;
 
-	camTopBlock = _world.findBlockUnderPlayer(chunkPos, {worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
-	camStandingBlock   = _world.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
-	camBodyBlockLegs   = _world.getBlock(chunkPos, {worldX, footCell,     worldZ});
-	camBodyBlockTorso  = _world.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
+	camTopBlock = _chunkMgr.findBlockUnderPlayer(chunkPos, {worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
+	camStandingBlock   = _chunkMgr.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
+	camBodyBlockLegs   = _chunkMgr.getBlock(chunkPos, {worldX, footCell,     worldZ});
+	camBodyBlockTorso  = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
 
 	// Consider underwater slightly sooner by biasing eye sample downward
 	const float eyeBias = 0.10f;
 	int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-	BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
+	BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
 	isUnderWater = (camHeadBlock == WATER);
 
 	// Body blocks states debug
@@ -1477,7 +1476,7 @@ void StoneEngine::updatePlayerStates()
 	if (ascending)
 	{
 		// Ceiling check
-		camBodyOverHead = _world.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
+		camBodyOverHead = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
 		if (camBodyOverHead != WATER && camBodyOverHead != AIR)
 		{
 			falling = false;
@@ -1509,8 +1508,8 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 	};
 
 	// Check both the block in front of the legs and the upper body
-	BlockType blockFeet  = _world.getBlock(chunkPos, worldPosFeet);
-	BlockType blockTorso  = _world.getBlock(chunkPos, worldPosTorso);
+	BlockType blockFeet  = _chunkMgr.getBlock(chunkPos, worldPosFeet);
+	BlockType blockTorso  = _chunkMgr.getBlock(chunkPos, worldPosTorso);
 	return ((blockFeet == AIR || blockFeet == WATER)
 		&& (blockTorso == AIR || blockTorso == WATER));
 }
@@ -1568,7 +1567,7 @@ void StoneEngine::updateProcessMemoryUsage()
 	if (rss > 0)
 		_processMemoryUsage = rss;
 	else
-		_processMemoryUsage = *_world.getMemorySizePtr();
+		_processMemoryUsage = *_chunkMgr.getMemorySizePtr();
 }
 
 void StoneEngine::updateMovement()
@@ -1607,7 +1606,7 @@ void StoneEngine::updateGameTick()
 {
 	timeValue += 6; // Increment time value per game tick
 	//std::cout << "timeValue: " << timeValue << std::endl;
-	// _world.printSizes(); Debug container sizes
+	// _chunkMgr.printSizes(); Debug container sizes
 	if (timeValue > 86400)
 		timeValue = 0;
 	if (timeValue < 0)
@@ -1739,7 +1738,7 @@ void StoneEngine::update()
 		};
 		const float eyeBias = 0.30f;
 		int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-		BlockType camHeadBlock = _world.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
+		BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
 		isUnderWater = (camHeadBlock == WATER);
 	}
 	// Update player data
@@ -1760,7 +1759,7 @@ void StoneEngine::updatePlacing()
 		glm::vec3 dir    = camera.getDirection();
 
 		// Place block 5 block range
-		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		_chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
 		_placeCooldown = now + std::chrono::milliseconds(150);
 	}
 }

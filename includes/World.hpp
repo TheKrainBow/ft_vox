@@ -91,7 +91,6 @@ public:
 	// Init
 	World(int seed, Camera &camera, ThreadPool &pool, std::atomic_bool *isRunning);
 	~World();
-	void init(int renderDistance = RENDER_DISTANCE);
 
 	// Display
 	int displaySolid();

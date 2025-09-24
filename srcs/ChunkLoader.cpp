@@ -9,18 +9,24 @@ static inline int floor_div(int a, int b) {
 	return (r && ((r < 0) != (b < 0))) ? (q - 1) : q;
 }
 
-ChunkLoader::ChunkLoader(int seed,
+ChunkLoader::ChunkLoader(
+	int seed,
 	Camera &camera,
 	ThreadPool &pool,
 	Chrono &chronoHelper,
-	std::atomic_bool *isRunning)
+	std::atomic_bool *isRunning,
+	std::queue<DisplayData *>	&solidStagedDataQueue,
+	std::queue<DisplayData *>	&transparentStagedDataQueue
+)
 :
 _camera(camera),
 _chronoHelper(chronoHelper),
 _threadPool(pool),
 _isRunning(isRunning),
 _perlinGenerator(seed),
-_caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, seed)
+_caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, seed),
+_solidStagedDataQueue(solidStagedDataQueue),
+_transparentStagedDataQueue(transparentStagedDataQueue)
 {
 	initData();
 	initSpawn();
@@ -34,10 +40,10 @@ ChunkLoader::~ChunkLoader()
 		it->second->freeSubChunks();
 		delete it->second;
 	}
-	while (_stagedDataQueue.size())
+	while (_solidStagedDataQueue.size())
 	{
-		auto &tmp = _stagedDataQueue.front();
-		_stagedDataQueue.pop();
+		auto &tmp = _solidStagedDataQueue.front();
+		_solidStagedDataQueue.pop();
 		delete tmp;
 	}
 	while (_transparentStagedDataQueue.size())
@@ -397,7 +403,7 @@ void ChunkLoader::updateFillData()
 	// If a staged update already exists, skip this build (we will coalesce)
 	{
 		std::lock_guard<std::mutex> lk(_drawDataMutex);
-		if (!_stagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
+		if (!_solidStagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
 		{
 			_buildingDisplay = false;
 			return;
@@ -408,7 +414,7 @@ void ChunkLoader::updateFillData()
 	buildFacesToDisplay(fillData, transparentData);
 	{
 		std::lock_guard<std::mutex> lk(_drawDataMutex);
-		_stagedDataQueue.emplace(fillData);
+		_solidStagedDataQueue.emplace(fillData);
 		_transparentStagedDataQueue.emplace(transparentData);
 	}
 	_buildingDisplay = false;
@@ -548,6 +554,13 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value) {
 	return true;
 }
 
+void ChunkLoader::setViewProj(Frustum &f)
+{
+	std::lock_guard<std::mutex> lk(_frustumMutex);
+	_cachedFrustum = f;
+	_hasCachedFrustum = true;
+}
+
 TopBlock ChunkLoader::findTopBlockY(ivec2 chunkPos, ivec2 worldPos) {
 	auto chunk = getChunk(chunkPos);
 	if (!chunk) return TopBlock();
@@ -595,11 +608,19 @@ void ChunkLoader::printSizes() const
 		std::cout << "[-----------------------]" << std::endl;
 		std::cout << duration_cast<seconds>(now.time_since_epoch()).count() << std::endl;
 		std::cout << "PRINTING SIZES" << std::endl;
-		std::cout << "_stagedDataQueue " << _stagedDataQueue.size() << std::endl;
+		std::cout << "_solid " << _solidStagedDataQueue.size() << std::endl;
 		std::cout << "_transparentStagedDataQueue " <<  _transparentStagedDataQueue.size() << std::endl;
 		std::cout << "_chunkList " <<  _chunkList.size() << std::endl;
 		std::cout << "_chunks " <<  _chunks.size() << std::endl;
 		std::cout << "_displayedChunks " <<  _displayedChunks.size() << std::endl;
 		std::cout << "[-----------------------]" << std::endl;
 	}
+}
+
+// Shared data getters
+void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
+	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+	out.clear();
+	out.reserve(_displayedChunks.size());
+	for (const auto& kv : _displayedChunks) out.push_back(kv.first);
 }

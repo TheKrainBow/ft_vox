@@ -10,6 +10,7 @@
 #include "define.hpp"
 #include "Chrono.hpp"
 #include "Skybox.hpp"
+#include "ChunkManager.hpp"
 
 class StoneEngine {
 	public:
@@ -61,7 +62,6 @@ class StoneEngine {
 		FBODatas writeFBO;
 		FBODatas tmpFBO;
 
-		World _world;
 		int windowHeight;
 		int windowWidth;
 		mat4 projectionMatrix;
@@ -137,6 +137,7 @@ class StoneEngine {
 		BlockType	selectedBlock;
 		block_types	selectedBlockDebug;
 		bool placing;
+		ChunkManager _chunkMgr;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
