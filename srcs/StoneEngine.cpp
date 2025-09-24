@@ -301,7 +301,34 @@ glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3& camera
 	float y = radius * sin(angle); // y>0 during day, y<0 during night
 	float z = 0.0f;
 
+	// Return a position in the sun direction at a fixed radius from the camera,
+	// used only for visual effects (sun sprite, god rays)
 	return cameraPos + glm::vec3(x, y, z);
+}
+
+glm::vec3 StoneEngine::computeSunDirection(int timeValue)
+{
+	const float pi = 3.14159265f;
+	const float dayStart = 42000.0f;          // sunrise
+	const float dayLen   = 86400.0f - dayStart; // 44400 (day duration)
+	const float nightLen = dayStart;           // 42000 (night duration)
+
+	float t = static_cast<float>(timeValue);
+	float angle;
+	if (t < dayStart)
+	{
+		float phase = glm::clamp(t / nightLen, 0.0f, 1.0f);
+		angle = pi + phase * pi;
+	}
+	else
+	{
+		float phase = glm::clamp((t - dayStart) / dayLen, 0.0f, 1.0f);
+		angle = phase * pi;
+	}
+
+	// World-space directional light vector (pointing from world towards the sun)
+	glm::vec3 dir = glm::normalize(glm::vec3(cos(angle), sin(angle), 0.0f));
+	return dir;
 }
 
 void initSunQuad(GLuint &vao, GLuint &vbo)
@@ -378,8 +405,10 @@ void StoneEngine::initShadowMapping()
 	glGenTextures(1, &shadowMap);
 	glBindTexture(GL_TEXTURE_2D, shadowMap);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowMapSize, shadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// Use nearest filtering; we do manual PCF in shader
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -422,7 +451,9 @@ void StoneEngine::displaySun(FBODatas &targetFBO)
 	// glDepthFunc(GL_LESS);
 	vec3 camPos = camera.getWorldPosition();
 	// Compute current sun position based on time
-	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+	// Place the sun sprite far away in the current sun direction
+	glm::vec3 sunDir = computeSunDirection(timeValue);
+	glm::vec3 sunPos = camPos + sunDir * 6000.0f;
 
 	// Update view matrix
 
@@ -643,6 +674,10 @@ void StoneEngine::activateRenderShader()
 	vec3 camWorld = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
 
+	// Provide a stable directional sun vector (camera-invariant)
+	glm::vec3 sunDir = computeSunDirection(timeValue);
+	glUniform3fv(glGetUniformLocation(shaderProgram, "sunDir"), 1, glm::value_ptr(sunDir));
+
 	// Shadow map + matrix
 	glActiveTexture(GL_TEXTURE4);
 	glBindTexture(GL_TEXTURE_2D, shadowMap);
@@ -662,10 +697,9 @@ void StoneEngine::renderShadowMap()
 {
 	if (!shadowFBO || !shadowShaderProgram) return;
 
-	// Compute light matrices relative to camera position
+	// Compute light direction independent of camera position
 	glm::vec3 camPos = camera.getWorldPosition();
-	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
-	glm::vec3 lightDir = glm::normalize(sunPos - camPos);
+	glm::vec3 lightDir = computeSunDirection(timeValue);
 
 	// Stable shadow box centered on camera position (not view dir)
 	glm::vec3 center = camPos;
@@ -678,20 +712,21 @@ void StoneEngine::renderShadowMap()
 		up = glm::vec3(0.0f, 0.0f, 1.0f);
 	}
 	glm::mat4 lightView = glm::lookAt(lightPos, center, up);
-	float half = 160.0f; // cover ~320x320 region
+	float half = 128.0f; // tighter 256x256 region for higher texel density
 	glm::mat4 lightProj = glm::ortho(-half, half, -half, half, 1.0f, 800.0f);
 
-	// Snap the light-space center to texel grid to reduce shimmering
-	float texelSize = (2.0f * half) / float(shadowMapSize);
-	glm::vec4 centerLS = lightView * glm::vec4(center, 1.0f);
-	glm::vec2 snapped = glm::floor(glm::vec2(centerLS) / texelSize) * texelSize;
-	glm::vec2 deltaLS = snapped - glm::vec2(centerLS);
-	glm::vec3 worldOffset = glm::transpose(glm::mat3(lightView)) * glm::vec3(deltaLS, 0.0f);
-	center += worldOffset;
-	lightPos += worldOffset;
-	lightView = glm::lookAt(lightPos, center, up);
+	// Stabilize the shadow map by aligning the combined light-space matrix
+	// to the shadow texel grid (orthographic; w=1, no perspective divide).
+	glm::mat4 lightSpace = lightProj * lightView;
+	glm::vec4 shadowOrigin = lightSpace * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	shadowOrigin *= (float(shadowMapSize) * 0.5f);
+	glm::vec2 rounded = glm::round(glm::vec2(shadowOrigin));
+	glm::vec2 roundOffset = rounded - glm::vec2(shadowOrigin);
+	roundOffset /= (float(shadowMapSize) * 0.5f);
+	lightSpace[3][0] += roundOffset.x;
+	lightSpace[3][1] += roundOffset.y;
 
-	lightSpaceMatrix = lightProj * lightView;
+	lightSpaceMatrix = lightSpace;
 
 	// Render depth
 	glViewport(0, 0, shadowMapSize, shadowMapSize);
@@ -1227,7 +1262,7 @@ void StoneEngine::postProcessGodRays()
 	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
 
 	vec3 camPos = camera.getWorldPosition();
-	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+	glm::vec3 sunPos = camPos + computeSunDirection(timeValue) * 500.0f;
 
 	// Uniforms
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));

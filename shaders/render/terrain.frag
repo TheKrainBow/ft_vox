@@ -7,6 +7,8 @@ uniform vec3 cameraPos; // explicit camera world position
 uniform sampler2DArray textureArray;
 uniform sampler2D shadowMap;
 uniform mat4 lightSpaceMatrix;
+// Directional sun light (world-space, normalized and camera-invariant)
+uniform vec3 sunDir;
 
 in vec2 TexCoord;
 flat in int TextureID;
@@ -102,8 +104,8 @@ float calculateSpecularLight(float time, vec3 lightDir) {
 void main() {
 	vec3 viewPos = cameraPos;
 	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
-	// Use direction from fragment to light (not the opposite)
-	vec3 lightDir = normalize(computeSunPosition(timeValue) - FragPos);
+	// Directional light: keep a stable direction independent of camera position
+	vec3 lightDir = normalize(sunDir);
 	vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
 
 	// Calculate the distance from the camera to the fragment

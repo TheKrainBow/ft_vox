@@ -50,7 +50,7 @@ class StoneEngine {
 		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
 		GLuint shadowFBO = 0;             // FBO holding depth map
 		GLuint shadowMap = 0;             // depth texture
-		int    shadowMapSize = 2048;      // resolution (can tweak)
+		int    shadowMapSize = 4096;      // resolution (can tweak)
 		glm::mat4 lightSpaceMatrix{1.0f}; // light view-projection
 
 		// Skybox
@@ -224,6 +224,8 @@ class StoneEngine {
 		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
 
 		vec3 computeSunPosition(int timeValue, const glm::vec3& cameraPos);
+		// Camera-invariant sun direction in world-space
+		glm::vec3 computeSunDirection(int timeValue);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();
