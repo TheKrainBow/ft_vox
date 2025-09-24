@@ -858,6 +858,9 @@ void StoneEngine::display() {
 		resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
 		blitColorDepth(writeFBO, readFBO);
 	} else {
+		// In wireframe mode, previous blits changed GL_DRAW_FRAMEBUFFER.
+		// Ensure we render lines to the default framebuffer so they are visible.
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		renderTransparentObjects(); // direct
 	}
 
