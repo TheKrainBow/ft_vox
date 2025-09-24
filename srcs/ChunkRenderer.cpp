@@ -129,6 +129,28 @@ int ChunkRenderer::renderSolidBlocks()
 	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
 								   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
 								   sizeof(DrawArraysIndirectCommand));
+
+	// Safety fallback: if GPU culling produced zero draws OR we cannot read the
+	// parameter buffer (no read mapping available), draw all commands.
+	{
+		bool needFallback = false;
+		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+			_solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+		if (mapped) {
+			GLuint dc = *mapped;
+			glUnmapNamedBuffer(_solidParamsBuf);
+			needFallback = (dc == 0u);
+		} else {
+			// If mapping failed (driver/flags), prefer drawing rather than showing nothing.
+			needFallback = true;
+		}
+		if (needFallback && _solidDrawCount > 0) {
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+			glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount,
+										sizeof(DrawArraysIndirectCommand));
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+		}
+	}
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
@@ -172,6 +194,26 @@ int ChunkRenderer::renderTransparentBlocks()
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
 	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, nullptr, 0, _transpDrawCount,
 								   sizeof(DrawArraysIndirectCommand));
+
+	// Safety fallback identical to solid path
+	{
+		bool needFallback = false;
+		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+			_transpParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+		if (mapped) {
+			GLuint dc = *mapped;
+			glUnmapNamedBuffer(_transpParamsBuf);
+			needFallback = (dc == 0u);
+		} else {
+			needFallback = true;
+		}
+		if (needFallback && _transpDrawCount > 0) {
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+			glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount,
+										sizeof(DrawArraysIndirectCommand));
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
+		}
+	}
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
@@ -270,12 +312,23 @@ void ChunkRenderer::initGLBuffer()
 	glCreateBuffers(1, &_templIndirectBuffer);
 	glCreateBuffers(1, &_transpTemplIndirectBuffer);
 
+	// Parameter buffers store the draw count written by the compute culling pass.
+	// We also map them on the CPU to implement a safe fallback when the count is 0.
+	// Ensure we request both READ and WRITE mapping rights so glMap* with READ works.
 	glCreateBuffers(1, &_solidParamsBuf);
-	glNamedBufferStorage(_solidParamsBuf, sizeof(GLuint), nullptr,
-		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
+	glNamedBufferStorage(
+		_solidParamsBuf,
+		sizeof(GLuint),
+		nullptr,
+		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT | GL_MAP_READ_BIT
+	);
 	glCreateBuffers(1, &_transpParamsBuf);
-	glNamedBufferStorage(_transpParamsBuf, sizeof(GLuint), nullptr,
-		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
+	glNamedBufferStorage(
+		_transpParamsBuf,
+		sizeof(GLuint),
+		nullptr,
+		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT | GL_MAP_READ_BIT
+	);
 	initGpuCulling();
 	_hasBufferInitialized = true;
 }

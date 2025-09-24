@@ -504,8 +504,9 @@ void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType textu
 			return addFace(position, NORTH, texture, isTransparent);
 		return;
 	}
-	auto chunk = _chunk.getNorthChunk();      // shared_ptr
-	if (!chunk) return;
+	auto chunk = _chunk.getNorthChunk();      // neighbor chunk
+	// If neighbor isn't loaded yet, consider border as visible (air)
+	if (!chunk) { addFace(position, NORTH, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
 	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
@@ -522,7 +523,7 @@ void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType textu
 		return;
 	}
 	auto chunk = _chunk.getSouthChunk();
-	if (!chunk) return;
+	if (!chunk) { addFace(position, SOUTH, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
 	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
@@ -539,7 +540,7 @@ void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType textur
 		return;
 	}
 	auto chunk = _chunk.getWestChunk();
-	if (!chunk) return;
+	if (!chunk) { addFace(position, WEST, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
 	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
@@ -556,7 +557,7 @@ void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType textur
 		return;
 	}
 	auto chunk = _chunk.getEastChunk();
-	if (!chunk) return;
+	if (!chunk) { addFace(position, EAST, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
 	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))

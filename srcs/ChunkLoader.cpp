@@ -22,6 +22,7 @@ ChunkLoader::ChunkLoader(
 _camera(camera),
 _chronoHelper(chronoHelper),
 _threadPool(pool),
+_buildingDisplay(false),
 _isRunning(isRunning),
 _perlinGenerator(seed),
 _caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, seed),
@@ -29,7 +30,6 @@ _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue)
 {
 	initData();
-	// initSpawn();
 }
 
 ChunkLoader::~ChunkLoader()
@@ -68,7 +68,19 @@ void ChunkLoader::initSpawn()
 	// Load first chunk under the player, and pop their position on top of it
 	ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
 	vec3 worldPos  = _camera.getWorldPosition();
-	loadChunk(0, 0, 0, chunkPos, 1);
+	// Build a quick, coarse mesh first for immediate feedback, refined shortly after
+	Chunk* first = loadChunk(0, 0, 0, chunkPos, 8);
+	if (first) {
+		// Build faces immediately and push a synchronous display build so first frame has geometry
+		first->sendFacesToDisplay();
+		updateFillData();
+		// Schedule refinement to full resolution shortly after initial display
+		_threadPool.enqueue([this, chunkPos]() mutable {
+			ivec2 cp = chunkPos;
+			this->loadChunk(0, 0, 0, cp, RESOLUTION);
+			this->scheduleDisplayUpdate();
+		});
+	}
 	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
 	const vec3 &camPos = _camera.getPosition();
 
@@ -178,6 +190,13 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int res
 	{
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
 		_displayedChunks[pos] = chunk;
+	}
+
+	// Ensure a freshly created chunk becomes visible: build its mesh once
+	// and coalesce a display update. Skip if already meshed.
+	if (chunk && !chunk->isReady()) {
+		chunk->sendFacesToDisplay();
+		scheduleDisplayUpdate();
 	}
 	// unloadChunk();
 	return chunk;

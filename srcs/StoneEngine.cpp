@@ -791,14 +791,22 @@ void StoneEngine::activateTransparentShader()
 	}
 
 	// Blending and depth settings for transparent pass
-	glDepthMask(GL_FALSE);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_DEPTH_TEST);
-
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
-	glFrontFace(GL_CCW);
+	if (showTriangleMesh) {
+		// Wireframe view: draw all triangle edges clearly
+		glDisable(GL_BLEND);
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);     // write depth for proper line visibility
+		glDisable(GL_CULL_FACE);  // show both sides of water quads
+	} else {
+		// Normal transparent rendering (water)
+		glDepthMask(GL_FALSE);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_FRONT);
+		glFrontFace(GL_CCW);
+	}
 }
 
 void StoneEngine::blitColor(FBODatas& src, FBODatas& dst) {

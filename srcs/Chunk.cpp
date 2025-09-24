@@ -258,8 +258,11 @@ void Chunk::clearFaces() {
 
 void Chunk::sendFacesToDisplay()
 {
-	if (_hasAllNeighbors == false || _isInit == false)
-		return ;
+	// Build faces even if not fully surrounded yet. Missing neighbors are treated
+	// as transparent at borders; when neighbors arrive, both chunks will be
+	// remeshed to resolve seams.
+	if (_isInit == false)
+		return;
 
 	std::vector<SubChunk*> subs;
 	{
