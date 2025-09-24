@@ -1,9 +1,6 @@
 #pragma once
 
-#include <cstddef>
-
 #include "SubChunk.hpp"
-#include "World.hpp"
 #include "Camera.hpp"
 #include "NoiseGenerator.hpp"
 #include "Textbox.hpp"
@@ -11,6 +8,8 @@
 #include "Chrono.hpp"
 #include "Skybox.hpp"
 #include "ChunkManager.hpp"
+#include "Raycaster.hpp"
+#include <cstddef>
 
 class StoneEngine {
 	public:

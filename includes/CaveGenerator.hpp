@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Noise3DGenerator.hpp"
 
 class CaveGenerator {

@@ -4,12 +4,12 @@
 #include "ft_vox.hpp"
 #include "TextureManager.hpp"
 #include "define.hpp"
-#include "World.hpp"
 #include "Chrono.hpp"
+#include "ChunkLoader.hpp"
 
-class World;
 class Chunk;
 class CaveGenerator;
+class ChunkLoader;
 
 class SubChunk
 {
@@ -30,7 +30,7 @@ class SubChunk
 		double						**_heightMap;
 		Biome						**_biomeMap;
 		double						**_treeMap;
-		ChunkLoader				&_chunkMgr;
+		ChunkLoader					&_chunkLoader;
 		Chunk						&_chunk;
 
 		bool						_loaded = false;

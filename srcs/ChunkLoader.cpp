@@ -624,3 +624,9 @@ void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
 	out.reserve(_displayedChunks.size());
 	for (const auto& kv : _displayedChunks) out.push_back(kv.first);
 }
+
+void ChunkLoader::scheduleDisplayUpdate() {
+	if (_buildingDisplay) return;
+	if (!getIsRunning()) return;
+	_threadPool.enqueue(&ChunkLoader::updateFillData, this);
+}

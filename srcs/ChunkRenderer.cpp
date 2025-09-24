@@ -1,21 +1,19 @@
 #include "ChunkRenderer.hpp"
 
-
 ChunkRenderer::ChunkRenderer(
 	std::mutex &solidDrawDataMutex,
 	std::mutex &transparentDrawDataMutex,
 	std::queue<DisplayData *>	&solidStagedDataQueue,
 	std::queue<DisplayData *>	&transparentStagedDataQueue
 ) :
+_needUpdate(true),
+_needTransparentUpdate(true),
 _solidDrawDataMutex(solidDrawDataMutex),
 _transparentDrawDataMutex(transparentDrawDataMutex),
 _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue),
-_hasBufferInitialized(false),
-_needUpdate(true),
-_needTransparentUpdate(true)
+_hasBufferInitialized(false)
 {
-	initGLBuffer();
 }
 
 ChunkRenderer::~ChunkRenderer()
@@ -51,7 +49,7 @@ void ChunkRenderer::shutdownGL()
 
 // Shared data setters
 void ChunkRenderer::setViewProj(glm::vec4 planes[6]) {
-	glNamedBufferSubData(_frustumUBO, 0, sizeof(planes), &planes);
+	glNamedBufferSubData(_frustumUBO, 0, 6 * sizeof(glm::vec4), planes);
 }
 
 // Swap old rendering data with new staged data from ChunkLoader

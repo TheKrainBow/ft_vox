@@ -25,7 +25,7 @@ class Chunk
 		std::unordered_map<int, SubChunk *>	_subChunks;
 		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
-		ChunkLoader						&_chunkMgr;
+		ChunkLoader							&_chunkLoader;
 		PerlinMap							*_perlinMap;
 		Chrono								_chrono;
 		Chunk *_north;

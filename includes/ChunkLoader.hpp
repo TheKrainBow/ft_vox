@@ -1,5 +1,28 @@
 #pragma once
-#include "ChunkManager.hpp"
+
+#include <unordered_set>
+#include <queue>
+#include <list>
+#include <atomic>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
+#include <limits>
+
+#include "ft_vox.hpp"
+#include "NoiseGenerator.hpp"
+#include "SubChunk.hpp"
+#include "CaveGenerator.hpp"
+#include "Chunk.hpp"
+#include "Camera.hpp"
+#include "Chrono.hpp"
+#include "ThreadPool.hpp"
+#include "Frustum.hpp"
+#include "ChunkLoader.hpp"
+#include "ChunkRenderer.hpp"
+#include "Raycaster.hpp"
+
+class Chunk;
 
 class ChunkLoader
 {
@@ -10,10 +33,6 @@ private:
 		BlockType  value;
 	};
 	std::unordered_map<glm::ivec2, std::vector<PendingBlock>, ivec2_hash> _pendingEdits;
-	
-	// Loaded chunks to be added to the display (common with ChunkRenderer)
-	std::queue<DisplayData *>	&_solidStagedDataQueue;
-	std::queue<DisplayData *>	&_transparentStagedDataQueue;
 	
 	// List of cached chunks in order
 	std::list<Chunk *>	_chunkList;
@@ -63,6 +82,10 @@ private:
 	// Frustum loading data
 	Frustum	_cachedFrustum;
 	bool	_hasCachedFrustum = false;
+
+	// Loaded chunks to be added to the display (common with ChunkRenderer)
+	std::queue<DisplayData *>	&_solidStagedDataQueue;
+	std::queue<DisplayData *>	&_transparentStagedDataQueue;
 // Methods
 private:
 	// Init methods
@@ -94,9 +117,10 @@ public:
 	// Init methods
 	void initSpawn();
 
-	// Runtime chunk loading/unloading
-	void loadChunks(ivec2 &camPosition);
-	void unloadChunks(ivec2 &newCamChunk);
+	// Runtime chunk loading/unloading/updating
+	void	loadChunks(ivec2 &camPosition);
+	void	unloadChunks(ivec2 &newCamChunk);
+	void	scheduleDisplayUpdate();
 
 	// Shared data getters
 	Chunk*			getChunk(const ivec2 &position);

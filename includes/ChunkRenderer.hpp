@@ -1,5 +1,26 @@
 #pragma once
-#include "ChunkManager.hpp"
+
+#include <unordered_set>
+#include <queue>
+#include <list>
+#include <atomic>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
+#include <limits>
+
+#include "ft_vox.hpp"
+#include "NoiseGenerator.hpp"
+#include "SubChunk.hpp"
+#include "CaveGenerator.hpp"
+#include "Chunk.hpp"
+#include "Camera.hpp"
+#include "Chrono.hpp"
+#include "ThreadPool.hpp"
+#include "Frustum.hpp"
+#include "ChunkLoader.hpp"
+#include "ChunkRenderer.hpp"
+#include "Raycaster.hpp"
 
 class ChunkRenderer
 {
@@ -81,6 +102,9 @@ public:
 	int renderSolidBlocks();
 	int renderTransparentBlocks();
 
+	// OpenGL setup for rendering
+	void initGLBuffer();
+
 	// Explicit GL teardown
 	void shutdownGL();
 
@@ -93,9 +117,6 @@ private:
 	// GPU side frustum culling helpers
 	void initGpuCulling();
 	void runGpuCulling(bool transparent);
-
-	// OpenGL setup for rendering
-	void initGLBuffer();
 
 	// Helper to send vertices to GPU before rendering stage
 	// Both solid and transparent

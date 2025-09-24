@@ -1,7 +1,12 @@
 #include "SubChunk.hpp"
 
-SubChunk::SubChunk(ivec3 position, PerlinMap *perlinMap, CaveGenerator &caveGen, Chunk &chunk, ChunkLoader &chunkMgr, int resolution)
-: _chunkMgr(chunkMgr), _chunk(chunk), _caveGen(caveGen)
+SubChunk::SubChunk(ivec3 position,
+	PerlinMap *perlinMap,
+	CaveGenerator &caveGen,
+	Chunk &chunk,
+	ChunkLoader &chunkLoader,
+	int resolution)
+: _chunkLoader(chunkLoader), _chunk(chunk), _caveGen(caveGen)
 {
 	_position = position;
 	_resolution = resolution;
@@ -92,7 +97,7 @@ void SubChunk::plantTree(int x, int y, int z, double /*proba*/) {
 	};
 	auto isAir = [&](int wx, int wy, int wz) -> bool {
 		ivec2 cpos = chunkOf(wx, wz);
-		return _chunkMgr.getBlock(cpos, ivec3(wx, wy, wz)) == AIR;
+		return _chunkLoader.getBlock(cpos, ivec3(wx, wy, wz)) == AIR;
 	};
 
 	// Ensure space is clear for trunk column and canopy envelope before planting
@@ -320,7 +325,7 @@ void SubChunk::loadBiome(int prevResolution)
 // void SubChunk::loadBiome(int prevResolution)
 // {
 // 	(void)prevResolution
-// ;	NoiseGenerator &noisegen = _chunkMgr.getNoiseGenerator();
+// ;	NoiseGenerator &noisegen = _chunkLoader.getNoiseGenerator();
 // 	noisegen.setNoiseData({
 // 		1.0, 0.9, 0.02, 0.5, 12
 // 	});
@@ -421,8 +426,8 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	}
 
 	// Otherwise, delegate to World using ABSOLUTE world coords
-	_chunkMgr.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block));
-	_chunkMgr.markChunkDirty(targetChunk);
+	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block));
+	_chunkLoader.markChunkDirty(targetChunk);
 }
 
 

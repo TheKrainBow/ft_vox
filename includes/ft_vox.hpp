@@ -49,6 +49,13 @@ struct TopBlock {
 	ivec2 pos = {0, 0};
 };
 
+typedef  struct {
+	uint  count;
+	uint  instanceCount;
+	uint  first;
+	uint  baseInstance;
+} DrawArraysIndirectCommand;
+
 struct DisplayData {
 	std::vector<vec4>                       ssboData;
 	std::vector<int>                        vertexData;

@@ -110,10 +110,3 @@ const block_correspondance blockDebugTab[NB_BLOCKS] = {
 	{oak_log, LOG},	// ambiguous name so had to specify
 	{leaf, LEAF}
 };
-
-typedef  struct {
-	uint  count;
-	uint  instanceCount;
-	uint  first;
-	uint  baseInstance;
-} DrawArraysIndirectCommand;

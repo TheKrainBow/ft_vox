@@ -75,7 +75,11 @@ void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
 	glUniform2f(texelSizeLoc, texelX, texelY);
 }
 
-StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _pool(pool), noise_gen(seed), _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
+StoneEngine::StoneEngine(int seed, ThreadPool &pool) :
+camera(),
+_pool(pool),
+noise_gen(seed),
+_chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
 {
 	initData();
 	initGLFW();
@@ -85,6 +89,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(), _pool(pool), no
 	initDebugTextBox();
 	initFboShaders();
 	reshapeAction(windowWidth, windowHeight);
+	_chunkMgr.initGLBuffer();
 }
 
 StoneEngine::~StoneEngine()
@@ -188,7 +193,7 @@ void StoneEngine::initData()
 	
 	// Gets the max MSAA (anti aliasing) samples
 	_maxSamples = 0;
-	glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
+	// glGetIntegerv(GL_MAX_SAMPLES, &_maxSamples);
 
 	if (SCHOOL_SAMPLES)
 		_maxSamples = 8;
@@ -926,7 +931,7 @@ void StoneEngine::renderAimHighlight()
 
 	// Raycast
 	glm::ivec3 hit;
-	if (!_world.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
+	if (!_chunkMgr.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
 		return;
 
 	// Determine block type at hit to adapt highlight bbox (logs are visually inset)
@@ -1802,7 +1807,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 dir    = camera.getDirection();
 
 		// Delete the first solid block within 5 blocks of reach
-		_world.raycastDeleteOne(origin, dir, 5.0f);
+		_chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
 	}
 	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
 	{
@@ -1811,7 +1816,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 dir    = camera.getDirection();
 
 		// Place block 5 bloock range
-		_world.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		_chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
 		placing = true;
 
 		// Start cooldown immediately to avoid a second place on the same frame
@@ -1827,7 +1832,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::ivec3 hit;
 		BlockType blockFound;
 
-		blockFound = _world.raycastHitFetch(origin, dir, 5.0f, hit);
+		blockFound = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, hit);
 
 		// Guard from selecting any type of blocks
 		if (blockFound != BEDROCK && blockFound != AIR)

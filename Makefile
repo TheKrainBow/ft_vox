@@ -24,13 +24,16 @@ SRC_NAME	=	stb_truetype.cpp		\
 				NoiseGenerator.cpp		\
 				Textbox.cpp				\
 				SplineInterpolator.cpp	\
-				World.cpp				\
+				ChunkManager.cpp		\
+				ChunkLoader.cpp			\
+				ChunkRenderer.cpp		\
 				Chrono.cpp				\
 				Shader.cpp				\
 				ThreadPool.cpp			\
 				Noise3DGenerator.cpp	\
 				CaveGenerator.cpp		\
-				Skybox.cpp
+				Skybox.cpp				\
+				Raycaster.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

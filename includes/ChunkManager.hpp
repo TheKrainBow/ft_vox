@@ -11,6 +11,7 @@
 #include "Frustum.hpp"
 #include "ChunkLoader.hpp"
 #include "ChunkRenderer.hpp"
+#include "Raycaster.hpp"
 
 #include <unordered_set>
 #include <queue>
@@ -21,6 +22,9 @@
 #include <vector>
 #include <limits>
 
+class ThreadPool;
+class ChunkLoader;
+
 class ChunkManager
 {
 private:
@@ -29,10 +33,6 @@ private:
 
 	// Running state for game loop
 	std::atomic_bool	*_isRunning;
-
-	// Loaded chunks to be added to the display (common with ChunkRenderer)
-	std::queue<DisplayData *>	_solidStagedDataQueue;
-	std::queue<DisplayData *>	_transparentStagedDataQueue;
 
 	// Reference to camera for accurate chunk loading
 	Camera &_camera;
@@ -47,11 +47,18 @@ private:
 	std::mutex	_solidDrawDataMutex;
 	std::mutex	_transparentDrawDataMutex;
 
+	// Loaded chunks to be added to the display (common with ChunkRenderer)
+	std::queue<DisplayData *>	_solidStagedDataQueue;
+	std::queue<DisplayData *>	_transparentStagedDataQueue;
+
 	// Frustum view based chunk loading
 	ChunkLoader _chunkLoader;
 
 	// Chunk rendering helper
 	ChunkRenderer _chunkRenderer;
+
+	// Raycasting on world data
+	Raycaster _raycaster;
 public:
 	ChunkManager(
 		int seed,
@@ -61,13 +68,9 @@ public:
 		ThreadPool &pool
 	);
 	~ChunkManager();
-
-	// Rendering methods
-	int	renderSolidBlocks();
-	int	renderTransparentBlocks();
-
 	// Init method
 	void	initSpawn();
+	void	initGLBuffer();
 
 	// Shutdown methods
 	void	shutDownGL();
@@ -98,4 +101,21 @@ public:
 
 	// Cache size debugging
 	void printSizes() const;
+
+	// Raycasting
+	bool raycastHit(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance,
+		glm::ivec3& outBlock);
+	BlockType raycastHitFetch(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance,
+		glm::ivec3& outBlock);
+	bool raycastDeleteOne(const glm::vec3& originWorld,
+		const glm::vec3& dirWorld,
+		float maxDistance = 5.0f);
+	bool raycastPlaceOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block);
 };

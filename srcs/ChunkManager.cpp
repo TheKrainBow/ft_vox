@@ -8,6 +8,7 @@ ChunkManager::ChunkManager(
 	ThreadPool &pool
 ):
 _seed(seed),
+_isRunning(isRunning),
 _camera(cam),
 _chronoHelper(chrono),
 _threadPool(pool),
@@ -27,30 +28,25 @@ _chunkRenderer(
 	_transparentDrawDataMutex,
 	_solidStagedDataQueue,
 	_transparentStagedDataQueue
-)
+),
+_raycaster(_chunkLoader, _camera)
 {
 }
 
 ChunkManager::~ChunkManager()
 {
-
-}
-
-// Rendering methods
-int ChunkManager::renderSolidBlocks()
-{
-	return _chunkRenderer.renderSolidBlocks();
-}
-
-int ChunkManager::renderTransparentBlocks()
-{
-	return _chunkRenderer.renderTransparentBlocks();
 }
 
 // Init method for spawnpoint
 void ChunkManager::initSpawn()
 {
 	_chunkLoader.initSpawn();
+}
+
+// Init method for GL buffers
+void ChunkManager::initGLBuffer()
+{
+	_chunkRenderer.initGLBuffer();
 }
 
 // Shutdown methods
@@ -72,6 +68,16 @@ int	*ChunkManager::getCurrentRenderPtr() {
 	return _chunkLoader.getCurrentRenderPtr();
 }
 
+BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)
+{
+	return _chunkLoader.getBlock(chunkPos, worldPos);
+}
+
+void ChunkManager::getDisplayedChunksSnapshot(std::vector<ivec2>& out)
+{
+	_chunkLoader.getDisplayedChunksSnapshot(out);
+}
+
 // Shared data setters
 void ChunkManager::setViewProj(const glm::mat4& view, const glm::mat4& proj)
 {
@@ -89,7 +95,7 @@ void ChunkManager::loadChunks(ivec2 &camPos)
 	_chunkLoader.loadChunks(camPos);
 }
 
-void ChunkManager::loadChunks(ivec2 &camPos)
+void ChunkManager::unloadChunks(ivec2 &camPos)
 {
 	_chunkLoader.unloadChunks(camPos);
 }
@@ -121,4 +127,36 @@ TopBlock ChunkManager::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos)
 void ChunkManager::printSizes() const
 {
 	_chunkLoader.printSizes();
+}
+
+// Raycasting (selecting, placing and deleting blocks)
+bool ChunkManager::raycastHit(const glm::vec3& originWorld,
+						const glm::vec3& dirWorld,
+						float maxDistance,
+						glm::ivec3& outBlock)
+{
+	return _raycaster.raycastHit(originWorld, dirWorld, maxDistance, outBlock);
+}
+
+BlockType ChunkManager::raycastHitFetch(const glm::vec3& originWorld,
+						const glm::vec3& dirWorld,
+						float maxDistance,
+						glm::ivec3& outBlock)
+{
+	return _raycaster.raycastHitFetch(originWorld, dirWorld, maxDistance, outBlock);
+}
+
+bool ChunkManager::raycastDeleteOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance)
+{
+	return _raycaster.raycastDeleteOne(originWorld, dirWorld, maxDistance);
+}
+
+bool ChunkManager::raycastPlaceOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block)
+{
+	return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block);
 }
