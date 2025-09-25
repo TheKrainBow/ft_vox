@@ -670,6 +670,10 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+	// glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
+	glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
+	glUniform1f(glGetUniformLocation(shaderProgram, "lightNear"),        _lightNear);
+	glUniform1f(glGetUniformLocation(shaderProgram, "lightFar"),         _lightFar);
 
 	// Pass camera world position explicitly for camera-relative rendering
 	vec3 camWorld = camera.getWorldPosition();
@@ -698,88 +702,103 @@ void StoneEngine::renderShadowMap()
 {
 	if (!shadowFBO || !shadowShaderProgram) return;
 
-	// Compute light direction independent of camera position
-	glm::vec3 camPos = camera.getWorldPosition();
-	glm::vec3 lightDir = computeSunDirection(timeValue);
+	// ---- 0) Cached state to avoid needless rebuilds ----
+	static bool        inited      = false;
+	static glm::vec3   cachedCenter(0.0f);
+	static glm::vec3   prevSunDir(0.0f);
 
-	// Stable shadow box anchored to player's XZ only to avoid any vertical-driven jitter
-	// Pick a fixed world-space anchor height so walking across uneven terrain doesn't move
-	// the shadow frustum in light-view space.
-	glm::vec3 center = camPos;
-	const float shadowAnchorY = float(OCEAN_HEIGHT) + 32.0f; // stable plane near sea level
-	center.y = shadowAnchorY;
+	// ---- 1) Sun direction depends ONLY on time ----
+	glm::vec3 sunDir = glm::normalize(computeSunDirection(timeValue));
 
-	// Scale the orthographic bounds to match the current render distance
-	// so the shadowed area covers the visible world.
+	// ---- 2) Grid-locked center near the player (don’t move every step) ----
+	const float GRID = float(CHUNK_SIZE) * 4.0f; // snap every 4 chunks; tweak 2..8
+	glm::vec3 cam   = camera.getWorldPosition();
+	glm::vec3 center(
+		std::round(cam.x / GRID) * GRID,
+		float(OCEAN_HEIGHT) + 32.0f, // fixed anchor height to avoid vertical jitter
+		std::round(cam.z / GRID) * GRID
+	);
+
+	// ---- 3) Coverage: derive from renderDistance but quantize to reduce tiny changes ----
 	int effectiveRender = RENDER_DISTANCE;
 	if (int* p = _chunkMgr.getCurrentRenderPtr(); p && *p > 0) {
-		// Track the best observed render distance this session to avoid flicker
 		_bestRender = std::max(_bestRender, *p);
 		effectiveRender = _bestRender;
 	}
+	float halfWorldRaw = (float(effectiveRender) * 0.5f) * float(CHUNK_SIZE) * 1.10f;
 
-	// Convert chunks -> world units (half-extent)
-	// renderDistance is the full width in chunks (e.g., 61), radius ~= render/2
-	float halfWorld = (float(effectiveRender) * 0.5f) * float(CHUNK_SIZE);
-	// Add a small safety margin so diagonal edges don't clip
-	halfWorld *= 1.1f;
+	// Quantize halfWorld in blocks of N texels to avoid frame-to-frame re-quantization
+	float texelWorldRaw = (2.0f * halfWorldRaw) / float(shadowMapSize);
+	const float N = 8.0f; // change extent only in 8-texel steps
+	float step     = std::max(texelWorldRaw * N, 1.0f);
+	float halfWorld = step * std::ceil(halfWorldRaw / step);
 
-	// Distance the light camera sits along the sun direction.
+	// Light camera distance along sunDir
 	float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
+	glm::vec3 lightPos = center + sunDir * shadowDist;
 
-	// Place the light camera on the LIGHT side (along sunDir),
-	// so it looks in the same direction as incoming light rays.
-	glm::vec3 lightPos = center + lightDir * shadowDist;
-	// Keep a stable up vector to avoid lookAt singularities and frame-to-frame flips.
-	// Our sunDir lies in the X-Y plane (z=0), so using Z-up is always orthogonal and stable.
+	// ---- 4) Rebuild only if the snapped center or sun angle changed enough ----
+	bool centerMoved = !inited || center.x != cachedCenter.x || center.z != cachedCenter.z;
+	float cosDelta   = inited ? glm::clamp(glm::dot(glm::normalize(prevSunDir), sunDir), -1.0f, 1.0f) : 1.0f;
+	float degDelta   = glm::degrees(std::acos(cosDelta));
+	const float SUN_ANGLE_EPS = 0.25f; // only update when sun rotates > 0.25°
+
+	if (inited && !centerMoved && degDelta < SUN_ANGLE_EPS) {
+		// Nothing changed enough — reuse existing shadow map & matrices
+		return;
+	}
+	inited       = true;
+	cachedCenter = center;
+	prevSunDir   = sunDir;
+
+	// ---- 5) Build light view/proj ----
 	glm::vec3 up(0.0f, 0.0f, 1.0f);
 	glm::mat4 lightView = glm::lookAt(lightPos, center, up);
 
-	// Ortho covering the visible world in X/Z; generous Z range to include terrain heights
-	float nearZ = 1.0f;
-	float farZ  = std::max(shadowDist + halfWorld, halfWorld * 2.0f);
+	// Keep near/far stable given this coverage
+	const float nearZ = 1.0f;
+	const float farZ  = std::max(shadowDist + halfWorld, halfWorld * 2.0f);
+
 	glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld, -halfWorld, halfWorld, nearZ, farZ);
 
-	// World-space texel snapping for stable shadows:
-	// snap the light-view translation so the camera-centered region moves in texel steps.
-	// --- Projection-space texel snapping (stable shadows) ---
-	glm::mat4 lightVP = lightProj * lightView;
-
-	// Project a stable reference point (use the frustum center or world origin)
-	glm::vec4 shadowOrigin = lightVP * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	shadowOrigin *= (float)shadowMapSize * 0.5f; // NDC [-1,1] -> texel space
-
-	// Round to nearest texel and compute sub-texel offset to cancel drift
-	glm::vec2 rounded = glm::round(glm::vec2(shadowOrigin.x, shadowOrigin.y));
-	glm::vec2 offset  = (rounded - glm::vec2(shadowOrigin)) * (2.0f / (float)shadowMapSize);
-
-	// Nudge the projection so the grid aligns to texels
+	// ---- 6) Texel snapping around the SAME center (prevents shimmer as sun moves) ----
+	glm::mat4 VP = lightProj * lightView;
+	glm::vec4 origin = VP * glm::vec4(center, 1.0f);         // project the chosen center
+	origin *= float(shadowMapSize) * 0.5f;                   // NDC [-1,1] -> texel space
+	glm::vec2 rounded = glm::floor(glm::vec2(origin) + 0.5f);
+	glm::vec2 offset  = (rounded - glm::vec2(origin)) * (2.0f / float(shadowMapSize));
 	lightProj[3][0] += offset.x;
 	lightProj[3][1] += offset.y;
 
-	glm::mat4 lightSpace = lightProj * lightView;
-	lightSpaceMatrix = lightSpace;
+	lightSpaceMatrix = lightProj * lightView;
 
-	// Render depth
+	// For shader bias in depth units: pass world/texel and near/far
+	_shadowTexelWorld = (2.0f * halfWorld) / float(shadowMapSize);
+	_lightNear = nearZ;
+	_lightFar  = farZ;
+
+	// ---- 7) Shadow pass (depth-only) ----
 	glViewport(0, 0, shadowMapSize, shadowMapSize);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
+
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT); // reduce self-shadowing
+	// glEnable(GL_CULL_FACE);
+	// glCullFace(GL_FRONT);               // reduce self-shadowing on voxel faces
 	glEnable(GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset(2.5f, 4.0f);
+	glPolygonOffset(3.0f, 6.0f);        // small slope bias at raster level
 
 	glUseProgram(shadowShaderProgram);
-	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"),
+					1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
-	// Cull based on light frustum for the shadow pass (use same lightView/proj)
+	// Use the SAME light view/proj for culling
 	_chunkMgr.setViewProj(lightView, lightProj);
 	_chunkMgr.updateDrawData();
 	_chunkMgr.renderSolidBlocks();
 
-	// Restore state
+	// ---- 8) Restore state ----
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1791,7 +1810,8 @@ void StoneEngine::updateMovement()
 
 void StoneEngine::updateGameTick()
 {
-	timeValue += 6; // Increment time value per game tick
+	if (!pauseTime)
+		timeValue += 6; // Increment time value per game tick
 	//std::cout << "timeValue: " << timeValue << std::endl;
 	// _chunkMgr.printSizes(); Debug container sizes
 	if (timeValue > 86400)
@@ -2093,6 +2113,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
+	if (action == GLFW_PRESS && (key == GLFW_KEY_P)) pauseTime = !pauseTime;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
 	if (action == GLFW_PRESS) keyStates[key] = true;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F6) {

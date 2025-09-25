@@ -49,8 +49,8 @@ class StoneEngine {
 		// Shadow mapping
 		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
 		GLuint shadowFBO = 0;             // FBO holding depth map
-		GLuint shadowMap = 0;             // depth texture
-		int    shadowMapSize = 4096;      // resolution (can tweak)
+		GLuint shadowMap = 0;            // depth texture
+		int    shadowMapSize = 4096*4;      // resolution (can tweak)
 		glm::mat4 lightSpaceMatrix{1.0f}; // light view-projection
 
 		// Skybox
@@ -75,6 +75,9 @@ class StoneEngine {
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 		float _fov = 80.0f;
+		float _shadowTexelWorld = 0.0f;
+		float _lightNear = 0.0f;
+		float _lightFar = 0.0f;
 
 		std::mutex		_isRunningMutex;
 		std::atomic_bool	_isRunning = false;
@@ -95,6 +98,7 @@ class StoneEngine {
 		bool isUnderWater;
 		bool ascending;
 		bool sprinting;
+		bool pauseTime = false;
 		GridDebugMode _gridMode = GRID_OFF;
 
 		// Player speed
@@ -214,6 +218,7 @@ class StoneEngine {
 		void swapPingPongBuffers();
 		void blitColor(FBODatas& src, FBODatas& dst);
 		void blitColorDepth(FBODatas& src, FBODatas& dst);
+		void setShadowResolution(int newSize);
 
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
