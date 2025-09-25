@@ -405,10 +405,11 @@ void StoneEngine::initShadowMapping()
 	glGenTextures(1, &shadowMap);
 	glBindTexture(GL_TEXTURE_2D, shadowMap);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowMapSize, shadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	// Use nearest filtering; we do manual PCF in shader
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+	// Enable hardware depth comparison + linear filtering for built-in PCF smoothing
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -701,8 +702,12 @@ void StoneEngine::renderShadowMap()
 	glm::vec3 camPos = camera.getWorldPosition();
 	glm::vec3 lightDir = computeSunDirection(timeValue);
 
-	// Stable shadow box centered on camera position (not view dir)
+	// Stable shadow box anchored to player's XZ only to avoid any vertical-driven jitter
+	// Pick a fixed world-space anchor height so walking across uneven terrain doesn't move
+	// the shadow frustum in light-view space.
 	glm::vec3 center = camPos;
+	const float shadowAnchorY = float(OCEAN_HEIGHT) + 32.0f; // stable plane near sea level
+	center.y = shadowAnchorY;
 
 	// Scale the orthographic bounds to match the current render distance
 	// so the shadowed area covers the visible world.
@@ -737,18 +742,20 @@ void StoneEngine::renderShadowMap()
 
 	// World-space texel snapping for stable shadows:
 	// snap the light-view translation so the camera-centered region moves in texel steps.
-	const float worldPerTexel = (2.0f * halfWorld) / float(shadowMapSize);
-	{
-		glm::vec4 centerLS = lightView * glm::vec4(center, 1.0f);
-		glm::vec2 snappedXY = glm::floor(glm::vec2(centerLS) / worldPerTexel) * worldPerTexel;
-		glm::vec2 deltaLS = snappedXY - glm::vec2(centerLS);
-		// Convert delta from light-view space back to world space (rotation only)
-		glm::mat3 R = glm::mat3(lightView);
-		glm::vec3 worldOffset = glm::transpose(R) * glm::vec3(deltaLS, 0.0f);
-		center   += worldOffset;
-		lightPos += worldOffset;
-		lightView = glm::lookAt(lightPos, center, up);
-	}
+	// --- Projection-space texel snapping (stable shadows) ---
+	glm::mat4 lightVP = lightProj * lightView;
+
+	// Project a stable reference point (use the frustum center or world origin)
+	glm::vec4 shadowOrigin = lightVP * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	shadowOrigin *= (float)shadowMapSize * 0.5f; // NDC [-1,1] -> texel space
+
+	// Round to nearest texel and compute sub-texel offset to cancel drift
+	glm::vec2 rounded = glm::round(glm::vec2(shadowOrigin.x, shadowOrigin.y));
+	glm::vec2 offset  = (rounded - glm::vec2(shadowOrigin)) * (2.0f / (float)shadowMapSize);
+
+	// Nudge the projection so the grid aligns to texels
+	lightProj[3][0] += offset.x;
+	lightProj[3][1] += offset.y;
 
 	glm::mat4 lightSpace = lightProj * lightView;
 	lightSpaceMatrix = lightSpace;
