@@ -703,29 +703,54 @@ void StoneEngine::renderShadowMap()
 
 	// Stable shadow box centered on camera position (not view dir)
 	glm::vec3 center = camPos;
-	float shadowDist = 300.0f;
+
+	// Scale the orthographic bounds to match the current render distance
+	// so the shadowed area covers the visible world.
+	int effectiveRender = RENDER_DISTANCE;
+	if (int* p = _chunkMgr.getCurrentRenderPtr(); p && *p > 0) {
+		// Track the best observed render distance this session to avoid flicker
+		_bestRender = std::max(_bestRender, *p);
+		effectiveRender = _bestRender;
+	}
+
+	// Convert chunks -> world units (half-extent)
+	// renderDistance is the full width in chunks (e.g., 61), radius ~= render/2
+	float halfWorld = (float(effectiveRender) * 0.5f) * float(CHUNK_SIZE);
+	// Add a small safety margin so diagonal edges don't clip
+	halfWorld *= 1.1f;
+
+	// Distance the light camera sits along the sun direction.
+	float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
+
 	// Place the light camera on the LIGHT side (along sunDir),
 	// so it looks in the same direction as incoming light rays.
 	glm::vec3 lightPos = center + lightDir * shadowDist;
-	glm::vec3 up(0.0f, 1.0f, 0.0f);
-	if (std::abs(glm::dot(lightDir, up)) > 0.99f) {
-		up = glm::vec3(0.0f, 0.0f, 1.0f);
-	}
+	// Keep a stable up vector to avoid lookAt singularities and frame-to-frame flips.
+	// Our sunDir lies in the X-Y plane (z=0), so using Z-up is always orthogonal and stable.
+	glm::vec3 up(0.0f, 0.0f, 1.0f);
 	glm::mat4 lightView = glm::lookAt(lightPos, center, up);
-	float half = 128.0f; // tighter 256x256 region for higher texel density
-	glm::mat4 lightProj = glm::ortho(-half, half, -half, half, 1.0f, 800.0f);
 
-	// Stabilize the shadow map by aligning the combined light-space matrix
-	// to the shadow texel grid (orthographic; w=1, no perspective divide).
+	// Ortho covering the visible world in X/Z; generous Z range to include terrain heights
+	float nearZ = 1.0f;
+	float farZ  = std::max(shadowDist + halfWorld, halfWorld * 2.0f);
+	glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld, -halfWorld, halfWorld, nearZ, farZ);
+
+	// World-space texel snapping for stable shadows:
+	// snap the light-view translation so the camera-centered region moves in texel steps.
+	const float worldPerTexel = (2.0f * halfWorld) / float(shadowMapSize);
+	{
+		glm::vec4 centerLS = lightView * glm::vec4(center, 1.0f);
+		glm::vec2 snappedXY = glm::floor(glm::vec2(centerLS) / worldPerTexel) * worldPerTexel;
+		glm::vec2 deltaLS = snappedXY - glm::vec2(centerLS);
+		// Convert delta from light-view space back to world space (rotation only)
+		glm::mat3 R = glm::mat3(lightView);
+		glm::vec3 worldOffset = glm::transpose(R) * glm::vec3(deltaLS, 0.0f);
+		center   += worldOffset;
+		lightPos += worldOffset;
+		lightView = glm::lookAt(lightPos, center, up);
+	}
+
 	glm::mat4 lightSpace = lightProj * lightView;
-	glm::vec4 shadowOrigin = lightSpace * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-	shadowOrigin *= (float(shadowMapSize) * 0.5f);
-	glm::vec2 rounded = glm::round(glm::vec2(shadowOrigin));
-	glm::vec2 roundOffset = rounded - glm::vec2(shadowOrigin);
-	roundOffset /= (float(shadowMapSize) * 0.5f);
-	lightSpace[3][0] += roundOffset.x;
-	lightSpace[3][1] += roundOffset.y;
-
 	lightSpaceMatrix = lightSpace;
 
 	// Render depth
@@ -742,7 +767,7 @@ void StoneEngine::renderShadowMap()
 	glUseProgram(shadowShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
-	// Cull based on light frustum for the shadow pass
+	// Cull based on light frustum for the shadow pass (use same lightView/proj)
 	_chunkMgr.setViewProj(lightView, lightProj);
 	_chunkMgr.updateDrawData();
 	_chunkMgr.renderSolidBlocks();
