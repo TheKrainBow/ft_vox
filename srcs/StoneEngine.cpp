@@ -1221,6 +1221,12 @@ void StoneEngine::renderSolidObjects() {
 	activateRenderShader();
 	_chunkMgr.updateDrawData();
 	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
+	// Provide previous-frame depth to enable conservative occlusion culling
+	_chunkMgr.setOcclusionSource(
+		readFBO.depth, windowWidth, windowHeight,
+		viewMatrix, projectionMatrix,
+		camera.getWorldPosition()
+	);
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
 }
 

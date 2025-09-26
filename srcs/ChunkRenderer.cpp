@@ -52,6 +52,21 @@ void ChunkRenderer::shutdownGL()
 // Shared data setters
 void ChunkRenderer::setViewProj(glm::vec4 planes[6]) {
 	glNamedBufferSubData(_frustumUBO, 0, 6 * sizeof(glm::vec4), planes);
+	// Reset occlusion source unless explicitly set for this view
+	_occAvailable = false;
+}
+
+void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
+									const glm::mat4& view, const glm::mat4& proj,
+									const glm::vec3& camPos)
+{
+	_occDepthTex = depthTex;
+	_occW = width;
+	_occH = height;
+	_occView = view;
+	_occProj = proj;
+	_occCamPos = camPos;
+	_occAvailable = (_occDepthTex != 0 && _occW > 0 && _occH > 0);
 }
 
 // Swap old rendering data with new staged data from ChunkLoader
@@ -237,6 +252,12 @@ void ChunkRenderer::initGpuCulling() {
 	_cullProgram  = compileComputeShader("shaders/compute/frustum_cull.glsl");
 	_locNumDraws  = glGetUniformLocation(_cullProgram, "numDraws");
 	_locChunkSize = glGetUniformLocation(_cullProgram, "chunkSize");
+	_locUseOcclu  = glGetUniformLocation(_cullProgram, "useOcclusion");
+	_locDepthTex  = glGetUniformLocation(_cullProgram, "depthTex");
+	_locViewport  = glGetUniformLocation(_cullProgram, "viewport");
+	_locView      = glGetUniformLocation(_cullProgram, "view");
+	_locProj      = glGetUniformLocation(_cullProgram, "proj");
+	_locCamPos    = glGetUniformLocation(_cullProgram, "camPos");
 
 	// Frustum UBO (6 vec4)
 	glCreateBuffers(1, &_frustumUBO);
@@ -270,6 +291,18 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 
 	glUniform1ui(_locNumDraws, (GLuint)count);
 	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
+	if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
+	if (_occAvailable) {
+		if (_locDepthTex >= 0) {
+			// Bind to unit 7
+			glBindTextureUnit(7, _occDepthTex);
+			glUniform1i(_locDepthTex, 7);
+		}
+		if (_locViewport >= 0) glUniform2f(_locViewport, (float)_occW, (float)_occH);
+		if (_locView >= 0)     glUniformMatrix4fv(_locView, 1, GL_FALSE, glm::value_ptr(_occView));
+		if (_locProj >= 0)     glUniformMatrix4fv(_locProj, 1, GL_FALSE, glm::value_ptr(_occProj));
+		if (_locCamPos >= 0)   glUniform3fv(_locCamPos, 1, glm::value_ptr(_occCamPos));
+	}
 
 	GLuint groups = (count + 63u) / 64u;
 	glDispatchCompute(groups, 1, 1);

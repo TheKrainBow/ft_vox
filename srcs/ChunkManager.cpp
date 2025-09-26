@@ -89,6 +89,13 @@ void ChunkManager::setViewProj(const glm::mat4& view, const glm::mat4& proj)
 	_chunkLoader.setViewProj(f);
 }
 
+void ChunkManager::setOcclusionSource(GLuint depthTex, int width, int height,
+										const glm::mat4& view, const glm::mat4& proj,
+										const glm::vec3& camPos)
+{
+	_chunkRenderer.setOcclusionSource(depthTex, width, height, view, proj, camPos);
+}
+
 // Chunks loading and unloading methods
 void ChunkManager::loadChunks(ivec2 &camPos)
 {
