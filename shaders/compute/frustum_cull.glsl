@@ -85,16 +85,24 @@ bool aabbOccluded(vec3 mn, vec3 mx) {
 		return false;
 	}
 
+	// Very near AABB: skip occlusion (avoid corner adjacency popping)
+	float d2 = dot(camPos - pClosest, camPos - pClosest);
+	if (d2 < 9.0) { // within ~3 blocks
+		return false;
+	}
+
 	// Clamp rect to viewport
 	vec2 pxMinF = floor(clamp(uvMin * viewport, vec2(0.0), viewport - vec2(1.0)));
 	vec2 pxMaxF = ceil (clamp(uvMax * viewport, vec2(0.0), viewport - vec2(1.0)));
-	ivec2 pxMin = ivec2(pxMinF);
-	ivec2 pxMax = ivec2(pxMaxF);
+	ivec2 pxMin = ivec2(pxMinF) - ivec2(2);
+	ivec2 pxMax = ivec2(pxMaxF) + ivec2(2);
+	pxMin = clamp(pxMin, ivec2(0), ivec2(viewport) - ivec2(1));
+	pxMax = clamp(pxMax, ivec2(0), ivec2(viewport) - ivec2(1));
 	if (pxMax.x < pxMin.x || pxMax.y < pxMin.y) return false; // empty
 
 	// Coarse sampling grid
-	const int STEPS = 4;
-	float eps = 1.5e-2; // tolerance on depth compare (avoid self-occlusion)
+	const int STEPS = 6;
+	float eps = 5e-2; // tolerance on depth compare (avoid edge flicker)
 	for (int iy = 0; iy < STEPS; ++iy) {
 		for (int ix = 0; ix < STEPS; ++ix) {
 			float tx = (float(ix) + 0.5) / float(STEPS);
