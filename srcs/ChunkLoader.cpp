@@ -15,10 +15,12 @@ ChunkLoader::ChunkLoader(
 	ThreadPool &pool,
 	Chrono &chronoHelper,
 	std::atomic_bool *isRunning,
+	std::mutex &sharedDrawDataMutex,
 	std::queue<DisplayData *>	&solidStagedDataQueue,
 	std::queue<DisplayData *>	&transparentStagedDataQueue
 )
 :
+_sharedDrawDataMutex(sharedDrawDataMutex),
 _camera(camera),
 _chronoHelper(chronoHelper),
 _threadPool(pool),
@@ -40,17 +42,20 @@ ChunkLoader::~ChunkLoader()
 		it->second->freeSubChunks();
 		delete it->second;
 	}
-	while (_solidStagedDataQueue.size())
 	{
-		auto &tmp = _solidStagedDataQueue.front();
-		_solidStagedDataQueue.pop();
-		delete tmp;
-	}
-	while (_transparentStagedDataQueue.size())
-	{
-		auto &tmp = _transparentStagedDataQueue.front();
-		_transparentStagedDataQueue.pop();
-		delete tmp;
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
+		while (_solidStagedDataQueue.size())
+		{
+			auto &tmp = _solidStagedDataQueue.front();
+			_solidStagedDataQueue.pop();
+			delete tmp;
+		}
+		while (_transparentStagedDataQueue.size())
+		{
+			auto &tmp = _transparentStagedDataQueue.front();
+			_transparentStagedDataQueue.pop();
+			delete tmp;
+		}
 	}
 }
 
@@ -420,7 +425,7 @@ void ChunkLoader::updateFillData()
 		return;
 	// If a staged update already exists, skip this build (we will coalesce)
 	{
-		std::lock_guard<std::mutex> lk(_drawDataMutex);
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		if (!_solidStagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
 		{
 			_buildingDisplay = false;
@@ -431,7 +436,7 @@ void ChunkLoader::updateFillData()
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
 	{
-		std::lock_guard<std::mutex> lk(_drawDataMutex);
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		_solidStagedDataQueue.emplace(fillData);
 		_transparentStagedDataQueue.emplace(transparentData);
 	}
@@ -471,36 +476,46 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	for (const auto& c : snapshot) {
 		if (!getIsRunning())
 			return ;
-		auto& ssbo = c->getSSBO();
+
+		// Take a coherent snapshot of this chunk's display data under its internal lock
+		std::vector<int> sVerts, tVerts;
+		std::vector<DrawArraysIndirectCommand> sCmds, tCmds;
+		std::vector<vec4> ssbo;
+		c->snapshotDisplayData(sVerts, sCmds, ssbo, tVerts, tCmds);
 
 		// SOLID
-		auto& solidVerts = c->getVertices();
 		size_t vSizeBefore = fillData->vertexData.size();
-		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
-
-		auto& ib = c->getIndirectData();
-		size_t solidCount = ib.size();
-		for (size_t i = 0; getIsRunning() && i < solidCount; ++i) {
-			auto cmd = ib[i];
+		if (!sVerts.empty())
+			fillData->vertexData.insert(fillData->vertexData.end(), sVerts.begin(), sVerts.end());
+		for (size_t i = 0; getIsRunning() && i < sCmds.size(); ++i) {
+			auto cmd = sCmds[i];
 			cmd.baseInstance += (uint32_t)vSizeBefore;
 			fillData->indirectBufferData.push_back(cmd);
 		}
-		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+		if (!ssbo.empty())
+			fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
 
 		// TRANSPARENT
-		auto& transpVerts = c->getTransparentVertices();
 		size_t tvBefore = transparentFillData->vertexData.size();
-		transparentFillData->vertexData.insert(
-			transparentFillData->vertexData.end(), transpVerts.begin(), transpVerts.end()
-		);
-
-		auto& tib = c->getTransparentIndirectData();
-		size_t transpCount = tib.size();
-		for (size_t i = 0; getIsRunning() &&  i < transpCount; ++i) {
-			auto cmd = tib[i];
+		if (!tVerts.empty())
+			transparentFillData->vertexData.insert(
+				transparentFillData->vertexData.end(), tVerts.begin(), tVerts.end()
+			);
+		for (size_t i = 0; getIsRunning() && i < tCmds.size(); ++i) {
+			auto cmd = tCmds[i];
 			cmd.baseInstance += (uint32_t)tvBefore;
 			transparentFillData->indirectBufferData.push_back(cmd);
 		}
+	}
+
+	// Final safety: ensure command/ssbo arrays stay aligned to avoid compute OOB
+	// and index mismatches that can cause transient displacement.
+	{
+		size_t n = fillData->ssboData.size();
+		if (fillData->indirectBufferData.size() != n)
+			fillData->indirectBufferData.resize(n);
+		if (transparentFillData->indirectBufferData.size() != n)
+			transparentFillData->indirectBufferData.resize(n);
 	}
 }
 

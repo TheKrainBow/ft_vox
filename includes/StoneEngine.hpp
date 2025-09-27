@@ -57,6 +57,12 @@ class StoneEngine {
 		std::vector<GLuint> shadowMaps;   // depth textures per cascade
 		std::vector<int>    shadowMapSizes; // resolution per cascade
 		std::vector<glm::mat4> lightSpaceMatrices; // light view-proj per cascade
+		// Stable cascade center actually used to build shadow maps
+		glm::vec3 _shadowCenter{0.0f, 0.0f, 0.0f};
+
+		// Cap for shadow render distance expressed in chunks (diameter-like, same unit
+		// as world render distance). Smaller value = fewer cascades, better perf, less flicker.
+		int _shadowMaxRenderChunks = 24; // default: ~24 chunk span
 
 		// Skybox
 		GLuint skyboxProgram = 0;
@@ -106,6 +112,10 @@ class StoneEngine {
 		bool ascending;
 		bool sprinting;
 		bool pauseTime = false;
+		// Time-acceleration tracking to throttle shadow updates
+		bool _timeAccelerating = false;
+		int  _shadowUpdateDivider = 4;   // update shadows every Nth eligible frame while accelerating
+		int  _shadowUpdateCounter = 0;   // modulo counter used with divider
 		GridDebugMode _gridMode = GRID_OFF;
 
 		// Player speed
@@ -226,6 +236,7 @@ class StoneEngine {
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
 		void renderPlanarReflection();
+		void setShadowCascadeRenderSync(bool enable);
 		ivec2 getChunkPos(vec2 camPosXZ);
 		bool canMove(const glm::vec3& offset, float extra);
 		void updatePlayerStates();

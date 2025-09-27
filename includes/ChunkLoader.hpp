@@ -43,7 +43,8 @@ private:
 	std::mutex	_chunksMutex;
 	std::mutex	_dirtyMutex;
 	std::mutex	_frustumMutex;
-	std::mutex	_drawDataMutex;
+	// Shared mutex guarding staged draw-data queues (shared with ChunkRenderer)
+	std::mutex	&_sharedDrawDataMutex;
 	std::mutex	_displayedChunksMutex;
 
 	// Cached chunks
@@ -109,6 +110,7 @@ public:
 		ThreadPool &pool,
 		Chrono &chronoHelper,
 		std::atomic_bool *isRunning,
+		std::mutex &sharedDrawDataMutex,
 		std::queue<DisplayData *>	&solidStagedDataQueue,
 		std::queue<DisplayData *>	&transparentStagedDataQueue
 	);

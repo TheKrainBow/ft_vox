@@ -20,6 +20,7 @@ _chunkLoader(
 	_threadPool,
 	_chronoHelper,
 	_isRunning,
+	_solidDrawDataMutex,
 	_solidStagedDataQueue,
 	_transparentStagedDataQueue
 ),
@@ -94,6 +95,11 @@ void ChunkManager::setOcclusionSource(GLuint depthTex, int width, int height,
 										const glm::vec3& camPos)
 {
 	_chunkRenderer.setOcclusionSource(depthTex, width, height, view, proj, camPos);
+}
+
+void ChunkManager::setRendererSyncMode(bool enabled)
+{
+	_chunkRenderer.setSyncAfterDraw(enabled);
 }
 
 // Chunks loading and unloading methods

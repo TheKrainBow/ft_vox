@@ -109,6 +109,9 @@ private:
 
 	// Boolean to avoid double buffer init
 	bool	_hasBufferInitialized;
+
+	// Optional GPU sync after each solid draw (used for shadow cascades)
+	bool    _syncAfterDraw = false;
 public:
 	ChunkRenderer(
 		std::mutex &solidDrawDataMutex,
@@ -136,6 +139,9 @@ public:
 
 	// Swap current rendering data with new one sent from ChunkLoader
 	void updateDrawData();
+
+	// Control optional GPU sync after draw (avoid buffer races across passes)
+	void setSyncAfterDraw(bool enabled) { _syncAfterDraw = enabled; }
 private:
 	// GPU side frustum culling helpers
 	void initGpuCulling();

@@ -134,7 +134,25 @@ int ChunkRenderer::renderSolidBlocks()
 {
 	if (!_solidDrawData) return 0;
 	if (_needUpdate) { pushVerticesToOpenGL(false); }
-	if (_solidDrawCount == 0) return 0;
+	if (_solidDrawCount == 0) {
+		// No fresh commands this frame. If we have a last good count, draw those
+		// existing commands to avoid an empty frame while chunks update.
+		if (_lastGoodSolidCount > 0) {
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
+			glBindVertexArray(_vao);
+			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+			glMultiDrawArraysIndirect(
+				GL_TRIANGLE_STRIP, nullptr, _lastGoodSolidCount,
+				sizeof(DrawArraysIndirectCommand)
+			);
+			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+			glBindVertexArray(0);
+			return (int)_lastSolidTris; // approximate, kept from last build
+		}
+		return 0;
+	}
 
 	runGpuCulling(false);
 
@@ -179,6 +197,18 @@ int ChunkRenderer::renderSolidBlocks()
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
+	// When requested (e.g., during shadow-cascade rendering), insert a GPU fence
+	// so subsequent compute passes won’t overwrite shared buffers while this draw
+	// is still in flight. This avoids rare “scrambled subchunk” flashes.
+	if (_syncAfterDraw) {
+		GLsync fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		if (fence) {
+			// Wait until the GPU reaches the fence; flush if needed.
+			(void)glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000)); // 1s cap
+			glDeleteSync(fence);
+		}
+	}
+
 	// Prefer cached triangles count if CPU buffers were discarded
 	long long tris = 0;
 	if (!_solidDrawData->indirectBufferData.empty()) {
@@ -206,7 +236,24 @@ int ChunkRenderer::renderTransparentBlocks()
 {
 	if (!_transparentDrawData) return 0;
 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
-	if (_transpDrawCount == 0) return 0;
+	if (_transpDrawCount == 0) {
+		if (_lastGoodTranspCount > 0) {
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
+			glDisable(GL_CULL_FACE);
+			glBindVertexArray(_transparentVao);
+			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+			glMultiDrawArraysIndirect(
+				GL_TRIANGLE_STRIP, nullptr, _lastGoodTranspCount,
+				sizeof(DrawArraysIndirectCommand)
+			);
+			glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+			glBindVertexArray(0);
+			return (int)_lastGoodTranspCount;
+		}
+		return 0;
+	}
 
 	runGpuCulling(true);
 

@@ -90,6 +90,9 @@ public:
 							 const glm::mat4& view, const glm::mat4& proj,
 							 const glm::vec3& camPos);
 
+	// Renderer sync control (used around shadow cascades)
+	void    setRendererSyncMode(bool enabled);
+
 	// Chunks loading and unloading methods
 	void loadChunks(ivec2 &camPos);
 	void unloadChunks(ivec2 &camPos);

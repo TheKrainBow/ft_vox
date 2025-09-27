@@ -202,6 +202,11 @@ void StoneEngine::initData()
 		// Occlusion disabled window after edits
 		_occlDisableFrames = 0;
 		_prevOccValid = false;
+
+	// Shadow throttle state
+	_timeAccelerating = false;
+	_shadowUpdateDivider = 20;
+	_shadowUpdateCounter = 0;
 	
 	// Cooldowns
 	now						= std::chrono::steady_clock::now();
@@ -801,6 +806,11 @@ void StoneEngine::renderShadowMap()
 	// ---- 1) Sun direction depends ONLY on time ----
 	glm::vec3 sunDir = glm::normalize(computeSunDirection(timeValue));
 
+	// Reset throttle counter when not accelerating to resume normal cadence
+	if (!_timeAccelerating) {
+		_shadowUpdateCounter = 0;
+	}
+
 	// ---- 2) Grid-locked center near the player (don’t move every step) ----
 	const float GRID = float(CHUNK_SIZE) * 4.0f; // snap every 4 chunks; tweak 2..8
 	glm::vec3 cam   = camera.getWorldPosition();
@@ -816,6 +826,8 @@ void StoneEngine::renderShadowMap()
 		_bestRender = std::max(_bestRender, *p);
 		effectiveRender = _bestRender;
 	}
+	// Clamp shadow map coverage for performance and stability
+	effectiveRender = std::max(1, std::min(effectiveRender, _shadowMaxRenderChunks));
 
 	// Ensure cascade layout matches desired rings and sizes
 	{
@@ -823,7 +835,7 @@ void StoneEngine::renderShadowMap()
 		std::vector<int> desiredSizes;
 		int res = baseShadowMapSize;
 		for (int i = 0; i < ringsWanted && i < MAX_CASCADES; ++i) {
-			if (res < 1) break;
+			if (res < 1024) break;
 			desiredSizes.push_back(res);
 			res = std::max(0, res / 2);
 		}
@@ -846,6 +858,22 @@ void StoneEngine::renderShadowMap()
 	if (inited && !centerMoved && degDelta < SUN_ANGLE_EPS) {
 		return; // reuse existing shadow maps
 	}
+
+	// Additional throttle while accelerating time: update every Nth eligible frame
+	if (inited && _timeAccelerating) {
+		_shadowUpdateCounter = (_shadowUpdateCounter + 1) % std::max(1, _shadowUpdateDivider);
+		if (_shadowUpdateCounter != 0) {
+			return; // skip frames until counter wraps
+		}
+	}
+
+	// Publish the center used for this shadow build so the forward pass can pick cascades consistently
+	_shadowCenter = center;
+	// Immediately update the forward shader uniform with this center to avoid one-frame mismatch at spawn
+	GLint prevProg = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+	glUseProgram(shaderProgram);
+	glUniform3fv(glGetUniformLocation(shaderProgram, "shadowCenter"), 1, glm::value_ptr(_shadowCenter));
+	glUseProgram(prevProg ? (GLuint)prevProg : 0);
 	inited       = true;
 	cachedCenter = center;
 	prevSunDir   = sunDir;
@@ -854,11 +882,13 @@ void StoneEngine::renderShadowMap()
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset(3.0f, 6.0f);
 
 	// Shadow pass must NOT use previous-frame screen-space occlusion.
 	// Disable occlusion for GPU culling during the shadow map build.
 	_chunkMgr.setOcclusionSource(0, 0, 0, glm::mat4(1.0f), glm::mat4(1.0f), glm::vec3(0.0f));
+	// Ensure the renderer synchronizes after each draw to avoid compute rewriting
+	// shared indirect/SSBO buffers while a previous cascade draw is in flight.
+	_chunkMgr.setRendererSyncMode(true);
 
 	// ---- 5) Build and render each cascade ----
 	glm::vec3 up(0.0f, 0.0f, 1.0f);
@@ -893,6 +923,13 @@ void StoneEngine::renderShadowMap()
 		_lightNears[ci] = nearZ;
 		_lightFars[ci]  = farZ;
 
+		// Adjust polygon offset per-cascade: increase slightly for far cascades
+		// to counter depth precision loss and reduce far-away shadow acne flicker.
+		float tCascade = (cascadeCount > 1) ? float(ci) / float(cascadeCount - 1) : 0.0f;
+		float poScale = 2.0f + 2.0f * tCascade; // 2..4
+		float poBias  = 4.0f + 4.0f * tCascade; // 4..8
+		glPolygonOffset(poScale, poBias);
+
 		// Render depth for this cascade
 		glViewport(0, 0, shadowMapSizes[ci], shadowMapSizes[ci]);
 		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBOs[ci]);
@@ -904,6 +941,7 @@ void StoneEngine::renderShadowMap()
 	}
 
 	// ---- 6) Restore state ----
+	_chunkMgr.setRendererSyncMode(false);
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1709,9 +1747,12 @@ void StoneEngine::findMoveRotationSpeed()
 	if (swimming)
 		moveSpeed *= 0.5f;
 
-	//ZOOM
-	if (keyStates[GLFW_KEY_KP_ADD]) {timeValue+=50;}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT]) {timeValue-=50;}
+	// Time acceleration (numeric keypad + / -)
+	bool accelPlus  = keyStates[GLFW_KEY_KP_ADD];
+	bool accelMinus = keyStates[GLFW_KEY_KP_SUBTRACT];
+	_timeAccelerating = (accelPlus || accelMinus);
+	if (accelPlus)  { timeValue += 50; }
+	if (accelMinus) { timeValue -= 50; }
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
