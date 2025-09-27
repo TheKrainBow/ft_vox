@@ -566,7 +566,8 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value) {
 	const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 
-	sc->setBlock(lx, ly, lz, value);
+	// Write directly with localized coordinates to avoid re-dispatch loops
+	sc->setBlockLocal(lx, ly, lz, value);
 
 	markChunkDirty(chunkPos);
 	return true;

@@ -403,23 +403,30 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	{
 		if (_chunkSize <= 0) return;
 
-		// Local indices inside this subchunk’s voxel grid
-		int lx = (wx % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-		int ly = (wy % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-		int lz = (wz % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-
-		// Downscale to this subchunk’s resolution
-		lx /= _resolution;
-		ly /= _resolution;
-		lz /= _resolution;
-
 		// Write guarded to avoid races with LOD changes
 		{
 			std::lock_guard<std::mutex> lk(_dataMutex);
+			if (_chunkSize <= 0 || !_blocks)
+				return;
+
+			// Local indices inside this subchunk’s voxel grid (in world voxel space)
+			int lx = (wx % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+			int ly = (wy % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+			int lz = (wz % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+
+			// Downscale to this subchunk’s resolution
+			lx /= _resolution;
+			ly /= _resolution;
+			lz /= _resolution;
+
 			if (lx >= 0 && ly >= 0 && lz >= 0 &&
 				lx < _chunkSize && ly < _chunkSize && lz < _chunkSize)
 			{
-				_blocks[lx + (lz * _chunkSize) + (ly * _chunkSize * _chunkSize)] = block;
+				const size_t plane = static_cast<size_t>(_chunkSize) * static_cast<size_t>(_chunkSize);
+				const size_t idx = static_cast<size_t>(lx)
+					+ static_cast<size_t>(lz) * static_cast<size_t>(_chunkSize)
+					+ static_cast<size_t>(ly) * plane;
+				_blocks[idx] = block;
 			}
 		}
 		return;
@@ -428,6 +435,27 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	// Otherwise, delegate to World using ABSOLUTE world coords
 	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block));
 	_chunkLoader.markChunkDirty(targetChunk);
+}
+
+void SubChunk::setBlockLocal(int x, int y, int z, char block)
+{
+	// Direct write for pre-localized coordinates. Used by ChunkLoader to
+	// avoid re-dispatching and recursion when the target subchunk is known.
+	std::lock_guard<std::mutex> lk(_dataMutex);
+	if (_chunkSize <= 0 || !_blocks)
+		return;
+
+	int lx = x / _resolution;
+	int ly = y / _resolution;
+	int lz = z / _resolution;
+	if (lx < 0 || ly < 0 || lz < 0 || lx >= _chunkSize || ly >= _chunkSize || lz >= _chunkSize)
+		return;
+
+	const size_t plane = static_cast<size_t>(_chunkSize) * static_cast<size_t>(_chunkSize);
+	const size_t idx = static_cast<size_t>(lx)
+		+ static_cast<size_t>(lz) * static_cast<size_t>(_chunkSize)
+		+ static_cast<size_t>(ly) * plane;
+	_blocks[idx] = block;
 }
 
 
@@ -613,21 +641,20 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	markLoaded(false);
 
 	int prevResolution = _resolution;
-	_resolution = resolution;
 	_heightMap = &perlinMap->heightMap;
 	_biomeMap  = &perlinMap->biomeMap;
 	_treeMap   = &perlinMap->treeMap;
 
-	// Publish a fresh buffer sized for the new LOD
+	// Prepare fresh storage for new LOD, then atomically publish shape + buffer
+	int newChunkSize = CHUNK_SIZE / std::max(1, resolution);
+	size_t newSize = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
+	std::unique_ptr<uint8_t[]> fresh(new uint8_t[newSize]()); // zero-initialize
 	{
-		_chunkSize = CHUNK_SIZE / resolution;
-		size_t size = _chunkSize * _chunkSize * _chunkSize;
-		std::unique_ptr<uint8_t[]> fresh(new uint8_t[size]()); // zero-initialize
-		{
-			std::lock_guard<std::mutex> lk(_dataMutex);
-			_blocks.swap(fresh);
-		}
-		_memorySize = sizeof(*this) + size;
+		std::lock_guard<std::mutex> lk(_dataMutex);
+		_resolution = std::max(1, resolution);
+		_chunkSize = newChunkSize;
+		_blocks.swap(fresh);
+		_memorySize = sizeof(*this) + newSize;
 	}
 
 	// Rebuild content at the new resolution

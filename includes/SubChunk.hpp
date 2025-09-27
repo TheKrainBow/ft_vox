@@ -72,6 +72,8 @@ class SubChunk
 		char getBlock(ivec3 position);
 		bool isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution);
 		void setBlock(int x, int y, int z, char block);
+		// Direct local write (coords in [0..CHUNK_SIZE)) used by ChunkLoader
+		void setBlockLocal(int x, int y, int z, char block);
 		void sendFacesToDisplay();
 		ivec2 getBorderWarping(double x, double z,  NoiseGenerator &noise_gen) const;
 		size_t getMemorySize();
