@@ -81,15 +81,18 @@ _pool(pool),
 noise_gen(seed),
 _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
 {
-	initData();
-	initGLFW();
-	initGLEW();
-	initTextures();
-	initRenderShaders();
-	initDebugTextBox();
-	initFboShaders();
-	reshapeAction(windowWidth, windowHeight);
-	_chunkMgr.initGLBuffer();
+    initData();
+    initGLFW();
+    initGLEW();
+    initTextures();
+    initRenderShaders();
+    initDebugTextBox();
+    initFboShaders();
+    reshapeAction(windowWidth, windowHeight);
+    _chunkMgr.initGLBuffer();
+
+    // Show a splash while the first mesh arrives
+    _splashDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(LOADING_SPLASH_MS);
 }
 
 StoneEngine::~StoneEngine()
@@ -836,7 +839,15 @@ void StoneEngine::resolveMsaaToFbo(FBODatas& dst, bool copyDepth) {
 						mask, GL_NEAREST);
 }
 void StoneEngine::display() {
-	prepareRenderPipeline();
+    // If no chunks are visible yet, show a simple loading screen
+    {
+        if (!_chunkMgr.hasRenderableChunks() || std::chrono::steady_clock::now() < _splashDeadline) {
+            renderLoadingScreen();
+            return;
+        }
+    }
+
+    prepareRenderPipeline();
 
 	renderSkybox();                 // -> msaaFBO
 	renderSolidObjects();           // -> msaaFBO
@@ -890,6 +901,28 @@ void StoneEngine::display() {
 	sendPostProcessFBOToDispay(writeFBO);
 	renderOverlayAndUI();
 	finalizeFrame();
+}
+
+void StoneEngine::renderLoadingScreen()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(0.07f, 0.09f, 0.12f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    if (!_loadingInit)
+    {
+        _loadingBox.initData(_window, 0, 0, windowWidth, windowHeight);
+        _loadingBox.loadFont("textures/CASCADIAMONO.TTF", 36);
+        _loadingBox.addStaticText(_loadingText);
+        _loadingInit = true;
+    }
+
+    // Center text by adjusting its starting position roughly to middle
+    // Textbox renders relative to internal offsets; we re-init dimensions on resize
+    _loadingBox.initData(_window, windowWidth/2 - 90, windowHeight/2 - 18, windowWidth, windowHeight);
+    _loadingBox.render();
+    glfwSwapBuffers(_window);
 }
 
 void StoneEngine::postProcessSkyboxComposite()

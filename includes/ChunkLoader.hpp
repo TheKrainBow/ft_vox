@@ -131,6 +131,7 @@ public:
 	bool			getIsRunning();
 	NoiseGenerator &getNoiseGenerator();
 	void			getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
+	bool			hasRenderableChunks();
 
 	// Shared data setters
 	bool	setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value);

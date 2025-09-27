@@ -637,10 +637,23 @@ void ChunkLoader::printSizes() const
 
 // Shared data getters
 void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
-	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-	out.clear();
-	out.reserve(_displayedChunks.size());
-	for (const auto& kv : _displayedChunks) out.push_back(kv.first);
+    std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+    out.clear();
+    out.reserve(_displayedChunks.size());
+    for (const auto& kv : _displayedChunks) out.push_back(kv.first);
+}
+
+bool ChunkLoader::hasRenderableChunks() {
+    std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+    for (const auto& kv : _displayedChunks) {
+        Chunk* c = kv.second;
+        if (!c) continue;
+        if (!c->isReady()) continue;
+        // Consider renderable if any indirect commands exist (solid or transparent)
+        if (!c->getIndirectData().empty() || !c->getTransparentIndirectData().empty())
+            return true;
+    }
+    return false;
 }
 
 void ChunkLoader::scheduleDisplayUpdate() {

@@ -68,6 +68,12 @@ class StoneEngine {
 		int  _windowedY = 100;
 		int  _windowedW = W_WIDTH;
 		int  _windowedH = W_HEIGHT;
+
+		// Loading screen
+		Textbox _loadingBox;
+		bool _loadingInit = false;
+		std::string _loadingText = "Loading...";
+		std::chrono::steady_clock::time_point _splashDeadline;
 		mat4 projectionMatrix;
 		mat4 viewMatrix;
 		TextureManager _textureManager;
@@ -184,6 +190,7 @@ class StoneEngine {
 		void   renderAimHighlight();
 		void   postProcessSkyboxComposite();
 		void   setFullscreen(bool enable);
+		void   renderLoadingScreen();
 
 		// Runtime methods
 		void calculateFps();

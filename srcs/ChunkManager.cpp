@@ -75,7 +75,12 @@ BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)
 
 void ChunkManager::getDisplayedChunksSnapshot(std::vector<ivec2>& out)
 {
-	_chunkLoader.getDisplayedChunksSnapshot(out);
+    _chunkLoader.getDisplayedChunksSnapshot(out);
+}
+
+bool ChunkManager::hasRenderableChunks()
+{
+    return _chunkLoader.hasRenderableChunks();
 }
 
 // Shared data setters

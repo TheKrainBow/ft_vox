@@ -58,7 +58,13 @@ void Textbox::loadFont(const std::string& fontPath, float fontSize) {
 }
 
 void Textbox::addLine(const std::string& label, e_type type, void* value) {
-	lines.push_back({label, value, type});
+    lines.push_back({label, value, type});
+}
+
+void Textbox::addStaticText(const std::string& text) {
+    _ownedStrings.push_back(text);
+    // store pointer to the last string; empty label for pure text
+    lines.push_back({"", &_ownedStrings.back(), STRING});
 }
 
 std::string to_string_with_precision(double value, int precision) {
@@ -116,29 +122,32 @@ void Textbox::render() {
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White color for text
 	for (const auto& line : lines) {
 		std::string text;
-		switch (line.type) {
-			case DOUBLE:
-				text = line.label + to_string_with_precision(*((double *)(line.value)), 1);
-				break;
-			case FLOAT:
-			text = line.label + std::to_string(*((float *)(line.value)));
-				break;
-			case INT:
-			text = line.label + std::to_string(*((int *)(line.value)));
-				break;
-			case DIRECTION:
-			text = line.label + directionTab[std::clamp(*(int *)(line.value), 0, 7)].name;
-				break;
-			case BIOME:
-			text = line.label + biomeTab[*(int *)(line.value)].name;
-				break;
-			case SIZE_T:
-			text = line.label + printMemory(*((size_t *)(line.value)));
-				break;
-			case BLOCK:
-			text = line.label + blockTab[*(int *)(line.value)].name;
-				break;
-		}
+        switch (line.type) {
+            case DOUBLE:
+                text = line.label + to_string_with_precision(*((double *)(line.value)), 1);
+                break;
+            case FLOAT:
+            text = line.label + std::to_string(*((float *)(line.value)));
+                break;
+            case INT:
+                text = line.label + std::to_string(*((int *)(line.value)));
+                break;
+            case DIRECTION:
+            text = line.label + directionTab[std::clamp(*(int *)(line.value), 0, 7)].name;
+                break;
+            case BIOME:
+            text = line.label + biomeTab[*(int *)(line.value)].name;
+                break;
+            case SIZE_T:
+            text = line.label + printMemory(*((size_t *)(line.value)));
+                break;
+            case BLOCK:
+            text = line.label + blockTab[*(int *)(line.value)].name;
+                break;
+            case STRING:
+                text = *(static_cast<std::string*>(line.value));
+                break;
+        }
 		float startX = positionX + 5;
 		for (const char& ch : text) {
 			if (ch >= 32) {

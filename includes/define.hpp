@@ -26,6 +26,11 @@
 #ifndef WINDOWED_FIXED_H
 # define WINDOWED_FIXED_H 800
 #endif
+
+// Minimum time (ms) to keep the loading splash visible after startup
+#ifndef LOADING_SPLASH_MS
+# define LOADING_SPLASH_MS 1500
+#endif
 # define RENDER_DISTANCE 61
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
