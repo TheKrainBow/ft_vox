@@ -60,13 +60,17 @@ void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
 									const glm::mat4& view, const glm::mat4& proj,
 									const glm::vec3& camPos)
 {
+	// If draw data changed this frame, previous-frame depth may be invalid.
+	// In that case, disable occlusion for this frame to avoid popping.
+	bool disableOcclusionThisFrame = (_needUpdate.load() || _needTransparentUpdate.load());
+
 	_occDepthTex = depthTex;
 	_occW = width;
 	_occH = height;
 	_occView = view;
 	_occProj = proj;
 	_occCamPos = camPos;
-	_occAvailable = (_occDepthTex != 0 && _occW > 0 && _occH > 0);
+	_occAvailable = (!disableOcclusionThisFrame && _occDepthTex != 0 && _occW > 0 && _occH > 0);
 }
 
 // Swap old rendering data with new staged data from ChunkLoader

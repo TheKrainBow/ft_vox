@@ -137,6 +137,10 @@ class StoneEngine {
 		block_types	selectedBlockDebug;
 		bool placing;
 		ChunkManager _chunkMgr;
+
+		// Occlusion control: disable previous-frame occlusion for a few frames
+		// after edits to avoid one-frame popping when geometry changes.
+		int _occlDisableFrames = 0;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
