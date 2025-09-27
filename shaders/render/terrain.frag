@@ -5,12 +5,16 @@ uniform int  timeValue;
 uniform mat4 view;
 uniform vec3 cameraPos;
 uniform sampler2DArray textureArray;
-uniform sampler2DShadow shadowMap;       // FIX: shadow sampler
-uniform mat4 lightSpaceMatrix;
+// Cascaded shadow maps: near = 4096, then halved every 6 chunks
+const int MAX_CASCADES = 12;
+uniform sampler2DShadow shadowMaps[MAX_CASCADES];
+uniform mat4 lightSpaceMatrices[MAX_CASCADES];
 uniform vec3 sunDir;                     // directional light (world)
-uniform float shadowTexelWorld;          // world units per shadow texel (set from CPU)
-uniform float lightNear;        // light ortho near
-uniform float lightFar;         // light ortho far
+uniform float shadowTexelWorlds[MAX_CASCADES]; // world units per texel per cascade
+uniform float lightNears[MAX_CASCADES];        // light ortho near per cascade
+uniform float lightFars[MAX_CASCADES];         // light ortho far per cascade
+uniform int   cascadeCount;                     // active cascades
+uniform float cascadeRadii[MAX_CASCADES];       // ring radii (world units)
 
 in vec2 TexCoord;
 flat in int TextureID;
@@ -19,7 +23,17 @@ in vec3 FragPos;
 
 out vec4 FragColor;
 
-float shadowPCF(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
+int pickCascade(vec3 fragPos, vec3 camPos)
+{
+	// Choose ring by XZ distance to camera
+	float d = length(fragPos.xz - camPos.xz);
+	for (int i = 0; i < cascadeCount; ++i) {
+		if (d <= cascadeRadii[i]) return i;
+	}
+	return cascadeCount - 1;
+}
+
+float shadowPCF(int idx, vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 {
 	// light-space -> NDC -> [0,1]
 	vec3 proj = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -32,17 +46,16 @@ float shadowPCF(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 	// slope-scaled receiver bias in WORLD units (stable across frustum sizes)
 	float ndotl = max(dot(normalize(normal), normalize(lightDir)), 0.0);
 	float slope = 1.0 - ndotl;                         // 0 facing light, 1 grazing
-	float biasWorld = max(0.5 * shadowTexelWorld, 0.0005);
-	float biasDepth = biasWorld / max(lightFar - lightNear, 1e-4);
+	float biasWorld = max(0.5 * shadowTexelWorlds[idx], 0.0005);
+	float biasDepth = biasWorld / max(lightFars[idx] - lightNears[idx], 1e-4);
 	biasDepth *= (0.35 + 0.65 * slope);
-	vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
-	vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+	vec2 texelSize = 1.0 / vec2(textureSize(shadowMaps[idx], 0));
 	float shadow = 0.0;
 	for (int x = -1; x <= 1; ++x)
 	for (int y = -1; y <= 1; ++y) {
 		vec2 uv = proj.xy + vec2(x, y) * texelSize;
 		// sampler2DShadow returns visibility (1=lit, 0=shadowed)
-		shadow += 1.0 - texture(shadowMap, vec3(uv, proj.z - biasDepth));
+		shadow += 1.0 - texture(shadowMaps[idx], vec3(uv, proj.z - biasDepth));
 	}
 	return shadow /= 9.0;
 }
@@ -71,7 +84,8 @@ float calculateSpecularLight(float time, vec3 lightDir) {
 void main() {
 	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
 	vec3 lightDir = normalize(sunDir);
-	vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
+	int cascadeIdx = pickCascade(FragPos, cameraPos);
+	vec4 fragPosLightSpace = lightSpaceMatrices[cascadeIdx] * vec4(FragPos, 1.0);
 
 	float ambient  = calculateAmbientLight(timeValue);
 	float diffuse  = calculateDiffuseLight(timeValue, lightDir);
@@ -85,7 +99,7 @@ void main() {
 	float sunAmt = smoothstep(0.0, 0.15, sin(dayPhase * pi));
 	float diffuseFactor = 0.2 * sunAmt;
 
-	float shadow = shadowPCF(fragPosLightSpace, Normal, lightDir);
+	float shadow = shadowPCF(cascadeIdx, fragPosLightSpace, Normal, lightDir);
 	float shadowFactor = 1.0 - shadow;
 
 	float totalLight =

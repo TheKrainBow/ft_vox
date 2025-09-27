@@ -1,6 +1,8 @@
 #include "StoneEngine.hpp"
 
 #include <fstream>
+#include <string>
+#include <sstream>
 
 #if defined(__linux__)
 #include <unistd.h>
@@ -127,9 +129,15 @@ StoneEngine::~StoneEngine()
 	if (tmpFBO.texture) glDeleteTextures(1, &tmpFBO.texture);
 	if (tmpFBO.depth) glDeleteTextures(1, &tmpFBO.depth);
 
-	// Delete shadow map resources
-	if (shadowFBO) glDeleteFramebuffers(1, &shadowFBO);
-	if (shadowMap) glDeleteTextures(1, &shadowMap);
+	// Delete shadow map resources (all cascades)
+	if (!shadowFBOs.empty()) {
+		for (GLuint f : shadowFBOs) if (f) glDeleteFramebuffers(1, &f);
+		shadowFBOs.clear();
+	}
+	if (!shadowMaps.empty()) {
+		for (GLuint t : shadowMaps) if (t) glDeleteTextures(1, &t);
+		shadowMaps.clear();
+	}
 
 	if (msaaFBO.fbo) glDeleteFramebuffers(1, &msaaFBO.fbo);
 	if (msaaFBO.texture) glDeleteRenderbuffers(1, &msaaFBO.texture);
@@ -185,13 +193,15 @@ void StoneEngine::initData()
 	swimming			= SWIMMING;
 	jumping				= JUMPING;
 	isUnderWater		= UNDERWATER;
-	ascending		= ASCENDING;
-	sprinting		= SPRINTING;
+	ascending			= ASCENDING;
+	sprinting			= SPRINTING;
 	selectedBlock		= AIR;
 	selectedBlockDebug	= air;
 	placing				= KEY_INIT;
-	// Occlusion disabled window after edits
-	_occlDisableFrames = 0;
+
+		// Occlusion disabled window after edits
+		_occlDisableFrames = 0;
+		_prevOccValid = false;
 	
 	// Cooldowns
 	now						= std::chrono::steady_clock::now();
@@ -403,31 +413,85 @@ void StoneEngine::initRenderShaders()
 
 void StoneEngine::initShadowMapping()
 {
-	// Depth texture
-	glGenTextures(1, &shadowMap);
-	glBindTexture(GL_TEXTURE_2D, shadowMap);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, shadowMapSize, shadowMapSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	// Enable hardware depth comparison + linear filtering for built-in PCF smoothing
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-	float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	// Build cascades for current render distance
+	int effectiveRender = RENDER_DISTANCE;
+	rebuildShadowResources(effectiveRender);
+}
 
-	// FBO
-	glGenFramebuffers(1, &shadowFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
-	glDrawBuffer(GL_NONE);
-	glReadBuffer(GL_NONE);
-	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (status != GL_FRAMEBUFFER_COMPLETE) {
-		std::cerr << "[Shadow] FBO incomplete: 0x" << std::hex << status << std::dec << std::endl;
+void StoneEngine::rebuildShadowResources(int effectiveRender)
+{
+	// Destroy previous resources
+	if (!shadowFBOs.empty()) {
+		for (GLuint f : shadowFBOs) if (f) glDeleteFramebuffers(1, &f);
+		shadowFBOs.clear();
+	}
+	if (!shadowMaps.empty()) {
+		for (GLuint t : shadowMaps) if (t) glDeleteTextures(1, &t);
+		shadowMaps.clear();
+	}
+	shadowMapSizes.clear();
+	lightSpaceMatrices.clear();
+	_shadowTexelWorlds.clear();
+	_lightNears.clear();
+	_lightFars.clear();
+	_cascadeRadiiWorld.clear();
+
+	// Decide number of cascades and per-cascade sizes
+	int rings = std::max(1, (effectiveRender + cascadeChunkStep - 1) / cascadeChunkStep);
+	int res = baseShadowMapSize;
+	cascadeCount = 0;
+	float chunkWorld = float(CHUNK_SIZE);
+	for (int i = 0; i < rings && i < MAX_CASCADES; ++i) {
+		if (res < 1) break; // stop when resolution would be 0
+		shadowMapSizes.push_back(res);
+		// coverage up to (i+1)*step chunks in world units (shader uses this to pick cascade)
+		float radiusWorld = float(i + 1) * float(cascadeChunkStep) * chunkWorld;
+		_cascadeRadiiWorld.push_back(radiusWorld);
+		// placeholders for per-cascade data filled during renderShadowMap
+		lightSpaceMatrices.emplace_back(1.0f);
+		_shadowTexelWorlds.push_back(0.0f);
+		_lightNears.push_back(0.0f);
+		_lightFars.push_back(0.0f);
+		++cascadeCount;
+		res = std::max(0, res / 2); // halve for next ring
+	}
+
+	// Allocate GL resources for cascades
+	shadowFBOs.resize(cascadeCount, 0);
+	shadowMaps.resize(cascadeCount, 0);
+	glGenFramebuffers(cascadeCount, shadowFBOs.data());
+	glGenTextures(cascadeCount, shadowMaps.data());
+	for (int i = 0; i < cascadeCount; ++i) {
+		glBindTexture(GL_TEXTURE_2D, shadowMaps[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
+					shadowMapSizes[i], shadowMapSizes[i], 0,
+					GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBOs[i]);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMaps[i], 0);
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE) {
+			std::cerr << "[Shadow][Cascade " << i << "] FBO incomplete: 0x" << std::hex << status << std::dec << std::endl;
+		}
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void StoneEngine::setShadowResolution(int newSize)
+{
+	baseShadowMapSize = std::max(1, newSize);
+	int effectiveRender = RENDER_DISTANCE;
+	rebuildShadowResources(effectiveRender);
 }
 
 void StoneEngine::initSkybox()
@@ -672,10 +736,21 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"),       1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),        1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv     (glGetUniformLocation(shaderProgram, "lightColor"),   1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
-	// glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
-	glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
-	glUniform1f(glGetUniformLocation(shaderProgram, "lightNear"),        _lightNear);
-	glUniform1f(glGetUniformLocation(shaderProgram, "lightFar"),         _lightFar);
+
+	// Per-cascade shadow parameters
+	glUniform1i(glGetUniformLocation(shaderProgram, "cascadeCount"), cascadeCount);
+	if (cascadeCount > 0) {
+		if (!_shadowTexelWorlds.empty())
+			glUniform1fv(glGetUniformLocation(shaderProgram, "shadowTexelWorlds[0]"), cascadeCount, _shadowTexelWorlds.data());
+		if (!_lightNears.empty())
+			glUniform1fv(glGetUniformLocation(shaderProgram, "lightNears[0]"), cascadeCount, _lightNears.data());
+		if (!_lightFars.empty())
+			glUniform1fv(glGetUniformLocation(shaderProgram, "lightFars[0]"), cascadeCount, _lightFars.data());
+		if (!_cascadeRadiiWorld.empty())
+			glUniform1fv(glGetUniformLocation(shaderProgram, "cascadeRadii[0]"), cascadeCount, _cascadeRadiiWorld.data());
+		if (!lightSpaceMatrices.empty())
+			glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrices[0]"), cascadeCount, GL_FALSE, glm::value_ptr(lightSpaceMatrices[0]));
+	}
 
 	// Pass camera world position explicitly for camera-relative rendering
 	vec3 camWorld = camera.getWorldPosition();
@@ -685,11 +760,15 @@ void StoneEngine::activateRenderShader()
 	glm::vec3 sunDir = computeSunDirection(timeValue);
 	glUniform3fv(glGetUniformLocation(shaderProgram, "sunDir"), 1, glm::value_ptr(sunDir));
 
-	// Shadow map + matrix
-	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_2D, shadowMap);
-	glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 4);
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+	// Bind cascaded shadow maps (texture units 4..)
+	for (int i = 0; i < cascadeCount; ++i) {
+		GLenum unit = GL_TEXTURE4 + i;
+		glActiveTexture(unit);
+		glBindTexture(GL_TEXTURE_2D, shadowMaps[i]);
+		// Assign sampler uniform
+		std::string name = "shadowMaps[" + std::to_string(i) + "]";
+		glUniform1i(glGetUniformLocation(shaderProgram, name.c_str()), 4 + i);
+	}
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -700,14 +779,24 @@ void StoneEngine::activateRenderShader()
 	glFrontFace(GL_CCW);
 }
 
+
 void StoneEngine::renderShadowMap()
 {
-	if (!shadowFBO || !shadowShaderProgram) return;
+	if (!shadowShaderProgram) return;
 
 	// ---- 0) Cached state to avoid needless rebuilds ----
 	static bool        inited      = false;
 	static glm::vec3   cachedCenter(0.0f);
 	static glm::vec3   prevSunDir(0.0f);
+	// Debounce updates when zoom (FOV) is changing to avoid visible flicker
+	static float       lastFov = -1.0f;
+	static int         freezeFrames = 0;
+	if (lastFov < 0.0f) lastFov = _fov;
+	if (std::abs(_fov - lastFov) > 0.25f) {
+		freezeFrames = 2; // skip updating shadow map for a couple frames
+		lastFov = _fov;
+	}
+	if (freezeFrames > 0) { --freezeFrames; return; }
 
 	// ---- 1) Sun direction depends ONLY on time ----
 	glm::vec3 sunDir = glm::normalize(computeSunDirection(timeValue));
@@ -721,86 +810,100 @@ void StoneEngine::renderShadowMap()
 		std::round(cam.z / GRID) * GRID
 	);
 
-	// ---- 3) Coverage: derive from renderDistance but quantize to reduce tiny changes ----
+	// ---- 3) Resolve effective render distance ----
 	int effectiveRender = RENDER_DISTANCE;
 	if (int* p = _chunkMgr.getCurrentRenderPtr(); p && *p > 0) {
 		_bestRender = std::max(_bestRender, *p);
 		effectiveRender = _bestRender;
 	}
-	float halfWorldRaw = (float(effectiveRender) * 0.5f) * float(CHUNK_SIZE) * 1.10f;
 
-	// Quantize halfWorld in blocks of N texels to avoid frame-to-frame re-quantization
-	float texelWorldRaw = (2.0f * halfWorldRaw) / float(shadowMapSize);
-	const float N = 8.0f; // change extent only in 8-texel steps
-	float step     = std::max(texelWorldRaw * N, 1.0f);
-	float halfWorld = step * std::ceil(halfWorldRaw / step);
+	// Ensure cascade layout matches desired rings and sizes
+	{
+		int ringsWanted = std::max(1, (effectiveRender + cascadeChunkStep - 1) / cascadeChunkStep);
+		std::vector<int> desiredSizes;
+		int res = baseShadowMapSize;
+		for (int i = 0; i < ringsWanted && i < MAX_CASCADES; ++i) {
+			if (res < 1) break;
+			desiredSizes.push_back(res);
+			res = std::max(0, res / 2);
+		}
+		bool needRebuild = (int)desiredSizes.size() != cascadeCount;
+		if (!needRebuild) {
+			for (size_t i = 0; i < desiredSizes.size(); ++i) {
+				if (shadowMapSizes[i] != desiredSizes[i]) { needRebuild = true; break; }
+			}
+		}
+		if (needRebuild || shadowMaps.empty() || shadowFBOs.empty()) {
+			rebuildShadowResources(effectiveRender);
+		}
+	}
 
-	// Light camera distance along sunDir
-	float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
-	glm::vec3 lightPos = center + sunDir * shadowDist;
-
-	// ---- 4) Rebuild only if the snapped center or sun angle changed enough ----
+	// ---- 4) Early-out if center/sun didn’t change enough ----
 	bool centerMoved = !inited || center.x != cachedCenter.x || center.z != cachedCenter.z;
 	float cosDelta   = inited ? glm::clamp(glm::dot(glm::normalize(prevSunDir), sunDir), -1.0f, 1.0f) : 1.0f;
 	float degDelta   = glm::degrees(std::acos(cosDelta));
 	const float SUN_ANGLE_EPS = 0.25f; // only update when sun rotates > 0.25°
-
 	if (inited && !centerMoved && degDelta < SUN_ANGLE_EPS) {
-		// Nothing changed enough — reuse existing shadow map & matrices
-		return;
+		return; // reuse existing shadow maps
 	}
 	inited       = true;
 	cachedCenter = center;
 	prevSunDir   = sunDir;
 
-	// ---- 5) Build light view/proj ----
-	glm::vec3 up(0.0f, 0.0f, 1.0f);
-	glm::mat4 lightView = glm::lookAt(lightPos, center, up);
-
-	// Keep near/far stable given this coverage
-	const float nearZ = 1.0f;
-	const float farZ  = std::max(shadowDist + halfWorld, halfWorld * 2.0f);
-
-	glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld, -halfWorld, halfWorld, nearZ, farZ);
-
-	// ---- 6) Texel snapping around the SAME center (prevents shimmer as sun moves) ----
-	glm::mat4 VP = lightProj * lightView;
-	glm::vec4 origin = VP * glm::vec4(center, 1.0f);         // project the chosen center
-	origin *= float(shadowMapSize) * 0.5f;                   // NDC [-1,1] -> texel space
-	glm::vec2 rounded = glm::floor(glm::vec2(origin) + 0.5f);
-	glm::vec2 offset  = (rounded - glm::vec2(origin)) * (2.0f / float(shadowMapSize));
-	lightProj[3][0] += offset.x;
-	lightProj[3][1] += offset.y;
-
-	lightSpaceMatrix = lightProj * lightView;
-
-	// For shader bias in depth units: pass world/texel and near/far
-	_shadowTexelWorld = (2.0f * halfWorld) / float(shadowMapSize);
-	_lightNear = nearZ;
-	_lightFar  = farZ;
-
-	// ---- 7) Shadow pass (depth-only) ----
-	glViewport(0, 0, shadowMapSize, shadowMapSize);
-	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-	glClear(GL_DEPTH_BUFFER_BIT);
-
+	glUseProgram(shadowShaderProgram);
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glEnable(GL_DEPTH_TEST);
-	// glEnable(GL_CULL_FACE);
-	// glCullFace(GL_FRONT);               // reduce self-shadowing on voxel faces
 	glEnable(GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset(3.0f, 6.0f);        // small slope bias at raster level
+	glPolygonOffset(3.0f, 6.0f);
 
-	glUseProgram(shadowShaderProgram);
-	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"),
-					1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+	// Shadow pass must NOT use previous-frame screen-space occlusion.
+	// Disable occlusion for GPU culling during the shadow map build.
+	_chunkMgr.setOcclusionSource(0, 0, 0, glm::mat4(1.0f), glm::mat4(1.0f), glm::vec3(0.0f));
 
-	// Use the SAME light view/proj for culling
-	_chunkMgr.setViewProj(lightView, lightProj);
-	_chunkMgr.updateDrawData();
-	_chunkMgr.renderSolidBlocks();
+	// ---- 5) Build and render each cascade ----
+	glm::vec3 up(0.0f, 0.0f, 1.0f);
+	for (int ci = 0; ci < cascadeCount; ++ci) {
+		float radiusWorldTarget = _cascadeRadiiWorld[ci] * 1.10f; // add small margin
 
-	// ---- 8) Restore state ----
+		// Choose light camera distance along sunDir proportional to coverage
+		float halfWorldRaw = radiusWorldTarget;
+		float texelWorldRaw = (2.0f * halfWorldRaw) / float(shadowMapSizes[ci]);
+		const float N = 8.0f; // change extent only in N-texel steps
+		float step     = std::max(texelWorldRaw * N, 1.0f);
+		float halfWorld = step * std::ceil(halfWorldRaw / step);
+
+		float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
+		glm::vec3 lightPos = center + sunDir * shadowDist;
+		glm::mat4 lightView = glm::lookAt(lightPos, center, up);
+		const float nearZ = 1.0f;
+		const float farZ  = std::max(shadowDist + halfWorld, halfWorld * 2.0f);
+		glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld, -halfWorld, halfWorld, nearZ, farZ);
+
+		// Texel snapping for stability
+		glm::mat4 VP = lightProj * lightView;
+		glm::vec4 origin = VP * glm::vec4(center, 1.0f);
+		origin *= float(shadowMapSizes[ci]) * 0.5f;
+		glm::vec2 rounded = glm::floor(glm::vec2(origin) + 0.5f);
+		glm::vec2 offset  = (rounded - glm::vec2(origin)) * (2.0f / float(shadowMapSizes[ci]));
+		lightProj[3][0] += offset.x;
+		lightProj[3][1] += offset.y;
+
+		lightSpaceMatrices[ci] = lightProj * lightView;
+		_shadowTexelWorlds[ci] = (2.0f * halfWorld) / float(shadowMapSizes[ci]);
+		_lightNears[ci] = nearZ;
+		_lightFars[ci]  = farZ;
+
+		// Render depth for this cascade
+		glViewport(0, 0, shadowMapSizes[ci], shadowMapSizes[ci]);
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBOs[ci]);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrices[ci]));
+		_chunkMgr.setViewProj(lightView, lightProj);
+		// Do not call updateDrawData() here: avoid data churn during shadow build
+		_chunkMgr.renderSolidBlocks();
+	}
+
+	// ---- 6) Restore state ----
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1079,6 +1182,12 @@ void StoneEngine::display() {
 	sendPostProcessFBOToDispay(writeFBO);
 	renderOverlayAndUI();
 	finalizeFrame();
+
+	// Save current camera/view/proj for next frame's occlusion reprojection
+	_prevViewOcc = viewMatrix;
+	_prevProjOcc = projectionMatrix;
+	_prevCamOcc  = camera.getWorldPosition();
+	_prevOccValid = true;
 }
 
 void StoneEngine::postProcessSkyboxComposite()
@@ -1413,12 +1522,35 @@ void StoneEngine::renderSolidObjects() {
 	_chunkMgr.updateDrawData();
 	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
 	// Provide previous-frame depth to enable conservative occlusion culling
-	// Skip when geometry just changed to avoid one-frame popping.
-	if (_occlDisableFrames <= 0) {
+	// Skip when geometry just changed or the camera moved/zoomed a lot
+	// to avoid popping and flashes.
+	{
+		glm::vec3 cam = camera.getWorldPosition();
+		glm::vec2 ang = camera.getAngles();
+		float     fov = _fov;
+		if (_havePrevCam) {
+			float posDelta   = glm::length(cam - _prevCamPos);
+			float yawDelta   = std::abs(ang.x - _prevCamAngles.x);
+			float pitchDelta = std::abs(ang.y - _prevCamAngles.y);
+			float rotDelta   = std::max(yawDelta, pitchDelta);
+			float fovDelta   = std::abs(fov - _prevFov);
+			// Thresholds: ~0.5m movement, ~1.5 deg rotation, any noticeable FOV change
+			if (posDelta > 0.5f || rotDelta > 1.5f || fovDelta > 0.25f) {
+				_occlDisableFrames = std::max(_occlDisableFrames, 2);
+			}
+		}
+		_prevCamPos   = cam;
+		_prevCamAngles= ang;
+		_prevFov      = fov;
+		_havePrevCam  = true;
+	}
+	// Skip occlusion if requested
+	if (_occlDisableFrames <= 0 && _prevOccValid) {
+		// Use previous-frame view/proj/cam that match readFBO.depth
 		_chunkMgr.setOcclusionSource(
 			readFBO.depth, windowWidth, windowHeight,
-			viewMatrix, projectionMatrix,
-			camera.getWorldPosition()
+			_prevViewOcc, _prevProjOcc,
+			_prevCamOcc
 		);
 	}
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
@@ -2090,6 +2222,9 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
+	// On resize, previous-frame depth is invalid for occlusion
+	_occlDisableFrames = std::max(_occlDisableFrames, 3);
+	_prevOccValid = false;
 	float y = NEAR_PLANE;
 	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, FAR_PLANE);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -2208,6 +2343,9 @@ void StoneEngine::scrollAction(double yoffset)
 {
 	_fov -= (float)yoffset;
 	_fov = std::clamp(_fov, 1.0f, 90.0f);
+
+	// When zoom changes, previous-frame depth doesn't match current projection
+	_occlDisableFrames = std::max(_occlDisableFrames, 2);
 	reshapeAction(windowWidth, windowHeight);
 }
 

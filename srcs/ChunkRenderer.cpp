@@ -150,7 +150,8 @@ int ChunkRenderer::renderSolidBlocks()
 								   sizeof(DrawArraysIndirectCommand));
 
 	// Safety fallback: if GPU culling produced zero draws OR we cannot read the
-	// parameter buffer (no read mapping available), draw all commands.
+	// parameter buffer (no read mapping available), draw last good count instead
+	// of all commands to avoid flashing.
 	{
 		bool needFallback = false;
 		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
@@ -159,15 +160,20 @@ int ChunkRenderer::renderSolidBlocks()
 			GLuint dc = *mapped;
 			glUnmapNamedBuffer(_solidParamsBuf);
 			needFallback = (dc == 0u);
+			if (!needFallback) {
+				_lastGoodSolidCount = (GLsizei)dc;
+			}
 		} else {
 			// If mapping failed (driver/flags), prefer drawing rather than showing nothing.
 			needFallback = true;
 		}
-		if (needFallback && _solidDrawCount > 0) {
-			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-			glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount,
-										sizeof(DrawArraysIndirectCommand));
-			glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+		if (needFallback) {
+			if (_lastGoodSolidCount > 0) {
+				glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+				glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _lastGoodSolidCount,
+											sizeof(DrawArraysIndirectCommand));
+				glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+			}
 		}
 	}
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
@@ -185,7 +191,7 @@ int ChunkRenderer::renderSolidBlocks()
 		tris = _lastSolidTris;
 	}
 
-	// After solid upload/draw, CPU-side solid draw data is no longer needed
+    // After solid upload/draw, CPU-side solid draw data is no longer needed
 	// Keep ssboData for the transparent pass upload
 	if (!_needUpdate) {
 		_solidDrawData->vertexData.clear();
@@ -214,7 +220,7 @@ int ChunkRenderer::renderTransparentBlocks()
 	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, nullptr, 0, _transpDrawCount,
 								   sizeof(DrawArraysIndirectCommand));
 
-	// Safety fallback identical to solid path
+	// Safety fallback identical to solid path, but avoid drawing all commands
 	{
 		bool needFallback = false;
 		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
@@ -223,20 +229,25 @@ int ChunkRenderer::renderTransparentBlocks()
 			GLuint dc = *mapped;
 			glUnmapNamedBuffer(_transpParamsBuf);
 			needFallback = (dc == 0u);
+			if (!needFallback) {
+				_lastGoodTranspCount = (GLsizei)dc;
+			}
 		} else {
 			needFallback = true;
 		}
-		if (needFallback && _transpDrawCount > 0) {
-			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-			glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount,
-										sizeof(DrawArraysIndirectCommand));
-			glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
+		if (needFallback) {
+			if (_lastGoodTranspCount > 0) {
+				glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+				glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _lastGoodTranspCount,
+											sizeof(DrawArraysIndirectCommand));
+				glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
+			}
 		}
 	}
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
-	// After transparent upload/draw, CPU-side transparent draw data is no longer needed
+    // After transparent upload/draw, CPU-side transparent draw data is no longer needed
 	if (!_needTransparentUpdate) {
 		_transparentDrawData->vertexData.clear();
 		_transparentDrawData->indirectBufferData.clear();

@@ -10,6 +10,7 @@
 #include "ChunkManager.hpp"
 #include "Raycaster.hpp"
 #include <cstddef>
+#include <vector>
 
 class StoneEngine {
 	public:
@@ -46,12 +47,16 @@ class StoneEngine {
 		GLuint sunVAO;
 		GLuint sunVBO;
 
-		// Shadow mapping
+		// Shadow mapping (cascaded, halving resolution every 6 chunks)
 		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
-		GLuint shadowFBO = 0;             // FBO holding depth map
-		GLuint shadowMap = 0;            // depth texture
-		int    shadowMapSize = 4096*4;      // resolution (can tweak)
-		glm::mat4 lightSpaceMatrix{1.0f}; // light view-projection
+		static constexpr int MAX_CASCADES = 12; // 4096 -> 1 supports up to 12 halvings
+		int baseShadowMapSize = 4096;     // near-player resolution
+		int cascadeChunkStep  = 6;        // every 6 chunks, halve resolution
+		int cascadeCount      = 0;        // active cascades
+		std::vector<GLuint> shadowFBOs;   // FBOs per cascade
+		std::vector<GLuint> shadowMaps;   // depth textures per cascade
+		std::vector<int>    shadowMapSizes; // resolution per cascade
+		std::vector<glm::mat4> lightSpaceMatrices; // light view-proj per cascade
 
 		// Skybox
 		GLuint skyboxProgram = 0;
@@ -75,9 +80,11 @@ class StoneEngine {
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 		float _fov = 80.0f;
-		float _shadowTexelWorld = 0.0f;
-		float _lightNear = 0.0f;
-		float _lightFar = 0.0f;
+		// Per-cascade shadow info for biasing
+		std::vector<float> _shadowTexelWorlds; // world units per texel per cascade
+		std::vector<float> _lightNears;
+		std::vector<float> _lightFars;
+		std::vector<float> _cascadeRadiiWorld; // coverage radius in world units per cascade
 
 		std::mutex		_isRunningMutex;
 		std::atomic_bool	_isRunning = false;
@@ -152,6 +159,18 @@ class StoneEngine {
 		// Occlusion control: disable previous-frame occlusion for a few frames
 		// after edits to avoid one-frame popping when geometry changes.
 		int _occlDisableFrames = 0;
+
+		// Camera change tracking to stabilize occlusion culling
+		glm::vec3 _prevCamPos{0.0f};
+		glm::vec2 _prevCamAngles{0.0f};
+		float     _prevFov = 80.0f;
+		bool      _havePrevCam = false;
+
+		// Previous-frame view/projection and camera for occlusion reprojection
+		glm::mat4 _prevViewOcc{1.0f};
+		glm::mat4 _prevProjOcc{1.0f};
+		glm::vec3 _prevCamOcc{0.0f};
+		bool      _prevOccValid = false;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -223,6 +242,7 @@ class StoneEngine {
 		void blitColor(FBODatas& src, FBODatas& dst);
 		void blitColorDepth(FBODatas& src, FBODatas& dst);
 		void setShadowResolution(int newSize);
+		void rebuildShadowResources(int effectiveRender);
 
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();

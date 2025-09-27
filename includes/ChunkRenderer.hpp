@@ -76,8 +76,12 @@ private:
 	bool                                        _occAvailable = false;
 	glm::vec3                                   _occCamPos{0.0f};
 
-	// Debug/metrics
-	long long								_lastSolidTris = 0;
+		// Debug/metrics
+		long long								_lastSolidTris = 0;
+
+		// Last good GPU-cull counts to avoid flashing fallback when mapping fails
+		GLsizei									_lastGoodSolidCount = 0;
+		GLsizei									_lastGoodTranspCount = 0;
 
 	// Buffer capacities to minimize reallocations
 	GLsizeiptr								_capTemplSolidCmd  = 0;
