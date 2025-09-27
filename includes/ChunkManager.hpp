@@ -85,6 +85,11 @@ public:
 	// View projection setter for renderer
 	void	setViewProj(const glm::mat4& view, const glm::mat4& proj);
 
+	// Previous-frame depth for occlusion culling
+	void	setOcclusionSource(GLuint depthTex, int width, int height,
+							 const glm::mat4& view, const glm::mat4& proj,
+							 const glm::vec3& camPos);
+
 	// Chunks loading and unloading methods
 	void loadChunks(ivec2 &camPos);
 	void unloadChunks(ivec2 &camPos);

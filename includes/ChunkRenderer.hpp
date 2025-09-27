@@ -59,6 +59,22 @@ private:
 	GLsizei									_transpDrawCount = 0;
 	GLint									_locNumDraws = -1;
 	GLint									_locChunkSize = -1;
+	// Occlusion uniforms
+	GLint                                       _locUseOcclu = -1;
+	GLint                                       _locDepthTex = -1;
+	GLint                                       _locViewport = -1;
+	GLint                                       _locView = -1;
+	GLint                                       _locProj = -1;
+	GLint                                       _locCamPos = -1;
+
+	// Previous-frame depth context for occlusion
+	GLuint                                      _occDepthTex = 0;
+	int                                         _occW = 0;
+	int                                         _occH = 0;
+	glm::mat4                                   _occView{1.0f};
+	glm::mat4                                   _occProj{1.0f};
+	bool                                        _occAvailable = false;
+	glm::vec3                                   _occCamPos{0.0f};
 
 	// Debug/metrics
 	long long								_lastSolidTris = 0;
@@ -110,6 +126,9 @@ public:
 
 	// Shared data setters
 	void setViewProj(glm::vec4 planes[6]);
+	void setOcclusionSource(GLuint depthTex, int width, int height,
+							const glm::mat4& view, const glm::mat4& proj,
+							const glm::vec3& camPos);
 
 	// Swap current rendering data with new one sent from ChunkLoader
 	void updateDrawData();

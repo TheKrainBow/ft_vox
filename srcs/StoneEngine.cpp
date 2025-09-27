@@ -190,6 +190,8 @@ void StoneEngine::initData()
 	selectedBlock		= AIR;
 	selectedBlockDebug	= air;
 	placing				= KEY_INIT;
+	// Occlusion disabled window after edits
+	_occlDisableFrames = 0;
 	
 	// Cooldowns
 	now						= std::chrono::steady_clock::now();
@@ -1410,7 +1412,17 @@ void StoneEngine::renderSolidObjects() {
 	activateRenderShader();
 	_chunkMgr.updateDrawData();
 	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
+	// Provide previous-frame depth to enable conservative occlusion culling
+	// Skip when geometry just changed to avoid one-frame popping.
+	if (_occlDisableFrames <= 0) {
+		_chunkMgr.setOcclusionSource(
+			readFBO.depth, windowWidth, windowHeight,
+			viewMatrix, projectionMatrix,
+			camera.getWorldPosition()
+		);
+	}
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
+	if (_occlDisableFrames > 0) --_occlDisableFrames;
 }
 
 void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination) {
@@ -1966,7 +1978,10 @@ void StoneEngine::updatePlacing()
 		glm::vec3 dir    = camera.getDirection();
 
 		// Place block 5 block range
-		_chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		bool placed = _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		if (placed) {
+			_occlDisableFrames = std::max(_occlDisableFrames, 2);
+		}
 		_placeCooldown = now + std::chrono::milliseconds(150);
 	}
 }
@@ -2009,7 +2024,11 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 dir    = camera.getDirection();
 
 		// Delete the first solid block within 5 blocks of reach
-		_chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
+		bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
+		if (deleted) {
+			// Disable occlusion briefly to prevent one-frame pop after edit
+			_occlDisableFrames = std::max(_occlDisableFrames, 2);
+		}
 	}
 	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
 	{
@@ -2018,7 +2037,10 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 dir    = camera.getDirection();
 
 		// Place block 5 bloock range
-		_chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		bool placed = _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
+		if (placed) {
+			_occlDisableFrames = std::max(_occlDisableFrames, 2);
+		}
 		placing = true;
 
 		// Start cooldown immediately to avoid a second place on the same frame
