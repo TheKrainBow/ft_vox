@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <list>
 #include "Camera.hpp"
 #include "stb_truetype.hpp"
 #include "stb_image.h"
@@ -91,7 +92,8 @@ private:
 	unsigned char bitmap[512 * 512 * 4];
 	GLuint fontTexture;
 	bool fontLoaded;
-	std::vector<std::string> _ownedStrings;
+    // Use list to keep pointers to stored strings stable
+    std::list<std::string> _ownedStrings;
 
 	void initializeFont(const std::string& fontPath, float fontSize);
 

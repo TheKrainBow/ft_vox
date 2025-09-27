@@ -94,90 +94,82 @@ std::string printMemory(size_t memory) {
 }
 
 void Textbox::render() {
-	if (!fontLoaded) {
-		std::cerr << "Font not loaded. Cannot render text." << std::endl;
-		return;
-	}
-	
-	glUseProgram(0);
-	int windowWidth, windowHeight;
-	glfwGetWindowSize(window, &windowWidth, &windowHeight);
+    if (!fontLoaded) { std::cerr << "Font not loaded.\n"; return; }
 
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix(); // Save the current projection matrix
-	glLoadIdentity(); // Reset the projection matrix
-	glOrtho(0.0, windowWidth, 0.0, windowHeight, -1.0, 1.0); // Set orthographic projection
+    // UI wants a known-good state
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
 
-	// Set up modelview matrix (make sure it's not affected by camera)
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix(); // Save the current modelview matrix
-	glLoadIdentity(); // Reset the modelview matrix
+    glUseProgram(0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	glBindTexture(GL_TEXTURE_2D, fontTexture);
+    // Fixed pipeline texturing + unit 0 to avoid state leakage from previous passes
+    glEnable(GL_TEXTURE_2D);
+    glActiveTexture(GL_TEXTURE0);          // <— ADD THIS
+    glBindTexture(GL_TEXTURE_2D, fontTexture);
 
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    int windowWidth, windowHeight;
+    glfwGetWindowSize(window, &windowWidth, &windowHeight);
 
-	float startY = positionY - (windowHeight - 512 - 20); // Adjust for font alignment
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // White color for text
-	for (const auto& line : lines) {
-		std::string text;
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, windowWidth, 0.0, windowHeight, -1.0, 1.0);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    float startY = positionY - (windowHeight - 512 - 20);
+    glColor4f(1,1,1,1);
+
+    for (const auto& line : lines) {
+        std::string text;
         switch (line.type) {
-            case DOUBLE:
-                text = line.label + to_string_with_precision(*((double *)(line.value)), 1);
+            case DOUBLE:   text = line.label + to_string_with_precision(*((double*)line.value), 1); break;
+            case FLOAT:    text = line.label + std::to_string(*((float*)line.value)); break;
+            case INT:      text = line.label + std::to_string(*((int*)line.value)); break;
+            case DIRECTION:text = line.label + directionTab[std::clamp(*(int*)line.value, 0, 7)].name; break;
+            case BIOME:    text = line.label + biomeTab[*(int*)line.value].name; break;
+            case SIZE_T:   text = line.label + printMemory(*((size_t*)line.value)); break;
+            case BLOCK:    text = line.label + blockTab[*(int*)line.value].name; break;
+            case STRING: {
+                std::string &val = *(static_cast<std::string*>(line.value));
+                text = line.label.empty() ? val : (line.label + val);
                 break;
-            case FLOAT:
-            text = line.label + std::to_string(*((float *)(line.value)));
-                break;
-            case INT:
-                text = line.label + std::to_string(*((int *)(line.value)));
-                break;
-            case DIRECTION:
-            text = line.label + directionTab[std::clamp(*(int *)(line.value), 0, 7)].name;
-                break;
-            case BIOME:
-            text = line.label + biomeTab[*(int *)(line.value)].name;
-                break;
-            case SIZE_T:
-            text = line.label + printMemory(*((size_t *)(line.value)));
-                break;
-            case BLOCK:
-            text = line.label + blockTab[*(int *)(line.value)].name;
-                break;
-            case STRING:
-                text = *(static_cast<std::string*>(line.value));
-                break;
+            }
         }
-		float startX = positionX + 5;
-		for (const char& ch : text) {
-			if (ch >= 32) {
-				stbtt_aligned_quad q;
-				stbtt_GetBakedQuad(cdata, 512, 512, ch - 32, &startX, &startY, &q, 1);
 
-				q.y0 = 512 - q.y0;
-				q.y1 = 512 - q.y1;
+        float startX = positionX + 5.0f;
+        for (const char ch : text) {
+            if (ch >= 32) {
+                stbtt_aligned_quad q;
+                stbtt_GetBakedQuad(cdata, 512, 512, ch - 32, &startX, &startY, &q, 1);
+                q.y0 = 512 - q.y0; q.y1 = 512 - q.y1;
 
-				glBegin(GL_QUADS);
-				glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
-				glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
-				glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
-				glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
-				glEnd();
-			}
-		}
-		startY += 20; // Move to the next line
-	}
-	
-	glBindTexture(GL_TEXTURE_2D, 0);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // Ensure transparency is applied
-	glEnable(GL_DEPTH_TEST);
-	glColor4f(0.0f, 0.0f, 0.0f, 0.0f); // Blue with some transparency (adjust alpha value)
+                glBegin(GL_QUADS);
+                glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, q.y0);
+                glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, q.y0);
+                glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, q.y1);
+                glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, q.y1);
+                glEnd();
+            }
+        }
+        startY += 20.0f;
+    }
 
-	glPopMatrix(); // Restore modelview for 3D world
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix(); // Restore projection for 3D world
-	glMatrixMode(GL_MODELVIEW);
+    // Cleanup (don’t re-enable depth here; UI is last anyway)
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+
+    glPopMatrix();            // modelview
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
 }
 
 Textbox::~Textbox() {

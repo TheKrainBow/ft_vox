@@ -87,6 +87,7 @@ _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
     initTextures();
     initRenderShaders();
     initDebugTextBox();
+    initHelpTextBox();
     initFboShaders();
     reshapeAction(windowWidth, windowHeight);
     _chunkMgr.initGLBuffer();
@@ -174,7 +175,8 @@ void StoneEngine::initData()
 	updateChunk			= ENABLE_WORLD_GENERATION;
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
-	showDebugInfo		= SHOW_DEBUG;
+    showDebugInfo		= SHOW_DEBUG;
+    showHelp            = false;
 	showUI				= SHOW_UI;
 	showLight			= SHOW_LIGHTING;
 	gravity				= GRAVITY;
@@ -567,6 +569,53 @@ void StoneEngine::initDebugTextBox()
 
 	// Nice soft sky blue
 	glClearColor(0.53f, 0.81f, 0.92f, 1.0f);
+}
+
+void StoneEngine::initHelpTextBox()
+{
+    helpBox.initData(_window, 0, 0, 420, 420);
+    helpBox.loadFont("textures/CASCADIAMONO.TTF", 20);
+    helpBox.addStaticText("Help / Keybinds");
+    helpBox.addStaticText("");
+    helpBox.addStaticText("Esc: Quit");
+    helpBox.addStaticText("");
+    helpBox.addStaticText("W/A/S/D: Move");
+    helpBox.addStaticText("Space: Jump");
+    // Dynamic toggles below — values updated every frame
+    _hGravity = ""; _hGeneration = ""; _hSprinting = ""; _hUI = ""; _hLighting = "";
+    _hMouseCapture = ""; _hDebug = ""; _hHelp = ""; _hWireframe = ""; _hFullscreen = ""; _empty = "";
+    helpBox.addLine("Ctrl:  Sprinting ", Textbox::STRING, &_hSprinting);
+    helpBox.addStaticText("");
+    helpBox.addLine("F3:     Debug Overlay ", Textbox::STRING, &_hDebug);
+    helpBox.addLine("H:      Help / Keybinds ", Textbox::STRING, &_hHelp);
+    helpBox.addLine("F1:     UI ", Textbox::STRING, &_hUI);
+    helpBox.addLine("F4:     Triangle Mesh ", Textbox::STRING, &_hWireframe);
+    helpBox.addLine("F5:     Invert Camera", Textbox::STRING, &_empty); // no state; keep placeholder spacing
+    helpBox.addLine("F11:    Fullscreen ", Textbox::STRING, &_hFullscreen);
+    helpBox.addLine("G:      Gravity ", Textbox::STRING, &_hGravity);
+    helpBox.addLine("L:      Lighting ", Textbox::STRING, &_hLighting);
+    helpBox.addLine("M or ;: Mouse Capture ", Textbox::STRING, &_hMouseCapture);
+    helpBox.addLine("C:      Generation ", Textbox::STRING, &_hGeneration);
+    helpBox.addStaticText("");
+    helpBox.addStaticText("Mouse Left:  Break block");
+    helpBox.addStaticText("Mouse Right: Place block");
+    helpBox.addStaticText("Mouse Middle: Pick block");
+}
+
+static inline const char* onoff(bool v) { return v ? "(On)" : "(Off)"; }
+
+void StoneEngine::updateHelpStatusText()
+{
+    _hGravity      = onoff(gravity);
+    _hGeneration   = onoff(updateChunk);
+    _hSprinting    = onoff(sprinting);
+    _hUI           = onoff(showUI);
+    _hLighting     = onoff(showLight);
+    _hMouseCapture = onoff(mouseCaptureToggle);
+    _hDebug        = onoff(showDebugInfo);
+    _hHelp         = onoff(showHelp);
+    _hWireframe    = onoff(showTriangleMesh);
+    _hFullscreen   = onoff(_isFullscreen);
 }
 
 void StoneEngine::calculateFps()
@@ -1351,12 +1400,28 @@ void StoneEngine::renderSkybox()
 }
 
 void StoneEngine::renderOverlayAndUI() {
-	activateRenderShader();  // For UI rendering
-	glDisable(GL_CULL_FACE);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glUseProgram(0);
 
-	if (showDebugInfo)
-		debugBox.render();
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  // <— ensure text isn’t wireframe
+
+    glViewport(0, 0, windowWidth, windowHeight);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glActiveTexture(GL_TEXTURE0);                // <— make unit 0 active for fixed pipeline text
+
+    if (showHelp) {
+        updateHelpStatusText();
+        helpBox.render();
+    } else if (showDebugInfo) {
+        debugBox.render();
+    }
 }
 
 void StoneEngine::finalizeFrame() {
@@ -1984,9 +2049,16 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
     if (action == GLFW_PRESS && key == GLFW_KEY_F11) {
         setFullscreen(!_isFullscreen);
     }
-	if (action == GLFW_PRESS && key == GLFW_KEY_F1) showUI = !showUI;
-	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
-	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
+    if (action == GLFW_PRESS && key == GLFW_KEY_F1) showUI = !showUI;
+    if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
+    if (action == GLFW_PRESS && key == GLFW_KEY_F3) {
+        showDebugInfo = !showDebugInfo;
+        if (showDebugInfo) showHelp = false; // debug replaces help
+    }
+    if (action == GLFW_PRESS && key == GLFW_KEY_H) {
+        showHelp = !showHelp;
+        if (showHelp) showDebugInfo = false; // help replaces debug
+    }
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
