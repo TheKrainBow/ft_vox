@@ -62,7 +62,7 @@ class StoneEngine {
 
 		// Cap for shadow render distance expressed in chunks (diameter-like, same unit
 		// as world render distance). Smaller value = fewer cascades, better perf, less flicker.
-		int _shadowMaxRenderChunks = 24; // default: ~24 chunk span
+		int _shadowMaxRenderChunks = 6; // default: ~24 chunk span
 
 		// Skybox
 		GLuint skyboxProgram = 0;
