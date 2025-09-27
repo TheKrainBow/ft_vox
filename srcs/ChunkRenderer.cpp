@@ -191,7 +191,7 @@ int ChunkRenderer::renderSolidBlocks()
 		tris = _lastSolidTris;
 	}
 
-    // After solid upload/draw, CPU-side solid draw data is no longer needed
+	// After solid upload/draw, CPU-side solid draw data is no longer needed
 	// Keep ssboData for the transparent pass upload
 	if (!_needUpdate) {
 		_solidDrawData->vertexData.clear();
@@ -247,7 +247,7 @@ int ChunkRenderer::renderTransparentBlocks()
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
-    // After transparent upload/draw, CPU-side transparent draw data is no longer needed
+	// After transparent upload/draw, CPU-side transparent draw data is no longer needed
 	if (!_needTransparentUpdate) {
 		_transparentDrawData->vertexData.clear();
 		_transparentDrawData->indirectBufferData.clear();

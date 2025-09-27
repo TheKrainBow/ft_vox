@@ -2222,7 +2222,7 @@ void StoneEngine::reshapeAction(int width, int height)
 	windowHeight = height;
 	windowWidth = width;
 	resetFrameBuffers();
-	// On resize, previous-frame depth is invalid for occlusion
+	// On actual window resize, previous-frame depth is invalid for occlusion
 	_occlDisableFrames = std::max(_occlDisableFrames, 3);
 	_prevOccValid = false;
 	float y = NEAR_PLANE;
@@ -2250,8 +2250,10 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	(void)mods;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F)
 	{
+		// Change FOV without rebuilding framebuffers to avoid culling flashes
 		_fov = 80.0f;
-		reshapeAction(windowWidth, windowHeight);
+		// Update projection only; viewport is unchanged
+		projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_G) {
@@ -2344,9 +2346,8 @@ void StoneEngine::scrollAction(double yoffset)
 	_fov -= (float)yoffset;
 	_fov = std::clamp(_fov, 1.0f, 90.0f);
 
-	// When zoom changes, previous-frame depth doesn't match current projection
-	_occlDisableFrames = std::max(_occlDisableFrames, 2);
-	reshapeAction(windowWidth, windowHeight);
+	// Update projection only; avoid full framebuffer reset to prevent flashes
+	projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
 }
 
 void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
