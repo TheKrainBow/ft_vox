@@ -19,6 +19,13 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
+// Fixed window size when leaving fullscreen
+#ifndef WINDOWED_FIXED_W
+# define WINDOWED_FIXED_W 1280
+#endif
+#ifndef WINDOWED_FIXED_H
+# define WINDOWED_FIXED_H 800
+#endif
 # define RENDER_DISTANCE 61
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32

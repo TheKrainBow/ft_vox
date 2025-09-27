@@ -63,6 +63,11 @@ class StoneEngine {
 
 		int windowHeight;
 		int windowWidth;
+		bool _isFullscreen = true;
+		int  _windowedX = 100;
+		int  _windowedY = 100;
+		int  _windowedW = W_WIDTH;
+		int  _windowedH = W_HEIGHT;
 		mat4 projectionMatrix;
 		mat4 viewMatrix;
 		TextureManager _textureManager;
@@ -178,6 +183,7 @@ class StoneEngine {
 		void   initWireframeResources();
 		void   renderAimHighlight();
 		void   postProcessSkyboxComposite();
+		void   setFullscreen(bool enable);
 
 		// Runtime methods
 		void calculateFps();

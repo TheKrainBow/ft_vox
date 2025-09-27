@@ -1897,9 +1897,15 @@ void StoneEngine::reshapeAction(int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-	windowHeight = height;
-	windowWidth = width;
-	resetFrameBuffers();
+    windowHeight = height;
+    windowWidth = width;
+    if (!_isFullscreen) {
+        _windowedW = width;
+        _windowedH = height;
+        int px, py; glfwGetWindowPos(_window, &px, &py);
+        _windowedX = px; _windowedY = py;
+    }
+    resetFrameBuffers();
 	float y = NEAR_PLANE;
 	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, FAR_PLANE);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -1938,7 +1944,10 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 			fallSpeed = 0.0f;
 		}
 	}
-	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+    if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+    if (action == GLFW_PRESS && key == GLFW_KEY_F11) {
+        setFullscreen(!_isFullscreen);
+    }
 	if (action == GLFW_PRESS && key == GLFW_KEY_F1) showUI = !showUI;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3) showDebugInfo = !showDebugInfo;
@@ -2029,27 +2038,48 @@ void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoff
 }
 
 int StoneEngine::initGLFW()
-{	
-	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
-	// glfwWindowHint(GLFW_SAMPLES, 4);
-	_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
-	if (!_window)
-	{
-		std::cerr << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return 0;
-	}
+{
+    glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
+    // glfwWindowHint(GLFW_SAMPLES, 4);
 
-	glfwSetWindowUserPointer(_window, this);
-	glfwSetFramebufferSizeCallback(_window, reshape);
-	glfwSetKeyCallback(_window, keyPress);
-	glfwSetScrollCallback(_window, scrollCallback);
-	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
-	glfwMakeContextCurrent(_window);
-	glfwSwapInterval(0);
-	if (!isWSL())
-		glfwSetCursorPosCallback(_window, mouseCallback);
-	return 1;
+    // Always start in true fullscreen on the primary monitor
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+    if (mode)
+    {
+        windowWidth = mode->width;
+        windowHeight = mode->height;
+        // Match the monitor's color depth and refresh rate for smooth fullscreen
+        glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+        glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+        glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+        glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+        _window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", monitor, NULL);
+    }
+    else
+    {
+        // Fallback to windowed if monitor/mode not available
+        _window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
+    }
+
+    if (!_window)
+    {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return 0;
+    }
+
+    glfwSetWindowUserPointer(_window, this);
+    glfwSetFramebufferSizeCallback(_window, reshape);
+    glfwSetKeyCallback(_window, keyPress);
+    glfwSetScrollCallback(_window, scrollCallback);
+    glfwSetMouseButtonCallback(_window, mouseButtonCallback);
+    glfwMakeContextCurrent(_window);
+    glfwSwapInterval(0);
+    if (!isWSL())
+        glfwSetCursorPosCallback(_window, mouseCallback);
+    _isFullscreen = (glfwGetWindowMonitor(_window) != nullptr);
+    return 1;
 }
 
 void StoneEngine::initGLEW()
@@ -2064,6 +2094,45 @@ void StoneEngine::initGLEW()
 	if (GLEW_ARB_seamless_cube_map || GLEW_VERSION_3_2) {
 		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	}
+}
+
+void StoneEngine::setFullscreen(bool enable)
+{
+    if (enable == _isFullscreen) return;
+
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+    if (enable && monitor && mode)
+    {
+        // Going fullscreen: remember current windowed placement
+        int x, y, w, h;
+        glfwGetWindowPos(_window, &x, &y);
+        glfwGetWindowSize(_window, &w, &h);
+        _windowedX = x; _windowedY = y; _windowedW = w; _windowedH = h;
+
+        glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        _isFullscreen = true;
+    }
+    else
+    {
+        // Going windowed: use fixed size
+        int w = WINDOWED_FIXED_W;
+        int h = WINDOWED_FIXED_H;
+        int x = _windowedX, y = _windowedY;
+        if (mode && monitor)
+        {
+            // Center if unknown position
+            if (x <= 0 && y <= 0) {
+                x = (mode->width  - w) / 2;
+                y = (mode->height - h) / 2;
+            }
+        }
+        // Ensure window decorations and non-maximized state when leaving fullscreen
+        glfwSetWindowMonitor(_window, nullptr, x, y, w, h, 0);
+        glfwSetWindowAttrib(_window, GLFW_DECORATED, GLFW_TRUE);
+        glfwRestoreWindow(_window);
+        _isFullscreen = false;
+    }
 }
 
 bool StoneEngine::getIsRunning()
