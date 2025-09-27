@@ -545,11 +545,14 @@ void StoneEngine::initDebugTextBox()
 	debugBox.initData(_window, 0, 0, 200, 200);
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
-	debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
+    debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
 	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, &_processMemoryUsage);
 	debugBox.addLine("Chunk Memory: ", Textbox::SIZE_T, _chunkMgr.getMemorySizePtr());
 	debugBox.addLine("RenderDistance: ", Textbox::INT, _chunkMgr.getRenderDistancePtr());
 	debugBox.addLine("CurrentRender: ", Textbox::INT, _chunkMgr.getCurrentRenderPtr());
+	debugBox.addLine("Chunks Cached: ", Textbox::INT, _chunkMgr.getCachedChunksCountPtr());
+	debugBox.addLine("Chunks Displayed: ", Textbox::INT, _chunkMgr.getDisplayedChunksCountPtr());
+	debugBox.addLine("Chunks Modified: ", Textbox::INT, _chunkMgr.getModifiedChunksCountPtr());
 	debugBox.addLine("x: ", Textbox::FLOAT, &camPos->x);
 	debugBox.addLine("y: ", Textbox::FLOAT, yPos);
 	debugBox.addLine("z: ", Textbox::FLOAT, &camPos->z);

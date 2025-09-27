@@ -79,6 +79,9 @@ public:
 	size_t		*getMemorySizePtr();
 	int			*getRenderDistancePtr();
 	int			*getCurrentRenderPtr();
+	int			*getCachedChunksCountPtr();
+	int			*getDisplayedChunksCountPtr();
+	int			*getModifiedChunksCountPtr();
 	void		getDisplayedChunksSnapshot(std::vector<ivec2>& out);
 	bool		hasRenderableChunks();
 	BlockType	getBlock(ivec2 chunkPos, ivec3 worldPos);

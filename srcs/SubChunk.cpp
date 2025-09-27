@@ -426,8 +426,8 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	}
 
 	// Otherwise, delegate to World using ABSOLUTE world coords
-	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block));
-	_chunkLoader.markChunkDirty(targetChunk);
+    _chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block), /*byPlayer=*/false);
+    _chunkLoader.markChunkDirty(targetChunk);
 }
 
 

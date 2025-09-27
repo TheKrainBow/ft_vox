@@ -65,7 +65,19 @@ int	*ChunkManager::getRenderDistancePtr() {
 }
 
 int	*ChunkManager::getCurrentRenderPtr() { 
-	return _chunkLoader.getCurrentRenderPtr();
+    return _chunkLoader.getCurrentRenderPtr();
+}
+
+int *ChunkManager::getCachedChunksCountPtr() {
+    return _chunkLoader.getCachedChunksCountPtr();
+}
+
+int *ChunkManager::getDisplayedChunksCountPtr() {
+    return _chunkLoader.getDisplayedChunksCountPtr();
+}
+
+int *ChunkManager::getModifiedChunksCountPtr() {
+    return _chunkLoader.getModifiedChunksCountPtr();
 }
 
 BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)

@@ -162,7 +162,7 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 	);
 
 	// Try to apply immediately (falls back to queue if chunk not ready)
-	bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR);
+    bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
 
 	if (wroteNow)
 	{
@@ -292,7 +292,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
 			BlockType current = _chunkLoader.getBlock(placeChunk, prev);
 			if (!(current == AIR || current == WATER)) return false;
 
-			bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block);
+            bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);
 			if (wroteNow) {
 				// Rebuild current chunk mesh
 				if (Chunk* c = _chunkLoader.getChunk(placeChunk))
