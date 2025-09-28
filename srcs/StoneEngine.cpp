@@ -785,6 +785,8 @@ void StoneEngine::activateTransparentShader()
 	glUniform3fv     (glGetUniformLocation(waterShaderProgram, "cameraPos"),    1, value_ptr(viewPos));
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "time"),             timeValue);
 	glUniform1i      (glGetUniformLocation(waterShaderProgram, "isUnderwater"),     isUnderWater);
+	// In wireframe/triangle-mesh mode, force water to render flat deep blue with no reflections
+	glUniform1i      (glGetUniformLocation(waterShaderProgram, "showtrianglemesh"), showTriangleMesh ? 1 : 0);
 
 	// Provide global water plane height to the water shader (for underwater depth-based effects)
 	glUniform1f      (glGetUniformLocation(waterShaderProgram, "waterHeight"),      OCEAN_HEIGHT + 2);

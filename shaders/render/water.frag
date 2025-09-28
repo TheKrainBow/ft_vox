@@ -31,6 +31,8 @@ const vec3  UNDERWATER_COLOR    = vec3(0.00, 0.10, 0.30);
 // Distance → color gradient (near = turquoise, far = deep blue)
 const vec3  NEAR_TURQUOISE      = vec3(0.07, 0.24, 0.28);
 const vec3  FAR_DEEP_BLUE       = vec3(0.02, 0.07, 0.18);
+// Debug wireframe color: bright, saturated blue for high visibility
+const vec3  DEBUG_WIREFRAME_BLUE = vec3(0.12, 0.55, 1.00);
 const float TINT_NEAR_DIST      = 5.0;   // start of fade (meters)
 const float TINT_FAR_DIST       = 50.0;  // end of fade (meters)
 
@@ -72,6 +74,7 @@ const float ALPHA_FAR_DIST      = 50.0;
 // REQUIRED UNIFORMS
 // ============================================================================
 in vec3 FragPos;
+in vec3 Normal; // face normal from geometry (world space)
 
 uniform sampler2D screenTexture;
 uniform sampler2D normalMap;
@@ -83,6 +86,7 @@ uniform mat4  viewOpaque;
 uniform mat4  projection;
 uniform int   isUnderwater;
 uniform float waterHeight;
+uniform bool  showtrianglemesh; // debugging: true -> force deep blue, no reflections
 
 // SSR offscreen fallback
 uniform sampler2D planarTexture;
@@ -206,6 +210,11 @@ vec3 samplePlanarBlur(vec2 uv) {               // very small 5-tap blur
 // Main
 // ============================================================================
 void main() {
+	// Debug/wireframe mode: bright, saturated blue for clear visibility
+	if (showtrianglemesh) {
+		FragColor = vec4(DEBUG_WIREFRAME_BLUE, 1.0);
+		return;
+	}
 	vec3 waveFragPos = FragPos;
 	if (USE_FRAGMENT_Y_WAVE) {
 		waveFragPos.y += calcWave(FragPos);
@@ -277,6 +286,13 @@ void main() {
 
 	float baseStrength = clamp(fres * heightFade, 0.0, 1.0);
 	float reflMix      = baseStrength * REFLECTION_STRENGTH_CAP;
+
+	// Disable reflections on downward and side faces.
+	// Keep reflections only for upward-facing surfaces (Ny sufficiently positive).
+	float ny = normalize(Normal).y;
+	if (ny < 0.5) {
+		reflMix = 0.0;
+	}
 
 	vec3 finalColor;
 	if (isUnderwater == 1)

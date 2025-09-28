@@ -162,7 +162,7 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 	);
 
 	// Try to apply immediately (falls back to queue if chunk not ready)
-    bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
+	bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
 
 	if (wroteNow)
 	{
