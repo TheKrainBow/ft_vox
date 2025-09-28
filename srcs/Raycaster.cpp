@@ -292,7 +292,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
 			BlockType current = _chunkLoader.getBlock(placeChunk, prev);
 			if (!(current == AIR || current == WATER)) return false;
 
-            bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);
+			bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);
 			if (wroteNow) {
 				// Rebuild current chunk mesh
 				if (Chunk* c = _chunkLoader.getChunk(placeChunk))

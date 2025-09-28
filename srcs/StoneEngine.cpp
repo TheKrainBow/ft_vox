@@ -81,19 +81,19 @@ _pool(pool),
 noise_gen(seed),
 _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
 {
-    initData();
-    initGLFW();
-    initGLEW();
-    initTextures();
-    initRenderShaders();
-    initDebugTextBox();
-    initHelpTextBox();
-    initFboShaders();
-    reshapeAction(windowWidth, windowHeight);
-    _chunkMgr.initGLBuffer();
+	initData();
+	initGLFW();
+	initGLEW();
+	initTextures();
+	initRenderShaders();
+	initDebugTextBox();
+	initHelpTextBox();
+	initFboShaders();
+	reshapeAction(windowWidth, windowHeight);
+	_chunkMgr.initGLBuffer();
 
-    // Show a splash while the first mesh arrives
-    _splashDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(LOADING_SPLASH_MS);
+	// Show a splash while the first mesh arrives
+	_splashDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(LOADING_SPLASH_MS);
 }
 
 StoneEngine::~StoneEngine()
@@ -175,8 +175,8 @@ void StoneEngine::initData()
 	updateChunk			= ENABLE_WORLD_GENERATION;
 	showTriangleMesh	= SHOW_TRIANGLES;
 	mouseCaptureToggle	= CAPTURE_MOUSE;
-    showDebugInfo		= SHOW_DEBUG;
-    showHelp            = false;
+	showDebugInfo		= SHOW_DEBUG;
+	showHelp            = false;
 	showUI				= SHOW_UI;
 	showLight			= SHOW_LIGHTING;
 	gravity				= GRAVITY;
@@ -547,7 +547,7 @@ void StoneEngine::initDebugTextBox()
 	debugBox.initData(_window, 0, 0, 200, 200);
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
-    debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
+	debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
 	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, &_processMemoryUsage);
 	debugBox.addLine("Chunk Memory: ", Textbox::SIZE_T, _chunkMgr.getMemorySizePtr());
 	debugBox.addLine("RenderDistance: ", Textbox::INT, _chunkMgr.getRenderDistancePtr());
@@ -573,49 +573,49 @@ void StoneEngine::initDebugTextBox()
 
 void StoneEngine::initHelpTextBox()
 {
-    helpBox.initData(_window, 0, 0, 420, 420);
-    helpBox.loadFont("textures/CASCADIAMONO.TTF", 20);
-    helpBox.addStaticText("Help / Keybinds");
-    helpBox.addStaticText("");
-    helpBox.addStaticText("Esc: Quit");
-    helpBox.addStaticText("");
-    helpBox.addStaticText("W/A/S/D: Move");
-    helpBox.addStaticText("Space: Jump");
-    // Dynamic toggles below — values updated every frame
-    _hGravity = ""; _hGeneration = ""; _hSprinting = ""; _hUI = ""; _hLighting = "";
-    _hMouseCapture = ""; _hDebug = ""; _hHelp = ""; _hWireframe = ""; _hFullscreen = ""; _empty = "";
-    helpBox.addLine("Ctrl:  Sprinting ", Textbox::STRING, &_hSprinting);
-    helpBox.addStaticText("");
-    helpBox.addLine("F3:     Debug Overlay ", Textbox::STRING, &_hDebug);
-    helpBox.addLine("H:      Help / Keybinds ", Textbox::STRING, &_hHelp);
-    helpBox.addLine("F1:     UI ", Textbox::STRING, &_hUI);
-    helpBox.addLine("F4:     Triangle Mesh ", Textbox::STRING, &_hWireframe);
-    helpBox.addLine("F5:     Invert Camera", Textbox::STRING, &_empty); // no state; keep placeholder spacing
-    helpBox.addLine("F11:    Fullscreen ", Textbox::STRING, &_hFullscreen);
-    helpBox.addLine("G:      Gravity ", Textbox::STRING, &_hGravity);
-    helpBox.addLine("L:      Lighting ", Textbox::STRING, &_hLighting);
-    helpBox.addLine("M or ;: Mouse Capture ", Textbox::STRING, &_hMouseCapture);
-    helpBox.addLine("C:      Generation ", Textbox::STRING, &_hGeneration);
-    helpBox.addStaticText("");
-    helpBox.addStaticText("Mouse Left:  Break block");
-    helpBox.addStaticText("Mouse Right: Place block");
-    helpBox.addStaticText("Mouse Middle: Pick block");
+	helpBox.initData(_window, 0, 0, 420, 420);
+	helpBox.loadFont("textures/CASCADIAMONO.TTF", 20);
+	helpBox.addStaticText("Help / Keybinds");
+	helpBox.addStaticText("");
+	helpBox.addStaticText("Esc: Quit");
+	helpBox.addStaticText("");
+	helpBox.addStaticText("W/A/S/D: Move");
+	helpBox.addStaticText("Space: Jump");
+	// Dynamic toggles below — values updated every frame
+	_hGravity = ""; _hGeneration = ""; _hSprinting = ""; _hUI = ""; _hLighting = "";
+	_hMouseCapture = ""; _hDebug = ""; _hHelp = ""; _hWireframe = ""; _hFullscreen = ""; _empty = "";
+	helpBox.addLine("Ctrl:  Sprinting ", Textbox::STRING, &_hSprinting);
+	helpBox.addStaticText("");
+	helpBox.addLine("F3:     Debug Overlay ", Textbox::STRING, &_hDebug);
+	helpBox.addLine("H:      Help / Keybinds ", Textbox::STRING, &_hHelp);
+	helpBox.addLine("F1:     UI ", Textbox::STRING, &_hUI);
+	helpBox.addLine("F4:     Triangle Mesh ", Textbox::STRING, &_hWireframe);
+	helpBox.addLine("F5:     Invert Camera", Textbox::STRING, &_empty); // no state; keep placeholder spacing
+	helpBox.addLine("F11:    Fullscreen ", Textbox::STRING, &_hFullscreen);
+	helpBox.addLine("G:      Gravity ", Textbox::STRING, &_hGravity);
+	helpBox.addLine("L:      Lighting ", Textbox::STRING, &_hLighting);
+	helpBox.addLine("M or ;: Mouse Capture ", Textbox::STRING, &_hMouseCapture);
+	helpBox.addLine("C:      Generation ", Textbox::STRING, &_hGeneration);
+	helpBox.addStaticText("");
+	helpBox.addStaticText("Mouse Left:  Break block");
+	helpBox.addStaticText("Mouse Right: Place block");
+	helpBox.addStaticText("Mouse Middle: Pick block");
 }
 
 static inline const char* onoff(bool v) { return v ? "(On)" : "(Off)"; }
 
 void StoneEngine::updateHelpStatusText()
 {
-    _hGravity      = onoff(gravity);
-    _hGeneration   = onoff(updateChunk);
-    _hSprinting    = onoff(sprinting);
-    _hUI           = onoff(showUI);
-    _hLighting     = onoff(showLight);
-    _hMouseCapture = onoff(mouseCaptureToggle);
-    _hDebug        = onoff(showDebugInfo);
-    _hHelp         = onoff(showHelp);
-    _hWireframe    = onoff(showTriangleMesh);
-    _hFullscreen   = onoff(_isFullscreen);
+	_hGravity      = onoff(gravity);
+	_hGeneration   = onoff(updateChunk);
+	_hSprinting    = onoff(sprinting);
+	_hUI           = onoff(showUI);
+	_hLighting     = onoff(showLight);
+	_hMouseCapture = onoff(mouseCaptureToggle);
+	_hDebug        = onoff(showDebugInfo);
+	_hHelp         = onoff(showHelp);
+	_hWireframe    = onoff(showTriangleMesh);
+	_hFullscreen   = onoff(_isFullscreen);
 }
 
 void StoneEngine::calculateFps()
@@ -891,15 +891,15 @@ void StoneEngine::resolveMsaaToFbo(FBODatas& dst, bool copyDepth) {
 						mask, GL_NEAREST);
 }
 void StoneEngine::display() {
-    // If no chunks are visible yet, show a simple loading screen
-    {
-        if (!_chunkMgr.hasRenderableChunks() || std::chrono::steady_clock::now() < _splashDeadline) {
-            renderLoadingScreen();
-            return;
-        }
-    }
+	// If no chunks are visible yet, show a simple loading screen
+	{
+		if (!_chunkMgr.hasRenderableChunks() || std::chrono::steady_clock::now() < _splashDeadline) {
+			renderLoadingScreen();
+			return;
+		}
+	}
 
-    prepareRenderPipeline();
+	prepareRenderPipeline();
 
 	renderSkybox();                 // -> msaaFBO
 	renderSolidObjects();           // -> msaaFBO
@@ -957,24 +957,24 @@ void StoneEngine::display() {
 
 void StoneEngine::renderLoadingScreen()
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDisable(GL_DEPTH_TEST);
-    glClearColor(0.07f, 0.09f, 0.12f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDisable(GL_DEPTH_TEST);
+	glClearColor(0.07f, 0.09f, 0.12f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (!_loadingInit)
-    {
-        _loadingBox.initData(_window, 0, 0, windowWidth, windowHeight);
-        _loadingBox.loadFont("textures/CASCADIAMONO.TTF", 36);
-        _loadingBox.addStaticText(_loadingText);
-        _loadingInit = true;
-    }
+	if (!_loadingInit)
+	{
+		_loadingBox.initData(_window, 0, 0, windowWidth, windowHeight);
+		_loadingBox.loadFont("textures/CASCADIAMONO.TTF", 36);
+		_loadingBox.addStaticText(_loadingText);
+		_loadingInit = true;
+	}
 
-    // Center text by adjusting its starting position roughly to middle
-    // Textbox renders relative to internal offsets; we re-init dimensions on resize
-    _loadingBox.initData(_window, windowWidth/2 - 90, windowHeight/2 - 18, windowWidth, windowHeight);
-    _loadingBox.render();
-    glfwSwapBuffers(_window);
+	// Center text by adjusting its starting position roughly to middle
+	// Textbox renders relative to internal offsets; we re-init dimensions on resize
+	_loadingBox.initData(_window, windowWidth/2 - 90, windowHeight/2 - 18, windowWidth, windowHeight);
+	_loadingBox.render();
+	glfwSwapBuffers(_window);
 }
 
 void StoneEngine::postProcessSkyboxComposite()
@@ -1400,28 +1400,28 @@ void StoneEngine::renderSkybox()
 }
 
 void StoneEngine::renderOverlayAndUI() {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glUseProgram(0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glUseProgram(0);
 
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_STENCIL_TEST);
-    glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glDisable(GL_SCISSOR_TEST);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  // <— ensure text isn’t wireframe
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  // <— ensure text isn’t wireframe
 
-    glViewport(0, 0, windowWidth, windowHeight);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glViewport(0, 0, windowWidth, windowHeight);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glActiveTexture(GL_TEXTURE0);                // <— make unit 0 active for fixed pipeline text
+	glActiveTexture(GL_TEXTURE0);                // <— make unit 0 active for fixed pipeline text
 
-    if (showHelp) {
-        updateHelpStatusText();
-        helpBox.render();
-    } else if (showDebugInfo) {
-        debugBox.render();
-    }
+	if (showHelp) {
+		updateHelpStatusText();
+		helpBox.render();
+	} else if (showDebugInfo) {
+		debugBox.render();
+	}
 }
 
 void StoneEngine::finalizeFrame() {
@@ -1998,15 +1998,15 @@ void StoneEngine::reshapeAction(int width, int height)
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
-    windowHeight = height;
-    windowWidth = width;
-    if (!_isFullscreen) {
-        _windowedW = width;
-        _windowedH = height;
-        int px, py; glfwGetWindowPos(_window, &px, &py);
-        _windowedX = px; _windowedY = py;
-    }
-    resetFrameBuffers();
+	windowHeight = height;
+	windowWidth = width;
+	if (!_isFullscreen) {
+		_windowedW = width;
+		_windowedH = height;
+		int px, py; glfwGetWindowPos(_window, &px, &py);
+		_windowedX = px; _windowedY = py;
+	}
+	resetFrameBuffers();
 	float y = NEAR_PLANE;
 	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, FAR_PLANE);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -2045,20 +2045,20 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 			fallSpeed = 0.0f;
 		}
 	}
-    if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
-    if (action == GLFW_PRESS && key == GLFW_KEY_F11) {
-        setFullscreen(!_isFullscreen);
-    }
-    if (action == GLFW_PRESS && key == GLFW_KEY_F1) showUI = !showUI;
-    if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
-    if (action == GLFW_PRESS && key == GLFW_KEY_F3) {
-        showDebugInfo = !showDebugInfo;
-        if (showDebugInfo) showHelp = false; // debug replaces help
-    }
-    if (action == GLFW_PRESS && key == GLFW_KEY_H) {
-        showHelp = !showHelp;
-        if (showHelp) showDebugInfo = false; // help replaces debug
-    }
+	if (action == GLFW_PRESS && key == GLFW_KEY_F4) showTriangleMesh = !showTriangleMesh;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F11) {
+		setFullscreen(!_isFullscreen);
+	}
+	if (action == GLFW_PRESS && key == GLFW_KEY_F1) showUI = !showUI;
+	if (action == GLFW_PRESS && key == GLFW_KEY_L) showLight = !showLight;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F3) {
+		showDebugInfo = !showDebugInfo;
+		if (showDebugInfo) showHelp = false; // debug replaces help
+	}
+	if (action == GLFW_PRESS && key == GLFW_KEY_H) {
+		showHelp = !showHelp;
+		if (showHelp) showDebugInfo = false; // help replaces debug
+	}
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
@@ -2147,47 +2147,47 @@ void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoff
 
 int StoneEngine::initGLFW()
 {
-    glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
-    // glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwWindowHint(GLFW_DEPTH_BITS, 32); // Request 32-bit depth buffer
+	// glfwWindowHint(GLFW_SAMPLES, 4);
 
-    // Always start in true fullscreen on the primary monitor
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
-    if (mode)
-    {
-        windowWidth = mode->width;
-        windowHeight = mode->height;
-        // Match the monitor's color depth and refresh rate for smooth fullscreen
-        glfwWindowHint(GLFW_RED_BITS, mode->redBits);
-        glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
-        glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
-        glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
-        _window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", monitor, NULL);
-    }
-    else
-    {
-        // Fallback to windowed if monitor/mode not available
-        _window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
-    }
+	// Always start in true fullscreen on the primary monitor
+	GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+	const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+	if (mode)
+	{
+		windowWidth = mode->width;
+		windowHeight = mode->height;
+		// Match the monitor's color depth and refresh rate for smooth fullscreen
+		glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+		glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+		glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+		glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+		_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", monitor, NULL);
+	}
+	else
+	{
+		// Fallback to windowed if monitor/mode not available
+		_window = glfwCreateWindow(windowWidth, windowHeight, "Not_ft_minecraft | FPS: 0", NULL, NULL);
+	}
 
-    if (!_window)
-    {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return 0;
-    }
+	if (!_window)
+	{
+		std::cerr << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return 0;
+	}
 
-    glfwSetWindowUserPointer(_window, this);
-    glfwSetFramebufferSizeCallback(_window, reshape);
-    glfwSetKeyCallback(_window, keyPress);
-    glfwSetScrollCallback(_window, scrollCallback);
-    glfwSetMouseButtonCallback(_window, mouseButtonCallback);
-    glfwMakeContextCurrent(_window);
-    glfwSwapInterval(0);
-    if (!isWSL())
-        glfwSetCursorPosCallback(_window, mouseCallback);
-    _isFullscreen = (glfwGetWindowMonitor(_window) != nullptr);
-    return 1;
+	glfwSetWindowUserPointer(_window, this);
+	glfwSetFramebufferSizeCallback(_window, reshape);
+	glfwSetKeyCallback(_window, keyPress);
+	glfwSetScrollCallback(_window, scrollCallback);
+	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
+	glfwMakeContextCurrent(_window);
+	glfwSwapInterval(0);
+	if (!isWSL())
+		glfwSetCursorPosCallback(_window, mouseCallback);
+	_isFullscreen = (glfwGetWindowMonitor(_window) != nullptr);
+	return 1;
 }
 
 void StoneEngine::initGLEW()
@@ -2206,41 +2206,41 @@ void StoneEngine::initGLEW()
 
 void StoneEngine::setFullscreen(bool enable)
 {
-    if (enable == _isFullscreen) return;
+	if (enable == _isFullscreen) return;
 
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
-    if (enable && monitor && mode)
-    {
-        // Going fullscreen: remember current windowed placement
-        int x, y, w, h;
-        glfwGetWindowPos(_window, &x, &y);
-        glfwGetWindowSize(_window, &w, &h);
-        _windowedX = x; _windowedY = y; _windowedW = w; _windowedH = h;
+	GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+	const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+	if (enable && monitor && mode)
+	{
+		// Going fullscreen: remember current windowed placement
+		int x, y, w, h;
+		glfwGetWindowPos(_window, &x, &y);
+		glfwGetWindowSize(_window, &w, &h);
+		_windowedX = x; _windowedY = y; _windowedW = w; _windowedH = h;
 
-        glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-        _isFullscreen = true;
-    }
-    else
-    {
-        // Going windowed: use fixed size
-        int w = WINDOWED_FIXED_W;
-        int h = WINDOWED_FIXED_H;
-        int x = _windowedX, y = _windowedY;
-        if (mode && monitor)
-        {
-            // Center if unknown position
-            if (x <= 0 && y <= 0) {
-                x = (mode->width  - w) / 2;
-                y = (mode->height - h) / 2;
-            }
-        }
-        // Ensure window decorations and non-maximized state when leaving fullscreen
-        glfwSetWindowMonitor(_window, nullptr, x, y, w, h, 0);
-        glfwSetWindowAttrib(_window, GLFW_DECORATED, GLFW_TRUE);
-        glfwRestoreWindow(_window);
-        _isFullscreen = false;
-    }
+		glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+		_isFullscreen = true;
+	}
+	else
+	{
+		// Going windowed: use fixed size
+		int w = WINDOWED_FIXED_W;
+		int h = WINDOWED_FIXED_H;
+		int x = _windowedX, y = _windowedY;
+		if (mode && monitor)
+		{
+			// Center if unknown position
+			if (x <= 0 && y <= 0) {
+				x = (mode->width  - w) / 2;
+				y = (mode->height - h) / 2;
+			}
+		}
+		// Ensure window decorations and non-maximized state when leaving fullscreen
+		glfwSetWindowMonitor(_window, nullptr, x, y, w, h, 0);
+		glfwSetWindowAttrib(_window, GLFW_DECORATED, GLFW_TRUE);
+		glfwRestoreWindow(_window);
+		_isFullscreen = false;
+	}
 }
 
 bool StoneEngine::getIsRunning()

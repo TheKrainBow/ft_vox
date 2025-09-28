@@ -92,8 +92,8 @@ private:
 	unsigned char bitmap[512 * 512 * 4];
 	GLuint fontTexture;
 	bool fontLoaded;
-    // Use list to keep pointers to stored strings stable
-    std::list<std::string> _ownedStrings;
+	// Use list to keep pointers to stored strings stable
+	std::list<std::string> _ownedStrings;
 
 	void initializeFont(const std::string& fontPath, float fontSize);
 

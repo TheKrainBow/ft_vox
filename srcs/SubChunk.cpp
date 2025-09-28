@@ -426,8 +426,8 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	}
 
 	// Otherwise, delegate to World using ABSOLUTE world coords
-    _chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block), /*byPlayer=*/false);
-    _chunkLoader.markChunkDirty(targetChunk);
+	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block), /*byPlayer=*/false);
+	_chunkLoader.markChunkDirty(targetChunk);
 }
 
 
@@ -609,28 +609,28 @@ void SubChunk::clearFaces() {
 
 void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 {
-    // Prevent readers during rebuild
-    markLoaded(false);
+	// Prevent readers during rebuild
+	markLoaded(false);
 
-    int prevResolution = _resolution;
-    _resolution = resolution;
-    _heightMap = &perlinMap->heightMap;
-    _biomeMap  = &perlinMap->biomeMap;
-    _treeMap   = &perlinMap->treeMap;
+	int prevResolution = _resolution;
+	_resolution = resolution;
+	_heightMap = &perlinMap->heightMap;
+	_biomeMap  = &perlinMap->biomeMap;
+	_treeMap   = &perlinMap->treeMap;
 
-    // Publish a fresh buffer sized for the new LOD
-    {
-        const int newChunkSize = CHUNK_SIZE / resolution;
-        const size_t size = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
-        std::unique_ptr<uint8_t[]> fresh(new uint8_t[size]()); // zero-initialize
-        // Atomically update backing storage and its size together
-        {
-            std::lock_guard<std::mutex> lk(_dataMutex);
-            _blocks.swap(fresh);
-            _chunkSize = newChunkSize;
-        }
-        _memorySize = sizeof(*this) + size;
-    }
+	// Publish a fresh buffer sized for the new LOD
+	{
+		const int newChunkSize = CHUNK_SIZE / resolution;
+		const size_t size = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
+		std::unique_ptr<uint8_t[]> fresh(new uint8_t[size]()); // zero-initialize
+		// Atomically update backing storage and its size together
+		{
+			std::lock_guard<std::mutex> lk(_dataMutex);
+			_blocks.swap(fresh);
+			_chunkSize = newChunkSize;
+		}
+		_memorySize = sizeof(*this) + size;
+	}
 
 	// Rebuild content at the new resolution
 	loadHeight(prevResolution);

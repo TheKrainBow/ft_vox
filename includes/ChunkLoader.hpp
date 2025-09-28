@@ -28,17 +28,17 @@ class ChunkLoader
 {
 private:
 	// Modification queue for blocks breaking
-    struct PendingBlock {
-        glm::ivec3 worldPos;
-        BlockType  value;
-        bool       byPlayer; // true if edit comes from player action
-    };
+	struct PendingBlock {
+		glm::ivec3 worldPos;
+		BlockType  value;
+		bool       byPlayer; // true if edit comes from player action
+	};
 	std::unordered_map<glm::ivec2, std::vector<PendingBlock>, ivec2_hash> _pendingEdits;
-	
-    // LRU list of cached chunks (oldest at front)
-    std::list<ivec2> _chunkList;
-    // Map chunk position to LRU iterator for O(1) updates
-    std::unordered_map<ivec2, std::list<ivec2>::iterator, ivec2_hash> _lruIndex;
+
+	// LRU list of cached chunks (oldest at front)
+	std::list<ivec2> _chunkList;
+	// Map chunk position to LRU iterator for O(1) updates
+	std::unordered_map<ivec2, std::list<ivec2>::iterator, ivec2_hash> _lruIndex;
 
 	// Mutexes
 	std::mutex	_pendingMutex;
@@ -51,16 +51,16 @@ private:
 
 	// Cached chunks
 	std::unordered_map<ivec2, Chunk *, ivec2_hash>	_chunks;
-    std::unordered_map<ivec2, Chunk *, ivec2_hash>	_displayedChunks;
+	std::unordered_map<ivec2, Chunk *, ivec2_hash>	_displayedChunks;
 
-    // Tracking memory usage of chunks (for debug only) and eviction budget (count based)
-    size_t _chunksMemoryUsage;
-    int    _countBudget;
+	// Tracking memory usage of chunks (for debug only) and eviction budget (count based)
+	size_t _chunksMemoryUsage;
+	int    _countBudget;
 
-    // Debug: live counts for UI
-    int _chunksCount{0};
-    int _displayedCount{0};
-    int _modifiedCount{0};
+	// Debug: live counts for UI
+	int _chunksCount{0};
+	int _displayedCount{0};
+	int _modifiedCount{0};
 
 	// Reference to camera for accurate chunk loading
 	Camera &_camera;
@@ -97,8 +97,8 @@ private:
 	std::queue<DisplayData *>	&_transparentStagedDataQueue;
 // Methods
 private:
-    // Init methods
-    void initData();
+	// Init methods
+	void initData();
 
 	// Edits (queue if chunk not ready)
 	void applyPendingFor(const ivec2& pos);
@@ -107,15 +107,15 @@ private:
 	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
 	bool hasMoved(ivec2 &oldPos);
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
-    void updateFillData();
+	void updateFillData();
 
-    // Chunks edit tracking
-    void	flushDirtyChunks();
+	// Chunks edit tracking
+	void	flushDirtyChunks();
 
-    // LRU + cache budget helpers
-    void touchLRU(const ivec2& pos);
-    void enforceCountBudget();
-    bool evictChunkAt(const ivec2& pos);
+	// LRU + cache budget helpers
+	void touchLRU(const ivec2& pos);
+	void enforceCountBudget();
+	bool evictChunkAt(const ivec2& pos);
 public:
 	ChunkLoader(
 		int seed,
@@ -148,17 +148,17 @@ public:
 	bool			hasRenderableChunks();
 
 	// Shared data setters
-    bool	setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer = true);
+	bool	setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer = true);
 	void	markChunkDirty(const ivec2& pos);
-    bool	setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer);
+	bool	setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer);
 	void	setViewProj(Frustum &f);
 
 	// Debug shared data getters and prints
-    size_t	*getMemorySizePtr();
-    int		*getRenderDistancePtr();
-    int		*getCurrentRenderPtr();
-    int		*getCachedChunksCountPtr();
-    int		*getDisplayedChunksCountPtr();
-    int		*getModifiedChunksCountPtr();
-    void	printSizes() const;
+	size_t	*getMemorySizePtr();
+	int		*getRenderDistancePtr();
+	int		*getCurrentRenderPtr();
+	int		*getCachedChunksCountPtr();
+	int		*getDisplayedChunksCountPtr();
+	int		*getModifiedChunksCountPtr();
+	void	printSizes() const;
 };

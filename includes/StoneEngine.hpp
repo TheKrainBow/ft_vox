@@ -89,10 +89,10 @@ class StoneEngine {
 		bool ignoreMouseEvent;
 		bool updateChunk;
 		bool showTriangleMesh;
-        bool mouseCaptureToggle;
-        bool showDebugInfo;
-        bool showHelp;
-        bool showUI;
+		bool mouseCaptureToggle;
+		bool showDebugInfo;
+		bool showHelp;
+		bool showUI;
 		bool showLight;
 		bool gravity;
 		bool falling;
@@ -114,12 +114,12 @@ class StoneEngine {
 		double currentFrameTime;
 		double fps;
 
-        // Debug / Overlays
-        Chrono chronoHelper;
-        int drawnTriangles;
-        Textbox debugBox;
-        Textbox helpBox;
-        size_t _processMemoryUsage = 0;
+		// Debug / Overlays
+		Chrono chronoHelper;
+		int drawnTriangles;
+		Textbox debugBox;
+		Textbox helpBox;
+		size_t _processMemoryUsage = 0;
 	
 		// World gen
 		NoiseGenerator noise_gen;
@@ -154,20 +154,20 @@ class StoneEngine {
 
 		// Occlusion control: disable previous-frame occlusion for a few frames
 		// after edits to avoid one-frame popping when geometry changes.
-        int _occlDisableFrames = 0;
+		int _occlDisableFrames = 0;
 
-        // Help overlay dynamic status strings
-        std::string _hGravity;
-        std::string _hGeneration;
-        std::string _hSprinting;
-        std::string _hUI;
-        std::string _hLighting;
-        std::string _hMouseCapture;
-        std::string _hDebug;
-        std::string _hHelp;
-        std::string _hWireframe;
-        std::string _hFullscreen;
-        std::string _empty;
+		// Help overlay dynamic status strings
+		std::string _hGravity;
+		std::string _hGeneration;
+		std::string _hSprinting;
+		std::string _hUI;
+		std::string _hLighting;
+		std::string _hMouseCapture;
+		std::string _hDebug;
+		std::string _hHelp;
+		std::string _hWireframe;
+		std::string _hFullscreen;
+		std::string _empty;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -207,8 +207,8 @@ class StoneEngine {
 		void   renderAimHighlight();
 		void   postProcessSkyboxComposite();
 		void   setFullscreen(bool enable);
-        void   renderLoadingScreen();
-        void   updateHelpStatusText();
+		void   renderLoadingScreen();
+		void   updateHelpStatusText();
 
 		// Runtime methods
 		void calculateFps();

@@ -57,12 +57,12 @@ ChunkLoader::~ChunkLoader()
 // --- Init methods ---
 void ChunkLoader::initData()
 {
-    _chunksMemoryUsage = 0;
-    _renderDistance = RENDER_DISTANCE;
-    _currentRender = 0;
-    _maxRender = 400;
-    _countBudget = EXTRA_CACHE_CHUNKS;
-    _modifiedCount = 0;
+	_chunksMemoryUsage = 0;
+	_renderDistance = RENDER_DISTANCE;
+	_currentRender = 0;
+	_maxRender = 400;
+	_countBudget = EXTRA_CACHE_CHUNKS;
+	_modifiedCount = 0;
 }
 
 void ChunkLoader::initSpawn()
@@ -92,20 +92,20 @@ void ChunkLoader::initSpawn()
 
 // Edits (queue if chunk not ready)
 bool ChunkLoader::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer) {
-    auto chunk = getChunk(chunkPos);
-    if (!chunk) {
-        std::lock_guard<std::mutex> lk(_pendingMutex);
-        _pendingEdits[chunkPos].push_back({worldPos, value, byPlayer});
-        return false;
-    }
+	auto chunk = getChunk(chunkPos);
+	if (!chunk) {
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		_pendingEdits[chunkPos].push_back({worldPos, value, byPlayer});
+		return false;
+	}
 
-    if (chunk->isBuilding()) {
-        std::lock_guard<std::mutex> lk(_pendingMutex);
-        _pendingEdits[chunkPos].push_back({worldPos, value, byPlayer});
-        return false;
-    }
+	if (chunk->isBuilding()) {
+		std::lock_guard<std::mutex> lk(_pendingMutex);
+		_pendingEdits[chunkPos].push_back({worldPos, value, byPlayer});
+		return false;
+	}
 
-    return setBlock(chunkPos, worldPos, value, byPlayer);
+	return setBlock(chunkPos, worldPos, value, byPlayer);
 }
 
 // Edits (queue if chunk not ready)
@@ -121,47 +121,47 @@ void ChunkLoader::applyPendingFor(const ivec2& pos) {
 	}
 	if (edits.empty()) return;
 
-    bool anyPlayerEdit = false;
-    for (const auto& e : edits) {
-        setBlock(pos, e.worldPos, e.value, e.byPlayer);
-        anyPlayerEdit = anyPlayerEdit || e.byPlayer;
-    }
+	bool anyPlayerEdit = false;
+	for (const auto& e : edits) {
+		setBlock(pos, e.worldPos, e.value, e.byPlayer);
+		anyPlayerEdit = anyPlayerEdit || e.byPlayer;
+	}
 
-    if (anyPlayerEdit) {
-        if (auto c = getChunk(pos)) {
-            if (!c->getModified()) { c->setAsModified(); ++_modifiedCount; }
-            c->sendFacesToDisplay();
-        }
-    }
-    updateFillData();
+	if (anyPlayerEdit) {
+		if (auto c = getChunk(pos)) {
+			if (!c->getModified()) { c->setAsModified(); ++_modifiedCount; }
+			c->sendFacesToDisplay();
+		}
+	}
+	updateFillData();
 }
 
 // Single chunk loader
 Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
 {
-    Chunk *chunk = nullptr;
-    ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
+	Chunk *chunk = nullptr;
+	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
 
 	// First, try to find an existing chunk quickly
 	{
-        std::lock_guard<std::mutex> lk(_chunksMutex);
-        auto it = _chunks.find(pos);
-        if (it != _chunks.end())
-            chunk = it->second;
-    }
+		std::lock_guard<std::mutex> lk(_chunksMutex);
+		auto it = _chunks.find(pos);
+		if (it != _chunks.end())
+			chunk = it->second;
+	}
 
-    if (chunk)
-    {
-        if (chunk->getResolution() > resolution)
-            chunk->updateResolution(resolution);
-        applyPendingFor(pos);
-        // Touch LRU for recently used chunk
-        touchLRU(pos);
-    }
-    else
-    {
-        PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
-        Chunk *newChunk = new Chunk(pos, pMap, _caveGen, *this, _threadPool, resolution);
+	if (chunk)
+	{
+		if (chunk->getResolution() > resolution)
+			chunk->updateResolution(resolution);
+		applyPendingFor(pos);
+		// Touch LRU for recently used chunk
+		touchLRU(pos);
+	}
+	else
+	{
+		PerlinMap *pMap = _perlinGenerator.getPerlinMap(pos, resolution);
+		Chunk *newChunk = new Chunk(pos, pMap, _caveGen, *this, _threadPool, resolution);
 
 		bool inserted = false;
 		{
@@ -188,30 +188,30 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int res
 			chunk->loadBlocks();
 			chunk->getNeighbors();
 
-            _chunksMemoryUsage += chunk->getMemorySize();
-            // Insert into LRU as most-recent entry
-            touchLRU(pos);
-            ++_chunksCount;
-            applyPendingFor(pos);
-        }
-    }
+			_chunksMemoryUsage += chunk->getMemorySize();
+			// Insert into LRU as most-recent entry
+			touchLRU(pos);
+			++_chunksCount;
+			applyPendingFor(pos);
+		}
+	}
 
-    {
-        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-        auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
-        if (!inserted) it->second = chunk;
-        else ++_displayedCount;
-    }
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
+		if (!inserted) it->second = chunk;
+		else ++_displayedCount;
+	}
 
-    // Ensure a freshly created chunk becomes visible: build its mesh once
-    // and coalesce a display update. Skip if already meshed.
-    if (chunk && !chunk->isReady()) {
-        chunk->sendFacesToDisplay();
-        scheduleDisplayUpdate();
-    }
+	// Ensure a freshly created chunk becomes visible: build its mesh once
+	// and coalesce a display update. Skip if already meshed.
+	if (chunk && !chunk->isReady()) {
+		chunk->sendFacesToDisplay();
+		scheduleDisplayUpdate();
+	}
 
-    // Enforce chunk count budget after any load
-    enforceCountBudget();
+	// Enforce chunk count budget after any load
+	enforceCountBudget();
 	// unloadChunk();
 	return chunk;
 }
@@ -399,21 +399,21 @@ void ChunkLoader::unloadChunks(ivec2 &newCamChunk)
 				toErase.push_back(kv.first);
 			}
 		}
-        for (const auto& key : toErase)
-        {
-            if (!getIsRunning())
-                break ;
-            auto it2 = _displayedChunks.find(key);
-            if (it2 != _displayedChunks.end()) {
-                _displayedChunks.erase(it2);
-                --_displayedCount;
-            }
+		for (const auto& key : toErase)
+		{
+			if (!getIsRunning())
+				break ;
+			auto it2 = _displayedChunks.find(key);
+			if (it2 != _displayedChunks.end()) {
+				_displayedChunks.erase(it2);
+				--_displayedCount;
+			}
 
-        }
-    }
-    updateFillData();
-    // After display set shrinks, re-check cache pressure
-    enforceCountBudget();
+		}
+	}
+	updateFillData();
+	// After display set shrinks, re-check cache pressure
+	enforceCountBudget();
 }
 
 // Check if player moved
@@ -545,14 +545,14 @@ void ChunkLoader::markChunkDirty(const ivec2& pos) {
 
 // Shared data getters
 Chunk *ChunkLoader::getChunk(const ivec2& pos) {
-    Chunk* c = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(_chunksMutex);
-        auto it = _chunks.find(pos);
-        if (it != _chunks.end()) c = it->second;
-    }
-    if (c) touchLRU(pos);
-    return c;
+	Chunk* c = nullptr;
+	{
+		std::lock_guard<std::mutex> lock(_chunksMutex);
+		auto it = _chunks.find(pos);
+		if (it != _chunks.end()) c = it->second;
+	}
+	if (c) touchLRU(pos);
+	return c;
 }
 
 SubChunk* ChunkLoader::getSubChunk(ivec3 &position) {
@@ -579,23 +579,23 @@ BlockType ChunkLoader::getBlock(ivec2 chunkPos, ivec3 worldPos) {
 
 // Shared chunk setters
 bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer) {
-    auto chunk = getChunk(chunkPos);
-    if (!chunk) return false;
+	auto chunk = getChunk(chunkPos);
+	if (!chunk) return false;
 
-    const int subY = (int)std::floor((double)worldPos.y / (double)CHUNK_SIZE);
-    SubChunk* sc = chunk->getOrCreateSubChunk(subY, /*generate=*/false);
-    if (!sc) return false;
+	const int subY = (int)std::floor((double)worldPos.y / (double)CHUNK_SIZE);
+	SubChunk* sc = chunk->getOrCreateSubChunk(subY, /*generate=*/false);
+	if (!sc) return false;
 
 	const int lx = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 
-    sc->setBlock(lx, ly, lz, value);
+	sc->setBlock(lx, ly, lz, value);
 
-    // Only player actions count as modifications for eviction protection UI
-    if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
-    markChunkDirty(chunkPos);
-    return true;
+	// Only player actions count as modifications for eviction protection UI
+	if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
+	markChunkDirty(chunkPos);
+	return true;
 }
 
 void ChunkLoader::setViewProj(Frustum &f)
@@ -648,180 +648,180 @@ NoiseGenerator &ChunkLoader::getNoiseGenerator() { return _perlinGenerator; }
 
 void ChunkLoader::printSizes() const
 {
-    {
-        using namespace std::chrono;
-        steady_clock::time_point now;
-        now = steady_clock::now();
-        std::cout << "[-----------------------]" << std::endl;
-        std::cout << duration_cast<seconds>(now.time_since_epoch()).count() << std::endl;
-        std::cout << "PRINTING SIZES" << std::endl;
-        std::cout << "_solid " << _solidStagedDataQueue.size() << std::endl;
-        std::cout << "_transparentStagedDataQueue " <<  _transparentStagedDataQueue.size() << std::endl;
-        std::cout << "_chunkList " <<  _chunkList.size() << std::endl;
-        std::cout << "_chunks " <<  _chunks.size() << std::endl;
-        std::cout << "_displayedChunks " <<  _displayedChunks.size() << std::endl;
-        std::cout << "[-----------------------]" << std::endl;
-    }
+	{
+		using namespace std::chrono;
+		steady_clock::time_point now;
+		now = steady_clock::now();
+		std::cout << "[-----------------------]" << std::endl;
+		std::cout << duration_cast<seconds>(now.time_since_epoch()).count() << std::endl;
+		std::cout << "PRINTING SIZES" << std::endl;
+		std::cout << "_solid " << _solidStagedDataQueue.size() << std::endl;
+		std::cout << "_transparentStagedDataQueue " <<  _transparentStagedDataQueue.size() << std::endl;
+		std::cout << "_chunkList " <<  _chunkList.size() << std::endl;
+		std::cout << "_chunks " <<  _chunks.size() << std::endl;
+		std::cout << "_displayedChunks " <<  _displayedChunks.size() << std::endl;
+		std::cout << "[-----------------------]" << std::endl;
+	}
 }
 
 // Shared data getters
 void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
-    std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-    out.clear();
-    out.reserve(_displayedChunks.size());
-    for (const auto& kv : _displayedChunks) out.push_back(kv.first);
+	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+	out.clear();
+	out.reserve(_displayedChunks.size());
+	for (const auto& kv : _displayedChunks) out.push_back(kv.first);
 }
 
 bool ChunkLoader::hasRenderableChunks() {
-    std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-    for (const auto& kv : _displayedChunks) {
-        Chunk* c = kv.second;
-        if (!c) continue;
-        if (!c->isReady()) continue;
-        // Consider renderable if any indirect commands exist (solid or transparent)
-        if (!c->getIndirectData().empty() || !c->getTransparentIndirectData().empty())
-            return true;
-    }
-    return false;
+	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+	for (const auto& kv : _displayedChunks) {
+		Chunk* c = kv.second;
+		if (!c) continue;
+		if (!c->isReady()) continue;
+		// Consider renderable if any indirect commands exist (solid or transparent)
+		if (!c->getIndirectData().empty() || !c->getTransparentIndirectData().empty())
+			return true;
+	}
+	return false;
 }
 
 void ChunkLoader::scheduleDisplayUpdate() {
-    if (_buildingDisplay) return;
-    if (!getIsRunning()) return;
-    _threadPool.enqueue(&ChunkLoader::updateFillData, this);
+	if (_buildingDisplay) return;
+	if (!getIsRunning()) return;
+	_threadPool.enqueue(&ChunkLoader::updateFillData, this);
 }
 
 // --- LRU + eviction helpers ---
 void ChunkLoader::touchLRU(const ivec2& pos) {
-    std::lock_guard<std::mutex> lk(_chunksListMutex);
-    auto it = _lruIndex.find(pos);
-    if (it != _lruIndex.end()) {
-        // Move existing entry to back (most recent)
-        _chunkList.splice(_chunkList.end(), _chunkList, it->second);
-        it->second = std::prev(_chunkList.end());
-    } else {
-        _chunkList.emplace_back(pos);
-        _lruIndex[pos] = std::prev(_chunkList.end());
-    }
+	std::lock_guard<std::mutex> lk(_chunksListMutex);
+	auto it = _lruIndex.find(pos);
+	if (it != _lruIndex.end()) {
+		// Move existing entry to back (most recent)
+		_chunkList.splice(_chunkList.end(), _chunkList, it->second);
+		it->second = std::prev(_chunkList.end());
+	} else {
+		_chunkList.emplace_back(pos);
+		_lruIndex[pos] = std::prev(_chunkList.end());
+	}
 }
 
 void ChunkLoader::enforceCountBudget() {
-    // Dynamic budget: visible grid + slack + modified chunks (non-evictable)
-    int renderCells = _renderDistance * _renderDistance;
-    std::vector<std::pair<ivec2,int>> candidates; // pos, distance
-    candidates.reserve(_chunks.size());
+	// Dynamic budget: visible grid + slack + modified chunks (non-evictable)
+	int renderCells = _renderDistance * _renderDistance;
+	std::vector<std::pair<ivec2,int>> candidates; // pos, distance
+	candidates.reserve(_chunks.size());
 
-    ivec2 camChunk = _camera.getChunkPosition(CHUNK_SIZE);
+	ivec2 camChunk = _camera.getChunkPosition(CHUNK_SIZE);
 
-    // Snapshot displayed set for quick checks
-    std::unordered_set<ivec2, ivec2_hash> displayedSnapshot;
-    {
-        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-        displayedSnapshot.reserve(_displayedChunks.size() * 2);
-        for (auto &kv : _displayedChunks) displayedSnapshot.insert(kv.first);
-    }
+	// Snapshot displayed set for quick checks
+	std::unordered_set<ivec2, ivec2_hash> displayedSnapshot;
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		displayedSnapshot.reserve(_displayedChunks.size() * 2);
+		for (auto &kv : _displayedChunks) displayedSnapshot.insert(kv.first);
+	}
 
-    int modifiedCount = 0;
-    {
-        std::lock_guard<std::mutex> ck(_chunksMutex);
-        for (auto &kv : _chunks) {
-            Chunk* c = kv.second;
-            if (!c) continue;
-            if (c->getModified()) {
-                ++modifiedCount;
-                continue; // never evict modified
-            }
-            // Prefer to only evict non-displayed chunks
-            if (displayedSnapshot.find(kv.first) != displayedSnapshot.end())
-                continue;
-            // Chebyshev distance on chunk grid
-            int dx = std::abs(kv.first.x - camChunk.x);
-            int dz = std::abs(kv.first.y - camChunk.y);
-            int dist = std::max(dx, dz);
-            candidates.emplace_back(kv.first, dist);
-        }
-    }
+	int modifiedCount = 0;
+	{
+		std::lock_guard<std::mutex> ck(_chunksMutex);
+		for (auto &kv : _chunks) {
+			Chunk* c = kv.second;
+			if (!c) continue;
+			if (c->getModified()) {
+				++modifiedCount;
+				continue; // never evict modified
+			}
+			// Prefer to only evict non-displayed chunks
+			if (displayedSnapshot.find(kv.first) != displayedSnapshot.end())
+				continue;
+			// Chebyshev distance on chunk grid
+			int dx = std::abs(kv.first.x - camChunk.x);
+			int dz = std::abs(kv.first.y - camChunk.y);
+			int dist = std::max(dx, dz);
+			candidates.emplace_back(kv.first, dist);
+		}
+	}
 
-    const int requiredBudget = renderCells + _countBudget + modifiedCount;
-    if (_chunksCount <= requiredBudget) return;
+	const int requiredBudget = renderCells + _countBudget + modifiedCount;
+	if (_chunksCount <= requiredBudget) return;
 
-    // Evict farthest first
-    std::sort(candidates.begin(), candidates.end(), [](auto &a, auto &b){ return a.second > b.second; });
+	// Evict farthest first
+	std::sort(candidates.begin(), candidates.end(), [](auto &a, auto &b){ return a.second > b.second; });
 
-    for (auto &cand : candidates) {
-        if (_chunksCount <= requiredBudget) break;
-        evictChunkAt(cand.first);
-    }
+	for (auto &cand : candidates) {
+		if (_chunksCount <= requiredBudget) break;
+		evictChunkAt(cand.first);
+	}
 }
 
 bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
-    // Lookup the chunk
-    Chunk* chunk = nullptr;
-    {
-        std::lock_guard<std::mutex> ck(_chunksMutex);
-        auto itc = _chunks.find(candidate);
-        if (itc != _chunks.end()) chunk = itc->second;
-    }
-    if (!chunk) return false;
+	// Lookup the chunk
+	Chunk* chunk = nullptr;
+	{
+		std::lock_guard<std::mutex> ck(_chunksMutex);
+		auto itc = _chunks.find(candidate);
+		if (itc != _chunks.end()) chunk = itc->second;
+	}
+	if (!chunk) return false;
 
-    // Skip chunks being built or modified to avoid losing edits
-    if (chunk->isBuilding() || chunk->getModified()) return false;
+	// Skip chunks being built or modified to avoid losing edits
+	if (chunk->isBuilding() || chunk->getModified()) return false;
 
-    // Also skip if displayed
-    {
-        std::lock_guard<std::mutex> dk(_displayedChunksMutex);
-        if (_displayedChunks.find(candidate) != _displayedChunks.end())
-            return false;
-    }
+	// Also skip if displayed
+	{
+		std::lock_guard<std::mutex> dk(_displayedChunksMutex);
+		if (_displayedChunks.find(candidate) != _displayedChunks.end())
+			return false;
+	}
 
-    // Evict: remove from LRU, maps and free memory
-    {
-        std::lock_guard<std::mutex> lk(_chunksListMutex);
-        auto it = _lruIndex.find(candidate);
-        if (it != _lruIndex.end()) {
-            _chunkList.erase(it->second);
-            _lruIndex.erase(it);
-        }
-    }
+	// Evict: remove from LRU, maps and free memory
+	{
+		std::lock_guard<std::mutex> lk(_chunksListMutex);
+		auto it = _lruIndex.find(candidate);
+		if (it != _lruIndex.end()) {
+			_chunkList.erase(it->second);
+			_lruIndex.erase(it);
+		}
+	}
 
-    size_t freed = chunk->getMemorySize();
-    chunk->unloadNeighbors();
+	size_t freed = chunk->getMemorySize();
+	chunk->unloadNeighbors();
 
-    {
-        std::lock_guard<std::mutex> pk(_pendingMutex);
-        _pendingEdits.erase(candidate);
-    }
-    {
-        std::lock_guard<std::mutex> dk(_displayedChunksMutex);
-        auto it = _displayedChunks.find(candidate);
-        if (it != _displayedChunks.end()) {
-            _displayedChunks.erase(it);
-            --_displayedCount;
-        }
-    }
-    {
-        std::lock_guard<std::mutex> ck(_chunksMutex);
-        auto itc = _chunks.find(candidate);
-        if (itc != _chunks.end()) {
-            _chunks.erase(itc);
-            --_chunksCount;
-        }
-    }
+	{
+		std::lock_guard<std::mutex> pk(_pendingMutex);
+		_pendingEdits.erase(candidate);
+	}
+	{
+		std::lock_guard<std::mutex> dk(_displayedChunksMutex);
+		auto it = _displayedChunks.find(candidate);
+		if (it != _displayedChunks.end()) {
+			_displayedChunks.erase(it);
+			--_displayedCount;
+		}
+	}
+	{
+		std::lock_guard<std::mutex> ck(_chunksMutex);
+		auto itc = _chunks.find(candidate);
+		if (itc != _chunks.end()) {
+			_chunks.erase(itc);
+			--_chunksCount;
+		}
+	}
 
-    chunk->freeSubChunks();
-    delete chunk;
-    if (_chunksMemoryUsage >= freed)
-        _chunksMemoryUsage -= freed;
-    else
-        _chunksMemoryUsage = 0;
+	chunk->freeSubChunks();
+	delete chunk;
+	if (_chunksMemoryUsage >= freed)
+		_chunksMemoryUsage -= freed;
+	else
+		_chunksMemoryUsage = 0;
 
 #if SHOW_DEBUG
-    std::cout << "[ChunkCache] Evicted far chunk ("
-              << candidate.x << ", " << candidate.y << ")"
-              << ", freed ~" << freed << " bytes"
-              << ", cached=" << _chunksCount
-              << ", displayed=" << _displayedCount
-              << std::endl;
+	std::cout << "[ChunkCache] Evicted far chunk ("
+				<< candidate.x << ", " << candidate.y << ")"
+				<< ", freed ~" << freed << " bytes"
+				<< ", cached=" << _chunksCount
+				<< ", displayed=" << _displayedCount
+				<< std::endl;
 #endif
-    return true;
+	return true;
 }

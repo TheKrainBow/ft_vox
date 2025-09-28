@@ -65,19 +65,19 @@ int	*ChunkManager::getRenderDistancePtr() {
 }
 
 int	*ChunkManager::getCurrentRenderPtr() { 
-    return _chunkLoader.getCurrentRenderPtr();
+	return _chunkLoader.getCurrentRenderPtr();
 }
 
 int *ChunkManager::getCachedChunksCountPtr() {
-    return _chunkLoader.getCachedChunksCountPtr();
+	return _chunkLoader.getCachedChunksCountPtr();
 }
 
 int *ChunkManager::getDisplayedChunksCountPtr() {
-    return _chunkLoader.getDisplayedChunksCountPtr();
+	return _chunkLoader.getDisplayedChunksCountPtr();
 }
 
 int *ChunkManager::getModifiedChunksCountPtr() {
-    return _chunkLoader.getModifiedChunksCountPtr();
+	return _chunkLoader.getModifiedChunksCountPtr();
 }
 
 BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)
@@ -87,12 +87,12 @@ BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)
 
 void ChunkManager::getDisplayedChunksSnapshot(std::vector<ivec2>& out)
 {
-    _chunkLoader.getDisplayedChunksSnapshot(out);
+	_chunkLoader.getDisplayedChunksSnapshot(out);
 }
 
 bool ChunkManager::hasRenderableChunks()
 {
-    return _chunkLoader.hasRenderableChunks();
+	return _chunkLoader.hasRenderableChunks();
 }
 
 // Shared data setters
