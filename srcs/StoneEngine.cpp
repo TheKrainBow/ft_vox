@@ -944,9 +944,10 @@ void StoneEngine::activateRenderShader()
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
-	glFrontFace(GL_CCW);
+    glEnable(GL_CULL_FACE);
+    // Cull back faces so outward-facing terrain quads render
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 }
 
 
@@ -2287,6 +2288,9 @@ void StoneEngine::renderSolidObjects()
 	activateRenderShader();
 	_chunkMgr.updateDrawData();
 	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
+#if SHOW_DEBUG
+	std::cout << "[ENG] renderSolidObjects: after updateDrawData+setVP" << std::endl;
+#endif
 	// Provide previous-frame depth to enable conservative occlusion culling
 	// Skip when geometry just changed or the camera moved/zoomed a lot
 	// to avoid popping and flashes.
@@ -2320,6 +2324,9 @@ void StoneEngine::renderSolidObjects()
 		);
 	}
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
+#if SHOW_DEBUG
+	std::cout << "[ENG] drawnTriangles(solid)=" << drawnTriangles << std::endl;
+#endif
 	if (_occlDisableFrames > 0)
 		--_occlDisableFrames;
 }

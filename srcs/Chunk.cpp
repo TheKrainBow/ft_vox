@@ -299,6 +299,9 @@ void Chunk::sendFacesToDisplay()
 	_transparentVertexData.reserve(_transparentVertexData.size() + totalTrans);
 
 	// Second pass: emit draw commands and append streams (no extra copies)
+#if SHOW_DEBUG
+	std::cout << "[CHK] sendFacesToDisplay: subchunks=" << subs.size() << std::endl;
+#endif
 	for (SubChunk* sc : subs)
 	{
 		if (!sc) continue;
@@ -333,8 +336,13 @@ void Chunk::sendFacesToDisplay()
         _transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 
         // Discover and record any flower cells in this subchunk for the renderer
-        _chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
+		_chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
 	}
+#if SHOW_DEBUG
+	std::cout << "[CHK] built: solidVerts=" << _vertexData.size() << " solidCmds=" << _indirectBufferData.size()
+			  << " transpVerts=" << _transparentVertexData.size() << " transpCmds=" << _transparentIndirectBufferData.size()
+			  << " ssbo=" << _ssboData.size() << std::endl;
+#endif
 	_facesSent = true;
 }
 

@@ -744,9 +744,9 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 
 void SubChunk::sendFacesToDisplay()
 {
-	if (!_isFullyLoaded)
-		return ;
-	clearFaces();
+    if (!_isFullyLoaded)
+        return ;
+    clearFaces();
 
 	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
@@ -802,8 +802,12 @@ void SubChunk::sendFacesToDisplay()
 			}
 		}
 	}
-	processFaces(false);
-	processFaces(true);
+    processFaces(false);
+    processFaces(true);
+#if SHOW_DEBUG
+    std::cout << "[SUB] sendFacesToDisplay @(" << _position.x << "," << _position.y << "," << _position.z
+              << ") solidVerts=" << _vertexData.size() << " transpVerts=" << _transparentVertexData.size() << std::endl;
+#endif
 }
 
 void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)

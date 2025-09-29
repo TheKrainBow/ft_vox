@@ -78,6 +78,13 @@ void ChunkRenderer::updateDrawData()
 {
 	std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
 
+#if SHOW_DEBUG
+	{
+		std::cout << "[REN] updateDrawData(): queued solid=" << _solidStagedDataQueue.size()
+				  << " transp=" << _transparentStagedDataQueue.size() << std::endl;
+	}
+#endif
+
 	// queues: keep only the newest staged data to minimize uploads
 	while (_solidStagedDataQueue.size() > 1)
 	{
@@ -99,6 +106,14 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_solidStagedDataQueue.pop();
 		_needUpdate = true;
+#if SHOW_DEBUG
+		if (_solidDrawData)
+		{
+			std::cout << "[REN] Solid swap: verts=" << _solidDrawData->vertexData.size()
+					  << " cmds=" << _solidDrawData->indirectBufferData.size()
+					  << " ssbo=" << _solidDrawData->ssboData.size() << std::endl;
+		}
+#endif
 	}
 	if (!_transparentStagedDataQueue.empty())
 	{
@@ -109,6 +124,13 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
+#if SHOW_DEBUG
+		if (_transparentDrawData)
+		{
+			std::cout << "[REN] Transp swap: verts=" << _transparentDrawData->vertexData.size()
+					  << " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
+		}
+#endif
 	}
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
@@ -133,6 +155,10 @@ void ChunkRenderer::updateDrawData()
 int ChunkRenderer::renderSolidBlocks()
 {
 	if (!_solidDrawData) return 0;
+#if SHOW_DEBUG
+	std::cout << "[REN] renderSolidBlocks: needUpdate=" << _needUpdate.load()
+			  << " solidDrawCount(before)=" << _solidDrawCount << std::endl;
+#endif
 	if (_needUpdate) { pushVerticesToOpenGL(false); }
 	if (_solidDrawCount == 0) {
 		// No fresh commands this frame. If we have a last good count, draw those
@@ -155,6 +181,12 @@ int ChunkRenderer::renderSolidBlocks()
 	}
 
 	runGpuCulling(false);
+#if SHOW_DEBUG
+	{
+		GLuint* mapped = (GLuint*)glMapNamedBufferRange(_solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+		if (mapped) { std::cout << "[REN] solid param after-cull=" << *mapped << std::endl; glUnmapNamedBuffer(_solidParamsBuf); }
+	}
+#endif
 
 	// Bind per-pass SSBOs (single-buffer path)
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
@@ -167,33 +199,38 @@ int ChunkRenderer::renderSolidBlocks()
 								   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
 								   sizeof(DrawArraysIndirectCommand));
 
-	// Safety fallback: if GPU culling produced zero draws OR we cannot read the
-	// parameter buffer (no read mapping available), draw last good count instead
-	// of all commands to avoid flashing.
+    // Safety fallback: if GPU culling produced zero draws OR we cannot read the
+    // parameter buffer (no read mapping available), draw a conservative count
+    // so we never end up with an empty frame.
 	{
-		bool needFallback = false;
-		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
-			_solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
-		if (mapped) {
-			GLuint dc = *mapped;
-			glUnmapNamedBuffer(_solidParamsBuf);
-			needFallback = (dc == 0u);
-			if (!needFallback) {
-				_lastGoodSolidCount = (GLsizei)dc;
-			}
-		} else {
-			// If mapping failed (driver/flags), prefer drawing rather than showing nothing.
-			needFallback = true;
-		}
-		if (needFallback) {
-			if (_lastGoodSolidCount > 0) {
-				glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-				glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _lastGoodSolidCount,
-											sizeof(DrawArraysIndirectCommand));
-				glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
-			}
-		}
-	}
+        bool needFallback = false;
+        bool zeroCount    = false;
+        GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+            _solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+        if (mapped) {
+            GLuint dc = *mapped;
+            glUnmapNamedBuffer(_solidParamsBuf);
+            zeroCount = (dc == 0u);
+            if (!zeroCount) {
+                _lastGoodSolidCount = (GLsizei)dc;
+            } else {
+                needFallback = true;
+            }
+        } else {
+            // If mapping failed (driver/flags), prefer drawing rather than showing nothing.
+            needFallback = true;
+        }
+        if (needFallback) {
+            GLsizei count = _lastGoodSolidCount > 0 ? _lastGoodSolidCount : _solidDrawCount;
+            if (count > 0) {
+                glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+                glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, count,
+                                           sizeof(DrawArraysIndirectCommand));
+                glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+                if (_lastGoodSolidCount == 0) _lastGoodSolidCount = count;
+            }
+        }
+    }
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
@@ -235,6 +272,10 @@ int ChunkRenderer::renderSolidBlocks()
 int ChunkRenderer::renderTransparentBlocks()
 {
 	if (!_transparentDrawData) return 0;
+#if SHOW_DEBUG
+	std::cout << "[REN] renderTransparentBlocks: needUpdate=" << _needTransparentUpdate.load()
+			  << " transpDrawCount(before)=" << _transpDrawCount << std::endl;
+#endif
 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
 	if (_transpDrawCount == 0) {
 		if (_lastGoodTranspCount > 0) {
@@ -256,6 +297,12 @@ int ChunkRenderer::renderTransparentBlocks()
 	}
 
 	runGpuCulling(true);
+#if SHOW_DEBUG
+	{
+		GLuint* mapped = (GLuint*)glMapNamedBufferRange(_transpParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+		if (mapped) { std::cout << "[REN] transp param after-cull=" << *mapped << std::endl; glUnmapNamedBuffer(_transpParamsBuf); }
+	}
+#endif
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
@@ -267,30 +314,35 @@ int ChunkRenderer::renderTransparentBlocks()
 	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, nullptr, 0, _transpDrawCount,
 								   sizeof(DrawArraysIndirectCommand));
 
-	// Safety fallback identical to solid path, but avoid drawing all commands
+    // Safety fallback identical to solid path, but avoid drawing all commands
 	{
-		bool needFallback = false;
-		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
-			_transpParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
-		if (mapped) {
-			GLuint dc = *mapped;
-			glUnmapNamedBuffer(_transpParamsBuf);
-			needFallback = (dc == 0u);
-			if (!needFallback) {
-				_lastGoodTranspCount = (GLsizei)dc;
-			}
-		} else {
-			needFallback = true;
-		}
-		if (needFallback) {
-			if (_lastGoodTranspCount > 0) {
-				glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-				glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _lastGoodTranspCount,
-											sizeof(DrawArraysIndirectCommand));
-				glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
-			}
-		}
-	}
+        bool needFallback = false;
+        bool zeroCount    = false;
+        GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+            _transpParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+        if (mapped) {
+            GLuint dc = *mapped;
+            glUnmapNamedBuffer(_transpParamsBuf);
+            zeroCount = (dc == 0u);
+            if (!zeroCount) {
+                _lastGoodTranspCount = (GLsizei)dc;
+            } else {
+                needFallback = true;
+            }
+        } else {
+            needFallback = true;
+        }
+        if (needFallback) {
+            GLsizei count = _lastGoodTranspCount > 0 ? _lastGoodTranspCount : _transpDrawCount;
+            if (count > 0) {
+                glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+                glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, count,
+                                           sizeof(DrawArraysIndirectCommand));
+                glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
+                if (_lastGoodTranspCount == 0) _lastGoodTranspCount = count;
+            }
+        }
+    }
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
@@ -433,6 +485,9 @@ void ChunkRenderer::initGLBuffer()
 void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 {
 	std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
+#if SHOW_DEBUG
+	std::cout << "[REN] pushVerticesToOpenGL(" << (transparent?"T":"S") << ")" << std::endl;
+#endif
 	auto ensureCapacityOnly = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, GLenum usage)
 	{
 		if (cap < neededBytes)
@@ -465,6 +520,11 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+
+#if SHOW_DEBUG
+		std::cout << "[REN] T: cmds=" << nCmd << " insts=" << nInst << " ssbo(vec4)="
+				  << _solidDrawData->ssboData.size() << std::endl;
+#endif
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
@@ -499,6 +559,11 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+
+#if SHOW_DEBUG
+		std::cout << "[REN] S: cmds=" << nCmd << " insts=" << nInst << " ssbo(vec4)="
+				  << _solidDrawData->ssboData.size() << std::endl;
+#endif
 
 		// Ensure buffers exist
 		if (!_solidInstSSBO)  glCreateBuffers(1, &_solidInstSSBO);
