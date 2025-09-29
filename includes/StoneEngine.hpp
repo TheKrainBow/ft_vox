@@ -48,22 +48,16 @@ class StoneEngine {
 		GLuint sunVAO;
 		GLuint sunVBO;
 
-		// Shadow mapping (cascaded, halving resolution every 6 chunks)
+		// Shadow mapping (single shadow map)
 		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
-		static constexpr int MAX_CASCADES = 12; // 4096 -> 1 supports up to 12 halvings
-		int baseShadowMapSize = 4096;     // near-player resolution
-		int cascadeChunkStep  = 6;        // every 6 chunks, halve resolution
-		int cascadeCount      = 0;        // active cascades
-		std::vector<GLuint> shadowFBOs;   // FBOs per cascade
-		std::vector<GLuint> shadowMaps;   // depth textures per cascade
-		std::vector<int>    shadowMapSizes; // resolution per cascade
-		std::vector<glm::mat4> lightSpaceMatrices; // light view-proj per cascade
-		// Stable cascade center actually used to build shadow maps
+		GLuint shadowFBO = 0;
+		GLuint shadowMap = 0;
+		int shadowMapSize = 4096;
+		glm::mat4 lightSpaceMatrix{1.0f};
 		glm::vec3 _shadowCenter{0.0f, 0.0f, 0.0f};
-
-		// Cap for shadow render distance expressed in chunks (diameter-like, same unit
-		// as world render distance). Smaller value = fewer cascades, better perf, less flicker.
-		int _shadowMaxRenderChunks = 6; // default: ~24 chunk span
+		float _shadowTexelWorld = 0.0f;
+		float _shadowNear = 1.0f;
+		float _shadowFar  = 500.0f;
 
 		// Skybox
 		GLuint skyboxProgram = 0;
@@ -120,11 +114,9 @@ class StoneEngine {
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 		float _fov = 80.0f;
-		// Per-cascade shadow info for biasing
-		std::vector<float> _shadowTexelWorlds; // world units per texel per cascade
-		std::vector<float> _lightNears;
-		std::vector<float> _lightFars;
-		std::vector<float> _cascadeRadiiWorld; // coverage radius in world units per cascade
+		// Shadow biasing data
+		float _shadowBiasSlope = 0.5f;
+		float _shadowBiasConstant = 0.001f;
 
 		std::mutex		_isRunningMutex;
 		std::atomic_bool	_isRunning = false;
