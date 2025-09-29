@@ -1868,6 +1868,22 @@ void StoneEngine::renderPlanarReflection()
 	glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
 	glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
 
+	// 0) Skybox into planar FBO so reflections include sky
+	if (_hasSkybox && skyboxProgram != 0)
+	{
+		glUseProgram(skyboxProgram);
+		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
+		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
+		glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);
+		GLboolean cullSkyEnabled = glIsEnabled(GL_CULL_FACE);
+		glDisable(GL_CULL_FACE);
+		_skybox.render();
+		if (cullSkyEnabled)
+			glEnable(GL_CULL_FACE);
+	}
+
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
