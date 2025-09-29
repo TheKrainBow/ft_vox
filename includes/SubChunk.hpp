@@ -6,6 +6,7 @@
 #include "define.hpp"
 #include "Chrono.hpp"
 #include "ChunkLoader.hpp"
+#include <cstdint>
 
 class Chunk;
 class CaveGenerator;
@@ -30,6 +31,11 @@ class SubChunk
 		double						**_heightMap;
 		Biome						**_biomeMap;
 		double						**_treeMap;
+		double						**_grassMap;
+		double						**_flowerMask;
+		double						**_flowerR;
+		double						**_flowerY;
+		double						**_flowerB;
 		ChunkLoader					&_chunkLoader;
 		Chunk						&_chunk;
 

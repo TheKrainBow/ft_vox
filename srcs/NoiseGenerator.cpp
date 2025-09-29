@@ -350,6 +350,9 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 
 	map->resolution = newResolution;
 	_perlinMaps[map->position] = map;
+    // Rebuild downsampled plant maps for this resolution
+    buildTreeMap(map, newResolution);
+    buildPlantMaps(map, newResolution);
 }
 
 
@@ -380,7 +383,8 @@ PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 				map->lowest = map->heightMap[index];
 		}
 	}
-	buildTreeMap(map, resolution);
+    buildTreeMap(map, resolution);
+    buildPlantMaps(map, resolution);
 	_perlinMaps[pos] = map;
 	return (map);
 }
@@ -512,4 +516,96 @@ void NoiseGenerator::buildTreeMap(PerlinMap* map, int resolution)
 							map->position.y * map->size + z };
 		map->treeMap[z * map->size + x] = getTreeProbability(worldXZ);
 	}
+}
+
+double NoiseGenerator::getGrassNoise(ivec2 pos)
+{
+    NoiseData nData = {
+        1.0,    // amplitude
+        0.02,   // frequency: fairly high for fine distribution
+        0.6,    // persistence
+        2.0,    // lacunarity
+        4       // octaves
+    };
+    setNoiseData(nData);
+    double n = noise(pos.x, pos.y);
+    setNoiseData(NoiseData());
+    return n;
+}
+
+double NoiseGenerator::getFlowerBaseNoise(ivec2 pos)
+{
+    NoiseData nData = {
+        1.0,
+        0.004,  // low frequency -> larger flower regions
+        0.5,
+        2.0,
+        4
+    };
+    setNoiseData(nData);
+    double n = noise(pos.x, pos.y);
+    setNoiseData(NoiseData());
+    return n;
+}
+
+double NoiseGenerator::getFlowerClusterNoise(ivec2 pos, int channel)
+{
+    // Different offsets to decorrelate channels
+    ivec2 p = pos;
+    if (channel == 0) p += ivec2(15731, 789221);
+    else if (channel == 1) p += ivec2(12497, 28341);
+    else p += ivec2(95121, 6427);
+    NoiseData nData = {
+        1.0,
+        0.006,  // cluster scale
+        0.5,
+        2.0,
+        3
+    };
+    setNoiseData(nData);
+    double n = noise(p.x, p.y);
+    setNoiseData(NoiseData());
+    return n;
+}
+
+void NoiseGenerator::buildPlantMaps(PerlinMap* map, int resolution)
+{
+    if (!map) return;
+    int size = map->size;
+    if (!map->grassMap)   map->grassMap   = new double[size * size];
+    if (!map->flowerMask) map->flowerMask = new double[size * size];
+    if (!map->flowerR)    map->flowerR    = new double[size * size];
+    if (!map->flowerY)    map->flowerY    = new double[size * size];
+    if (!map->flowerB)    map->flowerB    = new double[size * size];
+
+    for (int x = 0; x < size; x += resolution)
+    for (int z = 0; z < size; z += resolution)
+    {
+        ivec2 worldXZ = { map->position.x * size + x,
+                          map->position.y * size + z };
+        // Normalize noises to [0,1]
+        double g  = 0.5 * (getGrassNoise(worldXZ) + 1.0);
+        double fb = 0.5 * (getFlowerBaseNoise(worldXZ) + 1.0);
+        double r  = 0.5 * (getFlowerClusterNoise(worldXZ, 0) + 1.0);
+        double y  = 0.5 * (getFlowerClusterNoise(worldXZ, 1) + 1.0);
+        double b  = 0.5 * (getFlowerClusterNoise(worldXZ, 2) + 1.0);
+
+        map->grassMap[z * size + x]   = g;
+        map->flowerMask[z * size + x] = fb;
+        map->flowerR[z * size + x]    = r;
+        map->flowerY[z * size + x]    = y;
+        map->flowerB[z * size + x]    = b;
+		// Stamp into the local resolution x resolution block
+		int xmax = std::min(x + resolution, size);
+		int zmax = std::min(z + resolution, size);
+		for (int xi = x; xi < xmax; ++xi)
+		for (int zi = z; zi < zmax; ++zi) {
+			int idx = zi * size + xi;
+			map->grassMap[idx]   = g;
+			map->flowerMask[idx] = fb;
+			map->flowerR[idx]    = r;
+			map->flowerY[idx]    = y;
+			map->flowerB[idx]    = b;
+		}
+    }
 }

@@ -64,6 +64,9 @@ class StoneEngine {
 		GLsizei flowerInstanceCount = 0;
 		int flowerLayerCount = 0;
 		int flowerShortGrassLayer = -1; // texture array layer for short_grass, if present
+		int _layerPoppy = -1;
+		int _layerDandelion = -1;
+		int _layerCyan = -1;
 		struct FlowerInstance { glm::vec3 pos; float rot; float scale; float heightScale; int typeId; };
 		// Plants stored per chunk/subchunk for visibility lifetime
 		std::unordered_map<glm::ivec2, std::unordered_map<int, std::vector<FlowerInstance>>, ivec2_hash> _flowersBySub;

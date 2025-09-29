@@ -57,7 +57,7 @@ float mapExpo(float x, float in_min, float in_max, float out_min, float out_max)
 bool isTransparent(char block)
 {
     return block == AIR || block == WATER || block == LOG
-        || block == FLOWER_A || block == FLOWER_B || block == FLOWER_C;
+        || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS;
 }
 
 // Display logs only if sides
@@ -1009,10 +1009,15 @@ void StoneEngine::initFlowerResources()
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         flowerLayerCount = nfiles;
-        // Record short grass layer index if present in 'files'
+        // Record layer indices by filename (robust to missing files)
         flowerShortGrassLayer = -1;
+        _layerPoppy = _layerDandelion = _layerCyan = -1;
         for (int i = 0; i < nfiles; ++i) {
-            if (files[i].find("short_grass.png") != std::string::npos) { flowerShortGrassLayer = i; break; }
+            const std::string &nm = files[i];
+            if (nm.find("short_grass")   != std::string::npos) flowerShortGrassLayer = i;
+            else if (nm.find("poppy")     != std::string::npos) _layerPoppy = i;
+            else if (nm.find("dandelion") != std::string::npos) _layerDandelion = i;
+            else if (nm.find("cyan_flower") != std::string::npos) _layerCyan = i;
         }
     } else {
         std::cerr << "Failed to load flower texture array" << std::endl;
@@ -1039,10 +1044,11 @@ void StoneEngine::rebuildVisibleFlowersVBO()
                 const int subY        = std::get<1>(t);
                 const glm::ivec3 cell = std::get<2>(t);
                 const BlockType bt    = std::get<3>(t);
-                int typeId = 0;
-                if (bt == FLOWER_A) typeId = 0;
-                else if (bt == FLOWER_B) typeId = 1;
-                else /* FLOWER_C or other */ typeId = 2;
+                int typeId = (_layerPoppy >= 0) ? _layerPoppy : 0;
+                if (bt == FLOWER_POPPY && _layerPoppy >= 0) typeId = _layerPoppy;
+                else if (bt == FLOWER_DANDELION && _layerDandelion >= 0) typeId = _layerDandelion;
+                else if (bt == FLOWER_CYAN && _layerCyan >= 0) typeId = _layerCyan;
+                else if (bt == FLOWER_SHORT_GRASS && flowerShortGrassLayer >= 0) typeId = flowerShortGrassLayer;
                 glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
                 // Insert into our per-subchunk container (keep grouping for culling)
                 FlowerInstance inst{center, rotD(rng), scaD(rng), 1.0f, typeId};
@@ -1936,7 +1942,7 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 	BlockType blockFeet  = _chunkMgr.getBlock(chunkPos, worldPosFeet);
 	BlockType blockTorso  = _chunkMgr.getBlock(chunkPos, worldPosTorso);
     auto passable = [](BlockType b){
-        return (b == AIR || b == WATER || b == FLOWER_A || b == FLOWER_B || b == FLOWER_C);
+        return (b == AIR || b == WATER || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS);
     };
     return (passable(blockFeet) && passable(blockTorso));
 }
@@ -2239,7 +2245,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
         if (deleted) {
             // Disable occlusion briefly to prevent one-frame pop after edit
             _occlDisableFrames = std::max(_occlDisableFrames, 2);
-            if (toDelete == FLOWER_A || toDelete == FLOWER_B || toDelete == FLOWER_C) {
+            if (toDelete == FLOWER_POPPY || toDelete == FLOWER_DANDELION || toDelete == FLOWER_CYAN || toDelete == FLOWER_SHORT_GRASS) {
                 removeFlowerAtCell(peek);
             }
         }
@@ -2257,9 +2263,10 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
             _occlDisableFrames = std::max(_occlDisableFrames, 2);
             // If placing a flower, spawn a render instance too
             int typeId = -1;
-            if (selectedBlock == FLOWER_A) typeId = 0;
-            else if (selectedBlock == FLOWER_B) typeId = 1;
-            else if (selectedBlock == FLOWER_C) typeId = 2;
+            if (selectedBlock == FLOWER_POPPY)      typeId = (_layerPoppy >= 0) ? _layerPoppy : 0;
+            else if (selectedBlock == FLOWER_DANDELION) typeId = (_layerDandelion >= 0) ? _layerDandelion : 0;
+            else if (selectedBlock == FLOWER_CYAN)       typeId = (_layerCyan >= 0) ? _layerCyan : 0;
+            else if (selectedBlock == FLOWER_SHORT_GRASS) typeId = (flowerShortGrassLayer >= 0) ? flowerShortGrassLayer : 0;
             if (typeId >= 0) {
                 static std::mt19937 rng{std::random_device{}()};
                 std::uniform_real_distribution<float> rotD(-0.26f, 0.26f);
@@ -2286,9 +2293,9 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		blockFound = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, hit);
 
 		// Guard from selecting any type of blocks
-		if (blockFound != BEDROCK && blockFound != AIR)
-		{
-			selectedBlock = blockFound;
+        if (blockFound != BEDROCK && blockFound != AIR)
+        {
+            selectedBlock = blockFound;
 
 			// For debug textbox
 			for (size_t i = 0; i < NB_BLOCKS; i++)
@@ -2356,7 +2363,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
             // Place block in voxel grid so it becomes pickable/deletable
             glm::vec3 origin = camera.getWorldPosition();
             glm::vec3 dir    = camera.getDirection();
-            _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, FLOWER_C, placed);
+            _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, FLOWER_POPPY, placed);
             glm::vec3 placePos = glm::vec3(placed.x + 0.5f, placed.y + 0.0f, placed.z + 0.5f);
             // Small random rotation jitter (~±15 degrees) and scale jitter
             static std::mt19937 rng{std::random_device{}()};
