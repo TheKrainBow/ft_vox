@@ -75,11 +75,15 @@ const float ALPHA_FAR_DIST      = 50.0;
 // ============================================================================
 in vec3 FragPos;
 in vec3 Normal; // face normal from geometry (world space)
+in vec2 TexCoord;
+flat in int TextureID;
 
 uniform sampler2D screenTexture;
+uniform sampler2DArray textureArray;
 uniform sampler2D normalMap;
 
 uniform vec3  viewPos;
+uniform vec3  lightColor;
 uniform float time;
 uniform mat4  view;         // rotation-only (unchanged)
 uniform mat4  viewOpaque;
@@ -209,7 +213,44 @@ vec3 samplePlanarBlur(vec2 uv) {               // very small 5-tap blur
 // ============================================================================
 // Main
 // ============================================================================
+// Sun helper reused for simple leaf lighting (time used as day time)
+vec3 computeSunPosition(float t, vec3 camPos) {
+    const float pi = 3.14159265359;
+    const float radius = 6000.0;
+    const float dayStart = 42000.0;
+    const float dayLen   = 86400.0 - dayStart;
+    const float nightLen = dayStart;
+    float angle;
+    if (t < dayStart) { float phase = clamp(t / nightLen, 0.0, 1.0); angle = pi + phase * pi; }
+    else { float phase = clamp((t - dayStart) / dayLen, 0.0, 1.0); angle = phase * pi; }
+    return camPos + vec3(radius * cos(angle), radius * sin(angle), 0.0);
+}
+
 void main() {
+    // Non-water transparent surfaces (e.g., leaves) rendered with terrain atlas
+    if (TextureID != 6) {
+        vec4 tex = texture(textureArray, vec3(TexCoord, TextureID));
+        // Masked alpha: discard fully/mostly transparent texels so depth works
+        if (tex.a < 0.5) discard;
+        vec3 sunPos = computeSunPosition(time, viewPos);
+        vec3 L = normalize(sunPos - FragPos);
+        vec3 N = normalize(Normal);
+        // Terrain-like lighting mix
+        float diffuse = max(dot(N, L), 0.0);
+        // Day progression for diffuse scale (match terrain.frag conceptually)
+        const float pi = 3.14159265359;
+        const float dayStart = 42000.0;
+        const float dayLen   = 86400.0 - dayStart;
+        float dayPhase = clamp((time - dayStart) / dayLen, 0.0, 1.0);
+        float sun = sin(dayPhase * pi);
+        sun = smoothstep(0.0, 0.15, sun);
+        float ambient = mix(0.10, 0.35, sun); // darker nights, brighter days
+        float finalDiffuse = diffuse * 0.9 * (0.2 * sun);
+        float totalLight = clamp(ambient * 0.6 + finalDiffuse + 0.1, 0.0, 1.0);
+        vec3 color = tex.rgb * lightColor * totalLight;
+        FragColor = vec4(color, 1.0);
+        return;
+    }
 	// Debug/wireframe mode: bright, saturated blue for clear visibility
 	if (showtrianglemesh) {
 		FragColor = vec4(DEBUG_WIREFRAME_BLUE, 1.0);

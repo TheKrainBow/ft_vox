@@ -761,8 +761,16 @@ void SubChunk::sendFacesToDisplay()
 						addBlock(LOG, ivec3(x, y, z), T_LOG_TOP, T_LOG_TOP, T_LOG_SIDE, T_LOG_SIDE, T_LOG_SIDE, T_LOG_SIDE);
 						break;
 					case LEAF:
-						addBlock(LEAF, ivec3(x, y, z), T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF);
+						addBlock(LEAF, ivec3(x, y, z), T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, true);
 						break;
+						// Route leaves to transparent pass (masked alpha). Always add all 6 faces.
+						// addUpFace(   LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addDownFace( LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addNorthFace(LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addSouthFace(LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addWestFace( LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addEastFace( LEAF, ivec3(x, y, z), T_LEAF, true);
+						// break;
 					default :
 						break;
 				}

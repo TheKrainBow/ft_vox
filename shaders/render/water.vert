@@ -32,11 +32,12 @@ void main()
 	int lengthY   = (instanceData >> 23) & 0x1F;
 	int textureID = (instanceData >> 28) & 0x0F;
 
-	if (textureID != 6) {
-		gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
-		TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
-		return;
-	}
+    // Keep only WATER in this pass
+    if (textureID != 6) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
+        TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
+        return;
+    }
 
 	vec3 instancePos = vec3(x, y, z);
 	vec3 basePos = aPos;

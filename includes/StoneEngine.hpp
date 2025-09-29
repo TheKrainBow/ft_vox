@@ -55,6 +55,9 @@ class StoneEngine {
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
 
+		// Masked alpha pass (leaves)
+		GLuint alphaShaderProgram = 0;
+
 		// Flowers (cutout pass)
 		GLuint flowerProgram = 0;
 		GLuint flowerVAO = 0;
@@ -260,6 +263,7 @@ class StoneEngine {
 		void updateProcessMemoryUsage();
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
+		void activateAlphaShader();
 		void updateBiomeData();
 		void renderChunkGrid();
 		void swapPingPongBuffers();
