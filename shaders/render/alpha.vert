@@ -7,6 +7,7 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform vec3 cameraPos; // world-space camera position
+uniform float time;     // seconds, for subtle wind sway
 
 layout(std430, binding = 3) readonly buffer ssbo1 { vec4 ssbo[]; };
 layout(std430, binding = 4) readonly buffer instBuf { int inst[]; };
@@ -66,6 +67,19 @@ void main()
     vec3 blockCenter = ssboValue.xyz + instancePos + vec3(0.5 * res);
     worldPosition = blockCenter + (worldPosition - blockCenter) * LEAF_SCALE;
     finalUV *= vec2(lengthX, lengthY);
+
+    // Subtle wind sway (camera-relative world XZ)
+    // Desync with tiny hash per block instance
+    float hash = fract(dot(instancePos, vec3(0.1031, 0.11369, 0.13787)));
+    float wPhase = time * 1.2 + hash * 6.28318;
+    // Low-frequency global wind direction changes slowly with time
+    vec2 windDir = normalize(vec2(sin(0.27 * time), cos(0.23 * time)));
+    // Keep amplitude tiny and proportional to block size (res)
+    float amp = 0.035 * res; // ~1.2% of block size
+    // Slightly stronger sway higher in world Y (gives a gentle bend feel)
+    float heightMask = clamp((worldPosition.y - (ssboValue.y + instancePos.y)) / max(res, 0.0001), 0.0, 1.0);
+    vec3 swayOffset = vec3(windDir.x, 0.0, windDir.y) * (amp * sin(wPhase)) * (0.5 + 0.5 * heightMask);
+    worldPosition += swayOffset;
 
     // Camera-relative to avoid precision seams
     vec3 relPos = worldPosition - cameraPos;

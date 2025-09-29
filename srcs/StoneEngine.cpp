@@ -1909,6 +1909,7 @@ void StoneEngine::renderPlanarReflection()
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
 	glUniform3fv(glGetUniformLocation(alphaShaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
 	glUniform3fv(glGetUniformLocation(alphaShaderProgram, "lightColor"), 1, glm::value_ptr(glm::vec3(1.0f, 0.95f, 0.95f)));
+	glUniform1f(glGetUniformLocation(alphaShaderProgram, "time"), (float)glfwGetTime());
 	glUniform1i(glGetUniformLocation(alphaShaderProgram, "timeValue"), timeValue);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -2024,6 +2025,7 @@ void StoneEngine::renderTransparentObjects()
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
 		glUniform3fv(glGetUniformLocation(alphaShaderProgram, "cameraPos"), 1, value_ptr(viewPos));
 		glUniform3fv(glGetUniformLocation(alphaShaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+		glUniform1f(glGetUniformLocation(alphaShaderProgram, "time"), (float)glfwGetTime());
 		glUniform1i(glGetUniformLocation(alphaShaderProgram, "timeValue"), timeValue);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
