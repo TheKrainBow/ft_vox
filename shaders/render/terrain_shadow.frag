@@ -19,12 +19,12 @@ float bayer4x4(int x, int y)
 
 void main()
 {
-    // Alpha-tested shadow for leaves only (T_LEAF == 11)
-    if (TextureID == 11) {
-        float a = texture(textureArray, vec3(TexCoord, float(TextureID))).a;
-        // Ordered dithering of alpha → depth coverage
-        float threshold = bayer4x4(int(gl_FragCoord.x), int(gl_FragCoord.y));
-        if (a < threshold) discard;
-    }
+    // // Alpha-tested shadow for leaves only (T_LEAF == 11)
+    // if (TextureID == 11) {
+    //     float a = texture(textureArray, vec3(TexCoord, float(TextureID))).a;
+    //     // Ordered dithering of alpha → depth coverage
+    //     float threshold = bayer4x4(int(gl_FragCoord.x), int(gl_FragCoord.y));
+    //     if (a < threshold) discard;
+    // }
     // depth-only otherwise
 }
