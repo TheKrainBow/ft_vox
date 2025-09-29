@@ -35,6 +35,11 @@ class NoiseGenerator {
 		struct PerlinMap {
 			double *heightMap = nullptr;
 			double *treeMap = nullptr;
+			double *grassMap = nullptr;           // probability for short grass
+			double *flowerMask = nullptr;        // overall flower density mask
+			double *flowerR = nullptr;           // cluster weights per color
+			double *flowerY = nullptr;
+			double *flowerB = nullptr;
 			Biome *biomeMap = nullptr;
 			ivec2	position;
 			double	heighest = std::numeric_limits<double>::min();
@@ -45,6 +50,11 @@ class NoiseGenerator {
 				if (heightMap) { delete [] heightMap; heightMap = nullptr; }
 				if (biomeMap)  { delete [] biomeMap;  biomeMap  = nullptr; }
 				if (treeMap)   { delete [] treeMap;   treeMap   = nullptr; }
+				if (grassMap)  { delete [] grassMap;  grassMap  = nullptr; }
+				if (flowerMask){ delete [] flowerMask;flowerMask= nullptr; }
+				if (flowerR)   { delete [] flowerR;   flowerR   = nullptr; }
+				if (flowerY)   { delete [] flowerY;   flowerY   = nullptr; }
+				if (flowerB)   { delete [] flowerB;   flowerB   = nullptr; }
 			};
 		};
 	public:
@@ -79,6 +89,11 @@ class NoiseGenerator {
 		double getTreeNoise(ivec2 pos);
 		double getTreeProbability(ivec2 pos);
 		void   buildTreeMap(PerlinMap* map, int resolution);
+		// Plants/flowers maps
+		double getGrassNoise(ivec2 pos);
+		double getFlowerBaseNoise(ivec2 pos);
+		double getFlowerClusterNoise(ivec2 pos, int channel);
+		void   buildPlantMaps(PerlinMap* map, int resolution);
 
 		size_t _seed;
 		NoiseData _data;

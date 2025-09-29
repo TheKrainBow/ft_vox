@@ -1,18 +1,23 @@
 #include "SubChunk.hpp"
 
 SubChunk::SubChunk(ivec3 position,
-	PerlinMap *perlinMap,
-	CaveGenerator &caveGen,
-	Chunk &chunk,
-	ChunkLoader &chunkLoader,
-	int resolution)
+    PerlinMap *perlinMap,
+    CaveGenerator &caveGen,
+    Chunk &chunk,
+    ChunkLoader &chunkLoader,
+    int resolution)
 : _chunkLoader(chunkLoader), _chunk(chunk), _caveGen(caveGen)
 {
-	_position = position;
-	_resolution = resolution;
-	_heightMap = &perlinMap->heightMap;
-	_treeMap = &perlinMap->treeMap;
-	_biomeMap = &perlinMap->biomeMap;
+    _position = position;
+    _resolution = resolution;
+    _heightMap = &perlinMap->heightMap;
+    _treeMap = &perlinMap->treeMap;
+    _biomeMap = &perlinMap->biomeMap;
+    _grassMap = &perlinMap->grassMap;
+    _flowerMask = &perlinMap->flowerMask;
+    _flowerR = &perlinMap->flowerR;
+    _flowerY = &perlinMap->flowerY;
+    _flowerB = &perlinMap->flowerB;
 	_chunkSize = CHUNK_SIZE / resolution;
 	size_t size = _chunkSize * _chunkSize * _chunkSize;
 	_blocks = std::make_unique<uint8_t[]>(size);
@@ -150,14 +155,88 @@ void SubChunk::plantTree(int x, int y, int z, double /*proba*/) {
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
-	int y = ground - _position.y * CHUNK_SIZE;
+    // --- ground shaping ---
+    int y = ground - _position.y * CHUNK_SIZE;
 
-	if (getBlock({x, y, z}) != AIR)
-		setBlock(x, y, z, GRASS);
-	for (int i = 1; i <= 4; i++)
-		if (getBlock({x, y - (i * _resolution), z}) != AIR)
-			setBlock(x, y - (i * _resolution), z, DIRT);
+    for (int i = 1; i <= 4; i++)
+        if (getBlock({x, y - (i * _resolution), z}) != AIR)
+            setBlock(x, y - (i * _resolution), z, DIRT);
+
+    if (getBlock({x, y, z}) == AIR)
+		return ;
+	setBlock(x, y, z, GRASS);
+
+    // --- deterministic RNG helpers (stable across reloads) ---
+    auto splitmix64 = [](uint64_t v) {
+        v += 0x9e3779b97f4a7c15ULL;
+        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+        return v ^ (v >> 31);
+    };
+    auto hash2 = [&](int WX, int WZ, uint64_t salt){
+        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+        k ^= salt * 0x9e3779b97f4a7c15ULL;
+        return splitmix64(k);
+    };
+    auto rand01 = [&](int WX, int WZ, uint64_t salt){
+        // Convert 53 high bits to double in [0,1)
+        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+    };
+
+
+    // --- world coords (for persistent RNG) ---
+    const int WX = x + _position.x * CHUNK_SIZE;
+    const int WZ = z + _position.z * CHUNK_SIZE;
+
+    // --- sample maps (optional; guard for nullptrs) ---
+    int idx = z * CHUNK_SIZE + x;
+
+    double g  = 0.5; // fallback if maps missing
+    double f  = 0.0;
+    double rC = 0.33, yC = 0.33, bC = 0.34;
+
+    if (_grassMap && *_grassMap)           g  = (*_grassMap)[idx];
+    if (_flowerMask && *_flowerMask)       f  = (*_flowerMask)[idx];
+    if (_flowerR && *_flowerR)             rC = (*_flowerR)[idx];
+    if (_flowerY && *_flowerY)             yC = (*_flowerY)[idx];
+    if (_flowerB && *_flowerB)             bC = (*_flowerB)[idx];
+
+    // --- deterministic RNG draws ---
+    double j0 = rand01(WX, WZ, 1); // grass gate
+    double j1 = rand01(WX, WZ, 2); // flower gate in cluster
+    double j2 = rand01(WX, WZ, 3); // flower color pick
+
+    // --- biome weighting: make grass denser in plains/forest ---
+    double biomeGrass = 0.4; // default elsewhere
+
+	// Deterministic Bernoulli for grass (no Perlin patchiness),
+    // slightly modulated by g to add tiny variation.
+    double grassProb = biomeGrass + 0.2 * (g - 0.5);
+    if (grassProb < 0.0) grassProb = 0.0;
+    if (grassProb > 1.0) grassProb = 1.0;
+    bool spawnGrass = (j0 < grassProb);
+
+    // Flower clusters: loosen threshold + small gate inside cluster
+    bool inFlowerArea = (f > 0.4);
+    bool spawnFlower  = inFlowerArea && (j1 < 0.08); // ~8% inside clusters
+
+    // --- place plant above ground if air ---
+    if (getBlock({x, y+1, z}) != AIR)
+        return;
+
+    if (spawnFlower) {
+        // weighted color pick
+        double sum = rC + yC + bC + 1e-6;
+        double pr = rC / sum, py = yC / sum; // pb = rest
+        char ftype = (j2 < pr) ? FLOWER_POPPY
+                  : (j2 < pr + py) ? FLOWER_DANDELION
+                                   : FLOWER_CYAN;
+        setBlock(x, y + 1, z, ftype);
+    } else if (spawnGrass) {
+        setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+    }
 }
+
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -433,7 +512,7 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	}
 
 	// Otherwise, delegate to World using ABSOLUTE world coords
-	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block));
+	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block), /*byPlayer=*/false);
 	_chunkLoader.markChunkDirty(targetChunk);
 }
 
@@ -640,22 +719,22 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	// Prevent readers during rebuild
 	markLoaded(false);
 
-	int prevResolution = _resolution;
-	_heightMap = &perlinMap->heightMap;
-	_biomeMap  = &perlinMap->biomeMap;
-	_treeMap   = &perlinMap->treeMap;
+    int prevResolution = _resolution;
+    _heightMap = &perlinMap->heightMap;
+    _biomeMap  = &perlinMap->biomeMap;
+    _treeMap   = &perlinMap->treeMap;
 
-	// Prepare fresh storage for new LOD, then atomically publish shape + buffer
-	int newChunkSize = CHUNK_SIZE / std::max(1, resolution);
-	size_t newSize = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
-	std::unique_ptr<uint8_t[]> fresh(new uint8_t[newSize]()); // zero-initialize
-	{
-		std::lock_guard<std::mutex> lk(_dataMutex);
-		_resolution = std::max(1, resolution);
-		_chunkSize = newChunkSize;
-		_blocks.swap(fresh);
-		_memorySize = sizeof(*this) + newSize;
-	}
+    // Prepare fresh storage for new LOD, then atomically publish shape + buffer
+    int newChunkSize = CHUNK_SIZE / std::max(1, resolution);
+    size_t newSize = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
+    std::unique_ptr<uint8_t[]> fresh(new uint8_t[newSize]()); // zero-initialize
+    {
+        std::lock_guard<std::mutex> lk(_dataMutex);
+        _resolution = std::max(1, resolution);
+        _chunkSize = newChunkSize;
+        _blocks.swap(fresh);
+        _memorySize = sizeof(*this) + newSize;
+    }
 
 	// Rebuild content at the new resolution
 	loadHeight(prevResolution);
@@ -707,8 +786,16 @@ void SubChunk::sendFacesToDisplay()
 						addBlock(LOG, ivec3(x, y, z), T_LOG_TOP, T_LOG_TOP, T_LOG_SIDE, T_LOG_SIDE, T_LOG_SIDE, T_LOG_SIDE);
 						break;
 					case LEAF:
-						addBlock(LEAF, ivec3(x, y, z), T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF);
+						addBlock(LEAF, ivec3(x, y, z), T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, true);
 						break;
+						// Route leaves to transparent pass (masked alpha). Always add all 6 faces.
+						// addUpFace(   LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addDownFace( LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addNorthFace(LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addSouthFace(LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addWestFace( LEAF, ivec3(x, y, z), T_LEAF, true);
+						// addEastFace( LEAF, ivec3(x, y, z), T_LEAF, true);
+						// break;
 					default :
 						break;
 				}

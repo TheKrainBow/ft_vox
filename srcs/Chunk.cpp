@@ -90,11 +90,14 @@ TopBlock Chunk::getTopBlock(int localX, int localZ) {
 		if (it == _subChunks.end() || !it->second) continue;
 
 		SubChunk* sub = it->second;
-		for (int y = CHUNK_SIZE - 1; y >= 0; --y) {
-			uint8_t block = sub->getBlock({localX, y, localZ});
-			if (block != AIR && block != WATER)
-				return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
-		}
+    for (int y = CHUNK_SIZE - 1; y >= 0; --y) {
+        uint8_t block = sub->getBlock({localX, y, localZ});
+        // Treat decorative plants as non-solid for ground queries
+        if (block != AIR && block != WATER &&
+            block != FLOWER_POPPY && block != FLOWER_DANDELION &&
+            block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS)
+            return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
+    }
 	}
 	return {0, 0, {0.0, 0.0}};
 }
@@ -128,12 +131,15 @@ TopBlock Chunk::getFirstSolidBelow(int localX, int startLocalY, int localZ, int 
 		SubChunk* sub = it->second;
 		const int yStart = (subY == startSubY) ? startLocalY : (CHUNK_SIZE - 1);
 
-		for (int y = yStart; y >= 0; --y) {
-			const uint8_t block = sub->getBlock({localX, y, localZ});
-			if (block != AIR && block != WATER) {
-				return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
-			}
-		}
+        for (int y = yStart; y >= 0; --y) {
+            const uint8_t block = sub->getBlock({localX, y, localZ});
+            // Ignore decorative plants for collision/ground detection
+            if (block != AIR && block != WATER &&
+                block != FLOWER_POPPY && block != FLOWER_DANDELION &&
+                block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS) {
+                return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
+            }
+        }
 	}
 	return {0, 0, {0.0, 0.0}};
 }
@@ -322,9 +328,12 @@ void Chunk::sendFacesToDisplay()
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
 
-		// Append instance streams
-		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+        // Append instance streams
+        _vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+        _transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+
+        // Discover and record any flower cells in this subchunk for the renderer
+        _chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
 	}
 	_facesSent = true;
 }

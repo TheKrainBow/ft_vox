@@ -79,7 +79,11 @@ public:
 	size_t		*getMemorySizePtr();
 	int			*getRenderDistancePtr();
 	int			*getCurrentRenderPtr();
+	int			*getCachedChunksCountPtr();
+	int			*getDisplayedChunksCountPtr();
+	int			*getModifiedChunksCountPtr();
 	void		getDisplayedChunksSnapshot(std::vector<ivec2>& out);
+	bool		hasRenderableChunks();
 	BlockType	getBlock(ivec2 chunkPos, ivec3 worldPos);
 
 	// View projection setter for renderer
@@ -126,4 +130,13 @@ public:
 				const glm::vec3& dirWorld,
 				float maxDistance,
 				BlockType block);
+	bool raycastPlaceOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block,
+				glm::ivec3& outPlaced);
+
+	// Flowers
+	void fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out);
+	void getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out);
 };

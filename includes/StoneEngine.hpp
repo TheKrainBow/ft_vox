@@ -11,6 +11,7 @@
 #include "Raycaster.hpp"
 #include <cstddef>
 #include <vector>
+#include <string>
 
 class StoneEngine {
 	public:
@@ -72,6 +73,27 @@ class StoneEngine {
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
 
+		// Masked alpha pass (leaves)
+		GLuint alphaShaderProgram = 0;
+
+		// Flowers (cutout pass)
+		GLuint flowerProgram = 0;
+		GLuint flowerVAO = 0;
+		GLuint flowerVBO = 0;          // base X-quad mesh
+		GLuint flowerInstanceVBO = 0;  // per-instance data
+		GLuint flowerTexture = 0;      // 2D array of flower sprites
+		GLsizei flowerInstanceCount = 0;
+		int flowerLayerCount = 0;
+		int flowerShortGrassLayer = -1; // texture array layer for short_grass, if present
+		int _layerPoppy = -1;
+		int _layerDandelion = -1;
+		int _layerCyan = -1;
+		struct FlowerInstance { glm::vec3 pos; float rot; float scale; float heightScale; int typeId; };
+		// Plants stored per chunk/subchunk for visibility lifetime
+		std::unordered_map<glm::ivec2, std::unordered_map<int, std::vector<FlowerInstance>>, ivec2_hash> _flowersBySub;
+		// Rebuilt each frame for visible chunks
+		std::vector<FlowerInstance> _visibleFlowers;
+
 		std::map<ShaderType, PostProcessShader> postProcessShaders;
 		
 		FBODatas msaaFBO;
@@ -81,6 +103,17 @@ class StoneEngine {
 
 		int windowHeight;
 		int windowWidth;
+		bool _isFullscreen = true;
+		int  _windowedX = 100;
+		int  _windowedY = 100;
+		int  _windowedW = W_WIDTH;
+		int  _windowedH = W_HEIGHT;
+
+		// Loading screen
+		Textbox _loadingBox;
+		bool _loadingInit = false;
+		std::string _loadingText = "Loading...";
+		std::chrono::steady_clock::time_point _splashDeadline;
 		mat4 projectionMatrix;
 		mat4 viewMatrix;
 		TextureManager _textureManager;
@@ -102,6 +135,7 @@ class StoneEngine {
 		bool showTriangleMesh;
 		bool mouseCaptureToggle;
 		bool showDebugInfo;
+		bool showHelp;
 		bool showUI;
 		bool showLight;
 		bool gravity;
@@ -129,10 +163,11 @@ class StoneEngine {
 		double currentFrameTime;
 		double fps;
 
-		// Debug
+		// Debug / Overlays
 		Chrono chronoHelper;
 		int drawnTriangles;
 		Textbox debugBox;
+		Textbox helpBox;
 		size_t _processMemoryUsage = 0;
 	
 		// World gen
@@ -181,6 +216,19 @@ class StoneEngine {
 		glm::mat4 _prevProjOcc{1.0f};
 		glm::vec3 _prevCamOcc{0.0f};
 		bool      _prevOccValid = false;
+
+		// Help overlay dynamic status strings
+		std::string _hGravity;
+		std::string _hGeneration;
+		std::string _hSprinting;
+		std::string _hUI;
+		std::string _hLighting;
+		std::string _hMouseCapture;
+		std::string _hDebug;
+		std::string _hHelp;
+		std::string _hWireframe;
+		std::string _hFullscreen;
+		std::string _empty;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -210,15 +258,25 @@ class StoneEngine {
 		void	initRenderShaders();
 		void	initShadowMapping();
 		void	initSkybox();
+		void	initFlowerResources();
 		void	initDebugTextBox();
+		void	initHelpTextBox();
 		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
 		void	initFboShaders();
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
-		void   initWireframeResources();
-		void   renderAimHighlight();
+void   initWireframeResources();
+void   renderAimHighlight();
 		void   postProcessSkyboxComposite();
+		void   setFullscreen(bool enable);
+		void   renderLoadingScreen();
+		void   updateHelpStatusText();
+
+		// Debug/test helper to add an instance at runtime
+		void   addFlower(glm::vec3 pos, int typeId=0, float rotJitter=0.0f, float scale=1.0f, float heightScale=1.0f);
+		void   removeFlowerAtCell(const glm::ivec3& cell);
+		void   rebuildVisibleFlowersVBO();
 
 		// Runtime methods
 		void calculateFps();
@@ -228,6 +286,7 @@ class StoneEngine {
 		void finalizeFrame();
 		void renderTransparentObjects();
 		void renderSolidObjects();
+		void renderFlowers();
 		void resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth);
 		void prepareRenderPipeline();
 		void displaySun(FBODatas &targetFBO);
@@ -247,6 +306,7 @@ class StoneEngine {
 		void updateProcessMemoryUsage();
 		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
+		void activateAlphaShader();
 		void updateBiomeData();
 		void renderChunkGrid();
 		void swapPingPongBuffers();

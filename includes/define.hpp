@@ -1,11 +1,11 @@
 # pragma once
 # define SHOW_TRIANGLES false
 # define ENABLE_WORLD_GENERATION true
-# define SHOW_DEBUG true
+# define SHOW_DEBUG false
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
 # define CAPTURE_MOUSE true
-# define SHOW_LIGHTING false
+# define SHOW_LIGHTING true
 # define SHOW_UI true
 # define GRAVITY true
 # define FALLING false
@@ -19,7 +19,19 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
-# define RENDER_DISTANCE 31
+// Fixed window size when leaving fullscreen
+#ifndef WINDOWED_FIXED_W
+# define WINDOWED_FIXED_W 1280
+#endif
+#ifndef WINDOWED_FIXED_H
+# define WINDOWED_FIXED_H 800
+#endif
+
+// Minimum time (ms) to keep the loading splash visible after startup
+#ifndef LOADING_SPLASH_MS
+# define LOADING_SPLASH_MS 1500
+#endif
+# define RENDER_DISTANCE 15
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -27,6 +39,12 @@
 # define LOD_THRESHOLD 16
 # define ROTATION_SPEED 1.0f
 # define CACHE_SIZE NB_CHUNKS * 2
+#ifndef EXTRA_CACHE_CHUNKS
+// Number of chunks allowed in addition to the visible grid
+// (RenderDistance*RenderDistance). Eviction will try to keep the
+// farthest non-modified, non-displayed chunks pruned beyond this slack.
+# define EXTRA_CACHE_CHUNKS 1000
+#endif
 # define MOVEMENT_SPEED 0.5f
 # define FALL_INCREMENT 9.8f / 40.0f
 # define FALL_INCREMENT_WATER 9.8f / 1000.0f
@@ -75,21 +93,31 @@
 # define LOG 'l'
 # define LEAF 'L'
 
+// Decorative plant blocks (non-solid, cutout-rendered)
+# define FLOWER_POPPY        'f'
+# define FLOWER_DANDELION    'g'
+# define FLOWER_CYAN         'h'
+# define FLOWER_SHORT_GRASS  'i'
+
 // Update this number when adding new blocks (debug textbox importance)
-#define NB_BLOCKS 11
+#define NB_BLOCKS 15
 // AND the enum list (pls)
-enum block_types {
-	air,
-	stone,
-	cobble,
-	bedrock,
-	dirt,
-	grass,
-	sand,
-	water,
-	snow,
-	oak_log,
-	leaf
+	enum block_types {
+		air,
+		stone,
+		cobble,
+		bedrock,
+		dirt,
+		grass,
+		sand,
+		water,
+		snow,
+		oak_log,
+		leaf,
+		flower_poppy,
+		flower_dandelion,
+		flower_cyan,
+		flower_short_grass
 };
 struct block_correspondance
 {
@@ -108,5 +136,9 @@ const block_correspondance blockDebugTab[NB_BLOCKS] = {
 	{water, WATER},
 	{snow, SNOW},
 	{oak_log, LOG},	// ambiguous name so had to specify
-	{leaf, LEAF}
+	{leaf, LEAF},
+	{flower_poppy,       FLOWER_POPPY},
+	{flower_dandelion,   FLOWER_DANDELION},
+	{flower_cyan,        FLOWER_CYAN},
+	{flower_short_grass, FLOWER_SHORT_GRASS}
 };

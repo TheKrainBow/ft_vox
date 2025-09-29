@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
+#include <list>
 #include "Camera.hpp"
 #include "stb_truetype.hpp"
 #include "stb_image.h"
@@ -66,15 +67,16 @@ const direction_pair directionTab[8] = {
 
 class Textbox {
 public:
-	enum e_type {
-		DOUBLE,
-		INT,
-		FLOAT,
-		DIRECTION,
-		BIOME,
-		SIZE_T,
-		BLOCK
-	};
+		enum e_type {
+			DOUBLE,
+			INT,
+			FLOAT,
+			DIRECTION,
+			BIOME,
+			SIZE_T,
+			BLOCK,
+			STRING
+		};
 private:
 	struct Line {
 		std::string label;
@@ -90,6 +92,8 @@ private:
 	unsigned char bitmap[512 * 512 * 4];
 	GLuint fontTexture;
 	bool fontLoaded;
+	// Use list to keep pointers to stored strings stable
+	std::list<std::string> _ownedStrings;
 
 	void initializeFont(const std::string& fontPath, float fontSize);
 
@@ -97,6 +101,7 @@ public:
 	Textbox();
 	void loadFont(const std::string& fontPath, float fontSize);
 	void addLine(const std::string& label, e_type type, void* value);
+	void addStaticText(const std::string& text);
 	void render();
 	void initData(GLFWwindow* window, int x, int y, int width, int height);
 	~Textbox();

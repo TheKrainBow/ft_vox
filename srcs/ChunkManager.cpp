@@ -69,6 +69,18 @@ int	*ChunkManager::getCurrentRenderPtr() {
 	return _chunkLoader.getCurrentRenderPtr();
 }
 
+int *ChunkManager::getCachedChunksCountPtr() {
+	return _chunkLoader.getCachedChunksCountPtr();
+}
+
+int *ChunkManager::getDisplayedChunksCountPtr() {
+	return _chunkLoader.getDisplayedChunksCountPtr();
+}
+
+int *ChunkManager::getModifiedChunksCountPtr() {
+	return _chunkLoader.getModifiedChunksCountPtr();
+}
+
 BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)
 {
 	return _chunkLoader.getBlock(chunkPos, worldPos);
@@ -77,6 +89,11 @@ BlockType ChunkManager::getBlock(ivec2 chunkPos, ivec3 worldPos)
 void ChunkManager::getDisplayedChunksSnapshot(std::vector<ivec2>& out)
 {
 	_chunkLoader.getDisplayedChunksSnapshot(out);
+}
+
+bool ChunkManager::hasRenderableChunks()
+{
+	return _chunkLoader.hasRenderableChunks();
 }
 
 // Shared data setters
@@ -167,9 +184,28 @@ bool ChunkManager::raycastDeleteOne(const glm::vec3& originWorld,
 }
 
 bool ChunkManager::raycastPlaceOne(const glm::vec3& originWorld,
-				const glm::vec3& dirWorld,
-				float maxDistance,
-				BlockType block)
+                const glm::vec3& dirWorld,
+                float maxDistance,
+                BlockType block)
 {
-	return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block);
+    return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block);
+}
+
+bool ChunkManager::raycastPlaceOne(const glm::vec3& originWorld,
+                const glm::vec3& dirWorld,
+                float maxDistance,
+                BlockType block,
+                glm::ivec3& outPlaced)
+{
+    return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block, outPlaced);
+}
+
+void ChunkManager::fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out)
+{
+    _chunkLoader.fetchAndClearDiscoveredFlowers(out);
+}
+
+void ChunkManager::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out)
+{
+    _chunkLoader.getDisplayedSubchunksSnapshot(out);
 }
