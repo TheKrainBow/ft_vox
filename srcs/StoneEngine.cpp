@@ -533,8 +533,9 @@ void StoneEngine::initRenderShaders()
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	alphaShaderProgram = createShaderProgram("shaders/render/alpha.vert", "shaders/render/alpha.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
-	skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
-	shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
+    skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
+    shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
+    flowerShadowProgram = createShaderProgram("shaders/render/flower_shadow.vert", "shaders/render/flower_shadow.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
 	initSkybox();
@@ -1064,10 +1065,14 @@ void StoneEngine::renderShadowMap()
 	cachedCenter = center;
 	prevSunDir   = sunDir;
 
-	glUseProgram(shadowShaderProgram);
-	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_POLYGON_OFFSET_FILL);
+		glUseProgram(shadowShaderProgram);
+		glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+        // Bind terrain atlas for alpha-tested leaf shadows
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
+        glUniform1i(glGetUniformLocation(shadowShaderProgram, "textureArray"), 0);
 
 	// Shadow pass must NOT use previous-frame screen-space occlusion.
 	// Disable occlusion for GPU culling during the shadow map build.
@@ -1125,6 +1130,8 @@ void StoneEngine::renderShadowMap()
 			// Do not call updateDrawData() here: avoid data churn during shadow build
 			_chunkMgr.renderSolidBlocks();
 			// Draw transparent terrain (leaves) without recomputing culling to avoid buffer churn
+			// Disable polygon offset to avoid pushing thin quads out of the map
+			glDisable(GL_POLYGON_OFFSET_FILL);
 			_chunkMgr.renderTransparentBlocksNoCullForShadow();
 
 			// Cast shadows from flowers using cutout depth
@@ -1150,6 +1157,8 @@ void StoneEngine::renderShadowMap()
 					glUseProgram(shadowShaderProgram);
 				}
 			}
+			// Re-enable polygon offset for next cascade's solid pass
+			glEnable(GL_POLYGON_OFFSET_FILL);
 	}
 
 	// ---- 6) Restore state ----
