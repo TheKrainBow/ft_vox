@@ -1540,7 +1540,6 @@ void StoneEngine::rebuildVisibleFlowersVBO()
     _chunkMgr.getDisplayedChunksSnapshot(chunks);
     std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
     _chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
-    const bool haveSnapshot = !visibleSub.empty();
     _visibleFlowers.clear();
     for (const auto &c : chunks)
     {
@@ -1548,17 +1547,11 @@ void StoneEngine::rebuildVisibleFlowersVBO()
         if (it == _flowersBySub.end())
             continue;
         auto visIt = visibleSub.find(c);
-        // Fallback: if no snapshot yet for this chunk (or snapshot is empty), include all sublayers we have instances for
-        const bool useAll = (!haveSnapshot || visIt == visibleSub.end() || visIt->second.empty());
-        if (useAll)
-        {
-            for (auto &kv : it->second)
-            {
-                auto &vec = kv.second;
-                _visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
-            }
+        // Only render flowers for sublayers that are actually displayed.
+        // If there is no snapshot yet for this chunk, skip for now to avoid
+        // flowers appearing before terrain meshes.
+        if (visIt == visibleSub.end() || visIt->second.empty())
             continue;
-        }
         const auto &allowed = visIt->second;
         for (auto &kv : it->second)
         {
@@ -2725,9 +2718,9 @@ void StoneEngine::updateGameTick()
 	{
 		// Always daytime
 		glUseProgram(shaderProgram);
-		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 52000);
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
-		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 58500);
+		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 52000);
 	}
 	// Water tweaks stay here (land gravity moved to updateFalling())
 	if (swimming)

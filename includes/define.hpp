@@ -29,7 +29,7 @@
 
 // Minimum time (ms) to keep the loading splash visible after startup
 #ifndef LOADING_SPLASH_MS
-# define LOADING_SPLASH_MS 1500
+# define LOADING_SPLASH_MS 2000
 #endif
 # define RENDER_DISTANCE 15
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
