@@ -72,26 +72,24 @@ void ChunkLoader::initData()
 
 void ChunkLoader::initSpawn()
 {
-	// Load first chunk under the player, and pop their position on top of it
-	ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
-	vec3 worldPos  = _camera.getWorldPosition();
-	// Build a quick, coarse mesh first for immediate feedback, refined shortly after
-	Chunk* first = loadChunk(0, 0, 0, chunkPos, 8);
-	if (first) {
-		// Build faces immediately and push a synchronous display build so first frame has geometry
-		first->sendFacesToDisplay();
-		updateFillData();
-		// Schedule refinement to full resolution shortly after initial display
-		_threadPool.enqueue([this, chunkPos]() mutable {
-			ivec2 cp = chunkPos;
-			this->loadChunk(0, 0, 0, cp, RESOLUTION);
-			this->scheduleDisplayUpdate();
-		});
-	}
-	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-	const vec3 &camPos = _camera.getPosition();
+    // Load first chunk under the player, and pop their position on top of it
+    ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
+    vec3 worldPos  = _camera.getWorldPosition();
+    // Build the spawn chunk at full resolution so decorative plants
+    // (grass/flowers) are present immediately on first load.
+    // Using a coarse LOD here caused sparse or missing flora until
+    // the chunk was later reloaded/refined.
+    Chunk* first = loadChunk(0, 0, 0, chunkPos, RESOLUTION);
+    if (first) {
+        // Build faces immediately and push a synchronous display build so first frame has geometry
+        first->sendFacesToDisplay();
+        updateFillData();
+        // No refinement needed: we already loaded at full RESOLUTION.
+    }
+    TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+    const vec3 &camPos = _camera.getPosition();
 
-	// Place camera: feet on ground
+    // Place camera: feet on ground
 	_camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
 }
 
