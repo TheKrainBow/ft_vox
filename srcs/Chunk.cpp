@@ -333,7 +333,8 @@ void Chunk::sendFacesToDisplay()
         _transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 
         // Discover and record any flower cells in this subchunk for the renderer
-        _chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
+		if (_resolution == 1)
+        	_chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
 	}
 	_facesSent = true;
 }
