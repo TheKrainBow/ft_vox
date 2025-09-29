@@ -147,6 +147,11 @@ int ChunkManager::renderTransparentBlocks()
 	return _chunkRenderer.renderTransparentBlocks();
 }
 
+int ChunkManager::renderTransparentBlocksNoCullForShadow()
+{
+	return _chunkRenderer.renderTransparentBlocksNoCullForShadow();
+}
+
 // Collisions helper
 TopBlock ChunkManager::findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos)
 {

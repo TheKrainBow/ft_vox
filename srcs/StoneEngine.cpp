@@ -82,6 +82,25 @@ bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir
 	return ((isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && (dir <= EAST)));
 }
 
+static inline void glResetActiveTextureTo0()
+{
+    glActiveTexture(GL_TEXTURE0);
+}
+
+static inline void glUnbindCommonTextures()
+{
+    // Unbind the most common targets we touch
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+static inline void glCleanupTextureState()
+{
+    glResetActiveTextureTo0();
+    glUnbindCommonTextures();
+}
+
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
 {
 	float texelX = 1.0f / windowWidth;
@@ -670,6 +689,7 @@ void StoneEngine::displaySun(FBODatas &targetFBO)
 
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
@@ -945,9 +965,9 @@ void StoneEngine::activateRenderShader()
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
     glEnable(GL_CULL_FACE);
-    // Cull back faces so outward-facing terrain quads render
+    // Terrain winding is effectively flipped by our view construction; treat CW as front
+    glFrontFace(GL_CW);
     glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
 }
 
 
@@ -1096,14 +1116,40 @@ void StoneEngine::renderShadowMap()
 		float poBias  = 4.0f + 4.0f * tCascade; // 4..8
 		glPolygonOffset(poScale, poBias);
 
-		// Render depth for this cascade
-		glViewport(0, 0, shadowMapSizes[ci], shadowMapSizes[ci]);
-		glBindFramebuffer(GL_FRAMEBUFFER, shadowFBOs[ci]);
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrices[ci]));
-		_chunkMgr.setViewProj(lightView, lightProj);
-		// Do not call updateDrawData() here: avoid data churn during shadow build
-		_chunkMgr.renderSolidBlocks();
+			// Render depth for this cascade
+			glViewport(0, 0, shadowMapSizes[ci], shadowMapSizes[ci]);
+			glBindFramebuffer(GL_FRAMEBUFFER, shadowFBOs[ci]);
+			glClear(GL_DEPTH_BUFFER_BIT);
+			glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrices[ci]));
+			_chunkMgr.setViewProj(lightView, lightProj);
+			// Do not call updateDrawData() here: avoid data churn during shadow build
+			_chunkMgr.renderSolidBlocks();
+			// Draw transparent terrain (leaves) without recomputing culling to avoid buffer churn
+			_chunkMgr.renderTransparentBlocksNoCullForShadow();
+
+			// Cast shadows from flowers using cutout depth
+			if (flowerShadowProgram && flowerVAO)
+			{
+				rebuildVisibleFlowersVBO();
+				if (flowerInstanceCount > 0)
+				{
+					glUseProgram(flowerShadowProgram);
+					glUniformMatrix4fv(glGetUniformLocation(flowerShadowProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrices[ci]));
+					glActiveTexture(GL_TEXTURE3);
+					glBindTexture(GL_TEXTURE_2D_ARRAY, flowerTexture);
+					glUniform1i(glGetUniformLocation(flowerShadowProgram, "flowerTex"), 3);
+					glBindVertexArray(flowerVAO);
+					glDisable(GL_BLEND);
+					glEnable(GL_DEPTH_TEST);
+					glDepthMask(GL_TRUE);
+					glDisable(GL_CULL_FACE);
+					glDrawArraysInstanced(GL_TRIANGLES, 0, 12, flowerInstanceCount);
+					glBindVertexArray(0);
+					glActiveTexture(GL_TEXTURE0);
+					// Restore shadow terrain shader for next cascade
+					glUseProgram(shadowShaderProgram);
+				}
+			}
 	}
 
 	// ---- 6) Restore state ----
@@ -1744,6 +1790,7 @@ void StoneEngine::renderFlowers()
 	glEnable(GL_CULL_FACE);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	glCleanupTextureState();
 }
 
 void StoneEngine::addFlower(glm::vec3 pos, int typeId, float rotJitter, float scale, float heightScale)
@@ -1886,6 +1933,7 @@ void StoneEngine::display()
 	_prevProjOcc = projectionMatrix;
 	_prevCamOcc  = camera.getWorldPosition();
 	_prevOccValid = true;
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderLoadingScreen()
@@ -1955,6 +2003,7 @@ void StoneEngine::postProcessSkyboxComposite()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderAimHighlight()
@@ -2040,7 +2089,10 @@ void StoneEngine::postProcessCrosshair()
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glCleanupTextureState();
 }
+
 void StoneEngine::postProcessFog()
 {
 	if (showTriangleMesh)
@@ -2087,6 +2139,7 @@ void StoneEngine::postProcessFog()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::postProcessGreedyFix()
@@ -2116,6 +2169,7 @@ void StoneEngine::postProcessGreedyFix()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glDepthFunc(GL_LESS);
+	glCleanupTextureState();
 }
 
 void StoneEngine::postProcessGodRays()
@@ -2167,6 +2221,7 @@ void StoneEngine::postProcessGodRays()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderPlanarReflection()
@@ -2288,9 +2343,6 @@ void StoneEngine::renderSolidObjects()
 	activateRenderShader();
 	_chunkMgr.updateDrawData();
 	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
-#if SHOW_DEBUG
-	std::cout << "[ENG] renderSolidObjects: after updateDrawData+setVP" << std::endl;
-#endif
 	// Provide previous-frame depth to enable conservative occlusion culling
 	// Skip when geometry just changed or the camera moved/zoomed a lot
 	// to avoid popping and flashes.
@@ -2324,11 +2376,9 @@ void StoneEngine::renderSolidObjects()
 		);
 	}
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
-#if SHOW_DEBUG
-	std::cout << "[ENG] drawnTriangles(solid)=" << drawnTriangles << std::endl;
-#endif
 	if (_occlDisableFrames > 0)
 		--_occlDisableFrames;
+	glCleanupTextureState();
 }
 
 void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination)
@@ -2412,6 +2462,7 @@ void StoneEngine::renderTransparentObjects()
 	// 2) Water: blending ON, depth write OFF, culling enabled
 	activateTransparentShader();
 	drawnTriangles += _chunkMgr.renderTransparentBlocks();
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderSkybox()
@@ -2458,6 +2509,7 @@ void StoneEngine::renderSkybox()
 
 	if (cullEnabled)
 		glEnable(GL_CULL_FACE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderOverlayAndUI()

@@ -469,9 +469,6 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
     if (!getIsRunning())
         return ;
     std::vector<Chunk *> snapshot;
-    #if SHOW_DEBUG
-    std::cout << "[LOD] buildFacesToDisplay: displayedChunks=" << _displayedChunks.size() << std::endl;
-    #endif
 	{
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
 		snapshot.reserve(_displayedChunks.size());
@@ -520,11 +517,6 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 		}
         if (!ssbo.empty())
             fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
-        #if SHOW_DEBUG
-        std::cout << "[LOD] chunk snapshot: sVerts=" << sVerts.size()
-                  << " sCmds=" << sCmds.size() << " ssbo=" << ssbo.size()
-                  << " tVerts=" << tVerts.size() << " tCmds=" << tCmds.size() << std::endl;
-        #endif
 
         // Record which subY are being displayed for this chunk (into local map)
         if (!ssbo.empty()) {
@@ -853,15 +845,6 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 		_chunksMemoryUsage -= freed;
 	else
 		_chunksMemoryUsage = 0;
-
-#if SHOW_DEBUG
-	std::cout << "[ChunkCache] Evicted far chunk ("
-				<< candidate.x << ", " << candidate.y << ")"
-				<< ", freed ~" << freed << " bytes"
-				<< ", cached=" << _chunksCount
-				<< ", displayed=" << _displayedCount
-				<< std::endl;
-#endif
 	return true;
 }
 

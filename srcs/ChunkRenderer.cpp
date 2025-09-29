@@ -78,13 +78,6 @@ void ChunkRenderer::updateDrawData()
 {
 	std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
 
-#if SHOW_DEBUG
-	{
-		std::cout << "[REN] updateDrawData(): queued solid=" << _solidStagedDataQueue.size()
-				  << " transp=" << _transparentStagedDataQueue.size() << std::endl;
-	}
-#endif
-
 	// queues: keep only the newest staged data to minimize uploads
 	while (_solidStagedDataQueue.size() > 1)
 	{
@@ -106,14 +99,6 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_solidStagedDataQueue.pop();
 		_needUpdate = true;
-#if SHOW_DEBUG
-		if (_solidDrawData)
-		{
-			std::cout << "[REN] Solid swap: verts=" << _solidDrawData->vertexData.size()
-					  << " cmds=" << _solidDrawData->indirectBufferData.size()
-					  << " ssbo=" << _solidDrawData->ssboData.size() << std::endl;
-		}
-#endif
 	}
 	if (!_transparentStagedDataQueue.empty())
 	{
@@ -124,13 +109,6 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
-#if SHOW_DEBUG
-		if (_transparentDrawData)
-		{
-			std::cout << "[REN] Transp swap: verts=" << _transparentDrawData->vertexData.size()
-					  << " cmds=" << _transparentDrawData->indirectBufferData.size() << std::endl;
-		}
-#endif
 	}
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
@@ -155,10 +133,6 @@ void ChunkRenderer::updateDrawData()
 int ChunkRenderer::renderSolidBlocks()
 {
 	if (!_solidDrawData) return 0;
-#if SHOW_DEBUG
-	std::cout << "[REN] renderSolidBlocks: needUpdate=" << _needUpdate.load()
-			  << " solidDrawCount(before)=" << _solidDrawCount << std::endl;
-#endif
 	if (_needUpdate) { pushVerticesToOpenGL(false); }
 	if (_solidDrawCount == 0) {
 		// No fresh commands this frame. If we have a last good count, draw those
@@ -181,12 +155,6 @@ int ChunkRenderer::renderSolidBlocks()
 	}
 
 	runGpuCulling(false);
-#if SHOW_DEBUG
-	{
-		GLuint* mapped = (GLuint*)glMapNamedBufferRange(_solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
-		if (mapped) { std::cout << "[REN] solid param after-cull=" << *mapped << std::endl; glUnmapNamedBuffer(_solidParamsBuf); }
-	}
-#endif
 
 	// Bind per-pass SSBOs (single-buffer path)
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
@@ -272,10 +240,6 @@ int ChunkRenderer::renderSolidBlocks()
 int ChunkRenderer::renderTransparentBlocks()
 {
 	if (!_transparentDrawData) return 0;
-#if SHOW_DEBUG
-	std::cout << "[REN] renderTransparentBlocks: needUpdate=" << _needTransparentUpdate.load()
-			  << " transpDrawCount(before)=" << _transpDrawCount << std::endl;
-#endif
 	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
 	if (_transpDrawCount == 0) {
 		if (_lastGoodTranspCount > 0) {
@@ -297,12 +261,6 @@ int ChunkRenderer::renderTransparentBlocks()
 	}
 
 	runGpuCulling(true);
-#if SHOW_DEBUG
-	{
-		GLuint* mapped = (GLuint*)glMapNamedBufferRange(_transpParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
-		if (mapped) { std::cout << "[REN] transp param after-cull=" << *mapped << std::endl; glUnmapNamedBuffer(_transpParamsBuf); }
-	}
-#endif
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
@@ -358,6 +316,26 @@ int ChunkRenderer::renderTransparentBlocks()
 			std::vector<vec4>().swap(_solidDrawData->ssboData);
 		}
 	}
+	return (int)_transpDrawCount;
+}
+
+int ChunkRenderer::renderTransparentBlocksNoCullForShadow()
+{
+	if (!_transparentDrawData) return 0;
+	// Do not update/upload; assume previous frame uploaded buffers exist
+	if (_transpDrawCount == 0) return 0;
+
+	// Bind per-pass SSBOs: use SOURCE positions (binding=3) so no compute is required
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
+
+	glDisable(GL_CULL_FACE);
+	glBindVertexArray(_transparentVao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transpTemplIndirectBuffer);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount,
+							 sizeof(DrawArraysIndirectCommand));
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	glBindVertexArray(0);
 	return (int)_transpDrawCount;
 }
 
@@ -485,9 +463,6 @@ void ChunkRenderer::initGLBuffer()
 void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 {
 	std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
-#if SHOW_DEBUG
-	std::cout << "[REN] pushVerticesToOpenGL(" << (transparent?"T":"S") << ")" << std::endl;
-#endif
 	auto ensureCapacityOnly = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, GLenum usage)
 	{
 		if (cap < neededBytes)
@@ -520,11 +495,6 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
-
-#if SHOW_DEBUG
-		std::cout << "[REN] T: cmds=" << nCmd << " insts=" << nInst << " ssbo(vec4)="
-				  << _solidDrawData->ssboData.size() << std::endl;
-#endif
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
@@ -559,11 +529,6 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 		const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
 		const GLsizeiptr bytesInst = nInst * sizeof(int);
 		const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
-
-#if SHOW_DEBUG
-		std::cout << "[REN] S: cmds=" << nCmd << " insts=" << nInst << " ssbo(vec4)="
-				  << _solidDrawData->ssboData.size() << std::endl;
-#endif
 
 		// Ensure buffers exist
 		if (!_solidInstSSBO)  glCreateBuffers(1, &_solidInstSSBO);

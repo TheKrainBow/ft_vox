@@ -804,10 +804,6 @@ void SubChunk::sendFacesToDisplay()
 	}
     processFaces(false);
     processFaces(true);
-#if SHOW_DEBUG
-    std::cout << "[SUB] sendFacesToDisplay @(" << _position.x << "," << _position.y << "," << _position.z
-              << ") solidVerts=" << _vertexData.size() << " transpVerts=" << _transparentVertexData.size() << std::endl;
-#endif
 }
 
 void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)

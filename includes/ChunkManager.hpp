@@ -107,6 +107,7 @@ public:
 	// Mesh rendering methods
 	int renderSolidBlocks();
 	int renderTransparentBlocks();
+	int renderTransparentBlocksNoCullForShadow();
 
 	// Collisions helper
 	TopBlock findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);

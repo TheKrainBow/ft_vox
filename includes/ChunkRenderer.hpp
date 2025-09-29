@@ -124,6 +124,9 @@ public:
 	// Rendering methods
 	int renderSolidBlocks();
 	int renderTransparentBlocks();
+	// Shadow pass helper: draw transparent terrain (leaves) without GPU culling
+	// Uses template indirect commands and source SSBO (no compute compaction)
+	int renderTransparentBlocksNoCullForShadow();
 
 	// OpenGL setup for rendering
 	void initGLBuffer();
