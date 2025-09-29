@@ -1324,29 +1324,39 @@ void StoneEngine::rebuildVisibleFlowersVBO()
 			}
 		}
 	}
-	std::vector<glm::ivec2> chunks;
-	_chunkMgr.getDisplayedChunksSnapshot(chunks);
-	std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
-	_chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
-	_visibleFlowers.clear();
-	for (const auto &c : chunks)
-	{
-		auto it = _flowersBySub.find(c);
-		if (it == _flowersBySub.end())
-			continue;
-		auto visIt = visibleSub.find(c);
-		if (visIt == visibleSub.end())
-			continue;
-		const auto &allowed = visIt->second;
-		for (auto &kv : it->second)
-		{
-			int subY = kv.first;
-			if (allowed.find(subY) == allowed.end())
-				continue;
-			auto &vec = kv.second;
-			_visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
-		}
-	}
+    std::vector<glm::ivec2> chunks;
+    _chunkMgr.getDisplayedChunksSnapshot(chunks);
+    std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
+    _chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
+    const bool haveSnapshot = !visibleSub.empty();
+    _visibleFlowers.clear();
+    for (const auto &c : chunks)
+    {
+        auto it = _flowersBySub.find(c);
+        if (it == _flowersBySub.end())
+            continue;
+        auto visIt = visibleSub.find(c);
+        // Fallback: if no snapshot yet for this chunk (or snapshot is empty), include all sublayers we have instances for
+        const bool useAll = (!haveSnapshot || visIt == visibleSub.end() || visIt->second.empty());
+        if (useAll)
+        {
+            for (auto &kv : it->second)
+            {
+                auto &vec = kv.second;
+                _visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
+            }
+            continue;
+        }
+        const auto &allowed = visIt->second;
+        for (auto &kv : it->second)
+        {
+            int subY = kv.first;
+            if (allowed.find(subY) == allowed.end())
+                continue;
+            auto &vec = kv.second;
+            _visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
+        }
+    }
 	flowerInstanceCount = (GLsizei)_visibleFlowers.size();
 	std::vector<unsigned char> buffer;
 	buffer.resize(_visibleFlowers.size() * (sizeof(float) * 6 + sizeof(int)));

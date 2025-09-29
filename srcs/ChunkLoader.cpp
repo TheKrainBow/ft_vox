@@ -460,10 +460,10 @@ void ChunkLoader::updateFillData()
 
 // Vertices, indirect buffers, ssbo building
 void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentFillData) {
-	// snapshot displayed chunks
-	if (!getIsRunning())
-		return ;
-	std::vector<Chunk *> snapshot;
+    // snapshot displayed chunks
+    if (!getIsRunning())
+        return ;
+    std::vector<Chunk *> snapshot;
 	{
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
 		snapshot.reserve(_displayedChunks.size());
@@ -488,11 +488,8 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
 	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
 
-    // Reset visible subchunk snapshot
-    {
-        std::lock_guard<std::mutex> lk(_drawDataMutex);
-        _lastDisplayedSubY.clear();
-    }
+    // We'll build a fresh visible subchunk snapshot locally, then swap it in atomically
+    std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> nextDisplayedSubY;
 
     for (const auto& c : snapshot) {
         if (!getIsRunning())
@@ -513,7 +510,7 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 		}
         fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
 
-        // Record which subY are being displayed for this chunk
+        // Record which subY are being displayed for this chunk (into local map)
         if (!ssbo.empty()) {
             std::unordered_set<int> subs;
             subs.reserve(ssbo.size());
@@ -521,17 +518,12 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
                 int subY = (int)std::floor(v.y / (float)CHUNK_SIZE + 0.5f);
                 subs.insert(subY);
             }
-            std::lock_guard<std::mutex> lk(_drawDataMutex);
-            // Need the chunk position; use first vec4 (x,z), divide by CHUNK_SIZE
-            // However, ssbo belongs to chunk 'c'; we must query its position
-            // through an approximate method: derive from v.x,v.z of first entry.
-            if (!ssbo.empty()) {
-                glm::ivec2 cpos(
-                    (int)std::floor(ssbo[0].x / (float)CHUNK_SIZE + 0.5f),
-                    (int)std::floor(ssbo[0].z / (float)CHUNK_SIZE + 0.5f)
-                );
-                _lastDisplayedSubY[cpos] = std::move(subs);
-            }
+            // Need the chunk position; derive from first entry's x,z
+            glm::ivec2 cpos(
+                (int)std::floor(ssbo[0].x / (float)CHUNK_SIZE + 0.5f),
+                (int)std::floor(ssbo[0].z / (float)CHUNK_SIZE + 0.5f)
+            );
+            nextDisplayedSubY[cpos] = std::move(subs);
         }
 
 		// TRANSPARENT
@@ -547,8 +539,14 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 			auto cmd = tib[i];
 			cmd.baseInstance += (uint32_t)tvBefore;
 			transparentFillData->indirectBufferData.push_back(cmd);
-		}
-	}
+}
+
+    // Publish the freshly built visible subchunk snapshot atomically
+    {
+        std::lock_guard<std::mutex> lk(_drawDataMutex);
+        _lastDisplayedSubY.swap(nextDisplayedSubY);
+    }
+}
 }
 
 // Dirty chunks management
