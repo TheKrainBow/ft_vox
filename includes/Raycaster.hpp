@@ -37,4 +37,9 @@ public:
 				const glm::vec3& dirWorld,
 				float maxDistance,
 				BlockType block);
+	bool raycastPlaceOne(const glm::vec3& originWorld,
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block,
+				glm::ivec3& outPlaced);
 };

@@ -55,6 +55,21 @@ class StoneEngine {
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
 
+		// Flowers (cutout pass)
+		GLuint flowerProgram = 0;
+		GLuint flowerVAO = 0;
+		GLuint flowerVBO = 0;          // base X-quad mesh
+		GLuint flowerInstanceVBO = 0;  // per-instance data
+		GLuint flowerTexture = 0;      // 2D array of flower sprites
+		GLsizei flowerInstanceCount = 0;
+		int flowerLayerCount = 0;
+		int flowerShortGrassLayer = -1; // texture array layer for short_grass, if present
+		struct FlowerInstance { glm::vec3 pos; float rot; float scale; float heightScale; int typeId; };
+		// Plants stored per chunk/subchunk for visibility lifetime
+		std::unordered_map<glm::ivec2, std::unordered_map<int, std::vector<FlowerInstance>>, ivec2_hash> _flowersBySub;
+		// Rebuilt each frame for visible chunks
+		std::vector<FlowerInstance> _visibleFlowers;
+
 		std::map<ShaderType, PostProcessShader> postProcessShaders;
 		
 		FBODatas msaaFBO;
@@ -196,6 +211,7 @@ class StoneEngine {
 		void	initTextures();
 		void	initRenderShaders();
 		void	initSkybox();
+		void	initFlowerResources();
 		void	initDebugTextBox();
 		void	initHelpTextBox();
 		void	initFramebuffers(FBODatas &pingFBO, int w, int h);
@@ -210,6 +226,11 @@ class StoneEngine {
 		void   renderLoadingScreen();
 		void   updateHelpStatusText();
 
+		// Debug/test helper to add an instance at runtime
+		void   addFlower(glm::vec3 pos, int typeId=0, float rotJitter=0.0f, float scale=1.0f, float heightScale=1.0f);
+		void   removeFlowerAtCell(const glm::ivec3& cell);
+		void   rebuildVisibleFlowersVBO();
+
 		// Runtime methods
 		void calculateFps();
 		void display();
@@ -218,6 +239,7 @@ class StoneEngine {
 		void finalizeFrame();
 		void renderTransparentObjects();
 		void renderSolidObjects();
+		void renderFlowers();
 		void resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth);
 		void prepareRenderPipeline();
 		void displaySun(FBODatas &targetFBO);

@@ -157,6 +157,9 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
 	for (int i = 1; i <= 4; i++)
 		if (getBlock({x, y - (i * _resolution), z}) != AIR)
 			setBlock(x, y - (i * _resolution), z, DIRT);
+
+	if (rand() % 100 == 0)
+		setBlock(x, y + 1, z, FLOWER_C);
 }
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {

@@ -322,9 +322,12 @@ void Chunk::sendFacesToDisplay()
 			pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load()
 		});
 
-		// Append instance streams
-		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+        // Append instance streams
+        _vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+        _transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+
+        // Discover and record any flower cells in this subchunk for the renderer
+        _chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
 	}
 	_facesSent = true;
 }

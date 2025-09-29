@@ -31,7 +31,7 @@
 #ifndef LOADING_SPLASH_MS
 # define LOADING_SPLASH_MS 1500
 #endif
-# define RENDER_DISTANCE 15
+# define RENDER_DISTANCE 10
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -93,21 +93,29 @@
 # define LOG 'l'
 # define LEAF 'L'
 
+// Decorative plant blocks (non-solid, cutout-rendered)
+# define FLOWER_A 'f'
+# define FLOWER_B 'g'
+# define FLOWER_C 'h'
+
 // Update this number when adding new blocks (debug textbox importance)
-#define NB_BLOCKS 11
+#define NB_BLOCKS 14
 // AND the enum list (pls)
-enum block_types {
-	air,
-	stone,
-	cobble,
-	bedrock,
-	dirt,
-	grass,
-	sand,
-	water,
-	snow,
-	oak_log,
-	leaf
+	enum block_types {
+		air,
+		stone,
+		cobble,
+		bedrock,
+		dirt,
+		grass,
+		sand,
+		water,
+		snow,
+		oak_log,
+		leaf,
+		flower_a,
+		flower_b,
+		flower_c
 };
 struct block_correspondance
 {
@@ -126,5 +134,8 @@ const block_correspondance blockDebugTab[NB_BLOCKS] = {
 	{water, WATER},
 	{snow, SNOW},
 	{oak_log, LOG},	// ambiguous name so had to specify
-	{leaf, LEAF}
+	{leaf, LEAF},
+	{flower_a, FLOWER_A},
+	{flower_b, FLOWER_B},
+	{flower_c, FLOWER_C}
 };

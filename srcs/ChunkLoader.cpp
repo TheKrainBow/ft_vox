@@ -488,10 +488,16 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
 	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
 
-	for (const auto& c : snapshot) {
-		if (!getIsRunning())
-			return ;
-		auto& ssbo = c->getSSBO();
+    // Reset visible subchunk snapshot
+    {
+        std::lock_guard<std::mutex> lk(_drawDataMutex);
+        _lastDisplayedSubY.clear();
+    }
+
+    for (const auto& c : snapshot) {
+        if (!getIsRunning())
+            return ;
+        auto& ssbo = c->getSSBO();
 
 		// SOLID
 		auto& solidVerts = c->getVertices();
@@ -505,7 +511,28 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 			cmd.baseInstance += (uint32_t)vSizeBefore;
 			fillData->indirectBufferData.push_back(cmd);
 		}
-		fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+        fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+
+        // Record which subY are being displayed for this chunk
+        if (!ssbo.empty()) {
+            std::unordered_set<int> subs;
+            subs.reserve(ssbo.size());
+            for (const auto &v : ssbo) {
+                int subY = (int)std::floor(v.y / (float)CHUNK_SIZE + 0.5f);
+                subs.insert(subY);
+            }
+            std::lock_guard<std::mutex> lk(_drawDataMutex);
+            // Need the chunk position; use first vec4 (x,z), divide by CHUNK_SIZE
+            // However, ssbo belongs to chunk 'c'; we must query its position
+            // through an approximate method: derive from v.x,v.z of first entry.
+            if (!ssbo.empty()) {
+                glm::ivec2 cpos(
+                    (int)std::floor(ssbo[0].x / (float)CHUNK_SIZE + 0.5f),
+                    (int)std::floor(ssbo[0].z / (float)CHUNK_SIZE + 0.5f)
+                );
+                _lastDisplayedSubY[cpos] = std::move(subs);
+            }
+        }
 
 		// TRANSPARENT
 		auto& transpVerts = c->getTransparentVertices();
@@ -824,4 +851,65 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 				<< std::endl;
 #endif
 	return true;
+}
+
+// --- Flowers discovery helpers ---
+void ChunkLoader::scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, SubChunk* sc, int resolution)
+{
+    if (!sc) return;
+    // Avoid scanning the same sublayer multiple times
+    const std::string key = _flowerKey(cpos, subY);
+    {
+        std::lock_guard<std::mutex> lk(_flowersMutex);
+        if (_flowersScannedKeys.find(key) != _flowersScannedKeys.end()) return;
+        _flowersScannedKeys.insert(key);
+    }
+
+    // Iterate the subchunk cells at its resolution and record any FLOWER blocks
+    std::vector<std::pair<glm::ivec3, BlockType>> flowers;
+    flowers.reserve(8);
+    for (int z = 0; z < CHUNK_SIZE; z += resolution) {
+        for (int y = 0; y < CHUNK_SIZE; y += resolution) {
+            for (int x = 0; x < CHUNK_SIZE; x += resolution) {
+                BlockType b = sc->getBlock({x, y, z});
+                if (b == FLOWER_A || b == FLOWER_B || b == FLOWER_C) {
+                    // Convert to absolute world cell
+                    glm::ivec3 cell(
+                        x + cpos.x * CHUNK_SIZE,
+                        y + subY   * CHUNK_SIZE,
+                        z + cpos.y * CHUNK_SIZE
+                    );
+                    flowers.emplace_back(cell, b);
+                }
+            }
+        }
+    }
+    if (!flowers.empty()) {
+        std::lock_guard<std::mutex> lk(_flowersMutex);
+        auto &bySub = _discoveredFlowers[cpos];
+        auto &vec = bySub[subY];
+        vec.insert(vec.end(), flowers.begin(), flowers.end());
+    }
+}
+
+void ChunkLoader::fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out)
+{
+    std::lock_guard<std::mutex> lk(_flowersMutex);
+    for (auto &kv : _discoveredFlowers) {
+        const glm::ivec2 cpos = kv.first;
+        for (auto &kv2 : kv.second) {
+            int subY = kv2.first;
+            auto &lst = kv2.second;
+            for (auto &p : lst) {
+                out.emplace_back(cpos, subY, p.first, p.second);
+            }
+        }
+    }
+    _discoveredFlowers.clear();
+}
+
+void ChunkLoader::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out)
+{
+    std::lock_guard<std::mutex> lk(_drawDataMutex);
+    out = _lastDisplayedSubY;
 }

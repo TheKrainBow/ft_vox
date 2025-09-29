@@ -56,7 +56,8 @@ float mapExpo(float x, float in_min, float in_max, float out_min, float out_max)
 
 bool isTransparent(char block)
 {
-	return block == AIR || block == WATER || block == LOG;
+    return block == AIR || block == WATER || block == LOG
+        || block == FLOWER_A || block == FLOWER_B || block == FLOWER_C;
 }
 
 // Display logs only if sides
@@ -104,6 +105,7 @@ StoneEngine::~StoneEngine()
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
 	glDeleteProgram(sunShaderProgram);
+	glDeleteProgram(flowerProgram);
 
 	// Clean up post-process shaders
 	for (auto& [type, shader] : postProcessShaders)
@@ -123,6 +125,12 @@ StoneEngine::~StoneEngine()
 	if (_wireVAO) glDeleteVertexArrays(1, &_wireVAO);
 	if (_wireVBO) glDeleteBuffers(1, &_wireVBO);
 	if (_wireProgram) glDeleteProgram(_wireProgram);
+
+	// Flowers resources
+	if (flowerVAO) glDeleteVertexArrays(1, &flowerVAO);
+	if (flowerVBO) glDeleteBuffers(1, &flowerVBO);
+	if (flowerInstanceVBO) glDeleteBuffers(1, &flowerInstanceVBO);
+	if (flowerTexture) glDeleteTextures(1, &flowerTexture);
 
 	// Delete tmp and MSAA framebuffers/renderbuffers
 	if (tmpFBO.fbo) glDeleteFramebuffers(1, &tmpFBO.fbo);
@@ -370,6 +378,7 @@ void StoneEngine::initRenderShaders()
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
 	initSkybox();
+	initFlowerResources();
 }
 
 void StoneEngine::initSkybox()
@@ -868,6 +877,286 @@ void StoneEngine::activateTransparentShader()
 	}
 }
 
+void StoneEngine::initFlowerResources()
+{
+	// Create shader
+	flowerProgram = createShaderProgram("shaders/render/flower.vert", "shaders/render/flower.frag");
+
+	// Base X-shaped mesh: two vertical quads crossing at 90°
+	// Each quad is two triangles, positions in meters within a unit block [0..1] height, centered at (0,0) on X/Z
+	// width ~0.7 to avoid z-fighting
+	const float W = 0.35f;
+	const float H = 1.0f;
+	// Interleaved: pos.xyz, uv
+	float verts[] = {
+		// Quad A (plane at Z=0) facing both sides (drawn with cull off)
+		-W, 0.0f, 0.0f,  0.0f, 0.0f,
+		 W, 0.0f, 0.0f,  1.0f, 0.0f,
+		 W,   H, 0.0f,  1.0f, 1.0f,
+
+		-W, 0.0f, 0.0f,  0.0f, 0.0f,
+		 W,   H, 0.0f,  1.0f, 1.0f,
+		-W,   H, 0.0f,  0.0f, 1.0f,
+
+		// Quad B (plane at X=0), rotated 90° around Y
+		0.0f, 0.0f, -W,  0.0f, 0.0f,
+		0.0f, 0.0f,  W,  1.0f, 0.0f,
+		0.0f,   H,  W,  1.0f, 1.0f,
+
+		0.0f, 0.0f, -W,  0.0f, 0.0f,
+		0.0f,   H,  W,  1.0f, 1.0f,
+		0.0f,   H, -W,  0.0f, 1.0f,
+	};
+
+	glGenVertexArrays(1, &flowerVAO);
+	glGenBuffers(1, &flowerVBO);
+	glBindVertexArray(flowerVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, flowerVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(3*sizeof(float)));
+
+    // Instance buffer: vec4 (xyz pos, rot), vec2 (scale, heightScale), int typeId
+    glGenBuffers(1, &flowerInstanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, flowerInstanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
+
+    GLsizei fStride = (GLsizei)(sizeof(float)*6 + sizeof(int));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, fStride, (void*)0);
+    glVertexAttribDivisor(2, 1);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, fStride, (void*)(4*sizeof(float)));
+    glVertexAttribDivisor(3, 1);
+    glEnableVertexAttribArray(4);
+    glVertexAttribIPointer(4, 1, GL_INT, fStride, (void*)(6*sizeof(float)));
+    glVertexAttribDivisor(4, 1);
+
+	glBindVertexArray(0);
+
+    // Load flower texture from PNG with alpha (STB)
+    glGenTextures(1, &flowerTexture);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, flowerTexture);
+    std::vector<std::string> fileList = {
+        "textures/flowers/poppy.png",
+        "textures/flowers/dandelion.png",
+        "textures/flowers/cyan_flower.png",
+        "textures/flowers/short_grass.png"
+    };
+    // Keep only files that exist
+    std::vector<std::string> files;
+    for (const auto& f : fileList) { std::ifstream s(f, std::ios::binary); if (s.good()) files.push_back(f); }
+    if (files.empty()) { std::cerr << "No flower textures found in textures/flowers" << std::endl; }
+    const int nfiles = (int)files.size();
+    int w=0, h=0, ch=0;
+    unsigned char* data = (nfiles>0) ? stbi_load(files[0].c_str(), &w, &h, &ch, 4) : nullptr;
+    if (data) {
+        // Fallback: if no alpha present, color-key from corners
+        bool anyTransparent0 = false;
+        for (int i = 0; i < w*h; ++i) { if (data[4*i+3] < 255) { anyTransparent0 = true; break; } }
+        if (!anyTransparent0 && w > 1 && h > 1) {
+            auto getPx = [&](int x, int y)->glm::ivec4{ unsigned char* p = data + 4*(y*w + x); return {p[0],p[1],p[2],p[3]}; };
+            glm::ivec4 corners[4] = { getPx(0,0), getPx(w-1,0), getPx(0,h-1), getPx(w-1,h-1) };
+            glm::ivec4 key = corners[0]; int best=1;
+            for (int i=0;i<4;++i){int cnt=0; for(int j=0;j<4;++j) if (glm::all(glm::equal(corners[i],corners[j]))) cnt++; if(cnt>best){best=cnt; key=corners[i];}}
+            auto nearKey=[&](unsigned char r,unsigned char g,unsigned char b){int dr=int(r)-key.r;int dg=int(g)-key.g;int db=int(b)-key.b;return (abs(dr)+abs(dg)+abs(db))<=24;};
+            for (int i = 0; i < w*h; ++i) { unsigned char* px = data + 4*i; if (nearKey(px[0],px[1],px[2])) { px[0]=px[1]=px[2]=0; px[3]=0; } }
+        }
+        // Zero RGB where fully transparent to avoid fringes
+        for (int i = 0; i < w*h; ++i) { if (data[4*i+3]==0) { data[4*i+0]=data[4*i+1]=data[4*i+2]=0; } }
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, w, h, nfiles, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0,0,0, w,h,1, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        stbi_image_free(data);
+        for (int layer = 1; layer < nfiles; ++layer) {
+            int ww=0, hh=0, cc=0;
+            unsigned char* d = stbi_load(files[layer].c_str(), &ww, &hh, &cc, 4);
+            if (!d) continue;
+            // Fallback: add alpha via color-key if needed
+            bool anyTransparent = false;
+            for (int i = 0; i < ww*hh; ++i) { if (d[4*i+3] < 255) { anyTransparent = true; break; } }
+            if (!anyTransparent && ww > 1 && hh > 1) {
+                auto getPx = [&](int x, int y)->glm::ivec4{ unsigned char* p = d + 4*(y*ww + x); return {p[0],p[1],p[2],p[3]}; };
+                glm::ivec4 corners[4] = { getPx(0,0), getPx(ww-1,0), getPx(0,hh-1), getPx(ww-1,hh-1) };
+                glm::ivec4 key = corners[0]; int best=1;
+                for (int i=0;i<4;++i){int cnt=0; for(int j=0;j<4;++j) if (glm::all(glm::equal(corners[i],corners[j]))) cnt++; if(cnt>best){best=cnt; key=corners[i];}}
+                auto nearKey=[&](unsigned char r,unsigned char g,unsigned char b){int dr=int(r)-key.r;int dg=int(g)-key.g;int db=int(b)-key.b;return (abs(dr)+abs(dg)+abs(db))<=24;};
+                for (int i = 0; i < ww*hh; ++i) { unsigned char* px = d + 4*i; if (nearKey(px[0],px[1],px[2])) { px[0]=px[1]=px[2]=0; px[3]=0; } }
+            }
+            if (ww != w || hh != h) {
+                std::vector<unsigned char> resized(w*h*4);
+                for (int y = 0; y < h; ++y) {
+                    for (int x = 0; x < w; ++x) {
+                        int sx = x * ww / w;
+                        int sy = y * hh / h;
+                        unsigned char* sp = d + 4*(sy*ww + sx);
+                        unsigned char* dp = resized.data() + 4*(y*w + x);
+                        dp[0]=sp[0]; dp[1]=sp[1]; dp[2]=sp[2]; dp[3]=sp[3];
+                    }
+                }
+                for (int i = 0; i < w*h; ++i) { if (resized[4*i+3]==0) { resized[4*i+0]=resized[4*i+1]=resized[4*i+2]=0; } }
+                glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0,0,layer, w,h,1, GL_RGBA, GL_UNSIGNED_BYTE, resized.data());
+            } else {
+                for (int i = 0; i < w*h; ++i) { if (d[4*i+3]==0) { d[4*i+0]=d[4*i+1]=d[4*i+2]=0; } }
+                glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0,0,layer, w,h,1, GL_RGBA, GL_UNSIGNED_BYTE, d);
+            }
+            stbi_image_free(d);
+        }
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        flowerLayerCount = nfiles;
+        // Record short grass layer index if present in 'files'
+        flowerShortGrassLayer = -1;
+        for (int i = 0; i < nfiles; ++i) {
+            if (files[i].find("short_grass.png") != std::string::npos) { flowerShortGrassLayer = i; break; }
+        }
+    } else {
+        std::cerr << "Failed to load flower texture array" << std::endl;
+    }
+
+	// Start empty; instances can be added at runtime
+	flowerInstanceCount = 0;
+	glBindBuffer(GL_ARRAY_BUFFER, flowerInstanceVBO);
+	glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
+}
+
+void StoneEngine::rebuildVisibleFlowersVBO()
+{
+    // Pull any newly discovered flower cells from the world loader
+    {
+        std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>> discovered;
+        _chunkMgr.fetchAndClearDiscoveredFlowers(discovered);
+        if (!discovered.empty()) {
+            static std::mt19937 rng{std::random_device{}()};
+            std::uniform_real_distribution<float> rotD(-0.26f, 0.26f);
+            std::uniform_real_distribution<float> scaD(0.95f, 1.05f);
+            for (auto &t : discovered) {
+                const glm::ivec2 cpos = std::get<0>(t);
+                const int subY        = std::get<1>(t);
+                const glm::ivec3 cell = std::get<2>(t);
+                const BlockType bt    = std::get<3>(t);
+                int typeId = 0;
+                if (bt == FLOWER_A) typeId = 0;
+                else if (bt == FLOWER_B) typeId = 1;
+                else /* FLOWER_C or other */ typeId = 2;
+                glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
+                // Insert into our per-subchunk container (keep grouping for culling)
+                FlowerInstance inst{center, rotD(rng), scaD(rng), 1.0f, typeId};
+                _flowersBySub[cpos][subY].push_back(inst);
+            }
+        }
+    }
+
+    // Collect visible chunks and their displayed sublayers
+    std::vector<glm::ivec2> chunks;
+    _chunkMgr.getDisplayedChunksSnapshot(chunks);
+    std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
+    _chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
+    _visibleFlowers.clear();
+    for (const auto& c : chunks) {
+        auto it = _flowersBySub.find(c);
+        if (it == _flowersBySub.end()) continue;
+        // Only include flowers for sublayers currently displayed
+        auto visIt = visibleSub.find(c);
+        if (visIt == visibleSub.end()) continue;
+        const auto& allowed = visIt->second;
+        for (auto &kv : it->second) {
+            int subY = kv.first;
+            if (allowed.find(subY) == allowed.end()) continue;
+            auto &vec = kv.second;
+            _visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
+        }
+    }
+    flowerInstanceCount = (GLsizei)_visibleFlowers.size();
+    std::vector<unsigned char> buffer;
+    buffer.resize(_visibleFlowers.size() * (sizeof(float)*6 + sizeof(int)));
+    unsigned char* ptr = buffer.data();
+    for (const auto& f : _visibleFlowers) {
+        float tmp[6] = { f.pos.x, f.pos.y, f.pos.z, f.rot, f.scale, f.heightScale };
+        memcpy(ptr, tmp, sizeof(tmp)); ptr += sizeof(tmp);
+        memcpy(ptr, &f.typeId, sizeof(int)); ptr += sizeof(int);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, flowerInstanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, buffer.size(), buffer.data(), GL_DYNAMIC_DRAW);
+}
+
+void StoneEngine::renderFlowers()
+{
+    if (showTriangleMesh) return; // skip in wireframe mode
+    if (!flowerProgram || flowerVAO == 0) return;
+    rebuildVisibleFlowersVBO();
+    if (flowerInstanceCount == 0) return;
+
+    glUseProgram(flowerProgram);
+
+	// Build rotation-only view (same convention as terrain/water)
+	float radY = camera.getAngles().y * (M_PI / 180.0f);
+	float radX = camera.getAngles().x * (M_PI / 180.0f);
+	glm::mat4 viewRot(1.0f);
+	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = glm::rotate(viewRot, radX, glm::vec3( 0.0f,-1.0f, 0.0f));
+
+	glUniformMatrix4fv(glGetUniformLocation(flowerProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(glGetUniformLocation(flowerProgram, "view"),        1, GL_FALSE, glm::value_ptr(viewRot));
+	glUniformMatrix4fv(glGetUniformLocation(flowerProgram, "model"),       1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+    glUniform3fv     (glGetUniformLocation(flowerProgram, "cameraPos"),    1, glm::value_ptr(camera.getWorldPosition()));
+    glUniform1f      (glGetUniformLocation(flowerProgram, "time"),         (float)glfwGetTime());
+
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, flowerTexture);
+    glUniform1i(glGetUniformLocation(flowerProgram, "flowerTex"), 3);
+    glUniform1i(glGetUniformLocation(flowerProgram, "shortGrassLayer"), flowerShortGrassLayer);
+    glUniform1i(glGetUniformLocation(flowerProgram, "timeValue"), timeValue);
+    glUniform3f(glGetUniformLocation(flowerProgram, "lightColor"), 1.0f, 0.95f, 0.95f);
+
+	// State: cutout alpha, no blending, depth test/write on, culling off
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_CULL_FACE);
+
+	glBindVertexArray(flowerVAO);
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 12, flowerInstanceCount);
+	glBindVertexArray(0);
+	glEnable(GL_CULL_FACE);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+}
+
+void StoneEngine::addFlower(glm::vec3 pos, int typeId, float rotJitter, float scale, float heightScale)
+{
+    FlowerInstance inst{pos, rotJitter, scale, heightScale, typeId};
+    // Compute owning chunk and subchunk layer
+    glm::ivec2 cpos(
+        (int)std::floor(pos.x / (float)CHUNK_SIZE),
+        (int)std::floor(pos.z / (float)CHUNK_SIZE)
+    );
+    int subY = (int)std::floor(pos.y / (float)CHUNK_SIZE);
+    _flowersBySub[cpos][subY].push_back(inst);
+}
+
+void StoneEngine::removeFlowerAtCell(const glm::ivec3& cell)
+{
+    glm::ivec2 cpos(
+        (int)std::floor(cell.x / (float)CHUNK_SIZE),
+        (int)std::floor(cell.z / (float)CHUNK_SIZE)
+    );
+    int subY = (int)std::floor(cell.y / (float)CHUNK_SIZE);
+    auto itC = _flowersBySub.find(cpos);
+    if (itC == _flowersBySub.end()) return;
+    auto itS = itC->second.find(subY);
+    if (itS == itC->second.end()) return;
+    glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
+    auto &vec = itS->second;
+    vec.erase(std::remove_if(vec.begin(), vec.end(), [&](const FlowerInstance& f){
+        return (fabs(f.pos.x - center.x) < 0.51f && fabs(f.pos.z - center.z) < 0.51f && fabs(f.pos.y - center.y) < 0.51f);
+    }), vec.end());
+}
+
 void StoneEngine::blitColor(FBODatas& src, FBODatas& dst) {
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, src.fbo);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst.fbo);
@@ -905,6 +1194,10 @@ void StoneEngine::display() {
 
 	renderSkybox();                 // -> msaaFBO
 	renderSolidObjects();           // -> msaaFBO
+
+	// Cutout flowers pass (after opaque, before water/transparents)
+	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+	renderFlowers();
 
 	// Resolve OPAQUE
 	resolveMsaaToFbo(writeFBO, true);
@@ -1642,8 +1935,10 @@ bool StoneEngine::canMove(const glm::vec3& offset, float extra)
 	// Check both the block in front of the legs and the upper body
 	BlockType blockFeet  = _chunkMgr.getBlock(chunkPos, worldPosFeet);
 	BlockType blockTorso  = _chunkMgr.getBlock(chunkPos, worldPosTorso);
-	return ((blockFeet == AIR || blockFeet == WATER)
-		&& (blockTorso == AIR || blockTorso == WATER));
+    auto passable = [](BlockType b){
+        return (b == AIR || b == WATER || b == FLOWER_A || b == FLOWER_B || b == FLOWER_C);
+    };
+    return (passable(blockFeet) && passable(blockTorso));
 }
 
 // Divides every move into smaller steps if necessary typically if the player goes very
@@ -1930,31 +2225,50 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 	// Only when mouse is captured (so clicks aren't for UI)
 	if (!mouseCaptureToggle) return;
 
-	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-	{
-		// Ray origin and direction in WORLD space
-		glm::vec3 origin = camera.getWorldPosition();
-		glm::vec3 dir    = camera.getDirection();
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    {
+        // Ray origin and direction in WORLD space
+        glm::vec3 origin = camera.getWorldPosition();
+        glm::vec3 dir    = camera.getDirection();
 
-		// Delete the first solid block within 5 blocks of reach
-		bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
-		if (deleted) {
-			// Disable occlusion briefly to prevent one-frame pop after edit
-			_occlDisableFrames = std::max(_occlDisableFrames, 2);
-		}
-	}
-	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
-	{
-		// Ray origin and direction in WORLD space
-		glm::vec3 origin = camera.getWorldPosition();
-		glm::vec3 dir    = camera.getDirection();
+        // Pre-fetch which block we are about to delete
+        glm::ivec3 peek;
+        BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
+        // Delete the first solid block within 5 blocks of reach
+        bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
+        if (deleted) {
+            // Disable occlusion briefly to prevent one-frame pop after edit
+            _occlDisableFrames = std::max(_occlDisableFrames, 2);
+            if (toDelete == FLOWER_A || toDelete == FLOWER_B || toDelete == FLOWER_C) {
+                removeFlowerAtCell(peek);
+            }
+        }
+    }
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
+    {
+        // Ray origin and direction in WORLD space
+        glm::vec3 origin = camera.getWorldPosition();
+        glm::vec3 dir    = camera.getDirection();
 
-		// Place block 5 bloock range
-		bool placed = _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
-		if (placed) {
-			_occlDisableFrames = std::max(_occlDisableFrames, 2);
-		}
-		placing = true;
+        // Place block 5 block range
+        glm::ivec3 placedAt{0};
+        bool placed = _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock, placedAt);
+        if (placed) {
+            _occlDisableFrames = std::max(_occlDisableFrames, 2);
+            // If placing a flower, spawn a render instance too
+            int typeId = -1;
+            if (selectedBlock == FLOWER_A) typeId = 0;
+            else if (selectedBlock == FLOWER_B) typeId = 1;
+            else if (selectedBlock == FLOWER_C) typeId = 2;
+            if (typeId >= 0) {
+                static std::mt19937 rng{std::random_device{}()};
+                std::uniform_real_distribution<float> rotD(-0.26f, 0.26f);
+                std::uniform_real_distribution<float> scaD(0.95f, 1.05f);
+                glm::vec3 center = glm::vec3(placedAt.x + 0.5f, placedAt.y + 0.0f, placedAt.z + 0.5f);
+                addFlower(center, typeId, rotD(rng), scaD(rng), 1.0f);
+            }
+        }
+        placing = true;
 
 		// Start cooldown immediately to avoid a second place on the same frame
 		_placeCooldown = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
@@ -2032,11 +2346,25 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 {
 	(void)scancode;
 	(void)mods;
-	if (action == GLFW_PRESS && key == GLFW_KEY_F)
-	{
-		_fov = 80.0f;
-		reshapeAction(windowWidth, windowHeight);
-	}
+    if (action == GLFW_PRESS && key == GLFW_KEY_F)
+    {
+        // Place a flower block at crosshair and add an instance (debug helper)
+        glm::ivec3 hit;
+        if (_chunkMgr.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
+        {
+            glm::ivec3 placed;
+            // Place block in voxel grid so it becomes pickable/deletable
+            glm::vec3 origin = camera.getWorldPosition();
+            glm::vec3 dir    = camera.getDirection();
+            _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, FLOWER_C, placed);
+            glm::vec3 placePos = glm::vec3(placed.x + 0.5f, placed.y + 0.0f, placed.z + 0.5f);
+            // Small random rotation jitter (~±15 degrees) and scale jitter
+            static std::mt19937 rng{std::random_device{}()};
+            std::uniform_real_distribution<float> rotD(-0.26f, 0.26f); // ~±15°
+            std::uniform_real_distribution<float> scaD(0.95f, 1.05f);
+            addFlower(placePos, /*typeId=*/0, rotD(rng), scaD(rng), 1.0f);
+        }
+    }
 	if (action == GLFW_PRESS && key == GLFW_KEY_C) updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_G) {
 		bool newG = !gravity;
