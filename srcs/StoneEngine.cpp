@@ -2354,15 +2354,27 @@ void StoneEngine::renderTransparentObjects()
 		_chunkMgr.renderTransparentBlocks();
 	}
 
-	// Update SSR source to include leaves before drawing water
-	resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
-	blitColorDepth(writeFBO, readFBO);
-	// Restore draw target to MSAA FBO (resolve changed GL_DRAW_FRAMEBUFFER)
-	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
-	// 2) Water: blending ON, depth write OFF, culling enabled
-	activateTransparentShader();
-	drawnTriangles += _chunkMgr.renderTransparentBlocks();
-	glCleanupTextureState();
+    // --- Only do MSAA bookkeeping when NOT in wireframe ---
+    if (!showTriangleMesh)
+    {
+        // Update SSR source to include leaves before drawing water
+        resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
+        blitColorDepth(writeFBO, readFBO);
+
+        // Restore draw target to MSAA FBO (resolve changed GL_DRAW_FRAMEBUFFER)
+        glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+    }
+    else
+    {
+        // Wireframe: keep drawing to the default framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    // 2) Water
+    activateTransparentShader();         // already sets wireframe-friendly state when showTriangleMesh==true
+    drawnTriangles += _chunkMgr.renderTransparentBlocks();
+
+    glCleanupTextureState();
 }
 
 void StoneEngine::renderSkybox()
