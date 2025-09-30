@@ -923,52 +923,118 @@ void StoneEngine::activateRenderShader()
     glCullFace(GL_BACK);
 }
 
-
 void StoneEngine::renderShadowMap()
 {
 	if (!shadowShaderProgram) return;
 	if (shadowMap == 0 || shadowFBO == 0)
 		rebuildShadowResources(RENDER_DISTANCE);
 
+	// ---------- Cached state: stabilize + avoid needless rebuilds ----------
+	static bool      inited = false;
+	static glm::vec3 cachedCenter(0.0f);
+	static glm::vec3 prevSunDir(0.0f);
+	static float     lastFov = -1.0f;
+	static int       freezeFrames = 0;
+
+	if (lastFov < 0.0f) lastFov = _fov;
+	if (std::abs(_fov - lastFov) > 0.25f) {
+		freezeFrames = 2;           // debounce FOV zoom changes
+		lastFov = _fov;
+	}
+	if (freezeFrames > 0) { --freezeFrames; return; }
+
+	// ---------- Sun dir depends only on time ----------
 	glm::vec3 sunDir = glm::normalize(computeSunDirection(timeValue));
+
+	// ---------- Grid-locked center near player (X/Z only) ----------
+	const float GRID = float(CHUNK_SIZE) * 4.0f;  // snap every 4 chunks (tweak 2..8)
 	glm::vec3 cam   = camera.getWorldPosition();
-	_shadowCenter = glm::vec3(cam.x, float(OCEAN_HEIGHT) + 32.0f, cam.z);
+	glm::vec3 center(
+		std::round(cam.x / GRID) * GRID,
+		float(OCEAN_HEIGHT) + 32.0f,               // fixed Y anchor to avoid vertical jitter
+		std::round(cam.z / GRID) * GRID
+	);
 
-	const float worldExtent = std::max<float>(128.0f, float(RENDER_DISTANCE * CHUNK_SIZE));
-	const float shadowDistance = worldExtent * 2.5f;
-	glm::vec3 up(0.0f, 0.0f, 1.0f);
-	glm::vec3 lightPos = _shadowCenter + sunDir * shadowDistance;
-	glm::mat4 lightView = glm::lookAt(lightPos, _shadowCenter, up);
+	// ---------- Resolve world extent and quantize to texel steps ----------
+	const float worldExtentRaw  = std::max<float>(128.0f, float(RENDER_DISTANCE * CHUNK_SIZE));
+	const float halfWorldRaw    = worldExtentRaw;
+	const float texelWorldRaw   = (2.0f * halfWorldRaw) / float(shadowMapSize);
+	const float N               = 8.0f;                         // change extent only in N-texel steps
+	const float step            = std::max(texelWorldRaw * N, 1.0f);
+	const float halfWorld       = step * std::ceil(halfWorldRaw / step);
+
+	// ---------- Place light & build stable matrices (single cascade) ----------
+	const float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
+	glm::vec3  up(0.0f, 0.0f, 1.0f);                             // Z-up like your code
+	glm::vec3  lightPos = center + sunDir * shadowDist;
+	glm::mat4  lightView = glm::lookAt(lightPos, center, up);
+
 	_shadowNear = 1.0f;
-	_shadowFar  = shadowDistance + worldExtent;
-	glm::mat4 lightProj = glm::ortho(-worldExtent, worldExtent,
-						 -worldExtent, worldExtent,
-						 _shadowNear, _shadowFar);
+	_shadowFar  = shadowDist + halfWorld;
 
-	lightSpaceMatrix = lightProj * lightView;
-	_shadowTexelWorld = (2.0f * worldExtent) / float(shadowMapSize);
+	glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld,
+	                                 -halfWorld, halfWorld,
+	                                 _shadowNear, _shadowFar);
 
+	// Texel snapping: snap the projected center to the shadow map pixel grid
+	{
+		glm::mat4 VP = lightProj * lightView;
+		glm::vec4 origin = VP * glm::vec4(center, 1.0f);
+		origin *= float(shadowMapSize) * 0.5f;                   // NDC->texel space
+		glm::vec2 rounded = glm::floor(glm::vec2(origin) + 0.5f);
+		glm::vec2 offset  = (rounded - glm::vec2(origin)) * (2.0f / float(shadowMapSize));
+		lightProj[3][0] += offset.x;
+		lightProj[3][1] += offset.y;
+	}
+
+	glm::mat4 newLightSpace = lightProj * lightView;
+	const float newTexelWorld = (2.0f * halfWorld) / float(shadowMapSize);
+
+	// ---------- Early-out: only update if center or sun changed enough ----------
+	bool centerMoved = !inited || center.x != cachedCenter.x || center.z != cachedCenter.z;
+	float cosDelta   = inited ? glm::clamp(glm::dot(glm::normalize(prevSunDir), sunDir), -1.0f, 1.0f) : 1.0f;
+	float degDelta   = glm::degrees(std::acos(cosDelta));
+	const float SUN_ANGLE_EPS = 0.25f;  // update only if sun rotated > 0.25°
+
+	if (inited && !centerMoved && degDelta < SUN_ANGLE_EPS) {
+		// Reuse previous shadow map contents without rebuilding this frame.
+		return;
+	}
+
+	// Commit stabilized parameters
+	inited             = true;
+	cachedCenter       = center;
+	prevSunDir         = sunDir;
+	_shadowCenter      = center;
+	lightSpaceMatrix   = newLightSpace;
+	_shadowTexelWorld  = newTexelWorld;
+
+	// ---------- Render the single shadow map ----------
 	glUseProgram(shadowShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset(2.0f, 4.0f);
+	glPolygonOffset(3.0f, 6.0f);
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shadowShaderProgram, "textureArray"), 0);
 
+	// Shadow pass must NOT depend on screen-space occlusion
 	_chunkMgr.setOcclusionSource(0, 0, 0, glm::mat4(1.0f), glm::mat4(1.0f), glm::vec3(0.0f));
 	_chunkMgr.setRendererSyncMode(true);
 
 	glViewport(0, 0, shadowMapSize, shadowMapSize);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
+
 	_chunkMgr.setViewProj(lightView, lightProj);
 	_chunkMgr.renderSolidBlocks();
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	_chunkMgr.renderTransparentBlocksNoCullForShadow();
 
+	// ---------- Optional: flowers in shadow pass ----------
 	if (flowerShadowProgram && flowerVAO)
 	{
 		rebuildVisibleFlowersVBO();
@@ -992,6 +1058,8 @@ void StoneEngine::renderShadowMap()
 	}
 
 	_chunkMgr.setRendererSyncMode(false);
+
+	// ---------- Restore state ----------
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
