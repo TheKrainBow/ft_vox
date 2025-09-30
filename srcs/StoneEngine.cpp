@@ -535,7 +535,6 @@ void StoneEngine::initRenderShaders()
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
     skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
     shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
-    flowerShadowProgram = createShaderProgram("shaders/render/flower_shadow.vert", "shaders/render/flower_shadow.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
 	initSkybox();
@@ -1033,29 +1032,6 @@ void StoneEngine::renderShadowMap()
 	_chunkMgr.renderSolidBlocks();
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	_chunkMgr.renderTransparentBlocksNoCullForShadow();
-
-	// ---------- Optional: flowers in shadow pass ----------
-	if (flowerShadowProgram && flowerVAO)
-	{
-		rebuildVisibleFlowersVBO();
-		if (flowerInstanceCount > 0)
-		{
-			glUseProgram(flowerShadowProgram);
-			glUniformMatrix4fv(glGetUniformLocation(flowerShadowProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-			glActiveTexture(GL_TEXTURE3);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, flowerTexture);
-			glUniform1i(glGetUniformLocation(flowerShadowProgram, "flowerTex"), 3);
-			glBindVertexArray(flowerVAO);
-			glDisable(GL_BLEND);
-			glEnable(GL_DEPTH_TEST);
-			glDepthMask(GL_TRUE);
-			glDisable(GL_CULL_FACE);
-			glDrawArraysInstanced(GL_TRIANGLES, 0, 12, flowerInstanceCount);
-			glBindVertexArray(0);
-			glActiveTexture(GL_TEXTURE0);
-			glUseProgram(shadowShaderProgram);
-		}
-	}
 
 	_chunkMgr.setRendererSyncMode(false);
 

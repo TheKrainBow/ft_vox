@@ -68,7 +68,7 @@ void main() {
     float dayPhase = clamp((float(timeValue) - dayStart) / dayLen, 0.0, 1.0);
     float sunPhase = smoothstep(0.0, 0.15, sin(dayPhase * pi));
     float diffuse = sun * 0.2 * sunPhase;
-    float total = clamp(ambient * 0.6 + diffuse * 0.9, 0.0, 1.0);
+    float total = clamp(ambient * 0.6 + diffuse * 0.9 + 0.1, 0.0, 1.0);
 
     float ao = mix(0.9, 1.0, vHeightMask);
     vec3 rgb = col.rgb * ao * lightColor * total;

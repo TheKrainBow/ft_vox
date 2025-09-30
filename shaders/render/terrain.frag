@@ -94,7 +94,7 @@ void main() {
 
 	float totalLight = clamp(ambient * 0.6 +
 						   diffuse * 0.9 * diffuseFactor * shadowFactor +
-						   specular * 0.5 * shadowFactor, 0.0, 1.0);
+						   specular * 0.5 * shadowFactor + 0.1, 0.0, 1.0);
 
 	vec3 result = totalLight * lightColor * texColor.rgb;
 	FragColor = vec4(result, texColor.a);

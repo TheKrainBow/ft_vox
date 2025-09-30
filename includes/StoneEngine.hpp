@@ -72,7 +72,6 @@ class StoneEngine {
 
 		// Flowers (cutout pass)
 		GLuint flowerProgram = 0;
-		GLuint flowerShadowProgram = 0; // depth-only shadow for flowers (alpha cutout)
 		GLuint flowerVAO = 0;
 		GLuint flowerVBO = 0;          // base X-quad mesh
 		GLuint flowerInstanceVBO = 0;  // per-instance data
