@@ -100,8 +100,8 @@ bool aabbOccluded(vec3 mn, vec3 mx) {
 	pxMax = clamp(pxMax, ivec2(0), ivec2(viewport) - ivec2(1));
 	if (pxMax.x < pxMin.x || pxMax.y < pxMin.y) return false; // empty
 
-	// Coarse sampling grid
-	const int STEPS = 6;
+	// Coarse sampling grid (reduced to lighten compute cost)
+	const int STEPS = 5;
 	float eps = 5e-2; // tolerance on depth compare (avoid edge flicker)
 	for (int iy = 0; iy < STEPS; ++iy) {
 		for (int ix = 0; ix < STEPS; ++ix) {

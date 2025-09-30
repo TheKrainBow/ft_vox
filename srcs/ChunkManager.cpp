@@ -20,6 +20,7 @@ _chunkLoader(
 	_threadPool,
 	_chronoHelper,
 	_isRunning,
+	_solidDrawDataMutex,
 	_solidStagedDataQueue,
 	_transparentStagedDataQueue
 ),
@@ -113,6 +114,11 @@ void ChunkManager::setOcclusionSource(GLuint depthTex, int width, int height,
 	_chunkRenderer.setOcclusionSource(depthTex, width, height, view, proj, camPos);
 }
 
+void ChunkManager::setRendererSyncMode(bool enabled)
+{
+	_chunkRenderer.setSyncAfterDraw(enabled);
+}
+
 // Chunks loading and unloading methods
 void ChunkManager::loadChunks(ivec2 &camPos)
 {
@@ -139,6 +145,11 @@ int ChunkManager::renderSolidBlocks()
 int ChunkManager::renderTransparentBlocks()
 {
 	return _chunkRenderer.renderTransparentBlocks();
+}
+
+int ChunkManager::renderTransparentBlocksNoCullForShadow()
+{
+	return _chunkRenderer.renderTransparentBlocksNoCullForShadow();
 }
 
 // Collisions helper

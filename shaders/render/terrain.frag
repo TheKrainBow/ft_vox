@@ -1,10 +1,18 @@
 #version 430 core
 
 uniform vec3 lightColor;
-uniform int timeValue;
+uniform int  timeValue;
 uniform mat4 view;
-uniform vec3 cameraPos; // explicit camera world position
+uniform vec3 cameraPos;
 uniform sampler2DArray textureArray;
+uniform sampler2DShadow shadowMap;
+uniform mat4 lightSpaceMatrix;
+uniform vec3 sunDir;
+uniform float shadowTexelWorld;
+uniform float shadowNear;
+uniform float shadowFar;
+uniform float shadowBiasSlope;
+uniform float shadowBiasConstant;
 
 in vec2 TexCoord;
 flat in int TextureID;
@@ -13,105 +21,81 @@ in vec3 FragPos;
 
 out vec4 FragColor;
 
-vec3 computeSunPosition(float time) {
-	vec3 viewPos = cameraPos;
-	const float pi = 3.14159265359;
-	const float radius = 6000.0;
-	const float dayStart = 42000.0;       // sunrise
-	const float dayLen   = 86400.0 - dayStart; // 44400 (day duration)
-	const float nightLen = dayStart;      // 42000 (night duration)
-
-	float angle;
-	if (time < dayStart) {
-		// Night: traverse angle from pi..2pi across [0, dayStart)
-		float phase = clamp(time / nightLen, 0.0, 1.0);
-		angle = pi + phase * pi;
-	} else {
-		// Day: traverse angle from 0..pi across [dayStart, 86400]
-		float phase = clamp((time - dayStart) / dayLen, 0.0, 1.0);
-		angle = phase * pi;
-	}
-
-	float x = radius * cos(angle);
-	float y = radius * sin(angle); // y>0 during day, y<0 during night
-	float z = 0.0f;
-
-	return viewPos + vec3(x, y, z);
-}
-
 float calculateDiffuseLight(float time, vec3 lightDir) {
 	vec3 norm = normalize(Normal);
 	return max(dot(norm, lightDir), 0.0);
 }
 
 float calculateAmbientLight(float time) {
-	// Day runs [42000, 86400], night runs [0, 42000]
 	const float pi = 3.14159265359;
 	const float dayStart = 42000.0;
-	const float dayLen   = 86400.0 - dayStart; // 44400
-
-	// Day phase: 0 at sunrise, 1 at sunset; clamped outside day
+	const float dayLen   = 86400.0 - dayStart;
 	float dayPhase = clamp((time - dayStart) / dayLen, 0.0, 1.0);
-	// Smooth bell curve: 0 at sunrise/sunset, 1 at midday
 	float solar = sin(dayPhase * pi);
-
-	// Ambient ranges: darker nights, brighter days
-	float nightAmbient = 0.10; // ambient at night
-	float dayAmbient   = 0.35; // ambient at midday peak
-
-	return mix(nightAmbient, dayAmbient, solar);
+	return mix(0.10, 0.35, solar);
 }
 
 float calculateSpecularLight(float time, vec3 lightDir) {
-	vec3 viewPos = cameraPos;
 	vec3 norm = normalize(Normal);
 	float specularStrength = (TextureID == 6) ? 0.1 : 0.2;
-	vec3 viewDir = normalize(viewPos - FragPos);
+	vec3 viewDir = normalize(cameraPos - FragPos);
 	vec3 reflectDir = reflect(-lightDir, norm);
 	float spec = pow(max(dot(viewDir, reflectDir), 0.1), 0.8);
-	float specular = specularStrength * spec;
-	return specular;
+	return specularStrength * spec;
+}
+
+float computeShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
+{
+	vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
+	vec3 proj = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	proj = proj * 0.5 + 0.5;
+
+	if (proj.z > 1.0 || proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0)
+		return 0.0;
+
+	vec3 n = normalize(normal);
+	vec3 l = normalize(lightDir);
+	float ndotl = max(dot(n, l), 0.0);
+	if (ndotl <= 0.0)
+		return 0.0;
+
+	float biasWorld = shadowBiasConstant + shadowBiasSlope * (1.0 - ndotl);
+	biasWorld = max(biasWorld * shadowTexelWorld, 0.0005);
+	float biasDepth = biasWorld / max(shadowFar - shadowNear, 1e-4);
+
+	vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+	float samples = 0.0;
+	for (int x = -1; x <= 1; ++x)
+	for (int y = -1; y <= 1; ++y) {
+		vec2 offset = vec2(float(x), float(y)) * texelSize;
+		samples += 1.0 - texture(shadowMap, vec3(proj.xy + offset, proj.z - biasDepth));
+	}
+	return samples / 9.0;
 }
 
 void main() {
-	vec3 viewPos = cameraPos;
 	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
-	// Use direction from fragment to light (not the opposite)
-	vec3 lightDir = normalize(computeSunPosition(timeValue) - FragPos);
+	vec3 lightDir = normalize(sunDir);
+	vec3 norm = normalize(Normal);
 
-	// Calculate the distance from the camera to the fragment
-	float dist = distance(viewPos, FragPos);
-
-	// Lighting strengths
-	float ambient = calculateAmbientLight(timeValue);
-	float diffuse = calculateDiffuseLight(timeValue, lightDir);
+	float ambient  = calculateAmbientLight(timeValue);
+	float diffuse  = max(dot(norm, lightDir), 0.0);
 	float specular = calculateSpecularLight(timeValue, lightDir);
 
-	// Control how strong each contribution is
-	float ambientWeight = 0.6;
-	float diffuseWeight = 0.9;
-	float specularWeight = 0.5;
-
-	// Adjust diffuse factor by timeValue to match day window
 	const float pi = 3.14159265359;
 	const float dayStart = 42000.0;
-	const float dayLen   = 86400.0 - dayStart; // 44400
+	const float dayLen   = 86400.0 - dayStart;
 	float dayPhase = clamp((timeValue - dayStart) / dayLen, 0.0, 1.0);
-	float sun = sin(dayPhase * pi); // 0 at sunrise/sunset, 1 at midday
-	// soften transitions with a small threshold to avoid popping at horizon
-	sun = smoothstep(0.0, 0.15, sun);
-	float diffuseFactor = 0.2 * sun;
+	float sunAmt = smoothstep(0.0, 0.15, sin(dayPhase * pi));
+	float diffuseFactor = 0.2 * sunAmt;
 
-	// Combine lighting components
-	float finalAmbient = ambient * ambientWeight;
-	float finalDiffuse = diffuse * diffuseWeight * diffuseFactor;
-	float finalSpecular = specular * specularWeight;
+	float shadow = computeShadow(FragPos, norm, lightDir);
+	float shadowFactor = 1.0 - shadow;
 
-	float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular, 0.0, 1.0);
+	float totalLight = clamp(ambient * 0.6 +
+						   diffuse * 0.9 * diffuseFactor * shadowFactor +
+						   specular * 0.5 * shadowFactor + 0.1, 0.0, 1.0);
+
 	vec3 result = totalLight * lightColor * texColor.rgb;
-
-	// Face direction debug whitens the face depending on normal
-	// if (Normal.x == -1)
-	// 	result.rgb *= 10;
 	FragColor = vec4(result, texColor.a);
 }

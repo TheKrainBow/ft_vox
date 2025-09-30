@@ -95,7 +95,7 @@ void main() {
     float finalAmbient  = ambient * ambientWeight;
     float finalDiffuse  = diffuse * diffuseWeight * diffuseFactor;
     float finalSpecular = specular * specularWeight;
-    float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular, 0.0, 1.0);
+    float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular + 0.1, 0.0, 1.0);
 
     vec3 result = totalLight * lightColor * texColor.rgb;
     FragColor = vec4(result, 1.0);

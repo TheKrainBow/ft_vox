@@ -10,6 +10,7 @@
 #include "ChunkManager.hpp"
 #include "Raycaster.hpp"
 #include <cstddef>
+#include <vector>
 #include <string>
 
 class StoneEngine {
@@ -46,6 +47,17 @@ class StoneEngine {
 		GLuint sunShaderProgram;
 		GLuint sunVAO;
 		GLuint sunVBO;
+
+		// Shadow mapping (single shadow map)
+		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
+		GLuint shadowFBO = 0;
+		GLuint shadowMap = 0;
+		int shadowMapSize = 4096;
+		glm::mat4 lightSpaceMatrix{1.0f};
+		glm::vec3 _shadowCenter{0.0f, 0.0f, 0.0f};
+		float _shadowTexelWorld = 0.0f;
+		float _shadowNear = 1.0f;
+		float _shadowFar  = 500.0f;
 
 		// Skybox
 		GLuint skyboxProgram = 0;
@@ -101,6 +113,9 @@ class StoneEngine {
 		TextureManager _textureManager;
 		ThreadPool &_pool;
 		float _fov = 80.0f;
+		// Shadow biasing data
+		float _shadowBiasSlope = 0.5f;
+		float _shadowBiasConstant = 0.001f;
 
 		std::mutex		_isRunningMutex;
 		std::atomic_bool	_isRunning = false;
@@ -122,6 +137,11 @@ class StoneEngine {
 		bool isUnderWater;
 		bool ascending;
 		bool sprinting;
+		bool pauseTime = false;
+		// Time-acceleration tracking to throttle shadow updates
+		bool _timeAccelerating = false;
+		int  _shadowUpdateDivider = 4;   // update shadows every Nth eligible frame while accelerating
+		int  _shadowUpdateCounter = 0;   // modulo counter used with divider
 		GridDebugMode _gridMode = GRID_OFF;
 
 		// Player speed
@@ -177,6 +197,18 @@ class StoneEngine {
 		// after edits to avoid one-frame popping when geometry changes.
 		int _occlDisableFrames = 0;
 
+		// Camera change tracking to stabilize occlusion culling
+		glm::vec3 _prevCamPos{0.0f};
+		glm::vec2 _prevCamAngles{0.0f};
+		float     _prevFov = 80.0f;
+		bool      _havePrevCam = false;
+
+		// Previous-frame view/projection and camera for occlusion reprojection
+		glm::mat4 _prevViewOcc{1.0f};
+		glm::mat4 _prevProjOcc{1.0f};
+		glm::vec3 _prevCamOcc{0.0f};
+		bool      _prevOccValid = false;
+
 		// Help overlay dynamic status strings
 		std::string _hGravity;
 		std::string _hGeneration;
@@ -216,6 +248,7 @@ class StoneEngine {
 		int		initGLFW();
 		void	initTextures();
 		void	initRenderShaders();
+		void	initShadowMapping();
 		void	initSkybox();
 		void	initFlowerResources();
 		void	initDebugTextBox();
@@ -225,8 +258,8 @@ class StoneEngine {
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
-		void   initWireframeResources();
-		void   renderAimHighlight();
+void   initWireframeResources();
+void   renderAimHighlight();
 		void   postProcessSkyboxComposite();
 		void   setFullscreen(bool enable);
 		void   renderLoadingScreen();
@@ -249,10 +282,12 @@ class StoneEngine {
 		void resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth);
 		void prepareRenderPipeline();
 		void displaySun(FBODatas &targetFBO);
+		void renderShadowMap();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
 		void activateRenderShader();
 		void renderPlanarReflection();
+		void setShadowCascadeRenderSync(bool enable);
 		ivec2 getChunkPos(vec2 camPosXZ);
 		bool canMove(const glm::vec3& offset, float extra);
 		void updatePlayerStates();
@@ -269,6 +304,8 @@ class StoneEngine {
 		void swapPingPongBuffers();
 		void blitColor(FBODatas& src, FBODatas& dst);
 		void blitColorDepth(FBODatas& src, FBODatas& dst);
+		void setShadowResolution(int newSize);
+		void rebuildShadowResources(int effectiveRender);
 
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
@@ -279,6 +316,8 @@ class StoneEngine {
 		PostProcessShader createPostProcessShader(PostProcessShader &shader, const std::string& vertPath, const std::string& fragPath);
 
 		vec3 computeSunPosition(int timeValue, const glm::vec3& cameraPos);
+		// Camera-invariant sun direction in world-space
+		glm::vec3 computeSunDirection(int timeValue);
 
 		// Multi thread methods
 		//void chunkUpdateWorker();

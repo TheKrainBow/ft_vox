@@ -76,8 +76,12 @@ private:
 	bool                                        _occAvailable = false;
 	glm::vec3                                   _occCamPos{0.0f};
 
-	// Debug/metrics
-	long long								_lastSolidTris = 0;
+		// Debug/metrics
+		long long								_lastSolidTris = 0;
+
+		// Last good GPU-cull counts to avoid flashing fallback when mapping fails
+		GLsizei									_lastGoodSolidCount = 0;
+		GLsizei									_lastGoodTranspCount = 0;
 
 	// Buffer capacities to minimize reallocations
 	GLsizeiptr								_capTemplSolidCmd  = 0;
@@ -105,6 +109,9 @@ private:
 
 	// Boolean to avoid double buffer init
 	bool	_hasBufferInitialized;
+
+	// Optional GPU sync after each solid draw (used for shadow cascades)
+	bool    _syncAfterDraw = false;
 public:
 	ChunkRenderer(
 		std::mutex &solidDrawDataMutex,
@@ -117,6 +124,9 @@ public:
 	// Rendering methods
 	int renderSolidBlocks();
 	int renderTransparentBlocks();
+	// Shadow pass helper: draw transparent terrain (leaves) without GPU culling
+	// Uses template indirect commands and source SSBO (no compute compaction)
+	int renderTransparentBlocksNoCullForShadow();
 
 	// OpenGL setup for rendering
 	void initGLBuffer();
@@ -132,6 +142,9 @@ public:
 
 	// Swap current rendering data with new one sent from ChunkLoader
 	void updateDrawData();
+
+	// Control optional GPU sync after draw (avoid buffer races across passes)
+	void setSyncAfterDraw(bool enabled) { _syncAfterDraw = enabled; }
 private:
 	// GPU side frustum culling helpers
 	void initGpuCulling();

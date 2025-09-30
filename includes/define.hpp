@@ -1,7 +1,7 @@
 # pragma once
 # define SHOW_TRIANGLES false
 # define ENABLE_WORLD_GENERATION true
-# define SHOW_DEBUG false
+# define SHOW_DEBUG true
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
 # define CAPTURE_MOUSE true

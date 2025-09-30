@@ -15,10 +15,12 @@ ChunkLoader::ChunkLoader(
 	ThreadPool &pool,
 	Chrono &chronoHelper,
 	std::atomic_bool *isRunning,
+	std::mutex &sharedDrawDataMutex,
 	std::queue<DisplayData *>	&solidStagedDataQueue,
 	std::queue<DisplayData *>	&transparentStagedDataQueue
 )
 :
+_sharedDrawDataMutex(sharedDrawDataMutex),
 _camera(camera),
 _chronoHelper(chronoHelper),
 _threadPool(pool),
@@ -40,17 +42,20 @@ ChunkLoader::~ChunkLoader()
 		it->second->freeSubChunks();
 		delete it->second;
 	}
-	while (_solidStagedDataQueue.size())
 	{
-		auto &tmp = _solidStagedDataQueue.front();
-		_solidStagedDataQueue.pop();
-		delete tmp;
-	}
-	while (_transparentStagedDataQueue.size())
-	{
-		auto &tmp = _transparentStagedDataQueue.front();
-		_transparentStagedDataQueue.pop();
-		delete tmp;
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
+		while (_solidStagedDataQueue.size())
+		{
+			auto &tmp = _solidStagedDataQueue.front();
+			_solidStagedDataQueue.pop();
+			delete tmp;
+		}
+		while (_transparentStagedDataQueue.size())
+		{
+			auto &tmp = _transparentStagedDataQueue.front();
+			_transparentStagedDataQueue.pop();
+			delete tmp;
+		}
 	}
 }
 
@@ -67,26 +72,24 @@ void ChunkLoader::initData()
 
 void ChunkLoader::initSpawn()
 {
-	// Load first chunk under the player, and pop their position on top of it
-	ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
-	vec3 worldPos  = _camera.getWorldPosition();
-	// Build a quick, coarse mesh first for immediate feedback, refined shortly after
-	Chunk* first = loadChunk(0, 0, 0, chunkPos, 8);
-	if (first) {
-		// Build faces immediately and push a synchronous display build so first frame has geometry
-		first->sendFacesToDisplay();
-		updateFillData();
-		// Schedule refinement to full resolution shortly after initial display
-		_threadPool.enqueue([this, chunkPos]() mutable {
-			ivec2 cp = chunkPos;
-			this->loadChunk(0, 0, 0, cp, RESOLUTION);
-			this->scheduleDisplayUpdate();
-		});
-	}
-	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-	const vec3 &camPos = _camera.getPosition();
+    // Load first chunk under the player, and pop their position on top of it
+    ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
+    vec3 worldPos  = _camera.getWorldPosition();
+    // Build the spawn chunk at full resolution so decorative plants
+    // (grass/flowers) are present immediately on first load.
+    // Using a coarse LOD here caused sparse or missing flora until
+    // the chunk was later reloaded/refined.
+    Chunk* first = loadChunk(0, 0, 0, chunkPos, RESOLUTION);
+    if (first) {
+        // Build faces immediately and push a synchronous display build so first frame has geometry
+        first->sendFacesToDisplay();
+        updateFillData();
+        // No refinement needed: we already loaded at full RESOLUTION.
+    }
+    TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+    const vec3 &camPos = _camera.getPosition();
 
-	// Place camera: feet on ground
+    // Place camera: feet on ground
 	_camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
 }
 
@@ -440,7 +443,7 @@ void ChunkLoader::updateFillData()
 		return;
 	// If a staged update already exists, skip this build (we will coalesce)
 	{
-		std::lock_guard<std::mutex> lk(_drawDataMutex);
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		if (!_solidStagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
 		{
 			_buildingDisplay = false;
@@ -451,7 +454,7 @@ void ChunkLoader::updateFillData()
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
 	{
-		std::lock_guard<std::mutex> lk(_drawDataMutex);
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		_solidStagedDataQueue.emplace(fillData);
 		_transparentStagedDataQueue.emplace(transparentData);
 	}
@@ -486,7 +489,7 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
 	fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBO);
 	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
-	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
+    transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
 
     // We'll build a fresh visible subchunk snapshot locally, then swap it in atomically
     std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> nextDisplayedSubY;
@@ -494,21 +497,24 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
     for (const auto& c : snapshot) {
         if (!getIsRunning())
             return ;
-        auto& ssbo = c->getSSBO();
+
+        // Take a coherent snapshot of this chunk's display data under its internal lock
+        std::vector<int> sVerts, tVerts;
+        std::vector<DrawArraysIndirectCommand> sCmds, tCmds;
+        std::vector<vec4> ssbo;
+        c->snapshotDisplayData(sVerts, sCmds, ssbo, tVerts, tCmds);
 
 		// SOLID
-		auto& solidVerts = c->getVertices();
 		size_t vSizeBefore = fillData->vertexData.size();
-		fillData->vertexData.insert(fillData->vertexData.end(), solidVerts.begin(), solidVerts.end());
-
-		auto& ib = c->getIndirectData();
-		size_t solidCount = ib.size();
-		for (size_t i = 0; getIsRunning() && i < solidCount; ++i) {
-			auto cmd = ib[i];
+		if (!sVerts.empty())
+			fillData->vertexData.insert(fillData->vertexData.end(), sVerts.begin(), sVerts.end());
+		for (size_t i = 0; getIsRunning() && i < sCmds.size(); ++i) {
+			auto cmd = sCmds[i];
 			cmd.baseInstance += (uint32_t)vSizeBefore;
 			fillData->indirectBufferData.push_back(cmd);
 		}
-        fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+        if (!ssbo.empty())
+            fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
 
         // Record which subY are being displayed for this chunk (into local map)
         if (!ssbo.empty()) {
@@ -527,26 +533,23 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
         }
 
 		// TRANSPARENT
-		auto& transpVerts = c->getTransparentVertices();
 		size_t tvBefore = transparentFillData->vertexData.size();
-		transparentFillData->vertexData.insert(
-			transparentFillData->vertexData.end(), transpVerts.begin(), transpVerts.end()
-		);
-
-		auto& tib = c->getTransparentIndirectData();
-		size_t transpCount = tib.size();
-		for (size_t i = 0; getIsRunning() &&  i < transpCount; ++i) {
-			auto cmd = tib[i];
+		if (!tVerts.empty())
+			transparentFillData->vertexData.insert(
+				transparentFillData->vertexData.end(), tVerts.begin(), tVerts.end()
+			);
+		for (size_t i = 0; getIsRunning() && i < tCmds.size(); ++i) {
+			auto cmd = tCmds[i];
 			cmd.baseInstance += (uint32_t)tvBefore;
 			transparentFillData->indirectBufferData.push_back(cmd);
-}
+        }
+    }
 
     // Publish the freshly built visible subchunk snapshot atomically
     {
-        std::lock_guard<std::mutex> lk(_drawDataMutex);
+        std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
         _lastDisplayedSubY.swap(nextDisplayedSubY);
     }
-}
 }
 
 // Dirty chunks management
@@ -615,7 +618,8 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool
 	const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 
-	sc->setBlock(lx, ly, lz, value);
+	// Write directly with localized coordinates to avoid re-dispatch loops
+	sc->setBlockLocal(lx, ly, lz, value);
 
 	// Only player actions count as modifications for eviction protection UI
 	if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
@@ -839,15 +843,6 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 		_chunksMemoryUsage -= freed;
 	else
 		_chunksMemoryUsage = 0;
-
-#if SHOW_DEBUG
-	std::cout << "[ChunkCache] Evicted far chunk ("
-				<< candidate.x << ", " << candidate.y << ")"
-				<< ", freed ~" << freed << " bytes"
-				<< ", cached=" << _chunksCount
-				<< ", displayed=" << _displayedCount
-				<< std::endl;
-#endif
 	return true;
 }
 
@@ -908,6 +903,6 @@ void ChunkLoader::fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ive
 
 void ChunkLoader::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out)
 {
-    std::lock_guard<std::mutex> lk(_drawDataMutex);
+    std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
     out = _lastDisplayedSubY;
 }

@@ -1,6 +1,8 @@
 #include "StoneEngine.hpp"
 
 #include <fstream>
+#include <string>
+#include <sstream>
 
 #if defined(__linux__)
 #include <unistd.h>
@@ -80,6 +82,25 @@ bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir
 	return ((isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && (dir <= EAST)));
 }
 
+static inline void glResetActiveTextureTo0()
+{
+    glActiveTexture(GL_TEXTURE0);
+}
+
+static inline void glUnbindCommonTextures()
+{
+    // Unbind the most common targets we touch
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+static inline void glCleanupTextureState()
+{
+    glResetActiveTextureTo0();
+    glUnbindCommonTextures();
+}
+
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
 {
 	float texelX = 1.0f / windowWidth;
@@ -100,6 +121,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(),
 	initGLEW();
 	initTextures();
 	initRenderShaders();
+	initShadowMapping();
 	initDebugTextBox();
 	initHelpTextBox();
 	initFboShaders();
@@ -119,6 +141,7 @@ StoneEngine::~StoneEngine()
 	glDeleteProgram(waterShaderProgram);
 	glDeleteProgram(alphaShaderProgram);
 	glDeleteProgram(sunShaderProgram);
+	if (shadowShaderProgram) glDeleteProgram(shadowShaderProgram);
 	glDeleteProgram(flowerProgram);
 
 	// Clean up post-process shaders
@@ -163,6 +186,16 @@ StoneEngine::~StoneEngine()
 		glDeleteTextures(1, &tmpFBO.texture);
 	if (tmpFBO.depth)
 		glDeleteTextures(1, &tmpFBO.depth);
+
+	// Delete shadow map resources
+	if (shadowFBO) {
+		glDeleteFramebuffers(1, &shadowFBO);
+		shadowFBO = 0;
+	}
+	if (shadowMap) {
+		glDeleteTextures(1, &shadowMap);
+		shadowMap = 0;
+	}
 
 	if (msaaFBO.fbo)
 		glDeleteFramebuffers(1, &msaaFBO.fbo);
@@ -210,27 +243,33 @@ void StoneEngine::initData()
 {
 	// Keys states and runtime booleans
 	bzero(keyStates, sizeof(keyStates));
-	ignoreMouseEvent = IGNORE_MOUSE;
-	updateChunk = ENABLE_WORLD_GENERATION;
-	showTriangleMesh = SHOW_TRIANGLES;
-	mouseCaptureToggle = CAPTURE_MOUSE;
-	showDebugInfo = SHOW_DEBUG;
-	showHelp = false;
-	showUI = SHOW_UI;
-	showLight = SHOW_LIGHTING;
-	gravity = GRAVITY;
-	falling = FALLING;
-	swimming = SWIMMING;
-	jumping = JUMPING;
-	isUnderWater = UNDERWATER;
-	ascending = ASCENDING;
-	sprinting = SPRINTING;
-	selectedBlock = AIR;
-	selectedBlockDebug = air;
-	placing = KEY_INIT;
+	ignoreMouseEvent	= IGNORE_MOUSE;
+	updateChunk			= ENABLE_WORLD_GENERATION;
+	showTriangleMesh	= SHOW_TRIANGLES;
+	mouseCaptureToggle	= CAPTURE_MOUSE;
+	showDebugInfo		= SHOW_DEBUG;
+	showHelp            = false;
+	showUI				= SHOW_UI;
+	showLight			= SHOW_LIGHTING;
+	gravity				= GRAVITY;
+	falling				= FALLING;
+	swimming			= SWIMMING;
+	jumping				= JUMPING;
+	isUnderWater		= UNDERWATER;
+	ascending			= ASCENDING;
+	sprinting			= SPRINTING;
+	selectedBlock		= AIR;
+	selectedBlockDebug	= air;
+	placing				= KEY_INIT;
+
 	// Occlusion disabled window after edits
 	_occlDisableFrames = 0;
+	_prevOccValid = false;
 
+	// Shadow throttle state
+	_timeAccelerating = false;
+	_shadowUpdateDivider = 20;
+	_shadowUpdateCounter = 0;
 	// Cooldowns
 	now = std::chrono::steady_clock::now();
 	_jumpCooldown = now;
@@ -343,7 +382,34 @@ glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3 &camera
 	float y = radius * sin(angle); // y>0 during day, y<0 during night
 	float z = 0.0f;
 
+	// Return a position in the sun direction at a fixed radius from the camera,
+	// used only for visual effects (sun sprite, god rays)
 	return cameraPos + glm::vec3(x, y, z);
+}
+
+glm::vec3 StoneEngine::computeSunDirection(int timeValue)
+{
+	const float pi = 3.14159265f;
+	const float dayStart = 42000.0f;          // sunrise
+	const float dayLen   = 86400.0f - dayStart; // 44400 (day duration)
+	const float nightLen = dayStart;           // 42000 (night duration)
+
+	float t = static_cast<float>(timeValue);
+	float angle;
+	if (t < dayStart)
+	{
+		float phase = glm::clamp(t / nightLen, 0.0f, 1.0f);
+		angle = pi + phase * pi;
+	}
+	else
+	{
+		float phase = glm::clamp((t - dayStart) / dayLen, 0.0f, 1.0f);
+		angle = phase * pi;
+	}
+
+	// World-space directional light vector (pointing from world towards the sun)
+	glm::vec3 dir = glm::normalize(glm::vec3(cos(angle), sin(angle), 0.0f));
+	return dir;
 }
 
 void initSunQuad(GLuint &vao, GLuint &vbo)
@@ -467,11 +533,62 @@ void StoneEngine::initRenderShaders()
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	alphaShaderProgram = createShaderProgram("shaders/render/alpha.vert", "shaders/render/alpha.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
-	skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
+    skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
+    shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
 	initSkybox();
 	initFlowerResources();
+}
+
+void StoneEngine::initShadowMapping()
+{
+	rebuildShadowResources(RENDER_DISTANCE);
+}
+
+void StoneEngine::rebuildShadowResources(int effectiveRender)
+{
+	(void)effectiveRender;
+
+	if (shadowFBO) {
+		glDeleteFramebuffers(1, &shadowFBO);
+		shadowFBO = 0;
+	}
+	if (shadowMap) {
+		glDeleteTextures(1, &shadowMap);
+		shadowMap = 0;
+	}
+
+	glGenFramebuffers(1, &shadowFBO);
+	glGenTextures(1, &shadowMap);
+	glBindTexture(GL_TEXTURE_2D, shadowMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
+			   shadowMapSize, shadowMapSize, 0,
+			   GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE) {
+		std::cerr << "[Shadow] FBO incomplete: 0x" << std::hex << status << std::dec << std::endl;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void StoneEngine::setShadowResolution(int newSize)
+{
+	shadowMapSize = std::max(256, newSize);
+	rebuildShadowResources(RENDER_DISTANCE);
 }
 
 void StoneEngine::initSkybox()
@@ -500,7 +617,9 @@ void StoneEngine::displaySun(FBODatas &targetFBO)
 	// glDepthFunc(GL_LESS);
 	vec3 camPos = camera.getWorldPosition();
 	// Compute current sun position based on time
-	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+	// Place the sun sprite far away in the current sun direction
+	glm::vec3 sunDir = computeSunDirection(timeValue);
+	glm::vec3 sunPos = camPos + sunDir * 6000.0f;
 
 	// Update view matrix
 
@@ -537,6 +656,7 @@ void StoneEngine::displaySun(FBODatas &targetFBO)
 
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
@@ -773,18 +893,154 @@ void StoneEngine::activateRenderShader()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+	glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
+	glUniform1f(glGetUniformLocation(shaderProgram, "shadowNear"), _shadowNear);
+	glUniform1f(glGetUniformLocation(shaderProgram, "shadowFar"), _shadowFar);
+	glUniform1f(glGetUniformLocation(shaderProgram, "shadowBiasSlope"), _shadowBiasSlope);
+	glUniform1f(glGetUniformLocation(shaderProgram, "shadowBiasConstant"), _shadowBiasConstant);
 
 	// Pass camera world position explicitly for camera-relative rendering
 	vec3 camWorld = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
 
+	// Provide a stable directional sun vector (camera-invariant)
+	glm::vec3 sunDir = computeSunDirection(timeValue);
+	glUniform3fv(glGetUniformLocation(shaderProgram, "sunDir"), 1, glm::value_ptr(sunDir));
+
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, shadowMap);
+	glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 4);
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
-	glFrontFace(GL_CCW);
+    glEnable(GL_CULL_FACE);
+    // Terrain winding is effectively flipped by our view construction; treat CW as front
+    glFrontFace(GL_CW);
+    glCullFace(GL_BACK);
+}
+
+void StoneEngine::renderShadowMap()
+{
+	if (!shadowShaderProgram) return;
+	if (shadowMap == 0 || shadowFBO == 0)
+		rebuildShadowResources(RENDER_DISTANCE);
+
+	// ---------- Cached state: stabilize + avoid needless rebuilds ----------
+	static bool      inited = false;
+	static glm::vec3 cachedCenter(0.0f);
+	static glm::vec3 prevSunDir(0.0f);
+	static float     lastFov = -1.0f;
+	static int       freezeFrames = 0;
+
+	if (lastFov < 0.0f) lastFov = _fov;
+	if (std::abs(_fov - lastFov) > 0.25f) {
+		freezeFrames = 2;           // debounce FOV zoom changes
+		lastFov = _fov;
+	}
+	if (freezeFrames > 0) { --freezeFrames; return; }
+
+	// ---------- Sun dir depends only on time ----------
+	glm::vec3 sunDir = glm::normalize(computeSunDirection(timeValue));
+
+	// ---------- Grid-locked center near player (X/Z only) ----------
+	const float GRID = float(CHUNK_SIZE) * 4.0f;  // snap every 4 chunks (tweak 2..8)
+	glm::vec3 cam   = camera.getWorldPosition();
+	glm::vec3 center(
+		std::round(cam.x / GRID) * GRID,
+		float(OCEAN_HEIGHT) + 32.0f,               // fixed Y anchor to avoid vertical jitter
+		std::round(cam.z / GRID) * GRID
+	);
+
+	// ---------- Resolve world extent and quantize to texel steps ----------
+	const float worldExtentRaw  = std::max<float>(128.0f, float(RENDER_DISTANCE * CHUNK_SIZE));
+	const float halfWorldRaw    = worldExtentRaw;
+	const float texelWorldRaw   = (2.0f * halfWorldRaw) / float(shadowMapSize);
+	const float N               = 8.0f;                         // change extent only in N-texel steps
+	const float step            = std::max(texelWorldRaw * N, 1.0f);
+	const float halfWorld       = step * std::ceil(halfWorldRaw / step);
+
+	// ---------- Place light & build stable matrices (single cascade) ----------
+	const float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
+	glm::vec3  up(0.0f, 0.0f, 1.0f);                             // Z-up like your code
+	glm::vec3  lightPos = center + sunDir * shadowDist;
+	glm::mat4  lightView = glm::lookAt(lightPos, center, up);
+
+	_shadowNear = 1.0f;
+	_shadowFar  = shadowDist + halfWorld;
+
+	glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld,
+	                                 -halfWorld, halfWorld,
+	                                 _shadowNear, _shadowFar);
+
+	// Texel snapping: snap the projected center to the shadow map pixel grid
+	{
+		glm::mat4 VP = lightProj * lightView;
+		glm::vec4 origin = VP * glm::vec4(center, 1.0f);
+		origin *= float(shadowMapSize) * 0.5f;                   // NDC->texel space
+		glm::vec2 rounded = glm::floor(glm::vec2(origin) + 0.5f);
+		glm::vec2 offset  = (rounded - glm::vec2(origin)) * (2.0f / float(shadowMapSize));
+		lightProj[3][0] += offset.x;
+		lightProj[3][1] += offset.y;
+	}
+
+	glm::mat4 newLightSpace = lightProj * lightView;
+	const float newTexelWorld = (2.0f * halfWorld) / float(shadowMapSize);
+
+	// ---------- Early-out: only update if center or sun changed enough ----------
+	bool centerMoved = !inited || center.x != cachedCenter.x || center.z != cachedCenter.z;
+	float cosDelta   = inited ? glm::clamp(glm::dot(glm::normalize(prevSunDir), sunDir), -1.0f, 1.0f) : 1.0f;
+	float degDelta   = glm::degrees(std::acos(cosDelta));
+	const float SUN_ANGLE_EPS = 0.25f;  // update only if sun rotated > 0.25°
+
+	if (inited && !centerMoved && degDelta < SUN_ANGLE_EPS) {
+		// Reuse previous shadow map contents without rebuilding this frame.
+		return;
+	}
+
+	// Commit stabilized parameters
+	inited             = true;
+	cachedCenter       = center;
+	prevSunDir         = sunDir;
+	_shadowCenter      = center;
+	lightSpaceMatrix   = newLightSpace;
+	_shadowTexelWorld  = newTexelWorld;
+
+	// ---------- Render the single shadow map ----------
+	glUseProgram(shadowShaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_POLYGON_OFFSET_FILL);
+	glPolygonOffset(3.0f, 6.0f);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
+	glUniform1i(glGetUniformLocation(shadowShaderProgram, "textureArray"), 0);
+
+	// Shadow pass must NOT depend on screen-space occlusion
+	_chunkMgr.setOcclusionSource(0, 0, 0, glm::mat4(1.0f), glm::mat4(1.0f), glm::vec3(0.0f));
+	_chunkMgr.setRendererSyncMode(true);
+
+	glViewport(0, 0, shadowMapSize, shadowMapSize);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	_chunkMgr.setViewProj(lightView, lightProj);
+	_chunkMgr.renderSolidBlocks();
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	_chunkMgr.renderTransparentBlocksNoCullForShadow();
+
+	_chunkMgr.setRendererSyncMode(false);
+
+	// ---------- Restore state ----------
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, windowWidth, windowHeight);
+	glUseProgram(0);
 }
 
 void StoneEngine::renderChunkGrid()
@@ -1328,7 +1584,6 @@ void StoneEngine::rebuildVisibleFlowersVBO()
     _chunkMgr.getDisplayedChunksSnapshot(chunks);
     std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
     _chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
-    const bool haveSnapshot = !visibleSub.empty();
     _visibleFlowers.clear();
     for (const auto &c : chunks)
     {
@@ -1336,17 +1591,11 @@ void StoneEngine::rebuildVisibleFlowersVBO()
         if (it == _flowersBySub.end())
             continue;
         auto visIt = visibleSub.find(c);
-        // Fallback: if no snapshot yet for this chunk (or snapshot is empty), include all sublayers we have instances for
-        const bool useAll = (!haveSnapshot || visIt == visibleSub.end() || visIt->second.empty());
-        if (useAll)
-        {
-            for (auto &kv : it->second)
-            {
-                auto &vec = kv.second;
-                _visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
-            }
+        // Only render flowers for sublayers that are actually displayed.
+        // If there is no snapshot yet for this chunk, skip for now to avoid
+        // flowers appearing before terrain meshes.
+        if (visIt == visibleSub.end() || visIt->second.empty())
             continue;
-        }
         const auto &allowed = visIt->second;
         for (auto &kv : it->second)
         {
@@ -1417,6 +1666,7 @@ void StoneEngine::renderFlowers()
 	glEnable(GL_CULL_FACE);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	glCleanupTextureState();
 }
 
 void StoneEngine::addFlower(glm::vec3 pos, int typeId, float rotJitter, float scale, float heightScale)
@@ -1488,6 +1738,9 @@ void StoneEngine::display()
 		}
 	}
 
+	// Pass 0: shadow map
+	renderShadowMap();
+
 	prepareRenderPipeline();
 
 	renderSkybox();		  // -> msaaFBO
@@ -1550,6 +1803,13 @@ void StoneEngine::display()
 	sendPostProcessFBOToDispay(writeFBO);
 	renderOverlayAndUI();
 	finalizeFrame();
+
+	// Save current camera/view/proj for next frame's occlusion reprojection
+	_prevViewOcc = viewMatrix;
+	_prevProjOcc = projectionMatrix;
+	_prevCamOcc  = camera.getWorldPosition();
+	_prevOccValid = true;
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderLoadingScreen()
@@ -1619,6 +1879,7 @@ void StoneEngine::postProcessSkyboxComposite()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderAimHighlight()
@@ -1704,7 +1965,10 @@ void StoneEngine::postProcessCrosshair()
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glCleanupTextureState();
 }
+
 void StoneEngine::postProcessFog()
 {
 	if (showTriangleMesh)
@@ -1751,6 +2015,7 @@ void StoneEngine::postProcessFog()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::postProcessGreedyFix()
@@ -1780,6 +2045,7 @@ void StoneEngine::postProcessGreedyFix()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glDepthFunc(GL_LESS);
+	glCleanupTextureState();
 }
 
 void StoneEngine::postProcessGodRays()
@@ -1813,7 +2079,7 @@ void StoneEngine::postProcessGodRays()
 	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
 
 	vec3 camPos = camera.getWorldPosition();
-	glm::vec3 sunPos = computeSunPosition(timeValue, camPos);
+	glm::vec3 sunPos = camPos + computeSunDirection(timeValue) * 500.0f;
 
 	// Uniforms
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
@@ -1831,6 +2097,7 @@ void StoneEngine::postProcessGodRays()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderPlanarReflection()
@@ -1952,13 +2219,42 @@ void StoneEngine::renderSolidObjects()
 	activateRenderShader();
 	_chunkMgr.updateDrawData();
 	_chunkMgr.setViewProj(viewMatrix, projectionMatrix);
-	if (_occlDisableFrames <= 0)
+	// Provide previous-frame depth to enable conservative occlusion culling
+	// Skip when geometry just changed or the camera moved/zoomed a lot
+	// to avoid popping and flashes.
 	{
-		_chunkMgr.setOcclusionSource(readFBO.depth, windowWidth, windowHeight, viewMatrix, projectionMatrix, camera.getWorldPosition());
+		glm::vec3 cam = camera.getWorldPosition();
+		glm::vec2 ang = camera.getAngles();
+		float     fov = _fov;
+		if (_havePrevCam) {
+			float posDelta   = glm::length(cam - _prevCamPos);
+			float yawDelta   = std::abs(ang.x - _prevCamAngles.x);
+			float pitchDelta = std::abs(ang.y - _prevCamAngles.y);
+			float rotDelta   = std::max(yawDelta, pitchDelta);
+			float fovDelta   = std::abs(fov - _prevFov);
+			// Thresholds: ~0.5m movement, ~1.5 deg rotation, any noticeable FOV change
+			if (posDelta > 0.5f || rotDelta > 1.5f || fovDelta > 0.25f) {
+				_occlDisableFrames = std::max(_occlDisableFrames, 2);
+			}
+		}
+		_prevCamPos   = cam;
+		_prevCamAngles= ang;
+		_prevFov      = fov;
+		_havePrevCam  = true;
+	}
+	// Skip occlusion if requested
+	if (_occlDisableFrames <= 0 && _prevOccValid) {
+		// Use previous-frame view/proj/cam that match readFBO.depth
+		_chunkMgr.setOcclusionSource(
+			readFBO.depth, windowWidth, windowHeight,
+			_prevViewOcc, _prevProjOcc,
+			_prevCamOcc
+		);
 	}
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
 	if (_occlDisableFrames > 0)
 		--_occlDisableFrames;
+	glCleanupTextureState();
 }
 
 void StoneEngine::screenshotFBOBuffer(FBODatas &source, FBODatas &destination)
@@ -2034,14 +2330,27 @@ void StoneEngine::renderTransparentObjects()
 		_chunkMgr.renderTransparentBlocks();
 	}
 
-	// Update SSR source to include leaves before drawing water
-	resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
-	blitColorDepth(writeFBO, readFBO);
-	// Restore draw target to MSAA FBO (resolve changed GL_DRAW_FRAMEBUFFER)
-	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
-	// 2) Water: blending ON, depth write OFF, culling enabled
-	activateTransparentShader();
-	drawnTriangles += _chunkMgr.renderTransparentBlocks();
+    // --- Only do MSAA bookkeeping when NOT in wireframe ---
+    if (!showTriangleMesh)
+    {
+        // Update SSR source to include leaves before drawing water
+        resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
+        blitColorDepth(writeFBO, readFBO);
+
+        // Restore draw target to MSAA FBO (resolve changed GL_DRAW_FRAMEBUFFER)
+        glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+    }
+    else
+    {
+        // Wireframe: keep drawing to the default framebuffer
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    // 2) Water
+    activateTransparentShader();         // already sets wireframe-friendly state when showTriangleMesh==true
+    drawnTriangles += _chunkMgr.renderTransparentBlocks();
+
+    glCleanupTextureState();
 }
 
 void StoneEngine::renderSkybox()
@@ -2088,6 +2397,7 @@ void StoneEngine::renderSkybox()
 
 	if (cullEnabled)
 		glEnable(GL_CULL_FACE);
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderOverlayAndUI()
@@ -2190,15 +2500,12 @@ void StoneEngine::findMoveRotationSpeed()
 	if (swimming)
 		moveSpeed *= 0.5f;
 
-	// ZOOM
-	if (keyStates[GLFW_KEY_KP_ADD])
-	{
-		timeValue += 50;
-	}
-	if (keyStates[GLFW_KEY_KP_SUBTRACT])
-	{
-		timeValue -= 50;
-	}
+	// Time acceleration (numeric keypad + / -)
+	bool accelPlus  = keyStates[GLFW_KEY_KP_ADD];
+	bool accelMinus = keyStates[GLFW_KEY_KP_SUBTRACT];
+	_timeAccelerating = (accelPlus || accelMinus);
+	if (accelPlus)  { timeValue += 50; }
+	if (accelMinus) { timeValue -= 50; }
 
 	if (!isWSL())
 		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
@@ -2448,9 +2755,10 @@ void StoneEngine::updateMovement()
 
 void StoneEngine::updateGameTick()
 {
-	timeValue += 6; // Increment time value per game tick
+	if (!pauseTime)
+		timeValue += 6; // Increment time value per game tick
 	// std::cout << "timeValue: " << timeValue << std::endl;
-	//  _chunkMgr.printSizes(); Debug container sizes
+	// _chunkMgr.printSizes(); Debug container sizes
 	if (timeValue > 86400)
 		timeValue = 0;
 	if (timeValue < 0)
@@ -2466,9 +2774,9 @@ void StoneEngine::updateGameTick()
 	{
 		// Always daytime
 		glUseProgram(shaderProgram);
-		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 58500);
+		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 52000);
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
-		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 58500);
+		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 52000);
 	}
 	// Water tweaks stay here (land gravity moved to updateFalling())
 	if (swimming)
@@ -2754,6 +3062,9 @@ void StoneEngine::reshapeAction(int width, int height)
 		_windowedY = py;
 	}
 	resetFrameBuffers();
+	// On actual window resize, previous-frame depth is invalid for occlusion
+	_occlDisableFrames = std::max(_occlDisableFrames, 3);
+	_prevOccValid = false;
 	float y = NEAR_PLANE;
 	projectionMatrix = perspective(radians(_fov), float(width) / float(height), y, FAR_PLANE);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -2780,22 +3091,10 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	(void)mods;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F)
 	{
-		// Place a flower block at crosshair and add an instance (debug helper)
-		glm::ivec3 hit;
-		if (_chunkMgr.raycastHit(camera.getWorldPosition(), camera.getDirection(), 5.0f, hit))
-		{
-			glm::ivec3 placed;
-			// Place block in voxel grid so it becomes pickable/deletable
-			glm::vec3 origin = camera.getWorldPosition();
-			glm::vec3 dir = camera.getDirection();
-			_chunkMgr.raycastPlaceOne(origin, dir, 5.0f, FLOWER_POPPY, placed);
-			glm::vec3 placePos = glm::vec3(placed.x + 0.5f, placed.y + 0.0f, placed.z + 0.5f);
-			// Small random rotation jitter (~±15 degrees) and scale jitter
-			static std::mt19937 rng{std::random_device{}()};
-			std::uniform_real_distribution<float> rotD(-0.26f, 0.26f); // ~±15°
-			std::uniform_real_distribution<float> scaD(0.95f, 1.05f);
-			addFlower(placePos, /*typeId=*/0, rotD(rng), scaD(rng), 1.0f);
-		}
+		// Change FOV without rebuilding framebuffers to avoid culling flashes
+		_fov = 80.0f;
+		// Update projection only; viewport is unchanged
+		projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_C)
 		updateChunk = !updateChunk;
@@ -2834,14 +3133,11 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	}
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 		mouseCaptureToggle = !mouseCaptureToggle;
-	if (action == GLFW_PRESS && (key == GLFW_KEY_F5))
-		camera.invert();
-	if (key == GLFW_KEY_ESCAPE)
-		glfwSetWindowShouldClose(_window, GL_TRUE);
-	if (action == GLFW_PRESS)
-		keyStates[key] = true;
-	if (action == GLFW_PRESS && key == GLFW_KEY_F6)
-	{
+	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
+	if (action == GLFW_PRESS && (key == GLFW_KEY_P)) pauseTime = !pauseTime;
+	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
+	if (action == GLFW_PRESS) keyStates[key] = true;
+	if (action == GLFW_PRESS && key == GLFW_KEY_F6) {
 		_gridMode = static_cast<GridDebugMode>((int(_gridMode) + 1) % 4);
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_LEFT_CONTROL)
@@ -2915,7 +3211,9 @@ void StoneEngine::scrollAction(double yoffset)
 {
 	_fov -= (float)yoffset;
 	_fov = std::clamp(_fov, 1.0f, 90.0f);
-	reshapeAction(windowWidth, windowHeight);
+
+	// Update projection only; avoid full framebuffer reset to prevent flashes
+	projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
 }
 
 void StoneEngine::scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
