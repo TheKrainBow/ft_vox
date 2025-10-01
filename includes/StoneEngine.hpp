@@ -9,6 +9,7 @@
 #include "Skybox.hpp"
 #include "ChunkManager.hpp"
 #include "Raycaster.hpp"
+#include "Player.hpp"
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -49,7 +50,7 @@ class StoneEngine {
 		GLuint sunVBO;
 
 		// Shadow mapping (single shadow map)
-		GLuint shadowShaderProgram = 0;   // depth-only terrain pass
+		GLuint shadowShaderProgram = 0;	// depth-only terrain pass
 		GLuint shadowFBO = 0;
 		GLuint shadowMap = 0;
 		int shadowMapSize = 4096;
@@ -73,7 +74,7 @@ class StoneEngine {
 		// Flowers (cutout pass)
 		GLuint flowerProgram = 0;
 		GLuint flowerVAO = 0;
-		GLuint flowerVBO = 0;          // base X-quad mesh
+		GLuint flowerVBO = 0;    // base X-quad mesh
 		GLuint flowerInstanceVBO = 0;  // per-instance data
 		GLuint flowerTexture = 0;      // 2D array of flower sprites
 		GLsizei flowerInstanceCount = 0;
@@ -120,8 +121,7 @@ class StoneEngine {
 		std::mutex		_isRunningMutex;
 		std::atomic_bool	_isRunning = false;
 
-		// Keys states and runtime booleans
-		bool keyStates[348];
+		// Keys states, runtime booleans and game states
 		bool ignoreMouseEvent;
 		bool updateChunk;
 		bool showTriangleMesh;
@@ -130,24 +130,16 @@ class StoneEngine {
 		bool showHelp;
 		bool showUI;
 		bool showLight;
-		bool gravity;
-		bool falling;
-		bool swimming;
-		bool jumping;
-		bool isUnderWater;
-		bool ascending;
-		bool sprinting;
 		bool pauseTime = false;
+		bool gravity;
+		bool accelPlus = false;
+		bool accelMinus = false;
+
 		// Time-acceleration tracking to throttle shadow updates
 		bool _timeAccelerating = false;
 		int  _shadowUpdateDivider = 4;   // update shadows every Nth eligible frame while accelerating
 		int  _shadowUpdateCounter = 0;   // modulo counter used with divider
 		GridDebugMode _gridMode = GRID_OFF;
-
-		// Player speed
-		float moveSpeed;
-		float rotationSpeed;
-		float fallSpeed = 0.0f;
 
 		// FPS counter
 		int frameCount;
@@ -174,12 +166,7 @@ class StoneEngine {
 		// Game data
 		ivec3 sunPosition;
 		std::atomic_int timeValue;
-		std::chrono::steady_clock::time_point _jumpCooldown;
-		std::chrono::steady_clock::time_point _swimUpCooldownOnRise;
-		std::chrono::steady_clock::time_point _placeCooldown;
-		std::chrono::steady_clock::time_point now;
 		TopBlock camTopBlock;
-		movedir playerDir;
 		int _bestRender = 0;
 		int	_biome;
 		double _humidity;
@@ -188,9 +175,7 @@ class StoneEngine {
 		GLuint _wireProgram = 0;
 
 		// Selected block for placement
-		BlockType	selectedBlock;
 		block_types	selectedBlockDebug;
-		bool placing;
 		ChunkManager _chunkMgr;
 
 		// Occlusion control: disable previous-frame occlusion for a few frames
@@ -221,6 +206,12 @@ class StoneEngine {
 		std::string _hWireframe;
 		std::string _hFullscreen;
 		std::string _empty;
+
+		// Player data and movement
+		Player _player;
+
+		// Time data
+		std::chrono::steady_clock::time_point now;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();
@@ -258,17 +249,17 @@ class StoneEngine {
 		void	resetFrameBuffers();
 		void	updateFboWindowSize(PostProcessShader &shader);
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
-void   initWireframeResources();
-void   renderAimHighlight();
-		void   postProcessSkyboxComposite();
-		void   setFullscreen(bool enable);
-		void   renderLoadingScreen();
-		void   updateHelpStatusText();
+		void	initWireframeResources();
+		void	renderAimHighlight();
+		void	postProcessSkyboxComposite();
+		void	setFullscreen(bool enable);
+		void	renderLoadingScreen();
+		void	updateHelpStatusText();
 
 		// Debug/test helper to add an instance at runtime
-		void   addFlower(glm::vec3 pos, int typeId=0, float rotJitter=0.0f, float scale=1.0f, float heightScale=1.0f);
-		void   removeFlowerAtCell(const glm::ivec3& cell);
-		void   rebuildVisibleFlowersVBO();
+		void	addFlower(glm::vec3 pos, int typeId=0, float rotJitter=0.0f, float scale=1.0f, float heightScale=1.0f);
+		void	removeFlowerAtCell(const glm::ivec3& cell);
+		void	rebuildVisibleFlowersVBO();
 
 		// Runtime methods
 		void calculateFps();
@@ -289,16 +280,8 @@ void   renderAimHighlight();
 		void renderPlanarReflection();
 		void setShadowCascadeRenderSync(bool enable);
 		ivec2 getChunkPos(vec2 camPosXZ);
-		bool canMove(const glm::vec3& offset, float extra);
-		void updatePlayerStates();
-		void updateFalling(vec3 &worldPos, int &blockHeight);
-		void updateSwimming(BlockType block);
-		void updateJumping();
-		void updatePlayerDirection();
 		void updateProcessMemoryUsage();
-		bool tryMoveStepwise(const glm::vec3& moveVec, float stepSize);
 		void activateTransparentShader();
-		void activateAlphaShader();
 		void updateBiomeData();
 		void renderChunkGrid();
 		void swapPingPongBuffers();
@@ -319,16 +302,11 @@ void   renderAimHighlight();
 		// Camera-invariant sun direction in world-space
 		glm::vec3 computeSunDirection(int timeValue);
 
-		// Multi thread methods
-		//void chunkUpdateWorker();
-
-		// Movement methods
-		void findMoveRotationSpeed();
+		// Game state update methods
 		void update();
-		void updateMovement();
 		void updateGameTick();
-		void updatePlacing();
 		void updateChunkWorker();
+		void updateMovement();
 
 		bool getIsRunning();
 };

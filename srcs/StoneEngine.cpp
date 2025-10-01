@@ -114,7 +114,8 @@ void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
 StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(),
 													   _pool(pool),
 													   noise_gen(seed),
-													   _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool)
+													   _chunkMgr(seed, &_isRunning, camera, chronoHelper, pool),
+													   _player(camera, _chunkMgr)
 {
 	initData();
 	initGLFW();
@@ -242,7 +243,6 @@ void StoneEngine::run()
 void StoneEngine::initData()
 {
 	// Keys states and runtime booleans
-	bzero(keyStates, sizeof(keyStates));
 	ignoreMouseEvent	= IGNORE_MOUSE;
 	updateChunk			= ENABLE_WORLD_GENERATION;
 	showTriangleMesh	= SHOW_TRIANGLES;
@@ -251,16 +251,8 @@ void StoneEngine::initData()
 	showHelp            = false;
 	showUI				= SHOW_UI;
 	showLight			= SHOW_LIGHTING;
-	gravity				= GRAVITY;
-	falling				= FALLING;
-	swimming			= SWIMMING;
-	jumping				= JUMPING;
-	isUnderWater		= UNDERWATER;
-	ascending			= ASCENDING;
-	sprinting			= SPRINTING;
-	selectedBlock		= AIR;
 	selectedBlockDebug	= air;
-	placing				= KEY_INIT;
+	gravity 			= GRAVITY;
 
 	// Occlusion disabled window after edits
 	_occlDisableFrames = 0;
@@ -270,11 +262,6 @@ void StoneEngine::initData()
 	_timeAccelerating = false;
 	_shadowUpdateDivider = 20;
 	_shadowUpdateCounter = 0;
-	// Cooldowns
-	now = std::chrono::steady_clock::now();
-	_jumpCooldown = now;
-	_placeCooldown = now;
-	_swimUpCooldownOnRise = now;
 
 	// Gets the max MSAA (anti aliasing) samples
 	_maxSamples = 0;
@@ -295,10 +282,6 @@ void StoneEngine::initData()
 
 	// Debug data
 	drawnTriangles = 0.0;
-
-	// Player data
-	moveSpeed = 0.0;
-	rotationSpeed = 0.0;
 
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
@@ -839,7 +822,7 @@ void StoneEngine::updateHelpStatusText()
 {
 	_hGravity = onoff(gravity);
 	_hGeneration = onoff(updateChunk);
-	_hSprinting = onoff(sprinting);
+	_hSprinting = onoff(_player.isSprinting());
 	_hUI = onoff(showUI);
 	_hLighting = onoff(showLight);
 	_hMouseCapture = onoff(mouseCaptureToggle);
@@ -1155,7 +1138,7 @@ void StoneEngine::activateTransparentShader()
 	glUniform3fv(glGetUniformLocation(waterShaderProgram, "cameraPos"), 1, value_ptr(viewPos));
 	glUniform3fv(glGetUniformLocation(waterShaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 	glUniform1f(glGetUniformLocation(waterShaderProgram, "time"), timeValue);
-	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), isUnderWater);
+	glUniform1i(glGetUniformLocation(waterShaderProgram, "isUnderwater"), _player.isUnderWater());
 	// In wireframe/triangle-mesh mode, force water to render flat deep blue with no reflections
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "showtrianglemesh"), showTriangleMesh ? 1 : 0);
 
@@ -1996,7 +1979,7 @@ void StoneEngine::postProcessFog()
 	glUniform3f(glGetUniformLocation(shader.program, "fogColor"),
 				0.46f, 0.49f, 0.52f);
 
-	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
 	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
 	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
 
@@ -2085,11 +2068,11 @@ void StoneEngine::postProcessGodRays()
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(shader.program, "sunPos"), 1, glm::value_ptr(sunPos));
-	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), isUnderWater);
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
 
 	// Intensity scales with sun altitude and underwater state
 	float sunHeight = glm::clamp((sunPos.y - camPos.y) / 6000.0f, 0.0f, 1.0f);
-	float baseIntensity = isUnderWater ? 0.85f : 0.50f;
+	float baseIntensity = _player.isUnderWater() ? 0.85f : 0.50f;
 	float rayIntensity = baseIntensity * sunHeight;
 	glUniform1f(glGetUniformLocation(shader.program, "rayIntensity"), rayIntensity);
 
@@ -2110,7 +2093,7 @@ void StoneEngine::renderPlanarReflection()
 	const float verticalDistance = glm::abs(camPos.y - waterY);
 	const float planarUpdateMaxDistance = 256.0f;
 
-	if (!isUnderWater && verticalDistance > planarUpdateMaxDistance)
+	if (!_player.isUnderWater() && verticalDistance > planarUpdateMaxDistance)
 	{
 		return;
 	}
@@ -2480,40 +2463,6 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	chronoHelper.printChrono(0);
 }
 
-void StoneEngine::findMoveRotationSpeed()
-{
-	// Calculate delta time
-	static auto lastTime = std::chrono::steady_clock::now();
-	auto currentTime = std::chrono::steady_clock::now();
-	std::chrono::duration<float> elapsedTime = currentTime - lastTime;
-	deltaTime = std::min(elapsedTime.count(), 0.1f);
-	lastTime = currentTime;
-
-	// Apply delta to rotation and movespeed (legacy scheme)
-	if (!gravity && keyStates[GLFW_KEY_LEFT_CONTROL])
-		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
-	else if (gravity && sprinting)
-		moveSpeed = (MOVEMENT_SPEED * ((20.0 * !gravity) + (2 * gravity))) * deltaTime;
-	else
-		moveSpeed = MOVEMENT_SPEED * deltaTime;
-
-	if (swimming)
-		moveSpeed *= 0.5f;
-
-	// Time acceleration (numeric keypad + / -)
-	bool accelPlus  = keyStates[GLFW_KEY_KP_ADD];
-	bool accelMinus = keyStates[GLFW_KEY_KP_SUBTRACT];
-	_timeAccelerating = (accelPlus || accelMinus);
-	if (accelPlus)  { timeValue += 50; }
-	if (accelMinus) { timeValue -= 50; }
-
-	if (!isWSL())
-		rotationSpeed = (ROTATION_SPEED - 1.5) * deltaTime;
-	else
-		rotationSpeed = ROTATION_SPEED * deltaTime;
-	start = std::chrono::steady_clock::now();
-}
-
 ivec2 StoneEngine::getChunkPos(vec2 camPosXZ)
 {
 	// Convert camera-space coords to world-space and use floor division
@@ -2523,192 +2472,6 @@ ivec2 StoneEngine::getChunkPos(vec2 camPosXZ)
 	return {
 		static_cast<int>(std::floor(wx / cs)),
 		static_cast<int>(std::floor(wz / cs))};
-}
-
-void StoneEngine::updateFalling(vec3 &worldPos, int &blockHeight)
-{
-	// Snap landing to target eye height
-	const float eyeTarget = blockHeight + 1 + EYE_HEIGHT;
-
-	if (!falling && worldPos.y > eyeTarget + EPS)
-		falling = true;
-	if (falling && worldPos.y <= eyeTarget + EPS)
-	{
-		falling = false;
-		fallSpeed = 0.0f;
-		camera.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
-	}
-	if (gravity && !swimming && falling)
-	{
-		fallSpeed -= GRAVITY_PER_SEC * deltaTime;
-
-		float decay = std::pow(FALL_DAMP_PER_TICK, TICK_RATE * deltaTime);
-		fallSpeed *= decay;
-	}
-
-	// Integrate vertical position
-	camera.move({0.0f, -(fallSpeed * deltaTime), 0.0f});
-}
-
-void StoneEngine::updateSwimming(BlockType block)
-{
-	if (!swimming && block == WATER)
-	{
-		swimming = true;
-	}
-	if (swimming && block != WATER)
-	{
-		swimming = false;
-		fallSpeed = 0.0;
-		_swimUpCooldownOnRise = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
-	}
-}
-
-void StoneEngine::updateJumping()
-{
-	jumping = gravity && !falling && keyStates[GLFW_KEY_SPACE] && now > _jumpCooldown && !swimming;
-}
-
-void StoneEngine::updatePlayerStates()
-{
-	vec3 worldPos = camera.getWorldPosition();
-	BlockType camStandingBlock = AIR;
-	BlockType camBodyBlockLegs = AIR;
-	BlockType camBodyBlockTorso = AIR;
-
-	// Compute world integer cell first
-	int worldX = static_cast<int>(std::floor(worldPos.x));
-	int worldZ = static_cast<int>(std::floor(worldPos.z));
-
-	// Derive chunk strictly from the integer world cell to avoid float-boundary mismatches
-	ivec2 chunkPos = {
-		static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-		static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
-
-	// Compute foot cell from eye height
-	int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
-	// int footSubY = static_cast<int>(std::floor(static_cast<float>(footCell) / static_cast<float>(CHUNK_SIZE)));
-
-	// If the destination chunk or the needed subchunk is not yet loaded, avoid updating
-	// ground/physics to prevent erroneous falling while streaming catches up.
-	// if (Chunk* c = _chunkMgr.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
-	// 	return;
-
-	camTopBlock = _chunkMgr.findBlockUnderPlayer(chunkPos, {worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
-	camStandingBlock = _chunkMgr.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
-	camBodyBlockLegs = _chunkMgr.getBlock(chunkPos, {worldX, footCell, worldZ});
-	camBodyBlockTorso = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
-
-	// Consider underwater slightly sooner by biasing eye sample downward
-	const float eyeBias = 0.10f;
-	int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-	BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
-	isUnderWater = (camHeadBlock == WATER);
-
-	// Body blocks states debug
-	// std::cout << '[' << camStandingBlock << ']' << std::endl;
-	// std::cout << '[' << camBodyBlockLegs << ']' << std::endl;
-	// std::cout << '[' << camBodyBlockTorso << ']' << std::endl;
-
-	BlockType inWater = (camStandingBlock == WATER || camBodyBlockLegs == WATER || camBodyBlockTorso == WATER) ? WATER : AIR;
-
-	BlockType camBodyOverHead = AIR;
-	ascending = fallSpeed > 0.0;
-	if (ascending)
-	{
-		// Ceiling check
-		camBodyOverHead = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
-		if (camBodyOverHead != WATER && camBodyOverHead != AIR)
-		{
-			falling = false;
-			fallSpeed = 0.0;
-		}
-	}
-	updateFalling(worldPos, camTopBlock.height);
-	updateSwimming(inWater);
-	updateJumping();
-}
-
-bool StoneEngine::canMove(const glm::vec3 &offset, float extra)
-{
-	glm::vec3 probe = offset;
-	if (glm::length(probe) > 0.0f)
-		probe = glm::normalize(probe) * (glm::length(probe) + extra);
-
-	vec3 nextCamPos = camera.moveCheck(probe);
-	float nextEyeY = -nextCamPos.y;
-	int footCell = static_cast<int>(std::floor(nextEyeY - EYE_HEIGHT + EPS));
-	int worldX = static_cast<int>(std::floor(-nextCamPos.x));
-	int worldZ = static_cast<int>(std::floor(-nextCamPos.z));
-	ivec3 worldPosFeet = {worldX, footCell, worldZ};
-	ivec3 worldPosTorso = {worldX, footCell + 1, worldZ};
-	// Derive chunk from integer world cell to avoid float-boundary errors
-	ivec2 chunkPos = {
-		static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-		static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
-
-	// Check both the block in front of the legs and the upper body
-	BlockType blockFeet = _chunkMgr.getBlock(chunkPos, worldPosFeet);
-	BlockType blockTorso = _chunkMgr.getBlock(chunkPos, worldPosTorso);
-	auto passable = [](BlockType b)
-	{
-		return (b == AIR || b == WATER || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS);
-	};
-	return (passable(blockFeet) && passable(blockTorso));
-}
-
-// Divides every move into smaller steps if necessary typically if the player goes very
-// fast to avoid block skips
-bool StoneEngine::tryMoveStepwise(const glm::vec3 &moveVec, float stepSize)
-{
-	// Total distance to move
-	float distance = glm::length(moveVec);
-	if (distance <= 0.0f)
-		return false;
-
-	// Normalize and scale to step size
-	glm::vec3 direction = glm::normalize(moveVec);
-	float moved = 0.0f;
-
-	while (moved < distance)
-	{
-		float step = std::min(stepSize, distance - moved);
-		glm::vec3 offset = direction * step;
-
-		if (!canMove(offset, 0.04f))
-			return false;
-
-		camera.move(offset);
-		moved += step;
-	}
-
-	return true;
-}
-
-void StoneEngine::updatePlayerDirection()
-{
-	playerDir = {0};
-
-	// Build direction once
-	if (keyStates[GLFW_KEY_W])
-		playerDir.forward += moveSpeed;
-	if (keyStates[GLFW_KEY_A])
-		playerDir.strafe += moveSpeed;
-	if (keyStates[GLFW_KEY_S])
-		playerDir.forward += -moveSpeed;
-	if (keyStates[GLFW_KEY_D])
-		playerDir.strafe += -moveSpeed;
-	if (!gravity && keyStates[GLFW_KEY_SPACE])
-		playerDir.up += -moveSpeed;
-	if (!gravity && keyStates[GLFW_KEY_LEFT_SHIFT])
-		playerDir.up += moveSpeed;
-	if (jumping)
-	{
-		fallSpeed = 1.2f;
-		playerDir.up += -moveSpeed;
-		_jumpCooldown = now + std::chrono::milliseconds(400);
-		jumping = false;
-	}
 }
 
 void StoneEngine::updateProcessMemoryUsage()
@@ -2723,26 +2486,7 @@ void StoneEngine::updateProcessMemoryUsage()
 void StoneEngine::updateMovement()
 {
 	vec3 oldPos = camera.getWorldPosition();
-	glm::vec3 moveVec = camera.getForwardVector() * playerDir.forward + camera.getStrafeVector() * playerDir.strafe + glm::vec3(0, 1, 0) * playerDir.up;
-
-	if (gravity)
-	{
-		float stepSize = 0.5f;
-
-		glm::vec3 moveX(moveVec.x, 0.0f, 0.0f);
-		glm::vec3 moveZ(0.0f, 0.0f, moveVec.z);
-		glm::vec3 moveY(0.0f, moveVec.y, 0.0f);
-
-		if (moveX.x != 0.0f)
-			tryMoveStepwise(moveX, stepSize);
-		if (moveZ.z != 0.0f)
-			tryMoveStepwise(moveZ, stepSize);
-		if (moveY.y != 0.0f)
-			tryMoveStepwise(moveY, stepSize);
-	}
-	else
-		camera.move(moveVec);
-
+	_player.updateMovement();
 	vec3 newPos = camera.getWorldPosition();
 	if (newPos != oldPos)
 	{
@@ -2778,18 +2522,7 @@ void StoneEngine::updateGameTick()
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
 		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 52000);
 	}
-	// Water tweaks stay here (land gravity moved to updateFalling())
-	if (swimming)
-	{
-		if (gravity && falling)
-		{
-			fallSpeed = -0.25f;
-		}
-		if (keyStates[GLFW_KEY_SPACE] && std::chrono::steady_clock::now() > _swimUpCooldownOnRise)
-		{
-			fallSpeed += 0.75f;
-		}
-	}
+	_player.updateSwimSpeed();
 }
 
 void StoneEngine::updateChunkWorker()
@@ -2851,14 +2584,20 @@ void StoneEngine::updateBiomeData()
 
 void StoneEngine::update()
 {
-	// Check for delta and apply to move and rotation speeds
-	findMoveRotationSpeed();
+	// Time acceleration (numeric keypad + / -)
+	_timeAccelerating = (accelPlus || accelMinus);
+	if (accelPlus)  { timeValue += 50; }
+	if (accelMinus) { timeValue -= 50; }
 
+	_player.findMoveRotationSpeed();
 	// Get current time
 	end = std::chrono::steady_clock::now();
 	now = end;
 	delta = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 	start = end; // Reset start time for next frame
+
+	// Check for delta and apply to move and rotation speeds
+	_player.updateNow(now);
 
 	// Fixed 20 Hz world tick (day/night, water nudges), independent of FPS
 	static auto tickPrev = std::chrono::steady_clock::now();
@@ -2875,48 +2614,16 @@ void StoneEngine::update()
 	}
 
 	// Update player states
-	if (gravity)
-	{
-		updatePlayerStates();
-	}
-	else
-	{
-		vec3 worldPos = camera.getWorldPosition();
-		int worldX = static_cast<int>(std::floor(worldPos.x));
-		int worldZ = static_cast<int>(std::floor(worldPos.z));
-		ivec2 chunkPos = {
-			static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-			static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
-		const float eyeBias = 0.30f;
-		int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-		BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
-		isUnderWater = (camHeadBlock == WATER);
-	}
+	_player.updatePlayerStates();
+
 	// Update player data
-	updatePlacing();
-	updatePlayerDirection();
-	updateMovement();
+	if (_player.updatePlacing())
+		_occlDisableFrames = std::max(_occlDisableFrames, 2);
+	_player.updatePlayerDirection();
+	_player.updateMovement();
 	updateBiomeData();
 	updateProcessMemoryUsage();
 	display();
-}
-
-void StoneEngine::updatePlacing()
-{
-	if (placing && now > _placeCooldown)
-	{
-		// Ray origin and direction in WORLD space
-		glm::vec3 origin = camera.getWorldPosition();
-		glm::vec3 dir = camera.getDirection();
-
-		// Place block 5 block range
-		bool placed = _chunkMgr.raycastPlaceOne(origin, dir, 5.0f, selectedBlock);
-		if (placed)
-		{
-			_occlDisableFrames = std::max(_occlDisableFrames, 2);
-		}
-		_placeCooldown = now + std::chrono::milliseconds(150);
-	}
 }
 
 void StoneEngine::resetFrameBuffers()
@@ -2950,6 +2657,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 	// Only when mouse is captured (so clicks aren't for UI)
 	if (!mouseCaptureToggle)
 		return;
+	BlockType selectedBlock = _player.getSelectedBlock();
 
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
 	{
@@ -2972,7 +2680,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 			}
 		}
 	}
-	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && selectedBlock != AIR)
+	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && _player.getSelectedBlock() != AIR)
 	{
 		// Ray origin and direction in WORLD space
 		glm::vec3 origin = camera.getWorldPosition();
@@ -3003,13 +2711,13 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 				addFlower(center, typeId, rotD(rng), scaD(rng), 1.0f);
 			}
 		}
-		placing = true;
+		_player.setPlacing(true);
 
 		// Start cooldown immediately to avoid a second place on the same frame
-		_placeCooldown = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+		_player.setPlaceCd();
 	}
 	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE && selectedBlock != AIR)
-		placing = false;
+		_player.setPlacing(false);
 	else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS)
 	{
 		// Ray origin and direction in WORLD space
@@ -3031,6 +2739,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 				if (blockDebugTab[i].correspondance == blockFound)
 				{
 					selectedBlockDebug = blockDebugTab[i].block;
+					_player.setSelectedBlock(blockFound);
 					return;
 				}
 			}
@@ -3100,14 +2809,8 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_G)
 	{
-		bool newG = !gravity;
-		gravity = newG;
-		if (newG)
-		{
-			// Smoothly re-enter gravity: reset vertical velocity so we don't snap
-			falling = true;
-			fallSpeed = 0.0f;
-		}
+		gravity = !gravity;
+		_player.toggleGravity();
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_F4)
 		showTriangleMesh = !showTriangleMesh;
@@ -3136,14 +2839,12 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (action == GLFW_PRESS && (key == GLFW_KEY_P)) pauseTime = !pauseTime;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
-	if (action == GLFW_PRESS) keyStates[key] = true;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F6) {
 		_gridMode = static_cast<GridDebugMode>((int(_gridMode) + 1) % 4);
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_LEFT_CONTROL)
-		sprinting = !sprinting;
-	else if (action == GLFW_RELEASE)
-		keyStates[key] = false;
+		_player.toggleSprint();
+	_player.keyAction(key, scancode, action, mods);
 }
 
 void StoneEngine::keyPress(GLFWwindow *window, int key, int scancode, int action, int mods)

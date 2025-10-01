@@ -33,7 +33,8 @@ SRC_NAME	=	stb_truetype.cpp		\
 				Noise3DGenerator.cpp	\
 				CaveGenerator.cpp		\
 				Skybox.cpp				\
-				Raycaster.cpp
+				Raycaster.cpp			\
+				Player.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))
