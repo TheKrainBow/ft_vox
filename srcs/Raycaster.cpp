@@ -8,6 +8,10 @@ static inline bool isSolidDeletable(BlockType b) {
     return (b != AIR && b != WATER && b != BEDROCK);
 }
 
+static inline bool isFlower(BlockType b) {
+    return (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS);
+}
+
 bool Raycaster::raycastHit(const glm::vec3& originWorld,
 						const glm::vec3& dirWorld,
 						float maxDistance,
@@ -149,21 +153,24 @@ BlockType Raycaster::raycastHitFetch(const glm::vec3& originWorld,
 }
 
 bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
-				const glm::vec3& dirWorld,
-				float maxDistance)
+                const glm::vec3& dirWorld,
+                float maxDistance)
 {
-	glm::ivec3 hit;
-	if (!raycastHit(originWorld, dirWorld, maxDistance, hit))
-		return false;
+    glm::ivec3 hit;
+    if (!raycastHit(originWorld, dirWorld, maxDistance, hit))
+        return false;
 
-	// Chunk that owns the hit voxel
-	ivec2 chunkPos(
-		(int)std::floor((float)hit.x / (float)CHUNK_SIZE),
-		(int)std::floor((float)hit.z / (float)CHUNK_SIZE)
-	);
+    // Chunk that owns the hit voxel
+    ivec2 chunkPos(
+        (int)std::floor((float)hit.x / (float)CHUNK_SIZE),
+        (int)std::floor((float)hit.z / (float)CHUNK_SIZE)
+    );
 
-	// Try to apply immediately (falls back to queue if chunk not ready)
-	bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
+    // Fetch block type before deletion (for cascading behavior)
+    BlockType hitTypeBefore = _chunkLoader.getBlock(chunkPos, hit);
+
+    // Try to apply immediately (falls back to queue if chunk not ready)
+    bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
 
 	if (wroteNow)
 	{
@@ -189,10 +196,47 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 			if (Chunk* nc = _chunkLoader.getChunk(neighbors[i]))
 				nc->sendFacesToDisplay();
 
-		// 3) Stage a fresh display snapshot off-thread (coalesced)
-		_chunkLoader.scheduleDisplayUpdate();
-	}
-	return true;
+        // 3) Stage a fresh display snapshot off-thread (coalesced)
+        _chunkLoader.scheduleDisplayUpdate();
+    }
+
+    // If we broke DIRT or GRASS, also remove a flower on top if present
+    if (hitTypeBefore == DIRT || hitTypeBefore == GRASS)
+    {
+        glm::ivec3 above = hit + glm::ivec3(0, 1, 0);
+        ivec2 aboveChunk(
+            (int)std::floor((float)above.x / (float)CHUNK_SIZE),
+            (int)std::floor((float)above.z / (float)CHUNK_SIZE)
+        );
+        BlockType aboveType = _chunkLoader.getBlock(aboveChunk, above);
+        if (isFlower(aboveType))
+        {
+            bool wroteTop = _chunkLoader.setBlockOrQueue(aboveChunk, above, AIR, /*byPlayer=*/true);
+            if (wroteTop)
+            {
+                if (Chunk* c2 = _chunkLoader.getChunk(aboveChunk))
+                {
+                    c2->setAsModified();
+                    c2->sendFacesToDisplay();
+                }
+
+                const int lx2 = (above.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                const int lz2 = (above.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                ivec2 neighbors2[4];
+                int n2 = 0;
+                if (lx2 == 0)               neighbors2[n2++] = { aboveChunk.x - 1, aboveChunk.y };
+                if (lx2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { aboveChunk.x + 1, aboveChunk.y };
+                if (lz2 == 0)               neighbors2[n2++] = { aboveChunk.x,     aboveChunk.y - 1 };
+                if (lz2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { aboveChunk.x,     aboveChunk.y + 1 };
+                for (int i = 0; i < n2; ++i)
+                    if (Chunk* nc2 = _chunkLoader.getChunk(neighbors2[i]))
+                        nc2->sendFacesToDisplay();
+
+                _chunkLoader.scheduleDisplayUpdate();
+            }
+        }
+    }
+    return true;
 }
 
 bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
@@ -270,6 +314,64 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
             (int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
         );
         BlockType b = _chunkLoader.getBlock(chunkPos, voxel);
+
+        // Special case: if we hit a flower/short grass and the player is placing a non-flower, non-air block,
+        // replace the flower instead of placing above it.
+        if (isFlower(b)) {
+            bool placingNonFlower = (block != AIR && !isFlower(block));
+            if (placingNonFlower) {
+                // Prevent placing a block inside the player's occupied cells (feet/head)
+                {
+                    glm::vec3 camW = _camera.getWorldPosition();
+                    int px = static_cast<int>(std::floor(camW.x));
+                    int pz = static_cast<int>(std::floor(camW.z));
+                    int footY = static_cast<int>(std::floor(camW.y - EYE_HEIGHT + EPS));
+                    glm::ivec3 feet = { px, footY, pz };
+                    glm::ivec3 head = { px, footY + 1, pz };
+                    if (voxel == feet || voxel == head) {
+                        return false; // would collide with player
+                    }
+                }
+
+                ivec2 placeChunk(
+                    (int)std::floor((float)voxel.x / (float)CHUNK_SIZE),
+                    (int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
+                );
+
+                bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, voxel, block, /*byPlayer=*/true);
+                if (wroteNow) {
+                    // Rebuild current chunk mesh
+                    if (Chunk* c = _chunkLoader.getChunk(placeChunk))
+                    {
+                        c->setAsModified();
+                        c->sendFacesToDisplay();
+                    }
+
+                    // If at border, also rebuild neighbors that share faces
+                    const int lx = (voxel.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                    const int lz = (voxel.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+
+                    ivec2 neighbors[4];
+                    int n = 0;
+                    if (lx == 0)               neighbors[n++] = { placeChunk.x - 1, placeChunk.y };
+                    if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x + 1, placeChunk.y };
+                    if (lz == 0)               neighbors[n++] = { placeChunk.x,     placeChunk.y - 1 };
+                    if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x,     placeChunk.y + 1 };
+
+                    for (int i2 = 0; i2 < n; ++i2)
+                        if (Chunk* nc = _chunkLoader.getChunk(neighbors[i2]))
+                            nc->sendFacesToDisplay();
+
+                    // Stage a fresh display snapshot off-thread (coalesced)
+                    _chunkLoader.scheduleDisplayUpdate();
+                }
+
+                outPlaced = voxel;
+                return true;
+            }
+            // else: placing a flower or air -> fall through to default behavior (place on prev if empty)
+        }
+
         if (b == BEDROCK || isSolidDeletable(b)) {
             // Place into the previous (empty) voxel we were in before entering the hit voxel
             ivec2 placeChunk(
@@ -292,7 +394,22 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
 
             // Only place if target is empty or replaceable (AIR/WATER).
             BlockType current = _chunkLoader.getBlock(placeChunk, prev);
-            if (!(current == AIR || current == WATER)) return false;
+
+            // If placing a flower, constrain placement rules:
+            // - Target cell must be AIR (not water)
+            // - Block directly below must be DIRT or GRASS
+            if (isFlower(block)) {
+                if (current != AIR) return false;
+                glm::ivec3 below = prev; below.y -= 1;
+                ivec2 belowChunk(
+                    (int)std::floor((float)below.x / (float)CHUNK_SIZE),
+                    (int)std::floor((float)below.z / (float)CHUNK_SIZE)
+                );
+                BlockType support = _chunkLoader.getBlock(belowChunk, below);
+                if (!(support == DIRT || support == GRASS)) return false;
+            } else {
+                if (!(current == AIR || current == WATER)) return false;
+            }
 
             bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);
             if (wroteNow) {

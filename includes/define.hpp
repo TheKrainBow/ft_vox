@@ -142,3 +142,5 @@ const block_correspondance blockDebugTab[NB_BLOCKS] = {
 	{flower_cyan,        FLOWER_CYAN},
 	{flower_short_grass, FLOWER_SHORT_GRASS}
 };
+// AND this block tab in Textbox.hpp line 33
+// const block_pair blockTab[NB_BLOCKS]
