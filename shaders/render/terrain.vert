@@ -9,10 +9,13 @@ uniform mat4 projection;
 uniform vec3 cameraPos; // world-space camera position
 
 layout(std430, binding = 3) readonly buffer ssbo1 {
-	vec4 ssbo[]; // per-draw subchunk origin (xyz) + res (w)
+    vec4 ssbo[]; // per-draw subchunk origin (xyz) + res (w)
 };
 layout(std430, binding = 4) readonly buffer instBuf {
-	int inst[];  // packed instance ints for all draws
+    int inst[];  // packed instance ints for all draws
+};
+layout(std430, binding = 7) readonly buffer drawMetaBuf {
+    uint drawMeta[]; // per-draw flags (bit0..2 = direction)
 };
 
 out vec2 TexCoord;
@@ -33,10 +36,11 @@ void main() {
 	int x         = (instanceData >>  0) & 0x1F;
 	int y         = (instanceData >>  5) & 0x1F;
 	int z         = (instanceData >> 10) & 0x1F;
-	int direction = (instanceData >> 15) & 0x07;
-	int lengthX   = (instanceData >> 18) & 0x1F;
-	int lengthY   = (instanceData >> 23) & 0x1F;
-	int textureID = (instanceData >> 28) & 0x0F;
+    // Direction now comes from per-draw meta
+    int direction = int(drawMeta[gl_DrawID] & 0x7u);
+    int lengthX   = (instanceData >> 15) & 0x1F;
+    int lengthY   = (instanceData >> 20) & 0x1F;
+    int textureID = (instanceData >> 25) & 0x7F;
 
 	lengthX++; lengthY++; // greedy lengths are stored (len-1)
 

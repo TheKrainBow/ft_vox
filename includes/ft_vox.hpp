@@ -57,9 +57,13 @@ typedef  struct {
 } DrawArraysIndirectCommand;
 
 struct DisplayData {
-	std::vector<vec4>                       ssboData;
-	std::vector<int>                        vertexData;
-	std::vector<DrawArraysIndirectCommand>  indirectBufferData;
+    std::vector<vec4>                       ssboData;
+    std::vector<int>                        vertexData;
+    std::vector<DrawArraysIndirectCommand>  indirectBufferData;
+    // Per-draw metadata (one uint per DrawArraysIndirectCommand).
+    // bit 0..2: face direction (0..5)
+    // other bits reserved
+    std::vector<uint32_t>                   drawMeta;
 };
 
 const float rectangleVertices[] =

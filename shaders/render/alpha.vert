@@ -11,6 +11,7 @@ uniform float time;     // seconds, for subtle wind sway
 
 layout(std430, binding = 3) readonly buffer ssbo1 { vec4 ssbo[]; };
 layout(std430, binding = 4) readonly buffer instBuf { int inst[]; };
+layout(std430, binding = 7) readonly buffer drawMetaBuf { uint drawMeta[]; };
 
 out vec2 TexCoord;
 flat out int TextureID;
@@ -27,10 +28,10 @@ void main()
     int x = (instanceData >>  0) & 0x1F;
     int y = (instanceData >>  5) & 0x1F;
     int z = (instanceData >> 10) & 0x1F;
-    int direction = (instanceData >> 15) & 0x07;
-    int lengthX   = (instanceData >> 18) & 0x1F;
-    int lengthY   = (instanceData >> 23) & 0x1F;
-    int textureID = (instanceData >> 28) & 0x0F;
+    int direction = int(drawMeta[gl_DrawID] & 0x7u);
+    int lengthX   = (instanceData >> 15) & 0x1F;
+    int lengthY   = (instanceData >> 20) & 0x1F;
+    int textureID = (instanceData >> 25) & 0x7F;
 
     // Only render LEAF (T_LEAF == 11)
     if (textureID != 11) {
@@ -54,10 +55,10 @@ void main()
     if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
     if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
 
-    if (direction == 0) normal = vec3(0,0, 1);
-    if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(-1,0,0); }
-    if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(0,-1,0); }
-    if (direction == 3) { basePos.x += res; normal = vec3(1,0,0); }
+    if (direction == 0) normal = vec3(0,0,1);
+    if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,-1,0); }
+    if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(1,0,0); }
+    if (direction == 3) { basePos.x += res; normal = vec3(-1,0,0); }
     if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
     if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 

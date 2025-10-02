@@ -924,10 +924,13 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 	newVertex |= (x & 0x1F) << 0;			// 5 bits for x
 	newVertex |= (y & 0x1F) << 5;			// 5 bits for y
 	newVertex |= (z & 0x1F) << 10;			// 5 bits for z
-	newVertex |= (direction & 0x07) << 15;	// 3 bits for direction
-	newVertex |= (lengthX & 0x1F) << 18;	// 5 bits for lengthX
-	newVertex |= (lengthY & 0x1F) << 23;	// 5 bits for lengthY
-	newVertex |= (textureID & 0x0F) << 28;	// 4 bits for textureID
+    // Repacked (direction moved to per-draw metadata)
+    // bits 15..19: lengthX (5)
+    // bits 20..24: lengthY (5)
+    // bits 25..31: textureID (7)
+    newVertex |= (lengthX & 0x1F) << 15;
+    newVertex |= (lengthY & 0x1F) << 20;
+    newVertex |= (textureID & 0x7F) << 25;
 	vertexData->push_back(newVertex);
 }
 
@@ -935,21 +938,48 @@ void SubChunk::processFaces(bool isTransparent)
 {
 	if (isTransparent)
 	{
+		// Reset counts
+		for (int i=0;i<6;++i) _transpDirCounts[i]=0;
+		size_t before = _transparentVertexData.size();
 		processUpVertex(_transparentFaces, &_transparentVertexData);
+		_transpDirCounts[UP] = (int)(_transparentVertexData.size() - before);
+		before = _transparentVertexData.size();
 		processDownVertex(_transparentFaces, &_transparentVertexData);
+		_transpDirCounts[DOWN] = (int)(_transparentVertexData.size() - before);
+		before = _transparentVertexData.size();
 		processNorthVertex(_transparentFaces, &_transparentVertexData);
+		_transpDirCounts[NORTH] = (int)(_transparentVertexData.size() - before);
+		before = _transparentVertexData.size();
 		processSouthVertex(_transparentFaces, &_transparentVertexData);
+		_transpDirCounts[SOUTH] = (int)(_transparentVertexData.size() - before);
+		before = _transparentVertexData.size();
 		processEastVertex(_transparentFaces, &_transparentVertexData);
+		_transpDirCounts[EAST] = (int)(_transparentVertexData.size() - before);
+		before = _transparentVertexData.size();
 		processWestVertex(_transparentFaces, &_transparentVertexData);
+		_transpDirCounts[WEST] = (int)(_transparentVertexData.size() - before);
 	}
 	else
 	{
+		for (int i=0;i<6;++i) _dirCounts[i]=0;
+		size_t before = _vertexData.size();
 		processUpVertex(_faces, &_vertexData);
+		_dirCounts[UP] = (int)(_vertexData.size() - before);
+		before = _vertexData.size();
 		processDownVertex(_faces, &_vertexData);
+		_dirCounts[DOWN] = (int)(_vertexData.size() - before);
+		before = _vertexData.size();
 		processNorthVertex(_faces, &_vertexData);
+		_dirCounts[NORTH] = (int)(_vertexData.size() - before);
+		before = _vertexData.size();
 		processSouthVertex(_faces, &_vertexData);
+		_dirCounts[SOUTH] = (int)(_vertexData.size() - before);
+		before = _vertexData.size();
 		processEastVertex(_faces, &_vertexData);
+		_dirCounts[EAST] = (int)(_vertexData.size() - before);
+		before = _vertexData.size();
 		processWestVertex(_faces, &_vertexData);
+		_dirCounts[WEST] = (int)(_vertexData.size() - before);
 	}
 }
 

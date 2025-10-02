@@ -53,6 +53,10 @@ class SubChunk
 		std::vector<Face>			_transparentFaces[6];
 		std::vector<int>			_transparentVertexData;
 
+		// Per-direction face counts for last processFaces()
+		int _dirCounts[6] = {0,0,0,0,0,0};
+		int _transpDirCounts[6] = {0,0,0,0,0,0};
+
 		bool						_needUpdate;
 		bool						_needTransparentUpdate;
 
@@ -87,6 +91,8 @@ class SubChunk
 		void clearFaces();
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();
+		const int* getDirCounts() const { return _dirCounts; }
+		const int* getTranspDirCounts() const { return _transpDirCounts; }
 		void updateResolution(int resolution, PerlinMap *perlinMap);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);

@@ -2160,8 +2160,8 @@ void StoneEngine::renderPlanarReflection()
 	_chunkMgr.updateDrawData();
 	_chunkMgr.renderSolidBlocks();
 
-	// Also render masked alpha (leaves) into planar reflection
-	glUseProgram(alphaShaderProgram);
+    // Also render masked alpha (leaves) into planar reflection
+    glUseProgram(alphaShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
@@ -2177,7 +2177,8 @@ void StoneEngine::renderPlanarReflection()
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
-	_chunkMgr.renderTransparentBlocks();
+    // Use no-cull path to avoid overwriting compacted buffers needed later
+    _chunkMgr.renderTransparentBlocksNoCullForShadow();
 	_chunkMgr.setViewProj(prevView, projectionMatrix);
 
 	if (cullWasEnabled)
