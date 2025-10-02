@@ -1569,6 +1569,8 @@ void StoneEngine::rebuildVisibleFlowersVBO()
 					typeId = _layerCyan;
 				else if (bt == FLOWER_SHORT_GRASS && flowerShortGrassLayer >= 0)
 					typeId = flowerShortGrassLayer;
+				else if (bt == FLOWER_DEAD_BUSH && _layerDeadBush >= 0)
+					typeId = _layerDeadBush;
                 glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
                 // Poppy can appear slightly above ground; nudge it down a bit
                 if (bt == FLOWER_POPPY)

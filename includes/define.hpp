@@ -92,7 +92,7 @@
 # define SNOW 'w'
 # define LOG 'l'
 # define LEAF 'L'
-# define CACTUS              'k'
+# define CACTUS 'k'
 
 // Decorative plant blocks (non-solid, cutout-rendered)
 # define FLOWER_POPPY        'f'
