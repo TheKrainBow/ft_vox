@@ -31,7 +31,7 @@
 #ifndef LOADING_SPLASH_MS
 # define LOADING_SPLASH_MS 2000
 #endif
-# define RENDER_DISTANCE 15
+# define RENDER_DISTANCE 21
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -92,15 +92,18 @@
 # define SNOW 'w'
 # define LOG 'l'
 # define LEAF 'L'
+# define CACTUS              'k'
 
 // Decorative plant blocks (non-solid, cutout-rendered)
 # define FLOWER_POPPY        'f'
 # define FLOWER_DANDELION    'g'
 # define FLOWER_CYAN         'h'
 # define FLOWER_SHORT_GRASS  'i'
+# define FLOWER_DEAD_BUSH    'j'
+
 
 // Update this number when adding new blocks (debug textbox importance)
-#define NB_BLOCKS 15
+#define NB_BLOCKS 17
 // AND the enum list (pls)
 	enum block_types {
 		air,
@@ -117,7 +120,9 @@
 		flower_poppy,
 		flower_dandelion,
 		flower_cyan,
-		flower_short_grass
+		flower_short_grass,
+		flower_dead_bush,
+		cactus
 };
 struct block_correspondance
 {
@@ -140,7 +145,9 @@ const block_correspondance blockDebugTab[NB_BLOCKS] = {
 	{flower_poppy,       FLOWER_POPPY},
 	{flower_dandelion,   FLOWER_DANDELION},
 	{flower_cyan,        FLOWER_CYAN},
-	{flower_short_grass, FLOWER_SHORT_GRASS}
+	{flower_short_grass, FLOWER_SHORT_GRASS},
+	{flower_dead_bush,   FLOWER_DEAD_BUSH},
+	{cactus,             CACTUS}
 };
 // AND this block tab in Textbox.hpp line 33
 // const block_pair blockTab[NB_BLOCKS]

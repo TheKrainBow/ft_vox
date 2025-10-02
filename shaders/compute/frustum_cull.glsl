@@ -8,6 +8,8 @@ layout(std430, binding=1)  readonly  buffer Templates	{ DrawCmd templ[]; };
 layout(std430, binding=2)  writeonly buffer OutCmds		{ DrawCmd outCmds[]; };
 layout(std430, binding=5)  coherent  buffer Counter		{ uint drawCount; };
 layout(std430, binding=6)  writeonly buffer PosResOut	{ vec4 outPosRes[]; };
+layout(std430, binding=7)  readonly  buffer MetaIn      { uint metaIn[]; };
+layout(std430, binding=8)  writeonly buffer MetaOut     { uint metaOut[]; };
 
 layout(std140, binding=3) uniform Frustum { vec4 planes[6]; };
 
@@ -137,11 +139,8 @@ void main() {
         return;
     }
 
-    if (t.instanceCount == 0u) return;
-    if (aabbOutsideFrustum(mn, mx)) return; // culled by frustum
-    if (aabbOccluded(mn, mx)) return;       // culled by occlusion (conservative)
-
-    uint dst = atomicAdd(drawCount, 1u);
+	uint dst = atomicAdd(drawCount, 1u);
     outCmds[dst]   = t;                      // compacted command
     outPosRes[dst] = vec4(mn, posRes[i].w);  // matching compacted metadata
+    metaOut[dst]   = metaIn[i];              // compact per-draw meta (direction etc.)
 }

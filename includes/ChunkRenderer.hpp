@@ -41,6 +41,12 @@ private:
 	GLuint									_transpPosSrcSSBO = 0;  // binding 0 for transparent pass
 	GLuint									_solidInstSSBO = 0;     // binding=4 for SOLID
 	GLuint									_transpInstSSBO = 0;    // binding=4 for TRANSPARENT
+    // Per-draw meta (direction etc.)
+    // For compute: SRC is read-only; DST is compacted alongside commands
+    GLuint                                  _solidMetaSrcSSBO = 0;
+    GLuint                                  _transpMetaSrcSSBO = 0;
+    GLuint                                  _solidMetaSSBO    = 0; // compacted, bound at draw (binding=7)
+    GLuint                                  _transpMetaSSBO   = 0; // compacted, bound at draw (binding=7)
 
 	// Update notifiers from ChunkManager
 	std::atomic_bool						_needUpdate;
@@ -94,6 +100,10 @@ private:
 	GLsizeiptr								_capTranspSSBO     = 0;
 	GLsizeiptr								_capSolidSSBOSrc  = 0;
 	GLsizeiptr								_capTranspSSBOSrc = 0;
+    GLsizeiptr                                  _capSolidMetaSrc = 0;
+    GLsizeiptr                                  _capTranspMetaSrc = 0;
+    GLsizeiptr                                  _capSolidMeta   = 0;
+    GLsizeiptr                                  _capTranspMeta  = 0;
 
 	// Common mutexes between ChunkLoader and ChunkRenderer
 	std::mutex								&_solidDrawDataMutex;

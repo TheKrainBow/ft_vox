@@ -53,6 +53,10 @@ class SubChunk
 		std::vector<Face>			_transparentFaces[6];
 		std::vector<int>			_transparentVertexData;
 
+		// Per-direction face counts for last processFaces()
+		int _dirCounts[6] = {0,0,0,0,0,0};
+		int _transpDirCounts[6] = {0,0,0,0,0,0};
+
 		bool						_needUpdate;
 		bool						_needTransparentUpdate;
 
@@ -67,6 +71,7 @@ class SubChunk
 		void loadBiome(int prevResolution);
 		void loadOcean(int x, int z, size_t ground, size_t adjustedOceanHeight);
 		void loadPlaine(int x, int z, size_t ground);
+		void loadPlainsRare(int x, int z, size_t ground);
 		void loadMountain(int x, int z, size_t ground);
 		void loadDesert(int x, int z, size_t ground);
 		void loadBeach(int x, int z, size_t ground);
@@ -86,6 +91,8 @@ class SubChunk
 		void clearFaces();
 		std::vector<int> &getVertices();
 		std::vector<int> &getTransparentVertices();
+		const int* getDirCounts() const { return _dirCounts; }
+		const int* getTranspDirCounts() const { return _transpDirCounts; }
 		void updateResolution(int resolution, PerlinMap *perlinMap);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);

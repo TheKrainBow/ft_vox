@@ -20,9 +20,11 @@ enum TextureType {
 	T_LOG_SIDE,
 	T_LOG_TOP,
 	T_LEAF,
+	T_CACTUS_SIDE,
+	T_CACTUS_TOP,
 };
 
-# define N_TEXTURES 12
+# define N_TEXTURES 14
 # define TEXTURE_SIZE 16
 
 class TextureManager {

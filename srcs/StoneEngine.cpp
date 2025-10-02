@@ -62,7 +62,7 @@ float mapExpo(float x, float in_min, float in_max, float out_min, float out_max)
 
 bool isTransparent(char block)
 {
-	return block == AIR || block == WATER || block == LOG || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS;
+	return block == AIR || block == WATER || block == LOG || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
 }
 
 // Display logs only if sides
@@ -313,6 +313,8 @@ void StoneEngine::initTextures()
 		{T_LOG_SIDE, "textures/log_side.ppm"},
 		{T_LOG_TOP, "textures/log_top.ppm"},
 		{T_LEAF, "textures/leave.png"},
+		{T_CACTUS_SIDE, "textures/cactus_side.ppm"},
+		{T_CACTUS_TOP,  "textures/cactus_top.ppm"},
 	});
 
 	glGenTextures(1, &waterNormalMap);
@@ -1345,7 +1347,8 @@ void StoneEngine::initFlowerResources()
 		"textures/flowers/poppy.png",
 		"textures/flowers/dandelion.png",
 		"textures/flowers/cyan_flower.png",
-		"textures/flowers/short_grass.png"};
+		"textures/flowers/short_grass.png",
+		"textures/flowers/dead_bush.png"};
 	// Keep only files that exist
 	std::vector<std::string> files;
 	for (const auto &f : fileList)
@@ -1509,6 +1512,7 @@ void StoneEngine::initFlowerResources()
 		// Record layer indices by filename (robust to missing files)
 		flowerShortGrassLayer = -1;
 		_layerPoppy = _layerDandelion = _layerCyan = -1;
+		_layerDeadBush = -1;
 		for (int i = 0; i < nfiles; ++i)
 		{
 			const std::string &nm = files[i];
@@ -1520,6 +1524,8 @@ void StoneEngine::initFlowerResources()
 				_layerDandelion = i;
 			else if (nm.find("cyan_flower") != std::string::npos)
 				_layerCyan = i;
+			else if (nm.find("dead_bush") != std::string::npos)
+				_layerDeadBush = i;
 		}
 	}
 	else
@@ -2187,8 +2193,8 @@ void StoneEngine::renderPlanarReflection()
 	_chunkMgr.updateDrawData();
     _chunkMgr.renderSolidBlocks();
 
-	// Also render masked alpha (leaves) into planar reflection
-	glUseProgram(alphaShaderProgram);
+    // Also render masked alpha (leaves) into planar reflection
+    glUseProgram(alphaShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
@@ -2749,7 +2755,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		{
 			// Disable occlusion briefly to prevent one-frame pop after edit
 			_occlDisableFrames = std::max(_occlDisableFrames, 2);
-			if (toDelete == FLOWER_POPPY || toDelete == FLOWER_DANDELION || toDelete == FLOWER_CYAN || toDelete == FLOWER_SHORT_GRASS)
+			if (toDelete == FLOWER_POPPY || toDelete == FLOWER_DANDELION || toDelete == FLOWER_CYAN || toDelete == FLOWER_SHORT_GRASS || toDelete == FLOWER_DEAD_BUSH)
 			{
 				removeFlowerAtCell(peek);
 			}
@@ -2790,6 +2796,8 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 				typeId = (_layerCyan >= 0) ? _layerCyan : 0;
 			else if (selectedBlock == FLOWER_SHORT_GRASS)
 				typeId = (flowerShortGrassLayer >= 0) ? flowerShortGrassLayer : 0;
+			else if (selectedBlock == FLOWER_DEAD_BUSH)
+				typeId = (_layerDeadBush >= 0) ? _layerDeadBush : 0;
 			if (typeId >= 0)
 			{
 				static std::mt19937 rng{std::random_device{}()};

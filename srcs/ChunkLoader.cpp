@@ -484,21 +484,30 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	// Pre-reserve to minimize reallocations during build
 	size_t totalSolidVerts = 0, totalTransVerts = 0;
 	size_t totalSolidCmds  = 0, totalTransCmds  = 0;
-	size_t totalSSBO       = 0;
-	for (const auto& c : snapshot) {
-		if (!getIsRunning())
-			return ;
-		totalSolidVerts += c->getVertices().size();
-		totalTransVerts += c->getTransparentVertices().size();
-		totalSolidCmds  += c->getIndirectData().size();
-		totalTransCmds  += c->getTransparentIndirectData().size();
-		totalSSBO       += c->getSSBO().size();
-	}
-	fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
-	fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
-	fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBO);
-	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
+    size_t totalSSBOS      = 0;
+    size_t totalSSBOT      = 0;
+    size_t totalMetaS      = 0;
+    size_t totalMetaT      = 0;
+    for (const auto& c : snapshot) {
+        if (!getIsRunning())
+            return ;
+        totalSolidVerts += c->getVertices().size();
+        totalTransVerts += c->getTransparentVertices().size();
+        totalSolidCmds  += c->getIndirectData().size();
+        totalTransCmds  += c->getTransparentIndirectData().size();
+        totalSSBOS      += c->getSSBOSolid().size();
+        totalSSBOT      += c->getSSBOTransp().size();
+        totalMetaS      += c->getIndirectData().size();
+        totalMetaT      += c->getTransparentIndirectData().size();
+    }
+    fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
+    fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
+    fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBOS);
+    transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
     transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
+    transparentFillData->ssboData.reserve(transparentFillData->ssboData.size() + totalSSBOT);
+    fillData->drawMeta.reserve(fillData->drawMeta.size() + totalMetaS);
+    transparentFillData->drawMeta.reserve(transparentFillData->drawMeta.size() + totalMetaT);
 
     // We'll build a fresh visible subchunk snapshot locally, then swap it in atomically
     std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> nextDisplayedSubY;
@@ -510,33 +519,36 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
         // Take a coherent snapshot of this chunk's display data under its internal lock
         std::vector<int> sVerts, tVerts;
         std::vector<DrawArraysIndirectCommand> sCmds, tCmds;
-        std::vector<vec4> ssbo;
-        c->snapshotDisplayData(sVerts, sCmds, ssbo, tVerts, tCmds);
+        std::vector<vec4> ssboS, ssboT;
+        std::vector<uint32_t> metaS, metaT;
+        c->snapshotDisplayData(sVerts, sCmds, ssboS, tVerts, tCmds, ssboT, metaS, metaT);
 
 		// SOLID
 		size_t vSizeBefore = fillData->vertexData.size();
 		if (!sVerts.empty())
 			fillData->vertexData.insert(fillData->vertexData.end(), sVerts.begin(), sVerts.end());
-		for (size_t i = 0; getIsRunning() && i < sCmds.size(); ++i) {
-			auto cmd = sCmds[i];
-			cmd.baseInstance += (uint32_t)vSizeBefore;
-			fillData->indirectBufferData.push_back(cmd);
-		}
-        if (!ssbo.empty())
-            fillData->ssboData.insert(fillData->ssboData.end(), ssbo.begin(), ssbo.end());
+        for (size_t i = 0; getIsRunning() && i < sCmds.size(); ++i) {
+            auto cmd = sCmds[i];
+            cmd.baseInstance += (uint32_t)vSizeBefore;
+            fillData->indirectBufferData.push_back(cmd);
+        }
+        if (!ssboS.empty())
+            fillData->ssboData.insert(fillData->ssboData.end(), ssboS.begin(), ssboS.end());
+        if (!metaS.empty())
+            fillData->drawMeta.insert(fillData->drawMeta.end(), metaS.begin(), metaS.end());
 
         // Record which subY are being displayed for this chunk (into local map)
-        if (!ssbo.empty()) {
+        if (!ssboS.empty()) {
             std::unordered_set<int> subs;
-            subs.reserve(ssbo.size());
-            for (const auto &v : ssbo) {
+            subs.reserve(ssboS.size());
+            for (const auto &v : ssboS) {
                 int subY = (int)std::floor(v.y / (float)CHUNK_SIZE + 0.5f);
                 subs.insert(subY);
             }
             // Need the chunk position; derive from first entry's x,z
             glm::ivec2 cpos(
-                (int)std::floor(ssbo[0].x / (float)CHUNK_SIZE + 0.5f),
-                (int)std::floor(ssbo[0].z / (float)CHUNK_SIZE + 0.5f)
+                (int)std::floor(ssboS[0].x / (float)CHUNK_SIZE + 0.5f),
+                (int)std::floor(ssboS[0].z / (float)CHUNK_SIZE + 0.5f)
             );
             nextDisplayedSubY[cpos] = std::move(subs);
         }
@@ -547,11 +559,15 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 			transparentFillData->vertexData.insert(
 				transparentFillData->vertexData.end(), tVerts.begin(), tVerts.end()
 			);
-		for (size_t i = 0; getIsRunning() && i < tCmds.size(); ++i) {
-			auto cmd = tCmds[i];
-			cmd.baseInstance += (uint32_t)tvBefore;
-			transparentFillData->indirectBufferData.push_back(cmd);
+        for (size_t i = 0; getIsRunning() && i < tCmds.size(); ++i) {
+            auto cmd = tCmds[i];
+            cmd.baseInstance += (uint32_t)tvBefore;
+            transparentFillData->indirectBufferData.push_back(cmd);
         }
+        if (!ssboT.empty())
+            transparentFillData->ssboData.insert(transparentFillData->ssboData.end(), ssboT.begin(), ssboT.end());
+        if (!metaT.empty())
+            transparentFillData->drawMeta.insert(transparentFillData->drawMeta.end(), metaT.begin(), metaT.end());
     }
 
     // Publish the freshly built visible subchunk snapshot atomically
@@ -686,20 +702,9 @@ NoiseGenerator &ChunkLoader::getNoiseGenerator() { return _perlinGenerator; }
 
 void ChunkLoader::printSizes() const
 {
-	{
-		using namespace std::chrono;
-		steady_clock::time_point now;
-		now = steady_clock::now();
-		std::cout << "[-----------------------]" << std::endl;
-		std::cout << duration_cast<seconds>(now.time_since_epoch()).count() << std::endl;
-		std::cout << "PRINTING SIZES" << std::endl;
-		std::cout << "_solid " << _solidStagedDataQueue.size() << std::endl;
-		std::cout << "_transparentStagedDataQueue " <<  _transparentStagedDataQueue.size() << std::endl;
-		std::cout << "_chunkList " <<  _chunkList.size() << std::endl;
-		std::cout << "_chunks " <<  _chunks.size() << std::endl;
-		std::cout << "_displayedChunks " <<  _displayedChunks.size() << std::endl;
-		std::cout << "[-----------------------]" << std::endl;
-	}
+    {
+        // Intentionally left blank: debug size prints removed
+    }
 }
 
 // Shared data getters
@@ -845,7 +850,8 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 			--_chunksCount;
 		}
 	}
-
+	ivec2 chunkPos = chunk->getPosition();
+	_perlinGenerator.removePerlinMap(chunkPos.x, chunkPos.y);
 	chunk->freeSubChunks();
 	delete chunk;
 	if (_chunksMemoryUsage >= freed)
@@ -874,7 +880,7 @@ void ChunkLoader::scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, SubC
         for (int y = 0; y < CHUNK_SIZE; y += resolution) {
             for (int x = 0; x < CHUNK_SIZE; x += resolution) {
                 BlockType b = sc->getBlock({x, y, z});
-                if (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS) {
+                if (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH) {
                     // Convert to absolute world cell
                     glm::ivec3 cell(
                         x + cpos.x * CHUNK_SIZE,
