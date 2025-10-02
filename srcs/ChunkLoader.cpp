@@ -841,7 +841,8 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 			--_chunksCount;
 		}
 	}
-
+	ivec2 chunkPos = chunk->getPosition();
+	_perlinGenerator.removePerlinMap(chunkPos.x, chunkPos.y);
 	chunk->freeSubChunks();
 	delete chunk;
 	if (_chunksMemoryUsage >= freed)

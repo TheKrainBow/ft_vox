@@ -415,7 +415,7 @@ void Chunk::updateResolution(int newResolution) {
 
 	// Refresh the perlin data at the requested LOD before rebuilding subchunks.
 	PerlinMap *updatedMap = _chunkLoader.getNoiseGenerator().getPerlinMap(_position, newResolution);
-	if (updatedMap)
+	if (updatedMap)	
 		_perlinMap = updatedMap;
 
 	_resolution = newResolution;
