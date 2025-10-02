@@ -124,8 +124,23 @@ void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::s
 				if (a == 0) { r = g = b = 0; }
 				out[4*pix+0]=r; out[4*pix+1]=g; out[4*pix+2]=b; out[4*pix+3]=a;
 			}
-			glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0,0,i, TEXTURE_SIZE, TEXTURE_SIZE, 1, GL_RGBA, GL_UNSIGNED_BYTE, out.data());
-			continue;
+            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0,0,i, TEXTURE_SIZE, TEXTURE_SIZE, 1, GL_RGBA, GL_UNSIGNED_BYTE, out.data());
+            // Average color (ignore fully transparent)
+            long rr=0, gg=0, bb=0, cnt=0;
+            for (int pix = 0; pix < TEXTURE_SIZE*TEXTURE_SIZE; ++pix) {
+                unsigned char a = out[4*pix+3];
+                if (a) { rr += out[4*pix+0]; gg += out[4*pix+1]; bb += out[4*pix+2]; cnt++; }
+            }
+            if (cnt == 0) cnt = 1;
+            _avgColors[i] = glm::vec3((float)rr/(255.0f*cnt), (float)gg/(255.0f*cnt), (float)bb/(255.0f*cnt));
+            // Build palette (non-transparent)
+            _palettes[i].clear();
+            _palettes[i].reserve(TEXTURE_SIZE*TEXTURE_SIZE);
+            for (int pix = 0; pix < TEXTURE_SIZE*TEXTURE_SIZE; ++pix) {
+                if (out[4*pix+3])
+                    _palettes[i].push_back(glm::vec3(out[4*pix+0]/255.0f, out[4*pix+1]/255.0f, out[4*pix+2]/255.0f));
+            }
+            continue;
 		}
 
 		auto tex = loadTextureGeneric(data[i].second);
@@ -138,8 +153,25 @@ void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::s
 				p[0]=a?255:0; p[1]=0; p[2]=a?255:0; p[3]=255;
 			}
 			glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0,0,i, TEXTURE_SIZE, TEXTURE_SIZE, 1, GL_RGBA, GL_UNSIGNED_BYTE, fallback.data());
+            _avgColors[i] = glm::vec3(1.0f, 0.0f, 1.0f);
+            _palettes[i].assign(1, _avgColors[i]);
 		} else {
 			glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, TEXTURE_SIZE, TEXTURE_SIZE, 1, GL_RGBA, GL_UNSIGNED_BYTE, tex.get());
+            // Average color
+            long rr=0, gg=0, bb=0;
+            for (int pix = 0; pix < TEXTURE_SIZE*TEXTURE_SIZE; ++pix) {
+                rr += tex.get()[4*pix+0];
+                gg += tex.get()[4*pix+1];
+                bb += tex.get()[4*pix+2];
+            }
+            int cnt = TEXTURE_SIZE*TEXTURE_SIZE;
+            _avgColors[i] = glm::vec3((float)rr/(255.0f*cnt), (float)gg/(255.0f*cnt), (float)bb/(255.0f*cnt));
+            // Build palette (all texels)
+            _palettes[i].clear();
+            _palettes[i].reserve(TEXTURE_SIZE*TEXTURE_SIZE);
+            for (int pix = 0; pix < TEXTURE_SIZE*TEXTURE_SIZE; ++pix) {
+                _palettes[i].push_back(glm::vec3(tex.get()[4*pix+0]/255.0f, tex.get()[4*pix+1]/255.0f, tex.get()[4*pix+2]/255.0f));
+            }
 		}
 	}
 
@@ -151,15 +183,32 @@ void TextureManager::loadTexturesArray(std::vector<std::pair<TextureType, std::s
 
 GLuint TextureManager::getTextureArray() const
 {
-	return _textureArrayID;
+    return _textureArrayID;
 }
 
 TextureManager::TextureManager() {
+    for (int i = 0; i < N_TEXTURES; ++i) _avgColors[i] = glm::vec3(1.0f);
 }
 
 TextureManager::~TextureManager() {
-	if (_textureArrayID) {
-		glDeleteTextures(1, &_textureArrayID);
-		_textureArrayID = 0;
-	}
+    if (_textureArrayID) {
+        glDeleteTextures(1, &_textureArrayID);
+        _textureArrayID = 0;
+    }
+}
+
+std::vector<glm::vec3> TextureManager::sampleColors(TextureType t, int count, std::mt19937 &rng) const
+{
+    std::vector<glm::vec3> out;
+    if (count <= 0) return out;
+    const auto &pal = _palettes[(int)t];
+    if (pal.empty()) {
+        out.assign(count, _avgColors[(int)t]);
+        return out;
+    }
+    std::uniform_int_distribution<size_t> pick(0, pal.size()-1);
+    out.reserve(count);
+    for (int i = 0; i < count; ++i)
+        out.push_back(pal[pick(rng)]);
+    return out;
 }

@@ -522,6 +522,8 @@ void StoneEngine::initRenderShaders()
 	initWireframeResources();
 	initSkybox();
 	initFlowerResources();
+    // Particles (block break)
+    _particles.initGL();
 }
 
 void StoneEngine::initShadowMapping()
@@ -1359,6 +1361,7 @@ void StoneEngine::initFlowerResources()
 		std::cerr << "No flower textures found in textures/flowers" << std::endl;
 	}
 	const int nfiles = (int)files.size();
+	_flowerAvgColors.assign(nfiles, glm::vec3(0.7f));
 	int w = 0, h = 0, ch = 0;
 	unsigned char *data = (nfiles > 0) ? stbi_load(files[0].c_str(), &w, &h, &ch, 4) : nullptr;
 	if (data)
@@ -1499,7 +1502,12 @@ void StoneEngine::initFlowerResources()
 				}
 				glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layer, w, h, 1, GL_RGBA, GL_UNSIGNED_BYTE, d);
 			}
+			// average color computed in a second pass below
 			stbi_image_free(d);
+			// As we freed d, set an approximate average from the middle texel if needed
+			{
+				// Unable to recompute precisely here without copying; keep default unless we had resized path earlier
+			}
 		}
 		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -1520,6 +1528,45 @@ void StoneEngine::initFlowerResources()
 				_layerDandelion = i;
 			else if (nm.find("cyan_flower") != std::string::npos)
 				_layerCyan = i;
+		}
+
+		// Compute simple average colors per layer by reading back a small subset (center cross) from CPU-loaded files again
+		_flowerAvgColors.assign(nfiles, glm::vec3(0.7f));
+		_flowerPalettes.assign(nfiles, {});
+		for (int i = 0; i < nfiles; ++i)
+		{
+			int ww=0, hh=0, cc=0;
+			unsigned char* img = stbi_load(files[i].c_str(), &ww, &hh, &cc, 4);
+			if (!img) continue;
+			long rr=0, gg=0, bb=0, cnt=0;
+			for (int y = 0; y < hh; ++y)
+			{
+				int x = ww/2;
+				unsigned char* p = img + 4 * (y * ww + x);
+				if (p[3]) { rr += p[0]; gg += p[1]; bb += p[2]; cnt++; }
+			}
+			for (int x = 0; x < ww; ++x)
+			{
+				int y = hh/2;
+				unsigned char* p = img + 4 * (y * ww + x);
+				if (p[3]) { rr += p[0]; gg += p[1]; bb += p[2]; cnt++; }
+			}
+			if (cnt == 0) cnt = 1;
+			_flowerAvgColors[i] = glm::vec3((float)rr/(255.0f*cnt), (float)gg/(255.0f*cnt), (float)bb/(255.0f*cnt));
+			// Build palette of non-transparent texels
+			{
+				std::vector<glm::vec3> pal;
+				pal.reserve(ww*hh);
+				for (int y = 0; y < hh; ++y)
+				for (int x = 0; x < ww; ++x)
+				{
+					unsigned char* p = img + 4 * (y * ww + x);
+					if (p[3]) pal.emplace_back(p[0]/255.0f, p[1]/255.0f, p[2]/255.0f);
+				}
+				if (pal.empty()) pal.push_back(_flowerAvgColors[i]);
+				_flowerPalettes[i] = std::move(pal);
+			}
+			stbi_image_free(img);
 		}
 	}
 	else
@@ -2400,6 +2447,16 @@ void StoneEngine::renderTransparentObjects()
     drawnTriangles += _chunkMgr.renderTransparentBlocks();
 
     glCleanupTextureState();
+
+    // 3) Particles (block break). Transparent billboards, depth-tested, blended
+    {
+        float radY = camera.getAngles().y * (M_PI / 180.0f);
+        float radX = camera.getAngles().x * (M_PI / 180.0f);
+        glm::mat4 viewRot(1.0f);
+        viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
+        viewRot = glm::rotate(viewRot, radX, glm::vec3(0.0f, -1.0f, 0.0f));
+        _particles.render(viewRot, projectionMatrix, camera.getWorldPosition(), timeValue, glm::vec3(1.0f, 0.95f, 0.95f));
+    }
 }
 
 void StoneEngine::renderSkybox()
@@ -2687,6 +2744,54 @@ void StoneEngine::update()
 	_player.updatePlayerDirection();
 	_player.updateMovement();
 	updateBiomeData();
+
+	// Frame delta in seconds for particles and misc
+    // Convert frame delta (stored in milliseconds) to seconds
+    float dt = std::chrono::duration<float>(delta).count();
+    if (dt < 0.0f) dt = 0.0f;
+    if (dt > 0.05f) dt = 0.05f;
+
+    // Voxel collision test for particles: solid if not AIR/WATER
+    auto isSolidAt = [&](const glm::vec3& p)->bool{
+        glm::ivec3 v((int)std::floor(p.x), (int)std::floor(p.y), (int)std::floor(p.z));
+        glm::ivec2 cpos((int)std::floor((float)v.x / (float)CHUNK_SIZE),
+                        (int)std::floor((float)v.z / (float)CHUNK_SIZE));
+        BlockType b = _chunkMgr.getBlock(cpos, v);
+        return (b != AIR && b != WATER);
+    };
+
+    _particles.update(dt, isSolidAt);
+
+    // Water splash at feet when swimming but head not underwater
+    _waterSplashTimer += dt;
+    if (_player.isUnderWater() == false && _player.isSwimming() && _waterSplashTimer >= 0.08f)
+    {
+        _waterSplashTimer = 0.0f;
+        static std::mt19937 rng{std::random_device{}()};
+        int count = 10;
+        // Match water.frag tint range
+        const glm::vec3 NEAR_TURQUOISE(0.07f, 0.24f, 0.28f);
+        const glm::vec3 FAR_DEEP_BLUE(0.02f, 0.07f, 0.18f);
+        // Keep mix in a mid range to stay visibly blue (not too white or too deep)
+        std::uniform_real_distribution<float> mixd(0.15f, 0.55f);
+        std::vector<glm::vec3> colors; colors.reserve(count);
+        for (int i = 0; i < count; ++i)
+        {
+            float t = mixd(rng);
+            glm::vec3 c = glm::mix(NEAR_TURQUOISE, FAR_DEEP_BLUE, t);
+            // Lighten slightly toward a light-blue highlight, keep saturation
+            c = glm::mix(c, glm::vec3(0.50f, 0.75f, 1.0f), 0.15f);
+            c = glm::clamp(c * 1.10f, 0.0f, 1.0f);
+            colors.push_back(c);
+        }
+        glm::vec3 camW = camera.getWorldPosition();
+        glm::vec3 center(camW.x, camW.y - EYE_HEIGHT + 0.1f, camW.z);
+        // Add small random offset around feet to spread the splash
+        std::uniform_real_distribution<float> jitter(-0.15f, 0.15f);
+        center.x += jitter(rng);
+        center.z += jitter(rng);
+        _particles.spawnWaterBurst(center, colors);
+    }
 	updateProcessMemoryUsage();
 	display();
 }
@@ -2759,6 +2864,72 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 			     aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS))
 			{
 				removeFlowerAtCell(abovePeek);
+			}
+
+			// Spawn break particles with colors sampled from the destroyed block's texture/sprite
+			{
+				glm::vec3 center = glm::vec3(peek.x + 0.5f, peek.y + 0.6f, peek.z + 0.5f); // slight upward nudge to avoid immediate ground hit
+				static std::mt19937 rng{std::random_device{}()};
+				const int count = 28;
+				if (toDelete == FLOWER_POPPY || toDelete == FLOWER_DANDELION || toDelete == FLOWER_CYAN || toDelete == FLOWER_SHORT_GRASS)
+				{
+					int idx = -1;
+					if (toDelete == FLOWER_POPPY) idx = _layerPoppy;
+					else if (toDelete == FLOWER_DANDELION) idx = _layerDandelion;
+					else if (toDelete == FLOWER_CYAN) idx = _layerCyan;
+					else if (toDelete == FLOWER_SHORT_GRASS) idx = flowerShortGrassLayer;
+					std::vector<glm::vec3> colors;
+					if (idx >= 0 && idx < (int)_flowerPalettes.size() && !_flowerPalettes[idx].empty())
+					{
+						std::uniform_int_distribution<size_t> pick(0, _flowerPalettes[idx].size()-1);
+						colors.reserve(count);
+						for (int i = 0; i < count; ++i) colors.push_back(_flowerPalettes[idx][pick(rng)]);
+					}
+					else
+					{
+						glm::vec3 avg = (idx >= 0 && idx < (int)_flowerAvgColors.size()) ? _flowerAvgColors[idx] : glm::vec3(0.7f);
+						colors.assign(count, avg);
+					}
+					_particles.spawnBurstColored(center, colors);
+				}
+                else if (toDelete != AIR && toDelete != WATER)
+                {
+                    auto pickAndBlend = [&](TextureType base, TextureType alt, float altMaxWeight){
+                        auto baseC = _textureManager.sampleColors(base, count, rng);
+                        std::vector<glm::vec3> out;
+                        out.reserve(count);
+                        std::uniform_real_distribution<float> wdist(0.0f, altMaxWeight);
+                        if (altMaxWeight > 0.0f) {
+                            auto altC = _textureManager.sampleColors(alt, count, rng);
+                            glm::vec3 avgBase(0.0f), avgAlt(0.0f);
+                            for (int i=0;i<count;++i){ avgBase+=baseC[i]; avgAlt+=altC[i]; }
+                            avgBase/=float(count); avgAlt/=float(count);
+                            for (int i = 0; i < count; ++i)
+                            {
+                                float w = wdist(rng);
+                                glm::vec3 c = mix(baseC[i], altC[i], w);
+                                // Blend toward average to keep colors coherent
+                                c = mix(c, mix(avgBase, avgAlt, w), 0.35f);
+                                out.push_back(glm::clamp(c, 0.0f, 1.0f));
+                            }
+                        } else {
+                            glm::vec3 avg(0.0f);
+                            for (int i=0;i<count;++i) avg+=baseC[i];
+                            avg/=float(count);
+                            for (int i=0;i<count;++i) out.push_back(glm::clamp(mix(baseC[i], avg, 0.25f), 0.0f, 1.0f));
+                        }
+                        return out;
+                    };
+
+                    std::vector<glm::vec3> colors;
+                    if (toDelete == GRASS)
+                        colors = pickAndBlend(T_GRASS_SIDE, T_GRASS_TOP, 0.30f);
+                    else if (toDelete == LOG)
+                        colors = pickAndBlend(T_LOG_SIDE, T_LOG_TOP, 0.10f);
+                    else
+                        colors = pickAndBlend(textureForBlockColor(toDelete), textureForBlockColor(toDelete), 0.0f);
+                    _particles.spawnBurstColored(center, colors);
+                }
 			}
 		}
 	}

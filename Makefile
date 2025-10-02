@@ -34,7 +34,8 @@ SRC_NAME	=	stb_truetype.cpp		\
 				CaveGenerator.cpp		\
 				Skybox.cpp				\
 				Raycaster.cpp			\
-				Player.cpp
+				Player.cpp				\
+				Particles.cpp
 
 OBJ_NAME	=	$(SRC_NAME:.cpp=.o)
 OBJ		=	$(addprefix $(OBJ_PATH), $(OBJ_NAME))

@@ -16,8 +16,8 @@ void Player::updateNow(std::chrono::steady_clock::time_point &now)
 
 void Player::updatePlayerStates()
 {
-	if (_gravity)
-	{
+    if (_gravity)
+    {
 		vec3 worldPos = _cam.getWorldPosition();
 		BlockType camStandingBlock = AIR;
 		BlockType camBodyBlockLegs = AIR;
@@ -73,21 +73,25 @@ void Player::updatePlayerStates()
 		}
 		updateFalling(worldPos, _camTopBlock.height);
 		updateSwimming(inWater);
-		updateJumping();
-	}
-	else
-	{
-		vec3 worldPos = _cam.getWorldPosition();
-		int worldX = static_cast<int>(std::floor(worldPos.x));
-		int worldZ = static_cast<int>(std::floor(worldPos.z));
-		ivec2 chunkPos = {
-			static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-			static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
-		const float eyeBias = 0.30f;
-		int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-		BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
-		_isUnderWater = (camHeadBlock == WATER);
-	}
+        updateJumping();
+    }
+    else
+    {
+        vec3 worldPos = _cam.getWorldPosition();
+        int worldX = static_cast<int>(std::floor(worldPos.x));
+        int worldZ = static_cast<int>(std::floor(worldPos.z));
+        ivec2 chunkPos = {
+            static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
+            static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
+        const float eyeBias = 0.30f;
+        int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
+        BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
+        _isUnderWater = (camHeadBlock == WATER);
+        // In no-gravity (fly) mode, disable swimming state so splashes and water physics do not trigger
+        _swimming = false;
+        _falling = false;
+        _fallSpeed = 0.0f;
+    }
 }
 
 bool Player::canMove(const glm::vec3& offset, float extra)
@@ -359,12 +363,20 @@ bool Player::isPlacing() const { return _placing; }
 // Toggles
 void Player::toggleSprint() { _sprinting = !_sprinting; }
 void Player::toggleGravity() {
-	_gravity = !_gravity;
-	
-	if (_gravity)
-	{
-		// Smoothly re-enter gravity: reset vertical velocity so we don't snap
-		_falling = true;
-		_fallSpeed = 0.0f;
-	}
+    _gravity = !_gravity;
+    
+    if (_gravity)
+    {
+        // Smoothly re-enter gravity: reset vertical velocity so we don't snap
+        _falling = true;
+        _fallSpeed = 0.0f;
+    }
+    else
+    {
+        // Leaving gravity (fly): clear swimming and vertical motion states
+        _swimming = false;
+        _falling = false;
+        _fallSpeed = 0.0f;
+        _jumping = false;
+    }
 }

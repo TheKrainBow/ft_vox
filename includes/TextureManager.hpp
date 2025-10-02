@@ -28,9 +28,14 @@ enum TextureType {
 class TextureManager {
 	private:
 		GLuint _textureArrayID = 0;
+        glm::vec3 _avgColors[N_TEXTURES];
+        std::vector<glm::vec3> _palettes[N_TEXTURES]; // per-texture RGB palette (non-transparent)
 	public:
 		TextureManager();
 		~TextureManager();
 		void loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data);
 		GLuint getTextureArray() const;
+        glm::vec3 getAverageColor(TextureType t) const { return _avgColors[(int)t]; }
+        // Sample N random colors from the texture palette (fallback to average if empty)
+        std::vector<glm::vec3> sampleColors(TextureType t, int count, std::mt19937 &rng) const;
 };

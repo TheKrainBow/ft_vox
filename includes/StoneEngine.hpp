@@ -10,6 +10,8 @@
 #include "ChunkManager.hpp"
 #include "Raycaster.hpp"
 #include "Player.hpp"
+#include "Particles.hpp"
+#include "BlockUtils.hpp"
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -83,6 +85,8 @@ class StoneEngine {
 		int _layerPoppy = -1;
 		int _layerDandelion = -1;
 		int _layerCyan = -1;
+		std::vector<glm::vec3> _flowerAvgColors; // per-layer average colors
+		std::vector<std::vector<glm::vec3>> _flowerPalettes; // per-layer palettes (non-transparent texels)
 		struct FlowerInstance { glm::vec3 pos; float rot; float scale; float heightScale; int typeId; };
 		// Plants stored per chunk/subchunk for visibility lifetime
 		std::unordered_map<glm::ivec2, std::unordered_map<int, std::vector<FlowerInstance>>, ivec2_hash> _flowersBySub;
@@ -212,6 +216,10 @@ class StoneEngine {
 
 		// Time data
 		std::chrono::steady_clock::time_point now;
+
+		// Particles
+		ParticleSystem _particles;
+		float _waterSplashTimer = 0.0f;
 	public:
 		StoneEngine(int seed, ThreadPool &pool);
 		~StoneEngine();

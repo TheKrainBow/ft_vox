@@ -56,8 +56,9 @@ public:
 	void updateDeltaTime(float &newDelta);
 	void keyAction(int key, int scancode, int action, int mods);
 	bool tryMoveStepwise(const glm::vec3 &moveVec, float stepSize);
-	bool isSprinting() const;
-	bool isUnderWater() const;
+    bool isSprinting() const;
+    bool isUnderWater() const;
+    bool isSwimming() const { return _swimming; }
 	void updateMovement();
 	void updateSwimSpeed();
 	void findMoveRotationSpeed();
