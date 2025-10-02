@@ -902,9 +902,10 @@ void StoneEngine::activateRenderShader()
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-    // Disable face culling for terrain to prevent incorrect winding
-    // from removing all geometry at small draw counts/render distances.
-    glDisable(GL_CULL_FACE);
+    // Reactivate face culling for terrain (cull FRONT faces as requested)
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glFrontFace(GL_CCW);
 }
 
 void StoneEngine::renderShadowMap()
@@ -1014,6 +1015,11 @@ void StoneEngine::renderShadowMap()
 	glClear(GL_DEPTH_BUFFER_BIT);
 
 	_chunkMgr.setViewProj(lightView, lightProj);
+
+	// Solid geometry: cull FRONT faces in shadow pass as well
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	glFrontFace(GL_CCW);
 	_chunkMgr.renderSolidBlocks();
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	_chunkMgr.renderTransparentBlocksNoCullForShadow();
