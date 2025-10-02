@@ -284,6 +284,128 @@ void SubChunk::loadPlainsRare(int x, int z, size_t ground)
         setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
 }
 
+// Plains with clustered patches of grass/flowers + sparse singles
+void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
+{
+    // --- ground shaping (same as plains) ---
+    int y = ground - _position.y * CHUNK_SIZE;
+    for (int i = 1; i <= 4; i++)
+        if (getBlock({x, y - (i * _resolution), z}) != AIR)
+            setBlock(x, y - (i * _resolution), z, DIRT);
+    if (getBlock({x, y, z}) == AIR)
+        return;
+    setBlock(x, y, z, GRASS);
+
+    // Deterministic RNG helpers
+    auto splitmix64 = [](uint64_t v) {
+        v += 0x9e3779b97f4a7c15ULL;
+        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+        return v ^ (v >> 31);
+    };
+    auto hash2 = [&](int WX, int WZ, uint64_t salt){
+        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+        k ^= salt * 0x9e3779b97f4a7c15ULL;
+        return splitmix64(k);
+    };
+    auto rand01 = [&](int WX, int WZ, uint64_t salt){
+        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+    };
+
+    // World coordinates and map samples
+    const int WX = x + _position.x * CHUNK_SIZE;
+    const int WZ = z + _position.z * CHUNK_SIZE;
+    const int idx = z * CHUNK_SIZE + x;
+
+    double g  = 0.5; // grass noise (fine scale)
+    double f  = 0.0; // low-frequency flower/patch mask
+    double rC = 0.33, yC = 0.33, bC = 0.34; // flower color weights
+    if (_grassMap && *_grassMap)     g  = (*_grassMap)[idx];
+    if (_flowerMask && *_flowerMask) f  = (*_flowerMask)[idx];
+    if (_flowerR && *_flowerR)       rC = (*_flowerR)[idx];
+    if (_flowerY && *_flowerY)       yC = (*_flowerY)[idx];
+    if (_flowerB && *_flowerB)       bC = (*_flowerB)[idx];
+
+    // Only place if above is empty
+    if (getBlock({x, y + 1, z}) != AIR)
+        return;
+
+    // --- Cluster centers and neighborhood membership (organic blobs) ---
+    // Select sparse centers, then compute a distance-weighted influence with jittered radii.
+    // This produces soft, rounded patches instead of rigid 3x3 squares.
+    double baseCenter = 0.010;                         // ~1.0% base
+    double centerProb = baseCenter + 0.010 * std::max(0.0, f - 0.5) + 0.004 * (g - 0.5);
+    centerProb = std::clamp(centerProb, 0.002, 0.030);
+
+    double patchScore = 0.0;
+    for (int dz = -2; dz <= 2; ++dz)
+    for (int dx = -2; dx <= 2; ++dx)
+    {
+        double sC = rand01(WX + dx, WZ + dz, 401);
+        if (sC >= centerProb) continue; // not a center
+
+        // Randomized radius per center (in blocks)
+        double R = 1.8 + 1.6 * rand01(WX + dx, WZ + dz, 402); // ~1.8 .. 3.4
+        double d = std::sqrt(double(dx*dx + dz*dz));
+        if (d > R + 0.75) continue; // quick reject
+        double k = std::max(0.0, 1.0 - (d / std::max(0.001, R)));
+
+        // Small anisotropic jitter to break symmetry
+        double jitter = 0.85 + 0.30 * rand01(WX + dx * 7, WZ + dz * 13, 406); // 0.85..1.15
+        k *= jitter;
+
+        if (k > patchScore) patchScore = k;
+    }
+
+    // Edge threshold with local jitter and slight bias from f
+    double tEdge = 0.50;
+    tEdge -= 0.10 * std::clamp(f - 0.5, -0.5, 0.5); // flowery areas slightly expand patches
+    tEdge += 0.08 * rand01(WX, WZ, 405);
+    bool inPatch = (patchScore > tEdge);
+
+    // --- Singles probabilities (kept low to preserve patch feel) ---
+    double jG = rand01(WX, WZ, 11);
+    double jF = rand01(WX, WZ, 12);
+    double jT = rand01(WX, WZ, 13); // type pick in patch
+
+    // Singles: light sprinkling
+    double singleGrassP  = 0.020 + 0.015 * (g - 0.5);                 // ~2% avg
+    double singleFlowerP = (0.006 + 0.014 * std::max(0.0, f - 0.3));  // ~0.6–2%
+    singleGrassP  = std::clamp(singleGrassP,  0.005, 0.05);
+    singleFlowerP = std::clamp(singleFlowerP, 0.002, 0.03);
+
+    // Normalize flower color weights
+    double sumC = rC + yC + bC + 1e-6;
+    double pr = rC / sumC, py = yC / sumC; // pb = 1 - pr - py
+
+    auto placeFlower = [&](double pick){
+        char ftype = (pick < pr) ? FLOWER_POPPY
+                    : (pick < pr + py) ? FLOWER_DANDELION
+                                       : FLOWER_CYAN;
+        setBlock(x, y + 1, z, ftype);
+    };
+
+    if (inPatch) {
+        // Inside a patch: mostly grass with some flowers, and a little chance of holes
+        // Bias with f so flowery regions get more flowers
+        double flowerBias = 0.20 + 0.35 * std::clamp(f - 0.4, 0.0, 0.6); // ~20–41%
+        double holeP = 0.10; // small gaps to avoid carpets
+        if (jT < holeP) return; // leave empty
+        if (jT < holeP + flowerBias) {
+            placeFlower(rand01(WX, WZ, 502));
+        } else {
+            setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+        }
+    } else {
+        // Sparse singles outside patches
+        if (jF < singleFlowerP) {
+            placeFlower(rand01(WX, WZ, 503));
+        } else if (jG < singleGrassP) {
+            setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+        }
+    }
+}
+
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -460,8 +582,8 @@ void SubChunk::loadBiome(int prevResolution)
 			switch (biome)
 			{
 				case PLAINS:
-					// Plains: rare grass only, no flowers
-					loadPlainsRare(x, z, surfaceLevel);
+					// Plains: clustered patches of grass/flowers + sparse singles
+					loadPlainsPatches(x, z, surfaceLevel);
 					break ;
 				case DESERT:
 					loadDesert(x, z, surfaceLevel);
