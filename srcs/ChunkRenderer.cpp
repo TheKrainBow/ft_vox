@@ -197,7 +197,6 @@ int ChunkRenderer::renderSolidBlocks()
                                        sizeof(DrawArraysIndirectCommand));
             glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
             usedExplicit = true;
-            std::cerr << "[SOLID] explicit MDAI count=" << dc << std::endl;
         }
     }
     if (!usedExplicit) {
@@ -225,8 +224,6 @@ int ChunkRenderer::renderSolidBlocks()
         } else {
             needFallback = true;
         }
-        std::cerr << "[SOLID] gpuDrawCount=" << (zeroCount?0: (int)_lastGoodSolidCount)
-                  << " fallback=" << (needFallback?1:0) << std::endl;
         if (needFallback) {
             GLsizei count = _lastGoodSolidCount > 0 ? _lastGoodSolidCount : _solidDrawCount;
             if (count > 0) {
@@ -299,9 +296,6 @@ int ChunkRenderer::renderTransparentBlocks()
 		return 0;
 	}
 
-    if (_transpDrawCount <= 4) {
-        std::cerr << "[TRANS] pre-cull drawCmds=" << _transpDrawCount << std::endl;
-    }
     if (_transpDrawCount > 0 && _transpPosSrcSSBO && _transpTemplIndirectBuffer) {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
@@ -337,7 +331,6 @@ int ChunkRenderer::renderTransparentBlocks()
                                        sizeof(DrawArraysIndirectCommand));
             glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
             usedExplicitT = true;
-            std::cerr << "[TRANS] explicit MDAI count=" << dc << std::endl;
         }
     }
     if (!usedExplicitT) {
@@ -362,8 +355,6 @@ int ChunkRenderer::renderTransparentBlocks()
         } else {
             needFallback = true;
         }
-        std::cerr << "[TRANS] gpuDrawCount=" << (zeroCount?0: (int)_lastGoodTranspCount)
-                  << " fallback=" << (needFallback?1:0) << std::endl;
         if (needFallback) {
             GLsizei count = _lastGoodTranspCount > 0 ? _lastGoodTranspCount : _transpDrawCount;
             if (count > 0) {
@@ -570,10 +561,6 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
         const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
         const GLsizeiptr bytesInst = nInst * sizeof(int);
         const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
-        std::cerr << "[UPLOAD T] cmds=" << (long long)nCmd
-                  << " inst=" << (long long)nInst
-                  << " ssboEntries=" << (long long)(_solidDrawData->ssboData.size())
-                  << std::endl;
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
@@ -608,10 +595,6 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
         const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
         const GLsizeiptr bytesInst = nInst * sizeof(int);
         const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
-        std::cerr << "[UPLOAD S] cmds=" << (long long)nCmd
-                  << " inst=" << (long long)nInst
-                  << " ssboEntries=" << (long long)(_solidDrawData->ssboData.size())
-                  << std::endl;
 
 		// Ensure buffers exist
 		if (!_solidInstSSBO)  glCreateBuffers(1, &_solidInstSSBO);

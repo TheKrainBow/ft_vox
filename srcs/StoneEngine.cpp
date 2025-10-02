@@ -1761,18 +1761,19 @@ void StoneEngine::display()
 		renderTransparentObjects(); // direct
 	}
 
-	// Greedy fix (needs depth, may WRITE gl_FragDepth)
-	postProcessGreedyFix();
-	blitColorDepth(writeFBO, readFBO);
+    // Run god rays BEFORE greedy fix so depth still marks sky properly
+    postProcessGodRays();
+    blitColor(writeFBO, readFBO);
 
-	// Fog
-	postProcessFog();
-	blitColor(writeFBO, readFBO);
-	postProcessSkyboxComposite();
-	blitColor(writeFBO, readFBO);
+    // Greedy fix (needs depth, may WRITE gl_FragDepth)
+    postProcessGreedyFix();
+    blitColorDepth(writeFBO, readFBO);
 
-	postProcessGodRays();
-	blitColor(writeFBO, readFBO);
+    // Fog
+    postProcessFog();
+    blitColor(writeFBO, readFBO);
+    postProcessSkyboxComposite();
+    blitColor(writeFBO, readFBO);
 
 	displaySun(writeFBO);
 	blitColor(writeFBO, readFBO);
@@ -2061,8 +2062,9 @@ void StoneEngine::postProcessGodRays()
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
 
-	vec3 camPos = camera.getWorldPosition();
-	glm::vec3 sunPos = camPos + computeSunDirection(timeValue) * 500.0f;
+    vec3 camPos = camera.getWorldPosition();
+    // Match the same far distance used by the sun sprite so positions coincide
+    glm::vec3 sunPos = camPos + computeSunDirection(timeValue) * 6000.0f;
 
 	// Uniforms
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
@@ -2072,7 +2074,8 @@ void StoneEngine::postProcessGodRays()
 
 	// Intensity scales with sun altitude and underwater state
 	float sunHeight = glm::clamp((sunPos.y - camPos.y) / 6000.0f, 0.0f, 1.0f);
-	float baseIntensity = _player.isUnderWater() ? 0.85f : 0.50f;
+    // Slight boost above water to make shafts stand out through foliage
+    float baseIntensity = _player.isUnderWater() ? 0.85f : 0.70f;
 	float rayIntensity = baseIntensity * sunHeight;
 	glUniform1f(glGetUniformLocation(shader.program, "rayIntensity"), rayIntensity);
 
@@ -2118,12 +2121,12 @@ void StoneEngine::renderPlanarReflection()
 	glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
 	glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
 
-	// 0) Skybox into planar FBO so reflections include sky
-	if (_hasSkybox && skyboxProgram != 0)
-	{
-		glUseProgram(skyboxProgram);
-		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+    // 0) Skybox into planar FBO so reflections include sky
+    if (_hasSkybox && skyboxProgram != 0)
+    {
+        glUseProgram(skyboxProgram);
+        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
+        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
 		glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);
@@ -2134,10 +2137,10 @@ void StoneEngine::renderPlanarReflection()
 			glEnable(GL_CULL_FACE);
 	}
 
-	glUseProgram(shaderProgram);
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
-	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -2150,7 +2153,7 @@ void StoneEngine::renderPlanarReflection()
 	glm::mat4 prevView = this->viewMatrix;
 	_chunkMgr.setViewProj(viewFullMirror, projOblique); // <- use oblique for culling too
 	_chunkMgr.updateDrawData();
-	_chunkMgr.renderSolidBlocks();
+    _chunkMgr.renderSolidBlocks();
 
 	// Also render masked alpha (leaves) into planar reflection
 	glUseProgram(alphaShaderProgram);
@@ -2169,8 +2172,39 @@ void StoneEngine::renderPlanarReflection()
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
-	_chunkMgr.renderTransparentBlocks();
-	_chunkMgr.setViewProj(prevView, projectionMatrix);
+    _chunkMgr.renderTransparentBlocks();
+    _chunkMgr.setViewProj(prevView, projectionMatrix);
+
+    // 2) Add the sun sprite to the planar reflection so it can reflect in water
+    {
+        glUseProgram(sunShaderProgram);
+        // Use full mirrored view (with translation) and oblique projection
+        glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewFullMirror));
+        glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+
+        // Place sun far along its world-space direction relative to the mirrored camera
+        glm::vec3 sunDir = computeSunDirection(timeValue);
+        glm::vec3 sunPos = camMir + sunDir * 6000.0f;
+        glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
+
+        glm::vec3 sunColor(1.0f, 0.6f, 0.2f);
+        float height = clamp((sunPos.y - camMir.y) / 6000.0f, 0.0f, 1.0f);
+        sunColor = mix(sunColor, glm::vec3(1.0f), height);
+        glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
+        glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
+
+        glEnable(GL_DEPTH_TEST);   // sun should be occluded by mirrored terrain
+        glDepthMask(GL_FALSE);     // but not write depth
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE); // additive
+
+        glBindVertexArray(sunVAO);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glBindVertexArray(0);
+
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE);
+    }
 
 	if (cullWasEnabled)
 		glEnable(GL_CULL_FACE);
