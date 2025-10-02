@@ -25,13 +25,20 @@ const float exposure   = 1.05;  // was 0.90
 const float decay      = 0.94;
 const float density    = 0.40;  // was 0.35
 const float weight     = 0.026; // was 0.020
-const int   numSamples = 56;
+const int   numSamplesDry = 56;
+const int   numSamplesWet = 84; // more steps when underwater for denser rays
+
+// Underwater-specific boosts (kept modest; fog will still tame brightness)
+const float UW_DENSITY_BOOST  = 1.35;
+const float UW_WEIGHT_BOOST   = 1.45;
+const float UW_EXPOSURE_BOOST = 1.08;
 
 float skyMask(vec2 uv)
 {
-    // Treat very-far depth as sky, but use a smooth threshold so thin foliage doesn’t entirely cancel rays.
+    // Classify true sky using a strict threshold so underwater fogged regions don't count as sky.
     float d = texture(depthTexture, uv).r;
-    return smoothstep(0.997, 1.0, d);
+    float thr = (isUnderwater == 1) ? 0.9996 : 0.997; // much stricter underwater
+    return smoothstep(thr, 1.0, d);
 }
 
 void main()
@@ -59,21 +66,27 @@ void main()
 		return;
 	}
 
-	// Accumulate samples from fragment toward the sun
-	// Clamp sun position to viewport to avoid popping at edges
-	vec2 sunClamped = clamp(sunScreen, vec2(0.0), vec2(1.0));
-	vec2 delta = (texCoords - sunClamped) * (density / float(numSamples));
-	vec2 coord = texCoords;
-	float illum = 1.0;
-	float occlusion = 0.0;
+    // Effective params (slightly stronger underwater for porous occluders)
+    float densityEff  = density  * (isUnderwater == 1 ? UW_DENSITY_BOOST  : 1.0);
+    float weightEff   = weight   * (isUnderwater == 1 ? UW_WEIGHT_BOOST   : 1.0);
+    float exposureEff = exposure * (isUnderwater == 1 ? UW_EXPOSURE_BOOST : 1.0);
 
-    for (int i = 0; i < numSamples; ++i) {
+    // Accumulate samples from fragment toward the sun
+    // Clamp sun position to viewport to avoid popping at edges
+    vec2 sunClamped = clamp(sunScreen, vec2(0.0), vec2(1.0));
+    int  samples    = (isUnderwater == 1) ? numSamplesWet : numSamplesDry;
+    vec2 delta = (texCoords - sunClamped) * (densityEff / float(samples));
+    vec2 coord = texCoords;
+    float illum = 1.0;
+    float occlusion = 0.0;
+
+    for (int i = 0; i < samples; ++i) {
         coord -= delta;
         // stop if we left the screen
         if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0)
             break;
         float sky = skyMask(coord);
-        occlusion += sky * illum * weight;
+        occlusion += sky * illum * weightEff;
         illum *= decay;
     }
 
@@ -82,8 +95,12 @@ void main()
 	vec3 tintUnder = vec3(0.5, 0.7, 1.0);
 	vec3 tint = (isUnderwater == 1) ? tintUnder : tintAbove;
 
-	vec3 rays = tint * occlusion * (exposure * rayIntensity * edgeFade);
-	vec3 color = base + rays;
+    // Slightly reduce glare when looking straight at the sun (above water only)
+    float r = length(texCoords - sunClamped);
+    float nearSun = 1.0 - smoothstep(0.00, 0.18, r);
+    float glareAtten = 1.0 - ((isUnderwater == 1) ? 0.30 : 0.45) * nearSun;
+    vec3 rays = tint * occlusion * (exposureEff * rayIntensity * edgeFade * glareAtten);
+    vec3 color = base + rays;
 
 	FragColor = vec4(color, 1.0);
 }

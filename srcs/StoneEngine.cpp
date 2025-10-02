@@ -2074,8 +2074,8 @@ void StoneEngine::postProcessGodRays()
 
 	// Intensity scales with sun altitude and underwater state
 	float sunHeight = glm::clamp((sunPos.y - camPos.y) / 6000.0f, 0.0f, 1.0f);
-    // Slight boost above water to make shafts stand out through foliage
-    float baseIntensity = _player.isUnderWater() ? 0.85f : 0.70f;
+    // Boost underwater so rays are more visible while submerged, avoid overexposure
+    float baseIntensity = _player.isUnderWater() ? 1.25f : 0.60f;
 	float rayIntensity = baseIntensity * sunHeight;
 	glUniform1f(glGetUniformLocation(shader.program, "rayIntensity"), rayIntensity);
 

@@ -20,25 +20,18 @@ void main()
 
 	bool isSkyDepth = currentDepth >= depthSkyThreshold;
 
-	if (isSkyDepth)
-	{
-		vec3 upColor		= texture(screenTexture, texCoords + vec2(0.0,  texelSize.y)).rgb;
-		float upDepth		= texture(depthTexture, texCoords + vec2(0.0,  texelSize.y)).r;
+		if (isSkyDepth)
+		{
+			// Only fix depth discontinuities; preserve color to avoid smearing post-effects like god rays
+			float upDepth		= texture(depthTexture, texCoords + vec2(0.0,  texelSize.y)).r;
+			float downDepth		= texture(depthTexture, texCoords + vec2(0.0,  -texelSize.y)).r;
+			float leftDepth		= texture(depthTexture, texCoords + vec2(-texelSize.x, 0.0)).r;
+			float rightDepth	= texture(depthTexture, texCoords + vec2( texelSize.x, 0.0)).r;
 
-		vec3 downColor		= texture(screenTexture, texCoords + vec2(0.0, -texelSize.y)).rgb;
-		float downDepth		= texture(depthTexture, texCoords + vec2(0.0,  -texelSize.y)).r;
-
-		vec3 leftColor		= texture(screenTexture, texCoords + vec2(-texelSize.x, 0.0)).rgb;
-		float leftDepth		= texture(depthTexture, texCoords + vec2(-texelSize.x, 0.0)).r;
-
-		vec3 rightColor		= texture(screenTexture, texCoords + vec2( texelSize.x, 0.0)).rgb;
-		float rightDepth	= texture(depthTexture, texCoords + vec2( texelSize.x, 0.0)).r;
-
-		vec3 bColor		= (upColor + downColor + rightColor + leftColor) / 4;
-		float bDepth	= (upDepth + downDepth + leftDepth + rightDepth) / 4;
-		finalColor = bColor;
-		finalDepth = bDepth;
-	}
+			float bDepth	= (upDepth + downDepth + leftDepth + rightDepth) / 4;
+			finalColor = currentColor; // keep existing color (which may include god rays)
+			finalDepth = bDepth;
+		}
 	else
 	{
 		finalColor = currentColor;
