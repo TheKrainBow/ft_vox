@@ -1557,8 +1557,11 @@ void StoneEngine::rebuildVisibleFlowersVBO()
 					typeId = _layerCyan;
 				else if (bt == FLOWER_SHORT_GRASS && flowerShortGrassLayer >= 0)
 					typeId = flowerShortGrassLayer;
-				glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
-				FlowerInstance inst{center, rotD(rng), scaD(rng), 1.0f, typeId};
+                glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
+                // Poppy can appear slightly above ground; nudge it down a bit
+                if (bt == FLOWER_POPPY)
+                    center.y -= 0.1f;
+                FlowerInstance inst{center, rotD(rng), scaD(rng), 1.0f, typeId};
 				_flowersBySub[cpos][subY].push_back(inst);
 			}
 		}
@@ -1882,19 +1885,48 @@ void StoneEngine::renderAimHighlight()
 		(int)std::floor((float)hit.z / (float)CHUNK_SIZE));
 	BlockType hitBlock = _chunkMgr.getBlock(hitChunkPos, hit);
 
-	// Default: full block
-	glm::vec3 bboxOffset = glm::vec3(hit);
-	glm::vec3 bboxScale = glm::vec3(1.0f, 1.0f, 1.0f);
+    // Default: full block
+    glm::vec3 bboxOffset = glm::vec3(hit);
+    glm::vec3 bboxScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
-	// Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
-	if (hitBlock == LOG)
-	{
-		const float inset = 0.10f;
-		bboxOffset.x += inset;
-		bboxOffset.z += inset;
-		bboxScale.x = 1.0f - 2.0f * inset;
-		bboxScale.z = 1.0f - 2.0f * inset;
-	}
+    // Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
+    if (hitBlock == LOG)
+    {
+        const float inset = 0.10f;
+        bboxOffset.x += inset;
+        bboxOffset.z += inset;
+        bboxScale.x = 1.0f - 2.0f * inset;
+        bboxScale.z = 1.0f - 2.0f * inset;
+    }
+    // Decorative plants (flowers/short grass) render as X-cross quads of width ~0.70m.
+    // Adapt the aim highlight to their smaller footprint so the wireframe hugs the plant.
+    else if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION ||
+             hitBlock == FLOWER_CYAN  || hitBlock == FLOWER_SHORT_GRASS)
+    {
+        // Base mesh half-width W = 0.35 (see initFlowerResources), so baseline total ~0.70.
+        // Cyan sprite is visually slimmer; match poppy/dandelion to cyan width.
+        float plantScaleXZ = 0.70f;
+        const float cyanScaleXZ = 0.60f;
+        if (hitBlock == FLOWER_CYAN || hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION)
+            plantScaleXZ = cyanScaleXZ;
+        const float inset = (1.0f - plantScaleXZ) * 0.5f; // center within the voxel
+        bboxOffset.x += inset;
+        bboxOffset.z += inset;
+        bboxScale.x = plantScaleXZ;
+        bboxScale.z = plantScaleXZ;
+        // Adjust height per plant type for aim wireframe only
+        if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION)
+        {
+            // A bit taller than half of cyan's (baseline) height
+            bboxScale.y = 0.65f;
+        }
+        // Short grass: make wireframe almost a full block tall for visibility
+        if (hitBlock == FLOWER_SHORT_GRASS)
+        {
+            // Make the wireframe almost a full block tall for visibility
+            bboxScale.y = 0.95f;
+        }
+    }
 
 	// Setup state
 	glUseProgram(_wireProgram);
@@ -2740,8 +2772,10 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 				static std::mt19937 rng{std::random_device{}()};
 				std::uniform_real_distribution<float> rotD(-0.26f, 0.26f);
 				std::uniform_real_distribution<float> scaD(0.95f, 1.05f);
-				glm::vec3 center = glm::vec3(placedAt.x + 0.5f, placedAt.y + 0.0f, placedAt.z + 0.5f);
-				addFlower(center, typeId, rotD(rng), scaD(rng), 1.0f);
+                glm::vec3 center = glm::vec3(placedAt.x + 0.5f, placedAt.y + 0.0f, placedAt.z + 0.5f);
+                if (selectedBlock == FLOWER_POPPY)
+                    center.y -= 0.05f;
+                addFlower(center, typeId, rotD(rng), scaD(rng), 1.0f);
 			}
 		}
 		_player.setPlacing(true);

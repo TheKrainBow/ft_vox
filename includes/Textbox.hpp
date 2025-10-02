@@ -36,12 +36,16 @@ const block_pair blockTab[NB_BLOCKS] = {
 	{cobble, "Cobble"},
 	{bedrock, "Bedrock"},
 	{dirt, "Dirt"},
-	{grass, "Grass"},
+	{grass, "Grass block"},
 	{sand, "Sand"},
 	{water, "Water"},
 	{snow, "Snow"},
 	{oak_log, "Oak log"},
-	{leaf, "Leaf"}
+	{leaf, "Oak Leaf"},
+	{flower_poppy,       "Poppy"},
+	{flower_dandelion,   "Dandelion"},
+	{flower_cyan,        "Blue orchid"},
+	{flower_short_grass, "Short grass"}
 };
 
 const biome_pair biomeTab[NB_BIOMES] = {
