@@ -1915,13 +1915,15 @@ void StoneEngine::renderAimHighlight()
     // Decorative plants (flowers/short grass) render as X-cross quads of width ~0.70m.
     // Adapt the aim highlight to their smaller footprint so the wireframe hugs the plant.
     else if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION ||
-             hitBlock == FLOWER_CYAN  || hitBlock == FLOWER_SHORT_GRASS)
+             hitBlock == FLOWER_CYAN  || hitBlock == FLOWER_SHORT_GRASS ||
+             hitBlock == FLOWER_DEAD_BUSH)
     {
         // Base mesh half-width W = 0.35 (see initFlowerResources), so baseline total ~0.70.
         // Cyan sprite is visually slimmer; match poppy/dandelion to cyan width.
         float plantScaleXZ = 0.70f;
         const float cyanScaleXZ = 0.60f;
-        if (hitBlock == FLOWER_CYAN || hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION)
+        // Use cyan-sized footprint for cyan, poppy, dandelion and dead bush
+        if (hitBlock == FLOWER_CYAN || hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION || hitBlock == FLOWER_DEAD_BUSH)
             plantScaleXZ = cyanScaleXZ;
         const float inset = (1.0f - plantScaleXZ) * 0.5f; // center within the voxel
         bboxOffset.x += inset;
