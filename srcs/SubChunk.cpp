@@ -338,14 +338,15 @@ void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
     centerProb = std::clamp(centerProb, 0.002, 0.030);
 
     double patchScore = 0.0;
-    for (int dz = -2; dz <= 2; ++dz)
-    for (int dx = -2; dx <= 2; ++dx)
+    // Wider search window to allow larger patches
+    for (int dz = -6; dz <= 6; ++dz)
+    for (int dx = -6; dx <= 6; ++dx)
     {
         double sC = rand01(WX + dx, WZ + dz, 401);
         if (sC >= centerProb) continue; // not a center
 
         // Randomized radius per center (in blocks)
-        double R = 1.8 + 1.6 * rand01(WX + dx, WZ + dz, 402); // ~1.8 .. 3.4
+        double R = 2.4 + 4.8 * rand01(WX + dx, WZ + dz, 402); // ~2.4 .. 7.2 (bigger max)
         double d = std::sqrt(double(dx*dx + dz*dz));
         if (d > R + 0.75) continue; // quick reject
         double k = std::max(0.0, 1.0 - (d / std::max(0.001, R)));
