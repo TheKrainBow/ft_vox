@@ -8,8 +8,34 @@ static inline bool isSolidDeletable(BlockType b) {
     return (b != AIR && b != WATER && b != BEDROCK);
 }
 
+// Billboarded, non-solid plants rendered via the flower pipeline
 static inline bool isFlower(BlockType b) {
-    return (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS);
+    return (b == FLOWER_POPPY
+         || b == FLOWER_DANDELION
+         || b == FLOWER_CYAN
+         || b == FLOWER_SHORT_GRASS
+         || b == FLOWER_DEAD_BUSH);
+}
+
+// Any plant-like block that obeys the flowerPlaceCondition rules
+static inline bool isPlantPlaceable(BlockType b) {
+    return isFlower(b) || b == CACTUS;
+}
+
+static inline bool flowerPlaceCondition(BlockType support, BlockType placing)
+{
+	// Placement rules for decorative plants and cactus:
+	// - On GRASS or DIRT: flowers and short grass
+	// - On SAND: dead bush and cactus
+	return (
+		((support == GRASS || support == DIRT) &&
+			(placing == FLOWER_POPPY
+			|| placing == FLOWER_DANDELION
+			|| placing == FLOWER_CYAN
+			|| placing == FLOWER_SHORT_GRASS))
+		|| ((support == SAND) &&
+			(placing == FLOWER_DEAD_BUSH || placing == CACTUS))
+	);
 }
 
 bool Raycaster::raycastHit(const glm::vec3& originWorld,
@@ -200,8 +226,8 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
         _chunkLoader.scheduleDisplayUpdate();
     }
 
-    // If we broke DIRT or GRASS, also remove a flower on top if present
-    if (hitTypeBefore == DIRT || hitTypeBefore == GRASS)
+    // If we broke a support block, handle any plant sitting above
+    if (hitTypeBefore == SAND || hitTypeBefore == DIRT || hitTypeBefore == GRASS)
     {
         glm::ivec3 above = hit + glm::ivec3(0, 1, 0);
         ivec2 aboveChunk(
@@ -209,8 +235,52 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
             (int)std::floor((float)above.z / (float)CHUNK_SIZE)
         );
         BlockType aboveType = _chunkLoader.getBlock(aboveChunk, above);
-        if (isFlower(aboveType))
+
+        if (hitTypeBefore == SAND && aboveType == CACTUS)
         {
+            // Cascade remove the entire cactus column above the broken sand
+            glm::ivec3 cur = above;
+            while (true)
+            {
+                ivec2 curChunk(
+                    (int)std::floor((float)cur.x / (float)CHUNK_SIZE),
+                    (int)std::floor((float)cur.z / (float)CHUNK_SIZE)
+                );
+                BlockType curType = _chunkLoader.getBlock(curChunk, cur);
+                if (curType != CACTUS) break;
+
+                bool wrote = _chunkLoader.setBlockOrQueue(curChunk, cur, AIR, /*byPlayer=*/true);
+                if (wrote)
+                {
+                    if (Chunk* c2 = _chunkLoader.getChunk(curChunk))
+                    {
+                        c2->setAsModified();
+                        c2->sendFacesToDisplay();
+                    }
+
+                    const int lx2 = (cur.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                    const int lz2 = (cur.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                    ivec2 neighbors2[4];
+                    int n2 = 0;
+                    if (lx2 == 0)               neighbors2[n2++] = { curChunk.x - 1, curChunk.y };
+                    if (lx2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x + 1, curChunk.y };
+                    if (lz2 == 0)               neighbors2[n2++] = { curChunk.x,     curChunk.y - 1 };
+                    if (lz2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x,     curChunk.y + 1 };
+                    for (int i = 0; i < n2; ++i)
+                        if (Chunk* nc2 = _chunkLoader.getChunk(neighbors2[i]))
+                            nc2->sendFacesToDisplay();
+                }
+
+                // Move upward
+                cur.y += 1;
+            }
+
+            // Coalesce display update once
+            _chunkLoader.scheduleDisplayUpdate();
+        }
+        else if (isFlower(aboveType))
+        {
+            // Remove a single billboard plant above when breaking its support
             bool wroteTop = _chunkLoader.setBlockOrQueue(aboveChunk, above, AIR, /*byPlayer=*/true);
             if (wroteTop)
             {
@@ -235,6 +305,47 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
                 _chunkLoader.scheduleDisplayUpdate();
             }
         }
+    }
+
+    // If we directly broke a cactus block, cascade-remove all cactus blocks above it
+    if (hitTypeBefore == CACTUS)
+    {
+        glm::ivec3 cur = hit + glm::ivec3(0, 1, 0);
+        while (true)
+        {
+            ivec2 curChunk(
+                (int)std::floor((float)cur.x / (float)CHUNK_SIZE),
+                (int)std::floor((float)cur.z / (float)CHUNK_SIZE)
+            );
+            BlockType curType = _chunkLoader.getBlock(curChunk, cur);
+            if (curType != CACTUS) break;
+
+            bool wrote = _chunkLoader.setBlockOrQueue(curChunk, cur, AIR, /*byPlayer=*/true);
+            if (wrote)
+            {
+                if (Chunk* c2 = _chunkLoader.getChunk(curChunk))
+                {
+                    c2->setAsModified();
+                    c2->sendFacesToDisplay();
+                }
+
+                const int lx2 = (cur.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                const int lz2 = (cur.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+                ivec2 neighbors2[4];
+                int n2 = 0;
+                if (lx2 == 0)               neighbors2[n2++] = { curChunk.x - 1, curChunk.y };
+                if (lx2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x + 1, curChunk.y };
+                if (lz2 == 0)               neighbors2[n2++] = { curChunk.x,     curChunk.y - 1 };
+                if (lz2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x,     curChunk.y + 1 };
+                for (int i = 0; i < n2; ++i)
+                    if (Chunk* nc2 = _chunkLoader.getChunk(neighbors2[i]))
+                        nc2->sendFacesToDisplay();
+            }
+
+            cur.y += 1;
+        }
+
+        _chunkLoader.scheduleDisplayUpdate();
     }
     return true;
 }
@@ -315,7 +426,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
         );
         BlockType b = _chunkLoader.getBlock(chunkPos, voxel);
 
-        // Special case: if we hit a flower/short grass and the player is placing a non-flower, non-air block,
+        // Special case: if we hit a decorative plant (billboard) and the player is placing a non-flower, non-air block,
         // replace the flower instead of placing above it.
         if (isFlower(b)) {
             bool placingNonFlower = (block != AIR && !isFlower(block));
@@ -395,10 +506,10 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
             // Only place if target is empty or replaceable (AIR/WATER).
             BlockType current = _chunkLoader.getBlock(placeChunk, prev);
 
-            // If placing a flower, constrain placement rules:
+            // If placing a flower/plant, use flowerPlaceCondition rules:
             // - Target cell must be AIR (not water)
-            // - Block directly below must be DIRT or GRASS
-            if (isFlower(block)) {
+            // - Support below must satisfy flowerPlaceCondition for the block type
+            if (isPlantPlaceable(block)) {
                 if (current != AIR) return false;
                 glm::ivec3 below = prev; below.y -= 1;
                 ivec2 belowChunk(
@@ -406,7 +517,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
                     (int)std::floor((float)below.z / (float)CHUNK_SIZE)
                 );
                 BlockType support = _chunkLoader.getBlock(belowChunk, below);
-                if (!(support == DIRT || support == GRASS)) return false;
+                if (!flowerPlaceCondition(support, block)) return false;
             } else {
                 if (!(current == AIR || current == WATER)) return false;
             }

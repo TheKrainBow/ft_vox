@@ -62,24 +62,33 @@ float mapExpo(float x, float in_min, float in_max, float out_min, float out_max)
 
 bool isTransparent(char block)
 {
-	return block == AIR || block == WATER || block == LOG || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
+	// Treat CACTUS like LOG for face-visibility decisions so ground caps render
+	// under the inset mesh (prevents a visible ring gap around the base).
+	return block == AIR || block == WATER || block == LOG || block == CACTUS || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
 }
 
 // Display logs only if sides
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
-	// For leaves: always show faces, but if neighbor is also a leaf, only
-	// emit the face for positive-axis directions to avoid z-fighting between
-	// coincident quads (keep one of the two faces).
-	if (blockToDisplay == LEAF)
-	{
-		if (neighborBlock == LEAF)
-		{
-			return (dir == EAST || dir == UP || dir == SOUTH);
-		}
-		return true; // non-leaf neighbor: show the face regardless
-	}
-	return ((isTransparent(neighborBlock) && blockToDisplay != neighborBlock) || (blockToDisplay == LOG && (dir <= EAST)));
+    // For leaves: always show faces, but if neighbor is also a leaf, only
+    // emit the face for positive-axis directions to avoid z-fighting between
+    // coincident quads (keep one of the two faces).
+    if (blockToDisplay == LEAF)
+    {
+        if (neighborBlock == LEAF)
+        {
+            return (dir == EAST || dir == UP || dir == SOUTH);
+        }
+        return true; // non-leaf neighbor: show the face regardless
+    }
+
+    // Apply the same neighboring-face rule used for logs to cactuses:
+    // always render side faces even when adjacent to the same block type.
+    const bool isLogOrCactus = (blockToDisplay == LOG || blockToDisplay == CACTUS);
+    if (isLogOrCactus && dir <= EAST)
+        return true;
+
+    return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock);
 }
 
 static inline void glResetActiveTextureTo0()
@@ -1904,7 +1913,7 @@ void StoneEngine::renderAimHighlight()
     glm::vec3 bboxScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
     // Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
-    if (hitBlock == LOG)
+    if (hitBlock == LOG || hitBlock == CACTUS)
     {
         const float inset = 0.10f;
         bboxOffset.x += inset;

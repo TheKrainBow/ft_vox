@@ -102,12 +102,13 @@ void main() {
 		normal = vec3(0,1,0);
 	}
 
-	if (textureID == 10 || textureID == 9) {
-		float sx = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
-		float sz = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
+    // Shrink logs and cactus to look less boxy (same inset)
+    if (textureID == 10 || textureID == 9 || textureID == 12 || textureID == 13) {
+        float sx = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
+        float sz = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
 
-		float cx = 0.5 * 1;
-		float cz = 0.5 * 1;
+        float cx = 0.5 * 1;
+        float cz = 0.5 * 1;
 
 		basePos.x = cx + (basePos.x - cx) * sx;
 		basePos.z = cz + (basePos.z - cz) * sz;
