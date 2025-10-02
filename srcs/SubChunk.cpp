@@ -206,8 +206,8 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
     double j1 = rand01(WX, WZ, 2); // flower gate in cluster
     double j2 = rand01(WX, WZ, 3); // flower color pick
 
-    // --- biome weighting: make grass denser in plains/forest ---
-    double biomeGrass = 0.4; // default elsewhere
+    // --- biome weighting: default density for generic plains/forest behavior ---
+    double biomeGrass = 0.6;
 
 	// Deterministic Bernoulli for grass (no Perlin patchiness),
     // slightly modulated by g to add tiny variation.
@@ -237,6 +237,53 @@ void SubChunk::loadPlaine(int x, int z, size_t ground)
     }
 }
 
+// Plains variant: only rare short grass, no flowers
+void SubChunk::loadPlainsRare(int x, int z, size_t ground)
+{
+    // Ground shaping identical to loadPlaine
+    int y = ground - _position.y * CHUNK_SIZE;
+    for (int i = 1; i <= 4; i++)
+        if (getBlock({x, y - (i * _resolution), z}) != AIR)
+            setBlock(x, y - (i * _resolution), z, DIRT);
+    if (getBlock({x, y, z}) == AIR)
+        return;
+    setBlock(x, y, z, GRASS);
+
+    // Deterministic RNG
+    auto splitmix64 = [](uint64_t v) {
+        v += 0x9e3779b97f4a7c15ULL;
+        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+        return v ^ (v >> 31);
+    };
+    auto hash2 = [&](int WX, int WZ, uint64_t salt){
+        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+        k ^= salt * 0x9e3779b97f4a7c15ULL;
+        return splitmix64(k);
+    };
+    auto rand01 = [&](int WX, int WZ, uint64_t salt){
+        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+    };
+
+    const int WX = x + _position.x * CHUNK_SIZE;
+    const int WZ = z + _position.z * CHUNK_SIZE;
+    int idx = z * CHUNK_SIZE + x;
+    double g  = 0.5;
+    if (_grassMap && *_grassMap) g = (*_grassMap)[idx];
+
+    // Only rare short grass, modulated very slightly by g
+    double j0 = rand01(WX, WZ, 11);
+    double grassProb = 0.02 + 0.02 * (g - 0.5); // ~2% baseline
+    if (grassProb < 0.0) grassProb = 0.0;
+    if (grassProb > 1.0) grassProb = 1.0;
+
+    // place plant above ground if air
+    if (getBlock({x, y+1, z}) != AIR)
+        return;
+    if (j0 < grassProb)
+        setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+}
+
 void SubChunk::loadMountain(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
@@ -250,11 +297,56 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 
 void SubChunk::loadDesert(int x, int z, size_t ground)
 {
-	int y = ground - _position.y * CHUNK_SIZE;
+    int y = ground - _position.y * CHUNK_SIZE;
 
-	setBlock(x, y, z, SAND);
-	for (int i = 1; i <= 4; i++)
-		setBlock(x, y - (i * _resolution), z, SAND);
+    setBlock(x, y, z, SAND);
+    for (int i = 1; i <= 4; i++)
+        setBlock(x, y - (i * _resolution), z, SAND);
+
+    // Decorations: cactus columns and rare dead bushes
+    // Deterministic RNG
+    auto splitmix64 = [](uint64_t v) {
+        v += 0x9e3779b97f4a7c15ULL;
+        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+        return v ^ (v >> 31);
+    };
+    auto hash2 = [&](int WX, int WZ, uint64_t salt){
+        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+        k ^= salt * 0x9e3779b97f4a7c15ULL;
+        return splitmix64(k);
+    };
+    auto rand01 = [&](int WX, int WZ, uint64_t salt){
+        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+    };
+
+    const int WX = x + _position.x * CHUNK_SIZE;
+    const int WZ = z + _position.z * CHUNK_SIZE;
+
+    if (getBlock({x, y+1, z}) != AIR)
+        return;
+
+    double rCac = rand01(WX, WZ, 101);
+    double rBush = rand01(WX, WZ, 102);
+
+    // Try cactus first (sparser)
+    if (rCac < 0.006) {
+        int h = 2 + (int)std::floor(rand01(WX, WZ, 103) * 3.0); // 2..4
+        // Ensure vertical clearance
+        for (int i = 1; i <= h; ++i) {
+            if (y + i >= CHUNK_SIZE) { h = i - 1; break; }
+            if (getBlock({x, y + i, z}) != AIR) { h = i - 1; break; }
+        }
+        if (h >= 1) {
+            for (int i = 1; i <= h; ++i) setBlock(x, y + i, z, CACTUS);
+            return;
+        }
+    }
+
+    // Otherwise, small chance for dead bush
+    if (rBush < 0.012) {
+        setBlock(x, y + 1, z, FLOWER_DEAD_BUSH);
+    }
 }
 
 void SubChunk::loadBeach(int x, int z, size_t ground)
@@ -368,7 +460,8 @@ void SubChunk::loadBiome(int prevResolution)
 			switch (biome)
 			{
 				case PLAINS:
-					loadPlaine(x, z, surfaceLevel);
+					// Plains: rare grass only, no flowers
+					loadPlainsRare(x, z, surfaceLevel);
 					break ;
 				case DESERT:
 					loadDesert(x, z, surfaceLevel);
@@ -787,6 +880,9 @@ void SubChunk::sendFacesToDisplay()
 						break;
 					case LEAF:
 						addBlock(LEAF, ivec3(x, y, z), T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, T_LEAF, true);
+						break;
+					case CACTUS:
+						addBlock(CACTUS, ivec3(x, y, z), T_CACTUS_TOP, T_CACTUS_TOP, T_CACTUS_SIDE, T_CACTUS_SIDE, T_CACTUS_SIDE, T_CACTUS_SIDE);
 						break;
 						// Route leaves to transparent pass (masked alpha). Always add all 6 faces.
 						// addUpFace(   LEAF, ivec3(x, y, z), T_LEAF, true);

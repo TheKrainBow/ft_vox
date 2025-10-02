@@ -114,7 +114,7 @@ bool Player::canMove(const glm::vec3& offset, float extra)
 	BlockType blockTorso = _chunkMgr.getBlock(chunkPos, worldPosTorso);
 	auto passable = [](BlockType b)
 	{
-		return (b == AIR || b == WATER || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS);
+		return (b == AIR || b == WATER || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH);
 	};
 	return (passable(blockFeet) && passable(blockTorso));
 }

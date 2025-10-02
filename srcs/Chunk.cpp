@@ -95,7 +95,7 @@ TopBlock Chunk::getTopBlock(int localX, int localZ) {
         // Treat decorative plants as non-solid for ground queries
         if (block != AIR && block != WATER &&
             block != FLOWER_POPPY && block != FLOWER_DANDELION &&
-            block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS)
+            block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS && block != FLOWER_DEAD_BUSH)
             return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
     }
 	}
@@ -136,7 +136,7 @@ TopBlock Chunk::getFirstSolidBelow(int localX, int startLocalY, int localZ, int 
             // Ignore decorative plants for collision/ground detection
             if (block != AIR && block != WATER &&
                 block != FLOWER_POPPY && block != FLOWER_DANDELION &&
-                block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS) {
+                block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS && block != FLOWER_DEAD_BUSH) {
                 return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
             }
         }

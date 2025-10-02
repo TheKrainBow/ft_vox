@@ -148,45 +148,60 @@ ivec2 NoiseGenerator::getBorderWarping(double x, double z)
 
 double NoiseGenerator::getTemperatureNoise(ivec2 pos)
 {
-	NoiseData tempData = {
-		1.0,
-		0.0001,
-		0.5,
-		2.5,
-		4
-	};
+    // Domain warp softened so temperature moves less quickly
+    NoiseData warp = { 1.0, 0.0025, 0.5, 2.0, 2 };
+    _data = warp;
+    double wx = noise(pos.x + 1337, pos.y + 42);
+    double wy = noise(pos.y + 4242, pos.x + 7);
 
-	_data = tempData;
-	double tempNoise = noise(pos.x, pos.y);
-	setNoiseData(NoiseData());
-	return tempNoise;
+    // Main temperature field: slower variation across larger distances
+    ivec2 p2 = { (int)(pos.x + wx * 260.0), (int)(pos.y + wy * 260.0) };
+    NoiseData tempData = {
+        1.0,    // amplitude
+        0.0006, // lower frequency -> slower change while walking
+        0.55,   // persistence
+        2.1,    // lacunarity
+        5       // octaves
+    };
+
+    _data = tempData;
+    double tempNoise = noise(p2.x, p2.y);
+    setNoiseData(NoiseData());
+    return tempNoise;
 }
 
 double NoiseGenerator::getHumidityNoise(ivec2 pos)
 {
-	NoiseData humidData = {
-		1.0,
-		0.0003,
-		0.4,
-		2.5,
-		4
-	};
+    // Domain warp softened for smoother humidity regions
+    NoiseData warp = { 1.0, 0.003, 0.5, 2.0, 2 };
+    _data = warp;
+    double wx = noise(pos.x + 9157, pos.y + 271);
+    double wy = noise(pos.y + 613,  pos.x + 8899);
 
-	_data = humidData;
-	double humidNoise = noise(pos.x, pos.y);
-	setNoiseData(NoiseData());
-	return humidNoise;
+    ivec2 p2 = { (int)(pos.x + wx * 300.0), (int)(pos.y + wy * 300.0) };
+    NoiseData humidData = {
+        1.0,
+        0.0009, // a bit faster than temp, still slow
+        0.6,
+        2.1,
+        5
+    };
+
+    _data = humidData;
+    double humidNoise = noise(p2.x, p2.y);
+    setNoiseData(NoiseData());
+    return humidNoise;
 }
 
 ivec2 NoiseGenerator::getBiomeBorderWarping(int x, int z)
 {
-	NoiseData nData = {
-		1.0,  // amplitude
-		0.1, // frequency
-		0.5,  // persistence
-		2.5,  // lacunarity
-		5     // nb_octaves
-	};
+    NoiseData nData = {
+        1.0,   // amplitude
+        0.003, // much lower frequency for smoother biome borders
+        0.5,   // persistence
+        2.2,   // lacunarity
+        4      // nb_octaves
+    };
 
 	setNoiseData(nData);
 	double noiseX = noise(x, z);
@@ -238,16 +253,23 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 		return Biome::BEACH;
 
 	// Climate-driven biomes
-	// Desert: dry + warm
-	if (humidity <= -0.1 && temp > 0.2)
-		return Biome::DESERT;
+    // Desert selection
+    // 1) High-temperature override tuned to observed range (max ~0.4)
+    //    Slightly hot (>=0.2) and moderately dry becomes desert
+    if (temp > 0.20) {
+        return Biome::DESERT;
+    }
+    // 2) Warm and dry also becomes desert (even if not very hot)
+    if (temp > 0.0 && humidity < -0.10) {
+        return Biome::DESERT;
+    }
 
 	// Snowy/taiga: cold
 	if (temp <= -0.2)
 		return Biome::SNOWY;
 
-	// Forest: humid and not too cold
-	if (humidity > 0.35 && temp > -0.2)
+	// Forest: raise humidity threshold so moderate climates become plains
+	if (humidity > 0.55 && temp > -0.2)
 		return Biome::FOREST;
 
 	// Default mid conditions

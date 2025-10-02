@@ -865,7 +865,7 @@ void ChunkLoader::scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, SubC
         for (int y = 0; y < CHUNK_SIZE; y += resolution) {
             for (int x = 0; x < CHUNK_SIZE; x += resolution) {
                 BlockType b = sc->getBlock({x, y, z});
-                if (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS) {
+                if (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH) {
                     // Convert to absolute world cell
                     glm::ivec3 cell(
                         x + cpos.x * CHUNK_SIZE,
