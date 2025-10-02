@@ -859,22 +859,23 @@ void StoneEngine::activateRenderShader()
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-	// Build rotation-only view for rendering to keep coordinates small in shaders
-	mat4 viewRot = mat4(1.0f);
-	viewRot = rotate(viewRot, radY, vec3(-1.0f, 0.0f, 0.0f));
-	viewRot = rotate(viewRot, radX, vec3(0.0f, -1.0f, 0.0f));
+    // Build rotation-only view
+    mat4 viewRot = mat4(1.0f);
+    viewRot = rotate(viewRot, radY, vec3(-1.0f, 0.0f, 0.0f));
+    viewRot = rotate(viewRot, radX, vec3(0.0f, -1.0f, 0.0f));
 
-	// Build full view (with translation) for culling and CPU-side use
-	mat4 viewFull = viewRot;
-	viewFull = translate(viewFull, vec3(camera.getPosition()));
+    // Build full view (with translation)
+    mat4 viewFull = viewRot;
+    viewFull = translate(viewFull, vec3(camera.getPosition()));
 
-	this->viewMatrix = viewFull;
-	_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
+    this->viewMatrix = viewFull;
+    _chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
+    // Pass rotation-only view to terrain shader (camera-relative positions in VS)
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 	glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
@@ -899,10 +900,9 @@ void StoneEngine::activateRenderShader()
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-    glEnable(GL_CULL_FACE);
-    // Terrain winding is effectively flipped by our view construction; treat CW as front
-    glFrontFace(GL_CW);
-    glCullFace(GL_BACK);
+    // Disable face culling for terrain to prevent incorrect winding
+    // from removing all geometry at small draw counts/render distances.
+    glDisable(GL_CULL_FACE);
 }
 
 void StoneEngine::renderShadowMap()
@@ -2432,33 +2432,32 @@ void StoneEngine::loadFirstChunks()
 
 void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 {
-	std::future<void> unloadRet;
-	std::future<void> loadRet;
 	chronoHelper.startChrono(0, "Load chunks");
-	if (getIsRunning())
-		unloadRet = _pool.enqueue(&ChunkManager::loadChunks, &_chunkMgr, newCamChunk);
-	if (getIsRunning())
-		loadRet = _pool.enqueue(&ChunkManager::unloadChunks, &_chunkMgr, newCamChunk);
 
-	// Wait with shutdown-aware polling
-	if (unloadRet.valid())
+	// Safer sequencing at low render distances:
+	// 1) Load new chunks for the new camera center
+	// 2) Then unload chunks outside the radius
+	// This avoids transient empty displayed sets while a build is occurring.
+	if (getIsRunning())
 	{
-		while (unloadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
-		{
-			if (!getIsRunning())
-				break;
-		}
-	}
-	if (loadRet.valid())
-	{
+		std::future<void> loadRet = _pool.enqueue(&ChunkManager::loadChunks, &_chunkMgr, newCamChunk);
 		while (loadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
 		{
-			if (!getIsRunning())
-				break;
+			if (!getIsRunning()) break;
 		}
+		if (loadRet.valid()) loadRet.get();
 	}
-	unloadRet.get();
-	loadRet.get();
+
+	if (getIsRunning())
+	{
+		std::future<void> unloadRet = _pool.enqueue(&ChunkManager::unloadChunks, &_chunkMgr, newCamChunk);
+		while (unloadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
+		{
+			if (!getIsRunning()) break;
+		}
+		if (unloadRet.valid()) unloadRet.get();
+	}
+
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChrono(0);
 }
@@ -2844,6 +2843,14 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_LEFT_CONTROL)
 		_player.toggleSprint();
+	if (action == GLFW_PRESS && key == GLFW_KEY_KP_ADD)
+		accelPlus = true;
+	else if (action == GLFW_RELEASE && key == GLFW_KEY_KP_ADD)
+		accelPlus = false;
+	if (action == GLFW_PRESS && key == GLFW_KEY_KP_SUBTRACT)
+		accelMinus = true;
+	if (action == GLFW_RELEASE && key == GLFW_KEY_KP_SUBTRACT)
+		accelMinus = false;
 	_player.keyAction(key, scancode, action, mods);
 }
 

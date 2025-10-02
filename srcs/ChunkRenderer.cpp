@@ -99,6 +99,7 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_solidStagedDataQueue.pop();
 		_needUpdate = true;
+		_solidWarmupFrames = 8; // draw via template for a few frames after upload
 	}
 	if (!_transparentStagedDataQueue.empty())
 	{
@@ -109,6 +110,7 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
+		_transpWarmupFrames = 8;
 	}
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
@@ -132,12 +134,12 @@ void ChunkRenderer::updateDrawData()
 // Render passes for solid and transparent blocks
 int ChunkRenderer::renderSolidBlocks()
 {
-	if (!_solidDrawData) return 0;
-	if (_needUpdate) { pushVerticesToOpenGL(false); }
-	if (_solidDrawCount == 0) {
-		// No fresh commands this frame. If we have a last good count, draw those
-		// existing commands to avoid an empty frame while chunks update.
-		if (_lastGoodSolidCount > 0) {
+    if (!_solidDrawData) return 0;
+    if (_needUpdate) { pushVerticesToOpenGL(false); }
+    if (_solidDrawCount == 0) {
+        // No fresh commands this frame. If we have a last good count, draw those
+        // existing commands to avoid an empty frame while chunks update.
+        if (_lastGoodSolidCount > 0) {
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
 			glBindVertexArray(_vao);
@@ -154,23 +156,59 @@ int ChunkRenderer::renderSolidBlocks()
 		return 0;
 	}
 
-	runGpuCulling(false);
+    // Always use TEMPLATE + SOURCE path to avoid driver flicker at low RD and edge cases
+    if (_solidDrawCount > 0 && _solidPosSrcSSBO && _templIndirectBuffer) {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSrcSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
+        glBindVertexArray(_vao);
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _templIndirectBuffer);
+        glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+        glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount,
+                                   sizeof(DrawArraysIndirectCommand));
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+        glBindVertexArray(0);
+        // Skip GPU culling for small batches to avoid flicker at low render distances
+        return (int)_lastSolidTris;
+    }
+
+    runGpuCulling(false);
 
 	// Bind per-pass SSBOs (single-buffer path)
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
 
-	glBindVertexArray(_vao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf); // contains uint drawCount
-	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
-								   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
-								   sizeof(DrawArraysIndirectCommand));
+    glBindVertexArray(_vao);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+    glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf); // contains uint drawCount
 
-    // Safety fallback: if GPU culling produced zero draws OR we cannot read the
-    // parameter buffer (no read mapping available), draw a conservative count
-    // so we never end up with an empty frame.
-	{
+    // Robust path for small draw lists: avoid IndirectCount on some drivers
+    // that may drop draws when the count is small. Read the count and use
+    // glMultiDrawArraysIndirect explicitly.
+    bool usedExplicit = false;
+    if (_solidDrawCount <= 32) {
+        GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+            _solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+        GLuint dc = 0;
+        if (mapped) { dc = *mapped; glUnmapNamedBuffer(_solidParamsBuf); }
+        if (dc > 0) {
+            _lastGoodSolidCount = (GLsizei)dc;
+            glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+            glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, (GLsizei)dc,
+                                       sizeof(DrawArraysIndirectCommand));
+            glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+            usedExplicit = true;
+            std::cerr << "[SOLID] explicit MDAI count=" << dc << std::endl;
+        }
+    }
+    if (!usedExplicit) {
+        glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
+                                       /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
+                                       sizeof(DrawArraysIndirectCommand));
+    }
+
+    // Safety fallback: if GPU culling produced zero draws OR mapping failed,
+    // render a conservative count to avoid empty frames.
+    if (!usedExplicit) {
         bool needFallback = false;
         bool zeroCount    = false;
         GLuint* mapped = (GLuint*)glMapNamedBufferRange(
@@ -185,9 +223,10 @@ int ChunkRenderer::renderSolidBlocks()
                 needFallback = true;
             }
         } else {
-            // If mapping failed (driver/flags), prefer drawing rather than showing nothing.
             needFallback = true;
         }
+        std::cerr << "[SOLID] gpuDrawCount=" << (zeroCount?0: (int)_lastGoodSolidCount)
+                  << " fallback=" << (needFallback?1:0) << std::endl;
         if (needFallback) {
             GLsizei count = _lastGoodSolidCount > 0 ? _lastGoodSolidCount : _solidDrawCount;
             if (count > 0) {
@@ -239,9 +278,9 @@ int ChunkRenderer::renderSolidBlocks()
 
 int ChunkRenderer::renderTransparentBlocks()
 {
-	if (!_transparentDrawData) return 0;
-	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
-	if (_transpDrawCount == 0) {
+    if (!_transparentDrawData) return 0;
+    if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
+    if (_transpDrawCount == 0) {
 		if (_lastGoodTranspCount > 0) {
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
@@ -260,20 +299,53 @@ int ChunkRenderer::renderTransparentBlocks()
 		return 0;
 	}
 
-	runGpuCulling(true);
+    if (_transpDrawCount <= 4) {
+        std::cerr << "[TRANS] pre-cull drawCmds=" << _transpDrawCount << std::endl;
+    }
+    if (_transpDrawCount > 0 && _transpPosSrcSSBO && _transpTemplIndirectBuffer) {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
+        glDisable(GL_CULL_FACE);
+        glBindVertexArray(_transparentVao);
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transpTemplIndirectBuffer);
+        glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount,
+                                   sizeof(DrawArraysIndirectCommand));
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+        glBindVertexArray(0);
+        return _transpDrawCount;
+    }
+    runGpuCulling(true);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSSBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
 
 	glDisable(GL_CULL_FACE);
-	glBindVertexArray(_transparentVao);
-	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
-	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
-	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, nullptr, 0, _transpDrawCount,
-								   sizeof(DrawArraysIndirectCommand));
+    glBindVertexArray(_transparentVao);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transparentIndirectBuffer);
+    glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
 
-    // Safety fallback identical to solid path, but avoid drawing all commands
-	{
+    bool usedExplicitT = false;
+    if (_transpDrawCount <= 32) {
+        GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+            _transpParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+        GLuint dc = 0;
+        if (mapped) { dc = *mapped; glUnmapNamedBuffer(_transpParamsBuf); }
+        if (dc > 0) {
+            _lastGoodTranspCount = (GLsizei)dc;
+            glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+            glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, (GLsizei)dc,
+                                       sizeof(DrawArraysIndirectCommand));
+            glBindBuffer(GL_PARAMETER_BUFFER_ARB, _transpParamsBuf);
+            usedExplicitT = true;
+            std::cerr << "[TRANS] explicit MDAI count=" << dc << std::endl;
+        }
+    }
+    if (!usedExplicitT) {
+        glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, nullptr, 0, _transpDrawCount,
+                                       sizeof(DrawArraysIndirectCommand));
+    }
+
+    if (!usedExplicitT) {
         bool needFallback = false;
         bool zeroCount    = false;
         GLuint* mapped = (GLuint*)glMapNamedBufferRange(
@@ -290,6 +362,8 @@ int ChunkRenderer::renderTransparentBlocks()
         } else {
             needFallback = true;
         }
+        std::cerr << "[TRANS] gpuDrawCount=" << (zeroCount?0: (int)_lastGoodTranspCount)
+                  << " fallback=" << (needFallback?1:0) << std::endl;
         if (needFallback) {
             GLsizei count = _lastGoodTranspCount > 0 ? _lastGoodTranspCount : _transpDrawCount;
             if (count > 0) {
@@ -383,7 +457,8 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 
 	glUniform1ui(_locNumDraws, (GLuint)count);
 	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
-	if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
+    // Disable occlusion culling to eliminate flicker at low render distances
+    if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, 0);
 	if (_occAvailable) {
 		if (_locDepthTex >= 0) {
 			// Bind to unit 7
@@ -462,7 +537,7 @@ void ChunkRenderer::initGLBuffer()
 // For both solid and transparent
 void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 {
-	std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
+    std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
 	auto ensureCapacityOnly = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, GLenum usage)
 	{
 		if (cap < neededBytes)
@@ -488,13 +563,17 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 			glNamedBufferSubData(buf, 0, neededBytes, data);
 	};
 
-	if (transparent)
-	{
-		const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
-		const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
-		const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
-		const GLsizeiptr bytesInst = nInst * sizeof(int);
-		const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+    if (transparent)
+    {
+        const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
+        const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+        const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
+        const GLsizeiptr bytesInst = nInst * sizeof(int);
+        const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+        std::cerr << "[UPLOAD T] cmds=" << (long long)nCmd
+                  << " inst=" << (long long)nInst
+                  << " ssboEntries=" << (long long)(_solidDrawData->ssboData.size())
+                  << std::endl;
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
@@ -522,13 +601,17 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 		_transpDrawCount = (GLsizei)nCmd;
 		_needTransparentUpdate = false;
 	}
-	else
-	{
-		const GLsizeiptr nCmd      = (GLsizeiptr)_solidDrawData->indirectBufferData.size();
-		const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
-		const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
-		const GLsizeiptr bytesInst = nInst * sizeof(int);
-		const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+    else
+    {
+        const GLsizeiptr nCmd      = (GLsizeiptr)_solidDrawData->indirectBufferData.size();
+        const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+        const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
+        const GLsizeiptr bytesInst = nInst * sizeof(int);
+        const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+        std::cerr << "[UPLOAD S] cmds=" << (long long)nCmd
+                  << " inst=" << (long long)nInst
+                  << " ssboEntries=" << (long long)(_solidDrawData->ssboData.size())
+                  << std::endl;
 
 		// Ensure buffers exist
 		if (!_solidInstSSBO)  glCreateBuffers(1, &_solidInstSSBO);

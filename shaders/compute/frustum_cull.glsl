@@ -118,18 +118,30 @@ bool aabbOccluded(vec3 mn, vec3 mx) {
 }
 
 void main() {
-	uint i = gl_GlobalInvocationID.x;
-	if (i >= numDraws) return;
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= numDraws) return;
 
-	DrawCmd t = templ[i];
-	vec3 mn = posRes[i].xyz;
-	vec3 mx = mn + vec3(chunkSize);
+    DrawCmd t = templ[i];
+    vec3 mn = posRes[i].xyz;
+    vec3 mx = mn + vec3(chunkSize);
 
-	if (t.instanceCount == 0u) return;
-	if (aabbOutsideFrustum(mn, mx)) return; // culled by frustum
-	if (aabbOccluded(mn, mx)) return;       // culled by occlusion (conservative)
+    // When the draw list is very small (e.g., low render distance), avoid GPU-side
+    // culling altogether to prevent pathological cases where incorrect frustum
+    // inputs or precision issues drop all draws. Copy-through preserves visibility
+    // and the CPU fallback still filters instanceCount==0 draws efficiently.
+    if (numDraws < 2048u) {
+        if (t.instanceCount == 0u) return;
+        uint dst = atomicAdd(drawCount, 1u);
+        outCmds[dst]   = t;
+        outPosRes[dst] = vec4(mn, posRes[i].w);
+        return;
+    }
 
-	uint dst = atomicAdd(drawCount, 1u);
-	outCmds[dst]   = t;                      // compacted command
-	outPosRes[dst] = vec4(mn, posRes[i].w);  // matching compacted metadata
+    if (t.instanceCount == 0u) return;
+    if (aabbOutsideFrustum(mn, mx)) return; // culled by frustum
+    if (aabbOccluded(mn, mx)) return;       // culled by occlusion (conservative)
+
+    uint dst = atomicAdd(drawCount, 1u);
+    outCmds[dst]   = t;                      // compacted command
+    outPosRes[dst] = vec4(mn, posRes[i].w);  // matching compacted metadata
 }

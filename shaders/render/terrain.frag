@@ -74,13 +74,13 @@ float computeShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 }
 
 void main() {
-	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
-	vec3 lightDir = normalize(sunDir);
-	vec3 norm = normalize(Normal);
+    vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
+    vec3 lightDir = normalize(sunDir);
+    vec3 norm = normalize(Normal);
 
-	float ambient  = calculateAmbientLight(timeValue);
-	float diffuse  = max(dot(norm, lightDir), 0.0);
-	float specular = calculateSpecularLight(timeValue, lightDir);
+    float ambient  = calculateAmbientLight(timeValue);
+    float diffuse  = max(dot(norm, lightDir), 0.0);
+    float specular = calculateSpecularLight(timeValue, lightDir);
 
 	const float pi = 3.14159265359;
 	const float dayStart = 42000.0;
@@ -96,6 +96,6 @@ void main() {
 						   diffuse * 0.9 * diffuseFactor * shadowFactor +
 						   specular * 0.5 * shadowFactor + 0.1, 0.0, 1.0);
 
-	vec3 result = totalLight * lightColor * texColor.rgb;
-	FragColor = vec4(result, texColor.a);
+    vec3 result = totalLight * lightColor * texColor.rgb;
+    FragColor = vec4(result, texColor.a);
 }

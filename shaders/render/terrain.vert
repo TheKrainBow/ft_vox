@@ -21,6 +21,8 @@ out vec3 Normal;
 out vec3 FragPos;
 
 const float LOG_INSET = 0.10; // shrink logs/leaves a bit so they look rounded
+// DEBUG: set to 1 to draw 1x1 markers at each subchunk origin (ignores instances)
+#define DEBUG_DRAW_ORIGIN 0
 
 void main() {
 	// subchunk origin for this draw
@@ -107,12 +109,17 @@ void main() {
 		basePos.z = cz + (basePos.z - cz) * sz;
 	}
 
-	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
+    vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
+    #if DEBUG_DRAW_ORIGIN
+        // Override: draw a small 1x1 quad at the subchunk origin to validate positions
+        worldPosition = ssboValue.xyz + vec3(aPos.x, aPos.y, 0.0);
+        finalUV = vec2(0.0);
+    #endif
 	finalUV *= vec2(float(lengthX), float(lengthY));
 
-	// Camera-relative rendering to avoid precision cracks at large coords
-	vec3 relPos = worldPosition - cameraPos;
-	gl_Position = projection * view * model * vec4(relPos, 1.0);
+    // Camera-relative rendering to avoid precision cracks at large coords
+    vec3 relPos = worldPosition - cameraPos;
+    gl_Position = projection * view * model * vec4(relPos, 1.0);
 	TexCoord = finalUV;
 	TextureID = textureID;
 	Normal = mat3(transpose(inverse(model))) * normal;

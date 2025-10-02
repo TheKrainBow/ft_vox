@@ -203,7 +203,11 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int res
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
 		auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
 		if (!inserted) it->second = chunk;
-		else ++_displayedCount;
+		else {
+			++_displayedCount;
+			std::cerr << "[DISPLAY] add " << pos.x << "," << pos.y
+				      << " total=" << _displayedCount << std::endl;
+		}
 	}
 
 	// Ensure a freshly created chunk becomes visible: build its mesh once
@@ -410,8 +414,18 @@ void ChunkLoader::unloadChunks(ivec2 &newCamChunk)
 			if (it2 != _displayedChunks.end()) {
 				_displayedChunks.erase(it2);
 				--_displayedCount;
+				std::cerr << "[DISPLAY] erase " << key.x << "," << key.y
+					      << " remaining=" << _displayedCount << std::endl;
 			}
 
+		}
+	}
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		if (_displayedChunks.empty()) {
+			ivec2 camC = _camera.getChunkPosition(CHUNK_SIZE);
+			std::cerr << "[DISPLAY] after unload: EMPTY; camChunk=(" << camC.x << "," << camC.y
+			          << ") rdist=" << _renderDistance << std::endl;
 		}
 	}
 	updateFillData();
@@ -446,6 +460,8 @@ void ChunkLoader::updateFillData()
 		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		if (!_solidStagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
 		{
+			std::cerr << "[BUILD] skipped: staged solid=" << _solidStagedDataQueue.size()
+			          << " transp=" << _transparentStagedDataQueue.size() << std::endl;
 			_buildingDisplay = false;
 			return;
 		}
@@ -453,6 +469,15 @@ void ChunkLoader::updateFillData()
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
+	// If the build produced no draw commands at all, skip publishing this
+	// empty frame to avoid wiping renderer buffers and causing a blank frame.
+	if (fillData->indirectBufferData.empty() && transparentData->indirectBufferData.empty())
+	{
+		std::cerr << "[BUILD] skip publish: empty draw lists" << std::endl;
+		delete fillData;
+		delete transparentData;
+	}
+	else
 	{
 		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		_solidStagedDataQueue.emplace(fillData);
@@ -466,6 +491,26 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
     // snapshot displayed chunks
     if (!getIsRunning())
         return ;
+    // Debug: print displayed/chunks sizes when empty or on small counts
+    {
+        size_t disp = 0, total = 0;
+        {
+            std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+            disp = _displayedChunks.size();
+        }
+        {
+            std::lock_guard<std::mutex> ck(_chunksMutex);
+            total = _chunks.size();
+        }
+        if (disp == 0 || disp <= 4) {
+            ivec2 camC = _camera.getChunkPosition(CHUNK_SIZE);
+            std::cerr << "[BUILD] displayed=" << disp
+                      << " chunksTotal=" << total
+                      << " renderDist=" << _renderDistance
+                      << " camChunk=(" << camC.x << "," << camC.y << ")"
+                      << std::endl;
+        }
+    }
     std::vector<Chunk *> snapshot;
 	{
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
@@ -549,6 +594,21 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
     {
         std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
         _lastDisplayedSubY.swap(nextDisplayedSubY);
+    }
+    // Debug: totals of what we built this pass
+    {
+        size_t sVerts = fillData->vertexData.size();
+        size_t sCmds  = fillData->indirectBufferData.size();
+        size_t sSSBO  = fillData->ssboData.size();
+        size_t tVerts = transparentFillData->vertexData.size();
+        size_t tCmds  = transparentFillData->indirectBufferData.size();
+        if (sCmds == 0 && tCmds == 0) {
+            std::cerr << "[BUILD] EMPTY frame: sCmds=0 tCmds=0 sVerts=" << sVerts
+                      << " tVerts=" << tVerts << " ssboEntries=" << sSSBO << std::endl;
+        } else {
+            std::cerr << "[BUILD] Built: sCmds=" << sCmds << " tCmds=" << tCmds
+                      << " ssbo=" << sSSBO << std::endl;
+        }
     }
 }
 

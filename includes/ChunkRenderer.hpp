@@ -150,6 +150,12 @@ private:
 	void initGpuCulling();
 	void runGpuCulling(bool transparent);
 
+	// Warmup frames after data upload where we draw using the
+	// template indirect buffer + SOURCE positions to avoid any
+	// subtle compaction/driver edge cases on tiny batches.
+	int _solidWarmupFrames = 0;
+	int _transpWarmupFrames = 0;
+
 	// Helper to send vertices to GPU before rendering stage
 	// Both solid and transparent
 	void pushVerticesToOpenGL(bool isTransparent);
