@@ -97,9 +97,12 @@ public:
 	// Renderer sync control (used around shadow cascades)
 	void    setRendererSyncMode(bool enabled);
 
+	// Snapshot debug counters from loader (main thread only)
+	void    snapshotDebugCounters();
+
 	// Chunks loading and unloading methods
-	void loadChunks(ivec2 &camPos);
-	void unloadChunks(ivec2 &camPos);
+    void loadChunks(ivec2 camPos);
+    void unloadChunks(ivec2 camPos);
 
 	// Draw data swapper
 	void updateDrawData();

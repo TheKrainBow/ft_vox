@@ -144,6 +144,10 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(),
 
 StoneEngine::~StoneEngine()
 {
+    // Ensure the GL context is current during teardown
+    if (_window) glfwMakeContextCurrent(_window);
+    // Drain any in-flight GPU work before deleting GL objects
+    glFinish();
 	// Ensure _chunkMgr GL resources are freed before destroying the context
 	_chunkMgr.shutDownGL();
 
@@ -220,6 +224,12 @@ StoneEngine::~StoneEngine()
 	glDeleteTextures(1, &writeFBO.texture);
 	glDeleteTextures(1, &writeFBO.depth);
 	glDeleteFramebuffers(1, &writeFBO.fbo);
+
+	// After deleting GL objects, flush and finish to let the driver
+	// release any internal resources on its worker threads before
+	// destroying the context/window (reduces TSan races in Mesa).
+	glFlush();
+	glFinish();
 	// Terminate GLFW
 	glfwDestroyWindow(_window);
 	glfwTerminate();
@@ -1593,6 +1603,20 @@ void StoneEngine::rebuildVisibleFlowersVBO()
     _chunkMgr.getDisplayedChunksSnapshot(chunks);
     std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
     _chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
+
+    // Prune cached flower instances for chunks that are no longer displayed
+    // to avoid unbounded memory growth when roaming far.
+    if (!chunks.empty())
+    {
+        std::unordered_set<glm::ivec2, ivec2_hash> keep;
+        keep.reserve(chunks.size());
+        for (const auto &c : chunks) keep.insert(c);
+        for (auto it = _flowersBySub.begin(); it != _flowersBySub.end(); )
+        {
+            if (keep.find(it->first) == keep.end()) it = _flowersBySub.erase(it);
+            else ++it;
+        }
+    }
     _visibleFlowers.clear();
     for (const auto &c : chunks)
     {
@@ -2478,6 +2502,9 @@ void StoneEngine::renderOverlayAndUI()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glUseProgram(0);
+
+	// Refresh UI-visible counters from worker-thread atomics
+	_chunkMgr.snapshotDebugCounters();
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);

@@ -50,6 +50,7 @@ class Camera {
 	private:
 		vec3 position;
 		fvec2 angle;
+		mutable std::mutex _angleMutex;
 		float rotationspeed = 125.0f;
 		float movementspeed = 10.0f;
 		bool mouseRotation = false;

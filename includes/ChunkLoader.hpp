@@ -54,21 +54,21 @@ private:
 	std::unordered_map<ivec2, Chunk *, ivec2_hash>	_chunks;
 	std::unordered_map<ivec2, Chunk *, ivec2_hash>	_displayedChunks;
 
-	// Tracking memory usage of chunks (for debug only) and eviction budget (count based)
-	size_t _chunksMemoryUsage;
+	// Tracking memory usage of chunks (atomic for cross-thread updates)
+	std::atomic_size_t _chunksMemoryUsage;
 	int    _countBudget;
 
-	// Debug: live counts for UI
-	int _chunksCount{0};
-	int _displayedCount{0};
-	int _modifiedCount{0};
+	// Live counters (atomic) updated by worker/render threads
+	std::atomic_int _chunksCount{0};
+	std::atomic_int _displayedCount{0};
+	std::atomic_int _modifiedCount{0};
 
 	// Reference to camera for accurate chunk loading
 	Camera &_camera;
 
-	// World relative data
-	int				_renderDistance;
-	int				_currentRender;
+	// World relative data (atomics to avoid data races)
+	std::atomic_int		_renderDistance;
+	std::atomic_int		_currentRender;
 	int				_maxRender;
 	std::atomic_int	_threshold;
 
@@ -109,7 +109,15 @@ private:
     }
     // Snapshot of currently displayed subchunks per chunk (from last build)
     std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> _lastDisplayedSubY;
-// Methods
+	// Debug snapshot values exposed to UI (stable addresses, written on main thread)
+	size_t _dbg_chunksMemoryUsage{0};
+	int    _dbg_renderDistance{0};
+	int    _dbg_currentRender{0};
+	int    _dbg_chunksCount{0};
+	int    _dbg_displayedCount{0};
+	int    _dbg_modifiedCount{0};
+
+	// Methods
 private:
 	// Init methods
 	void initData();
@@ -118,8 +126,8 @@ private:
 	void applyPendingFor(const ivec2& pos);
 
 	// Runtime chunk loading/unloading
-	Chunk *loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution);
-	bool hasMoved(ivec2 &oldPos);
+    Chunk *loadChunk(int x, int z, int render, const ivec2 &chunkPos, int resolution);
+    bool hasMoved(const ivec2 &oldPos);
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
 	void updateFillData();
 
@@ -147,9 +155,11 @@ public:
 	void initSpawn();
 
 	// Runtime chunk loading/unloading/updating
-	void	loadChunks(ivec2 &camPosition);
-	void	unloadChunks(ivec2 &newCamChunk);
+    void	loadChunks(ivec2 camPosition);
+    void	unloadChunks(ivec2 newCamChunk);
 	void	scheduleDisplayUpdate();
+	// Snapshot atomics into UI-visible plain fields (call on main thread)
+	void	snapshotDebugCounters();
 
 	// Shared data getters
 	Chunk*			getChunk(const ivec2 &position);

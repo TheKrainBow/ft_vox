@@ -116,18 +116,23 @@ void ChunkManager::setOcclusionSource(GLuint depthTex, int width, int height,
 
 void ChunkManager::setRendererSyncMode(bool enabled)
 {
-	_chunkRenderer.setSyncAfterDraw(enabled);
+    _chunkRenderer.setSyncAfterDraw(enabled);
+}
+
+void ChunkManager::snapshotDebugCounters()
+{
+    _chunkLoader.snapshotDebugCounters();
 }
 
 // Chunks loading and unloading methods
-void ChunkManager::loadChunks(ivec2 &camPos)
+void ChunkManager::loadChunks(ivec2 camPos)
 {
-	_chunkLoader.loadChunks(camPos);
+    _chunkLoader.loadChunks(camPos);
 }
 
-void ChunkManager::unloadChunks(ivec2 &camPos)
+void ChunkManager::unloadChunks(ivec2 camPos)
 {
-	_chunkLoader.unloadChunks(camPos);
+    _chunkLoader.unloadChunks(camPos);
 }
 
 // Draw data swapper

@@ -14,6 +14,7 @@ _pool(pool),
 _isBuilding(false),
 _isModified(false)
 {
+    _north = _south = _east = _west = nullptr;
 }
 
 void Chunk::loadBlocks() {
@@ -393,8 +394,13 @@ std::vector<int> &Chunk::getTransparentVertices() {
 	return _transparentVertexData;
 }
 std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData() {
-	std::lock_guard<std::mutex> lock(_sendFacesMutex);
-	return _transparentIndirectBufferData;
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return _transparentIndirectBufferData;
+}
+
+bool Chunk::hasAnyDraws() {
+    std::lock_guard<std::mutex> lock(_sendFacesMutex);
+    return (!_indirectBufferData.empty() || !_transparentIndirectBufferData.empty());
 }
 
 void Chunk::freeSubChunks() {

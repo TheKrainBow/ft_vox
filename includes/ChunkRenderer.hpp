@@ -121,7 +121,9 @@ private:
 	bool	_hasBufferInitialized;
 
 	// Optional GPU sync after each solid draw (used for shadow cascades)
-	bool    _syncAfterDraw = false;
+    bool    _syncAfterDraw = false;
+    // Fence to ensure previous frame finished before CPU uploads to shared buffers
+    GLsync  _uploadGuard = 0;
 public:
 	ChunkRenderer(
 		std::mutex &solidDrawDataMutex,

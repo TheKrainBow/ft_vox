@@ -68,6 +68,13 @@ void ChunkLoader::initData()
 	_maxRender = 400;
 	_countBudget = EXTRA_CACHE_CHUNKS;
 	_modifiedCount = 0;
+	// Initialize debug snapshot mirrors
+	_dbg_chunksMemoryUsage = 0;
+	_dbg_renderDistance = _renderDistance.load();
+	_dbg_currentRender = 0;
+	_dbg_chunksCount = 0;
+	_dbg_displayedCount = 0;
+	_dbg_modifiedCount = 0;
 }
 
 void ChunkLoader::initSpawn()
@@ -140,7 +147,7 @@ void ChunkLoader::applyPendingFor(const ivec2& pos) {
 }
 
 // Single chunk loader
-Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int resolution)
+Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, int resolution)
 {
 	Chunk *chunk = nullptr;
 	ivec2 pos = {chunkPos.x - render / 2 + x, chunkPos.y - render / 2 + z};
@@ -191,7 +198,7 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int res
 			chunk->loadBlocks();
 			chunk->getNeighbors();
 
-			_chunksMemoryUsage += chunk->getMemorySize();
+			_chunksMemoryUsage.fetch_add(chunk->getMemorySize(), std::memory_order_relaxed);
 			// Insert into LRU as most-recent entry
 			touchLRU(pos);
 			++_chunksCount;
@@ -221,11 +228,11 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, ivec2 &chunkPos, int res
 }
 
 // Chunk loading based on frustum view
-void ChunkLoader::loadChunks(ivec2 &chunkPos) {
+void ChunkLoader::loadChunks(ivec2 chunkPos) {
 	if (_renderDistance <= 0)
 		return;
 
-	const int renderDistance = _renderDistance;
+	const int renderDistance = _renderDistance.load(std::memory_order_relaxed);
 	const int baseResolution = RESOLUTION;
 	_threshold = std::numeric_limits<int>::max();
 
@@ -382,7 +389,7 @@ void ChunkLoader::loadChunks(ivec2 &chunkPos) {
 	}
 }
 
-void ChunkLoader::unloadChunks(ivec2 &newCamChunk)
+void ChunkLoader::unloadChunks(ivec2 newCamChunk)
 {
 	// make sure queued edits + dirty meshes are up-to-date
 	flushDirtyChunks();
@@ -397,8 +404,8 @@ void ChunkLoader::unloadChunks(ivec2 &newCamChunk)
 			Chunk *chunk = kv.second;
 			if (!chunk) continue;
 			ivec2 chunkPos = chunk->getPosition();
-			if (std::abs(chunkPos.x - newCamChunk.x) > _renderDistance / 2
-				|| std::abs(chunkPos.y - newCamChunk.y) > _renderDistance / 2)
+			if (std::abs(chunkPos.x - newCamChunk.x) > _renderDistance.load(std::memory_order_relaxed) / 2
+				|| std::abs(chunkPos.y - newCamChunk.y) > _renderDistance.load(std::memory_order_relaxed) / 2)
 			{
 				toErase.push_back(kv.first);
 			}
@@ -421,7 +428,7 @@ void ChunkLoader::unloadChunks(ivec2 &newCamChunk)
 }
 
 // Check if player moved
-bool ChunkLoader::hasMoved(ivec2 &oldPos)
+bool ChunkLoader::hasMoved(const ivec2 &oldPos)
 {
 	// Debounce movement: only signal a cancel if we moved more than 1 chunk
 	// away from the load center. This avoids restarting rings too aggressively
@@ -692,12 +699,22 @@ bool ChunkLoader::getIsRunning() {
 	return *_isRunning;
 }
 
-int *ChunkLoader::getCurrentRenderPtr() { return &_currentRender; }
-size_t *ChunkLoader::getMemorySizePtr() { return &_chunksMemoryUsage; }
-int *ChunkLoader::getRenderDistancePtr() { return &_renderDistance; }
-int *ChunkLoader::getCachedChunksCountPtr() { return &_chunksCount; }
-int *ChunkLoader::getDisplayedChunksCountPtr() { return &_displayedCount; }
-int *ChunkLoader::getModifiedChunksCountPtr() { return &_modifiedCount; }
+void ChunkLoader::snapshotDebugCounters() {
+    // Called from main thread before UI render
+    _dbg_chunksMemoryUsage = _chunksMemoryUsage.load(std::memory_order_relaxed);
+    _dbg_renderDistance   = _renderDistance.load(std::memory_order_relaxed);
+    _dbg_currentRender    = _currentRender.load(std::memory_order_relaxed);
+    _dbg_chunksCount      = _chunksCount.load(std::memory_order_relaxed);
+    _dbg_displayedCount   = _displayedCount.load(std::memory_order_relaxed);
+    _dbg_modifiedCount    = _modifiedCount.load(std::memory_order_relaxed);
+}
+
+int *ChunkLoader::getCurrentRenderPtr() { return &_dbg_currentRender; }
+size_t *ChunkLoader::getMemorySizePtr() { return &_dbg_chunksMemoryUsage; }
+int *ChunkLoader::getRenderDistancePtr() { return &_dbg_renderDistance; }
+int *ChunkLoader::getCachedChunksCountPtr() { return &_dbg_chunksCount; }
+int *ChunkLoader::getDisplayedChunksCountPtr() { return &_dbg_displayedCount; }
+int *ChunkLoader::getModifiedChunksCountPtr() { return &_dbg_modifiedCount; }
 NoiseGenerator &ChunkLoader::getNoiseGenerator() { return _perlinGenerator; }
 
 void ChunkLoader::printSizes() const
@@ -716,16 +733,17 @@ void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
 }
 
 bool ChunkLoader::hasRenderableChunks() {
-	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-	for (const auto& kv : _displayedChunks) {
-		Chunk* c = kv.second;
-		if (!c) continue;
-		if (!c->isReady()) continue;
-		// Consider renderable if any indirect commands exist (solid or transparent)
-		if (!c->getIndirectData().empty() || !c->getTransparentIndirectData().empty())
-			return true;
-	}
-	return false;
+    std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+    for (const auto& kv : _displayedChunks) {
+        Chunk* c = kv.second;
+        if (!c) continue;
+        if (!c->isReady()) continue;
+        // Consider renderable if any indirect commands exist (solid or transparent)
+        // Use thread-safe predicate to avoid reading vectors concurrently
+        if (c->hasAnyDraws())
+            return true;
+    }
+    return false;
 }
 
 void ChunkLoader::scheduleDisplayUpdate() {
@@ -750,7 +768,7 @@ void ChunkLoader::touchLRU(const ivec2& pos) {
 
 void ChunkLoader::enforceCountBudget() {
 	// Dynamic budget: visible grid + slack + modified chunks (non-evictable)
-	int renderCells = _renderDistance * _renderDistance;
+	int renderCells = _renderDistance.load(std::memory_order_relaxed) * _renderDistance.load(std::memory_order_relaxed);
 	std::vector<std::pair<ivec2,int>> candidates; // pos, distance
 	candidates.reserve(_chunks.size());
 
@@ -830,6 +848,20 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 	size_t freed = chunk->getMemorySize();
 	chunk->unloadNeighbors();
 
+	// Drop any staged/planted flower data for this chunk to prevent
+	// unbounded growth while exploring.
+	{
+		std::lock_guard<std::mutex> fk(_flowersMutex);
+		// Remove any still-staged discoveries for this chunk
+		_discoveredFlowers.erase(candidate);
+		// Remove scanned-keys for all subY belonging to this chunk
+		const std::string prefix = std::to_string(candidate.x) + ":" + std::to_string(candidate.y) + ":";
+		for (auto it = _flowersScannedKeys.begin(); it != _flowersScannedKeys.end(); ) {
+			if (it->rfind(prefix, 0) == 0) it = _flowersScannedKeys.erase(it);
+			else ++it;
+		}
+	}
+
 	{
 		std::lock_guard<std::mutex> pk(_pendingMutex);
 		_pendingEdits.erase(candidate);
@@ -854,8 +886,8 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 	_perlinGenerator.removePerlinMap(chunkPos.x, chunkPos.y);
 	chunk->freeSubChunks();
 	delete chunk;
-	if (_chunksMemoryUsage >= freed)
-		_chunksMemoryUsage -= freed;
+	if (_chunksMemoryUsage.load(std::memory_order_relaxed) >= freed)
+		_chunksMemoryUsage.fetch_sub(freed, std::memory_order_relaxed);
 	else
 		_chunksMemoryUsage = 0;
 	return true;

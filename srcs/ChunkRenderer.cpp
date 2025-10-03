@@ -20,8 +20,9 @@ _hasBufferInitialized(false)
 
 ChunkRenderer::~ChunkRenderer()
 {
-	delete _solidDrawData;
-	delete _transparentDrawData;
+    delete _solidDrawData;
+    delete _transparentDrawData;
+    if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
 }
 
 // Explicit GL teardown
@@ -55,9 +56,10 @@ void ChunkRenderer::shutdownGL()
 
 // Shared data setters
 void ChunkRenderer::setViewProj(glm::vec4 planes[6]) {
-	glNamedBufferSubData(_frustumUBO, 0, 6 * sizeof(glm::vec4), planes);
-	// Reset occlusion source unless explicitly set for this view
-	_occAvailable = false;
+    // Orphan UBO storage to avoid writing into memory potentially in use
+    glNamedBufferData(_frustumUBO, 6 * sizeof(glm::vec4), planes, GL_DYNAMIC_DRAW);
+    // Reset occlusion source unless explicitly set for this view
+    _occAvailable = false;
 }
 
 void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
@@ -263,14 +265,19 @@ int ChunkRenderer::renderSolidBlocks()
 	// When requested (e.g., during shadow-cascade rendering), insert a GPU fence
 	// so subsequent compute passes won’t overwrite shared buffers while this draw
 	// is still in flight. This avoids rare “scrambled subchunk” flashes.
-	if (_syncAfterDraw) {
-		GLsync fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-		if (fence) {
-			// Wait until the GPU reaches the fence; flush if needed.
-			(void)glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000)); // 1s cap
-			glDeleteSync(fence);
-		}
-	}
+    if (_syncAfterDraw) {
+        GLsync fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (fence) {
+            // Wait until the GPU reaches the fence; flush if needed.
+            (void)glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000)); // 1s cap
+            glDeleteSync(fence);
+        }
+    }
+
+    // Always set an upload guard after finishing a draw using these buffers.
+    // Next time we upload new data, we will wait on this to avoid races.
+    if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
+    _uploadGuard = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 	// Prefer cached triangles count if CPU buffers were discarded
     long long tris = 0;
@@ -316,7 +323,18 @@ int ChunkRenderer::renderTransparentBlocks()
                               sizeof(DrawArraysIndirectCommand));
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
     glBindVertexArray(0);
-    // removed draw count log
+    // Set an upload guard after finishing transparent draw, too
+    if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
+    _uploadGuard = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // After transparent upload/draw, CPU-side transparent draw data is no longer needed
+    if (!_needTransparentUpdate) {
+        _transparentDrawData->vertexData.clear();
+        _transparentDrawData->indirectBufferData.clear();
+        _transparentDrawData->drawMeta.clear();
+        std::vector<int>().swap(_transparentDrawData->vertexData);
+        std::vector<DrawArraysIndirectCommand>().swap(_transparentDrawData->indirectBufferData);
+        std::vector<uint32_t>().swap(_transparentDrawData->drawMeta);
+    }
     return (int)_transpDrawCount;
     // removed dumps for transparent
     // Note: we early-return above; code below is never executed in template path
@@ -357,9 +375,9 @@ void ChunkRenderer::initGpuCulling() {
 	_locProj      = glGetUniformLocation(_cullProgram, "proj");
 	_locCamPos    = glGetUniformLocation(_cullProgram, "camPos");
 
-	// Frustum UBO (6 vec4)
-	glCreateBuffers(1, &_frustumUBO);
-	glNamedBufferData(_frustumUBO, sizeof(glm::vec4) * 6, nullptr, GL_DYNAMIC_DRAW);
+    // Frustum UBO (6 vec4)
+    glCreateBuffers(1, &_frustumUBO);
+    glNamedBufferData(_frustumUBO, sizeof(glm::vec4) * 6, nullptr, GL_DYNAMIC_DRAW);
 }
 
 void ChunkRenderer::runGpuCulling(bool transparent) {
@@ -368,10 +386,10 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 	GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
 	if (count <= 0) return;
 
-	// reset counter to 0
-	GLuint zero = 0;
-	GLuint param = transparent ? _transpParamsBuf : _solidParamsBuf;
-	glNamedBufferSubData(param, 0, sizeof(GLuint), &zero);
+    // reset counter to 0 using orphaning to avoid racing on in-use storage
+    GLuint zero = 0;
+    GLuint param = transparent ? _transpParamsBuf : _solidParamsBuf;
+    glNamedBufferData(param, sizeof(GLuint), &zero, GL_DYNAMIC_DRAW);
 
 	glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
@@ -448,23 +466,12 @@ void ChunkRenderer::initGLBuffer()
 	glCreateBuffers(1, &_templIndirectBuffer);
 	glCreateBuffers(1, &_transpTemplIndirectBuffer);
 
-	// Parameter buffers store the draw count written by the compute culling pass.
-	// We also map them on the CPU to implement a safe fallback when the count is 0.
-	// Ensure we request both READ and WRITE mapping rights so glMap* with READ works.
-	glCreateBuffers(1, &_solidParamsBuf);
-	glNamedBufferStorage(
-		_solidParamsBuf,
-		sizeof(GLuint),
-		nullptr,
-		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT | GL_MAP_READ_BIT
-	);
-	glCreateBuffers(1, &_transpParamsBuf);
-	glNamedBufferStorage(
-		_transpParamsBuf,
-		sizeof(GLuint),
-		nullptr,
-		GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT | GL_MAP_READ_BIT
-	);
+    // Parameter buffers store the draw count written by the compute culling pass.
+    // Use glNamedBufferData so we can orphan storage safely when resetting.
+    glCreateBuffers(1, &_solidParamsBuf);
+    glNamedBufferData(_solidParamsBuf, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
+    glCreateBuffers(1, &_transpParamsBuf);
+    glNamedBufferData(_transpParamsBuf, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
 	initGpuCulling();
 	_hasBufferInitialized = true;
 }
@@ -474,30 +481,47 @@ void ChunkRenderer::initGLBuffer()
 void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 {
     std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
+    // Ensure all previous GPU work that could use these buffers has completed
+    if (_uploadGuard) {
+        glClientWaitSync(_uploadGuard, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000));
+        glDeleteSync(_uploadGuard);
+        _uploadGuard = 0;
+    }
 	auto ensureCapacityOnly = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, GLenum usage)
 	{
-		if (cap < neededBytes)
-		{
+		// Grow when needed, and also opportunistically shrink when the buffer is
+		// much larger than current content to reduce RAM usage from stale peaks.
+		if (cap < neededBytes) {
 			GLsizeiptr newCap = cap > 0 ? cap : (GLsizeiptr)4096;
 			while (newCap < neededBytes) newCap *= 2;
 			glNamedBufferData(buf, newCap, nullptr, usage);
 			cap = newCap;
+		} else if (cap > 0 && neededBytes >= 0) {
+			// Shrink if we have grown far beyond current needs.
+			// Threshold: if needed < 1/4 capacity and capacity > 1MB
+			const GLsizeiptr oneMB = (GLsizeiptr)1 << 20;
+			if (cap > oneMB && neededBytes < (cap / 4)) {
+				GLsizeiptr newCap = (GLsizeiptr)4096;
+				while (newCap < neededBytes) newCap *= 2;
+				glNamedBufferData(buf, newCap, nullptr, usage);
+				cap = newCap;
+			}
 		}
 	};
 
-	// Helper to grow buffers once and update with SubData (reduces realloc waiting)
-	auto ensureCapacityAndUpload = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, const void* data, GLenum usage)
-	{
-		if (cap < neededBytes)
-		{
-			GLsizeiptr newCap = cap > 0 ? cap : (GLsizeiptr)4096;
-			while (newCap < neededBytes) newCap *= 2;
-			glNamedBufferData(buf, newCap, nullptr, usage);
-			cap = newCap;
-		}
-		if (neededBytes > 0)
-			glNamedBufferSubData(buf, 0, neededBytes, data);
-	};
+    // Helper to orphan-and-upload each update to avoid races with driver threads
+    auto ensureCapacityAndUpload = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, const void* data, GLenum usage)
+    {
+        if (neededBytes <= 0) {
+            // keep minimal non-zero storage
+            glNamedBufferData(buf, 1, nullptr, usage);
+            cap = 1;
+            return;
+        }
+        // Orphan storage and upload new content in one step
+        glNamedBufferData(buf, neededBytes, data, usage);
+        cap = neededBytes;
+    };
 
     if (transparent)
     {

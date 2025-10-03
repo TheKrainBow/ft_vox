@@ -83,6 +83,8 @@ class Chunk
 		std::vector<DrawArraysIndirectCommand> &getIndirectData();
 		std::vector<vec4> &getSSBOSolid();
 		std::vector<vec4> &getSSBOTransp();
+		// Thread-safe quick predicate to know if any draw commands are present
+		bool hasAnyDraws();
 		void freeSubChunks();
 		void getAABB(glm::vec3& minp, glm::vec3& maxp);
 		void snapshotDisplayData(
