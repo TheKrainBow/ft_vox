@@ -24,17 +24,19 @@ static inline bool isPlantPlaceable(BlockType b) {
 
 static inline bool flowerPlaceCondition(BlockType support, BlockType placing)
 {
-	// Placement rules for decorative plants and cactus:
-	// - On GRASS or DIRT: flowers and short grass
-	// - On SAND: dead bush and cactus
 	return (
+		// Flowers and grass on grass block and dirt
 		((support == GRASS || support == DIRT) &&
 			(placing == FLOWER_POPPY
 			|| placing == FLOWER_DANDELION
 			|| placing == FLOWER_CYAN
 			|| placing == FLOWER_SHORT_GRASS))
+		// Cactus and dead bush on sand
 		|| ((support == SAND) &&
 			(placing == FLOWER_DEAD_BUSH || placing == CACTUS))
+		// Cactus on cactus
+		|| ((support == CACTUS) &&
+			(placing == CACTUS))
 	);
 }
 
