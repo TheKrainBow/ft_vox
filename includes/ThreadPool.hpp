@@ -1,5 +1,6 @@
 #pragma once
 #include "ft_vox.hpp"
+#include <functional>
 
 class ThreadPool {
 public:

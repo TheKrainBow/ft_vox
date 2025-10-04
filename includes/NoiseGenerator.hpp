@@ -3,6 +3,7 @@
 #include "ft_vox.hpp"
 #include "define.hpp"
 #include "SplineInterpolator.hpp"
+#include <unordered_map>
 
 // Update nb_biomes when adding a new one for debug box
 #define NB_BIOMES 7
