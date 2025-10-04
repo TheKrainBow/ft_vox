@@ -5,3 +5,7 @@ obj
 ft_voxDebug
 debug_obj
 logs.txt
+# Fetched header-only deps
+includes/stb_image.h
+includes/stb_truetype.hpp
+glm/

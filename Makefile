@@ -12,6 +12,15 @@ DEBUG_OBJ_PATH		=	debug_obj/
 CC			=	g++
 SRC_PATH	=	srcs/
 INCLUDES	=	-Iincludes -Iglm
+
+# Tools for fetching dependencies
+CURL		?=	curl -L --fail --silent --show-error
+GIT			?=	git
+
+# Third-party headers we vendor locally if missing
+STB_IMAGE		=	includes/stb_image.h
+STB_TRUETYPE	=	includes/stb_truetype.hpp
+GLM_DIR		=	glm
 	
 SRC_NAME	=	stb_truetype.cpp		\
 				main.cpp				\
@@ -50,7 +59,24 @@ CYAN		=	\033[1;36m
 WHITE		=	\033[1;37m
 EOC			=	\033[0;0m
 
-all: $(NAME)
+all: deps $(NAME)
+
+# Fetch local header-only dependencies if they are missing
+.PHONY: deps
+deps:
+	@echo "$(BLUE)Checking dependencies...$(WHITE)"
+	@if [ ! -f $(STB_IMAGE) ]; then \
+		echo "$(CYAN)Fetching stb_image.h$(WHITE)"; \
+		$(CURL) https://raw.githubusercontent.com/nothings/stb/master/stb_image.h -o $(STB_IMAGE); \
+	fi
+	@if [ ! -f $(STB_TRUETYPE) ]; then \
+		echo "$(CYAN)Fetching stb_truetype as .hpp$(WHITE)"; \
+		$(CURL) https://raw.githubusercontent.com/nothings/stb/master/stb_truetype.h -o $(STB_TRUETYPE); \
+	fi
+	@if [ ! -d $(GLM_DIR)/glm ]; then \
+		echo "$(CYAN)Cloning GLM headers$(WHITE)"; \
+		$(GIT) clone --depth 1 https://github.com/g-truc/glm.git $(GLM_DIR); \
+	fi
 
 $(NAME): $(OBJ)
 	@echo "$(RED)=====>Compiling ft_vox Test<===== $(WHITE)"
@@ -87,6 +113,9 @@ fclean: clean
 	@echo "$(CYAN)♻  Cleaning executable ♻ $(WHITE)"
 	rm -rf $(NAME)
 	rm -rf $(DEBUG_NAME)
+	@echo "$(CYAN)♻  Removing fetched headers/libs ♻ $(WHITE)"
+	rm -rf $(STB_IMAGE) $(STB_TRUETYPE)
+	rm -rf $(GLM_DIR)
 	@echo "$(GREEN)Done !✅ $(EOC)"
 
 re: fclean all
