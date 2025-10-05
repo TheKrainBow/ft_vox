@@ -47,7 +47,8 @@ float calculateAmbientLight(float time) {
 
 void main() {
     vec4 col = texture(flowerTex, vec3(vUV, float(vType)));
-    if (col.a < 0.5) discard;
+    // Harden alpha cutout a bit to eliminate fringe pixels from semi-transparent sources
+    if (col.a < 0.6) discard;
 
     // If this is the short grass layer, tint grayscale to green
     if (shortGrassLayer >= 0 && vType == shortGrassLayer) {

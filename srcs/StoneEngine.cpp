@@ -1391,57 +1391,44 @@ void StoneEngine::initFlowerResources()
 	const int nfiles = (int)files.size();
 	int w = 0, h = 0, ch = 0;
 	unsigned char *data = (nfiles > 0) ? stbi_load(files[0].c_str(), &w, &h, &ch, 4) : nullptr;
-	if (data)
-	{
-		// Fallback: if no alpha present, color-key from corners
-		bool anyTransparent0 = false;
-		for (int i = 0; i < w * h; ++i)
-		{
-			if (data[4 * i + 3] < 255)
-			{
-				anyTransparent0 = true;
-				break;
-			}
-		}
-		if (!anyTransparent0 && w > 1 && h > 1)
-		{
-			auto getPx = [&](int x, int y) -> glm::ivec4
-			{ unsigned char* p = data + 4*(y*w + x); return {p[0],p[1],p[2],p[3]}; };
-			glm::ivec4 corners[4] = {getPx(0, 0), getPx(w - 1, 0), getPx(0, h - 1), getPx(w - 1, h - 1)};
-			glm::ivec4 key = corners[0];
-			int best = 1;
-			for (int i = 0; i < 4; ++i)
-			{
-				int cnt = 0;
-				for (int j = 0; j < 4; ++j)
-					if (glm::all(glm::equal(corners[i], corners[j])))
-						cnt++;
-				if (cnt > best)
-				{
-					best = cnt;
-					key = corners[i];
-				}
-			}
-			auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b)
-			{int dr=int(r)-key.r;int dg=int(g)-key.g;int db=int(b)-key.b;return (abs(dr)+abs(dg)+abs(db))<=24; };
-			for (int i = 0; i < w * h; ++i)
-			{
-				unsigned char *px = data + 4 * i;
-				if (nearKey(px[0], px[1], px[2]))
-				{
-					px[0] = px[1] = px[2] = 0;
-					px[3] = 0;
-				}
-			}
-		}
-		// Zero RGB where fully transparent to avoid fringes
-		for (int i = 0; i < w * h; ++i)
-		{
-			if (data[4 * i + 3] == 0)
-			{
-				data[4 * i + 0] = data[4 * i + 1] = data[4 * i + 2] = 0;
-			}
-		}
+    if (data)
+    {
+        // Fallback: if no alpha present, carve background by edge flood-fill
+        bool anyTransparent0 = false;
+        for (int i = 0; i < w * h; ++i) if (data[4 * i + 3] < 255) { anyTransparent0 = true; break; }
+        if (!anyTransparent0 && w > 1 && h > 1)
+        {
+            auto getPx = [&](int x, int y) -> glm::ivec3 { unsigned char* p = data + 4*(y*w + x); return {p[0],p[1],p[2]}; };
+            glm::ivec3 corners[4] = {getPx(0,0), getPx(w-1,0), getPx(0,h-1), getPx(w-1,h-1)};
+            glm::ivec3 key = corners[0];
+            int best = 1;
+            for (int i = 0; i < 4; ++i) {
+                int cnt = 0; for (int j = 0; j < 4; ++j) if (glm::all(glm::equal(corners[i], corners[j]))) cnt++;
+                if (cnt > best) { best = cnt; key = corners[i]; }
+            }
+            auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b){
+                int dr = int(r) - key.r; int dg = int(g) - key.g; int db = int(b) - key.b;
+                return (abs(dr) + abs(dg) + abs(db)) <= 96; // generous threshold
+            };
+            std::vector<uint8_t> mark(w*h, 0);
+            std::deque<std::pair<int,int>> q;
+            auto push = [&](int x,int y){ if(x<0||y<0||x>=w||y>=h) return; int i=y*w+x; if(mark[i]) return; unsigned char* p=data+4*i; if(nearKey(p[0],p[1],p[2])){ mark[i]=1; q.emplace_back(x,y);} };
+            for(int x=0;x<w;x++){ push(x,0); push(x,h-1);} for(int y=0;y<h;y++){ push(0,y); push(w-1,y);} 
+            const int dx[8]={-1,0,1,-1,1,-1,0,1}; const int dy[8]={-1,-1,-1,0,0,1,1,1};
+            while(!q.empty()){
+                auto [x,y]=q.front(); q.pop_front();
+                for(int k=0;k<8;k++){ int nx=x+dx[k], ny=y+dy[k]; if(nx<0||ny<0||nx>=w||ny>=h) continue; int idx=ny*w+nx; if(mark[idx]) continue; unsigned char* p=data+4*idx; if(nearKey(p[0],p[1],p[2])){ mark[idx]=1; q.emplace_back(nx,ny);} }
+            }
+            for(int i=0;i<w*h;i++) if(mark[i]){ unsigned char* p=data+4*i; p[0]=p[1]=p[2]=0; p[3]=0; }
+        }
+        // Zero RGB where fully transparent to avoid fringes
+        for (int i = 0; i < w * h; ++i)
+        {
+            if (data[4 * i + 3] == 0)
+            {
+                data[4 * i + 0] = data[4 * i + 1] = data[4 * i + 2] = 0;
+            }
+        }
 		glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, w, h, nfiles, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, w, h, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		stbi_image_free(data);
@@ -1451,47 +1438,27 @@ void StoneEngine::initFlowerResources()
 			unsigned char *d = stbi_load(files[layer].c_str(), &ww, &hh, &cc, 4);
 			if (!d)
 				continue;
-			// Fallback: add alpha via color-key if needed
-			bool anyTransparent = false;
-			for (int i = 0; i < ww * hh; ++i)
-			{
-				if (d[4 * i + 3] < 255)
-				{
-					anyTransparent = true;
-					break;
-				}
-			}
-			if (!anyTransparent && ww > 1 && hh > 1)
-			{
-				auto getPx = [&](int x, int y) -> glm::ivec4
-				{ unsigned char* p = d + 4*(y*ww + x); return {p[0],p[1],p[2],p[3]}; };
-				glm::ivec4 corners[4] = {getPx(0, 0), getPx(ww - 1, 0), getPx(0, hh - 1), getPx(ww - 1, hh - 1)};
-				glm::ivec4 key = corners[0];
-				int best = 1;
-				for (int i = 0; i < 4; ++i)
-				{
-					int cnt = 0;
-					for (int j = 0; j < 4; ++j)
-						if (glm::all(glm::equal(corners[i], corners[j])))
-							cnt++;
-					if (cnt > best)
-					{
-						best = cnt;
-						key = corners[i];
-					}
-				}
-				auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b)
-				{int dr=int(r)-key.r;int dg=int(g)-key.g;int db=int(b)-key.b;return (abs(dr)+abs(dg)+abs(db))<=24; };
-				for (int i = 0; i < ww * hh; ++i)
-				{
-					unsigned char *px = d + 4 * i;
-					if (nearKey(px[0], px[1], px[2]))
-					{
-						px[0] = px[1] = px[2] = 0;
-						px[3] = 0;
-					}
-				}
-			}
+            // Fallback: add alpha via border flood-fill if needed
+            bool anyTransparent = false;
+            for (int i = 0; i < ww * hh; ++i) if (d[4 * i + 3] < 255) { anyTransparent = true; break; }
+            if (!anyTransparent && ww > 1 && hh > 1)
+            {
+                auto getPx = [&](int x, int y) -> glm::ivec3 { unsigned char* p = d + 4*(y*ww + x); return {p[0],p[1],p[2]}; };
+                glm::ivec3 corners[4] = {getPx(0,0), getPx(ww-1,0), getPx(0,hh-1), getPx(ww-1,hh-1)};
+                glm::ivec3 key = corners[0];
+                int best = 1; for(int i2=0;i2<4;i2++){ int cnt=0; for(int j=0;j<4;j++) if(glm::all(glm::equal(corners[i2], corners[j]))) cnt++; if(cnt>best){best=cnt; key=corners[i2];}}
+                auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b){ int dr=int(r)-key.r; int dg=int(g)-key.g; int db=int(b)-key.b; return (abs(dr)+abs(dg)+abs(db))<=96; };
+                std::vector<uint8_t> mark(ww*hh,0);
+                std::deque<std::pair<int,int>> q;
+                auto push=[&](int x,int y){ if(x<0||y<0||x>=ww||y>=hh) return; int i=y*ww+x; if(mark[i]) return; unsigned char* p=d+4*i; if(nearKey(p[0],p[1],p[2])){ mark[i]=1; q.emplace_back(x,y);} };
+                for(int x=0;x<ww;x++){ push(x,0); push(x,hh-1);} for(int y=0;y<hh;y++){ push(0,y); push(ww-1,y);} 
+                const int dx[8]={-1,0,1,-1,1,-1,0,1}; const int dy[8]={-1,-1,-1,0,0,1,1,1};
+                while(!q.empty()){
+                    auto [x,y]=q.front(); q.pop_front();
+                    for(int k=0;k<8;k++){ int nx=x+dx[k], ny=y+dy[k]; if(nx<0||ny<0||nx>=ww||ny>=hh) continue; int idx=ny*ww+nx; if(mark[idx]) continue; unsigned char* p=d+4*idx; if(nearKey(p[0],p[1],p[2])){ mark[idx]=1; q.emplace_back(nx,ny);} }
+                }
+                for(int i2=0;i2<ww*hh;i2++) if(mark[i2]){ unsigned char* p=d+4*i2; p[0]=p[1]=p[2]=0; p[3]=0; }
+            }
 			if (ww != w || hh != h)
 			{
 				std::vector<unsigned char> resized(w * h * 4);
