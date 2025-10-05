@@ -53,7 +53,7 @@ class StoneEngine {
 		GLuint shadowShaderProgram = 0;	// depth-only terrain pass
 		GLuint shadowFBO = 0;
 		GLuint shadowMap = 0;
-		int shadowMapSize = 4096;
+		int shadowMapSize = 8196 * 2;
 		glm::mat4 lightSpaceMatrix{1.0f};
 		glm::vec3 _shadowCenter{0.0f, 0.0f, 0.0f};
 		float _shadowTexelWorld = 0.0f;

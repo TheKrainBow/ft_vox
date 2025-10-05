@@ -510,23 +510,30 @@ void SubChunk::loadForest(int x, int z, size_t ground)
 
 	if (getBlock({x, yLocal, z}) != GRASS) return;
 
-	const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
-	if (treeP <= 0.64) return; // slightly denser than before
+    const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
+    if (treeP <= 0.64) return; // base density gate
 
-	const int radius = 4;
-	const double* tmap = *_treeMap;
-	for (int dz = -radius; dz <= radius; ++dz) {
-		int nz = z + dz;
-		if (nz < 0 || nz >= CHUNK_SIZE) continue;
-		for (int dx = -radius; dx <= radius; ++dx) {
-			int nx = x + dx;
-			if (nx < 0 || nx >= CHUNK_SIZE) continue;
-			if (dx == 0 && dz == 0) continue;
-			if (tmap[nz * CHUNK_SIZE + nx] > treeP) return; // not a local maximum
-		}
-	}
+    // Softer spacing: enforce a small local-maximum radius with tolerance
+    // to avoid trees being glued together, but not as restrictive as before.
+    // Radius 2 (~5x5) with 0.02 tolerance produces natural spacing.
+    {
+        const int radius = 2;
+        const double tol = 0.02; // allow near-equal neighbors
+        const double* tmap = *_treeMap;
+        for (int dz = -radius; dz <= radius; ++dz) {
+            int nz = z + dz;
+            if (nz < 0 || nz >= CHUNK_SIZE) continue;
+            for (int dx = -radius; dx <= radius; ++dx) {
+                int nx = x + dx;
+                if (nx < 0 || nx >= CHUNK_SIZE) continue;
+                if (dx == 0 && dz == 0) continue;
+                if (tmap[nz * CHUNK_SIZE + nx] > treeP + tol)
+                    return; // a clearly stronger neighbor nearby -> skip here
+            }
+        }
+    }
 
-	plantTree(x, yLocal + 1, z, treeP);
+    plantTree(x, yLocal + 1, z, treeP);
 }
 
 void SubChunk::loadTree(int x, int z)
