@@ -1243,6 +1243,8 @@ void StoneEngine::activateTransparentShader()
 		glEnable(GL_DEPTH_TEST);
 		glDepthMask(GL_TRUE);	 // write depth for proper line visibility
 		glDisable(GL_CULL_FACE); // show both sides of water quads
+		// Render water as actual wireframe lines
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	}
 	else
 	{
@@ -2245,6 +2247,7 @@ void StoneEngine::renderPlanarReflection()
 	glUniform3fv(glGetUniformLocation(alphaShaderProgram, "lightColor"), 1, glm::value_ptr(glm::vec3(1.0f, 0.95f, 0.95f)));
 	glUniform1f(glGetUniformLocation(alphaShaderProgram, "time"), (float)glfwGetTime());
 	glUniform1i(glGetUniformLocation(alphaShaderProgram, "timeValue"), timeValue);
+	glUniform1i(glGetUniformLocation(alphaShaderProgram, "showtrianglemesh"), showTriangleMesh ? 1 : 0);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(alphaShaderProgram, "textureArray"), 0);
@@ -2294,17 +2297,12 @@ void StoneEngine::renderPlanarReflection()
 
 void StoneEngine::prepareRenderPipeline()
 {
+	// Default to filled geometry; wireframe overlay handled in renderSolidObjects()
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	if (showTriangleMesh)
-	{
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
 	else
-	{
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		// glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
-	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
@@ -2340,8 +2338,8 @@ void StoneEngine::renderSolidObjects()
 		_prevFov      = fov;
 		_havePrevCam  = true;
 	}
-	// Skip occlusion if requested
-	if (_occlDisableFrames <= 0 && _prevOccValid) {
+	// Skip occlusion if requested or when in wireframe (triangleMesh) mode
+	if (!showTriangleMesh && _occlDisableFrames <= 0 && _prevOccValid) {
 		// Use previous-frame view/proj/cam that match readFBO.depth
 		_chunkMgr.setOcclusionSource(
 			readFBO.depth, windowWidth, windowHeight,
@@ -2349,6 +2347,31 @@ void StoneEngine::renderSolidObjects()
 			_prevCamOcc
 		);
 	}
+	// In wireframe mode: first fill depth, then overlay wireframe using same culling
+	if (showTriangleMesh)
+	{
+		// Depth pre-pass (fill, depth write on, no color writes)
+		glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+		glDepthFunc(GL_LESS);
+		glDepthMask(GL_TRUE);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		(void)_chunkMgr.renderSolidBlocks();
+
+		// Wireframe overlay (line, depth compare against prepass, keep depth)
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		glDepthFunc(GL_LEQUAL);
+		glDepthMask(GL_FALSE);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		drawnTriangles = _chunkMgr.renderSolidBlocks();
+
+		// Restore default state
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glDepthFunc(GL_LESS);
+		glDepthMask(GL_TRUE);
+		glCleanupTextureState();
+		return;
+	}
+
 	drawnTriangles = _chunkMgr.renderSolidBlocks();
 	if (_occlDisableFrames > 0)
 		--_occlDisableFrames;
@@ -2421,10 +2444,16 @@ void StoneEngine::renderTransparentObjects()
 		glUniform3fv(glGetUniformLocation(alphaShaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 		glUniform1f(glGetUniformLocation(alphaShaderProgram, "time"), (float)glfwGetTime());
 		glUniform1i(glGetUniformLocation(alphaShaderProgram, "timeValue"), timeValue);
+		// Ensure leaves render in wireframe when toggled
+		glUniform1i(glGetUniformLocation(alphaShaderProgram, "showtrianglemesh"), showTriangleMesh ? 1 : 0);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 		glUniform1i(glGetUniformLocation(alphaShaderProgram, "textureArray"), 0);
 		// Use already-uploaded transparent buffers this frame; do not update here
+		if (showTriangleMesh) {
+			// Draw leaf faces as wireframe lines
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		}
 		_chunkMgr.renderTransparentBlocks();
 	}
 
@@ -2447,6 +2476,12 @@ void StoneEngine::renderTransparentObjects()
     // 2) Water
     activateTransparentShader();         // already sets wireframe-friendly state when showTriangleMesh==true
     drawnTriangles += _chunkMgr.renderTransparentBlocks();
+
+    // Restore polygon mode after wireframe water rendering
+    if (showTriangleMesh)
+    {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 
     glCleanupTextureState();
 }

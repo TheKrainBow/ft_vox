@@ -5,6 +5,7 @@ uniform int timeValue;
 uniform mat4 view;
 uniform vec3 cameraPos; // explicit camera world position
 uniform sampler2DArray textureArray;
+uniform bool showtrianglemesh; // wireframe mode toggle
 
 in vec2 TexCoord;
 flat in int TextureID;
@@ -70,8 +71,11 @@ void main() {
     if (TextureID != 11) discard;
 
     vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
-    // Masked alpha: discard mostly transparent texels so depth behaves like opaque
-    if (texColor.a < 0.5) discard;
+    // In wireframe mode, don't discard by alpha so edges remain visible
+    if (!showtrianglemesh) {
+        // Masked alpha: discard mostly transparent texels so depth behaves like opaque
+        if (texColor.a < 0.5) discard;
+    }
 
     vec3 viewPos = cameraPos;
     vec3 lightDir = normalize(computeSunPosition(timeValue) - FragPos);
