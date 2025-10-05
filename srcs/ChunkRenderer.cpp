@@ -152,8 +152,9 @@ int ChunkRenderer::renderSolidBlocks()
 		return 0;
 	}
 
-    // Always use TEMPLATE + SOURCE path to avoid driver flicker at low RD and edge cases
-    if (_solidDrawCount > 0 && _solidPosSrcSSBO && _templIndirectBuffer) {
+    // Warmup/template path for a few frames after uploads or when the batch is tiny
+    bool useTemplatePath = (_solidWarmupFrames > 0) || (_solidDrawCount <= 32);
+    if (_solidDrawCount > 0 && _solidPosSrcSSBO && _templIndirectBuffer && useTemplatePath) {
         // Template path: bind SOURCE position, instances and per-draw meta
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSrcSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
@@ -165,7 +166,7 @@ int ChunkRenderer::renderSolidBlocks()
                                    sizeof(DrawArraysIndirectCommand));
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
         glBindVertexArray(0);
-        // Skip GPU culling for small batches to avoid flicker at low render distances
+        if (_solidWarmupFrames > 0) --_solidWarmupFrames;
         return (int)_lastSolidTris;
     }
 
@@ -411,14 +412,14 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 
 	glUniform1ui(_locNumDraws, (GLuint)count);
 	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
-    // Disable occlusion culling to eliminate flicker at low render distances
-    if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, 0);
-	if (_occAvailable) {
-		if (_locDepthTex >= 0) {
-			// Bind to unit 7
-			glBindTextureUnit(7, _occDepthTex);
-			glUniform1i(_locDepthTex, 7);
-		}
+    // Enable occlusion only when a valid previous-frame depth & transforms are available
+    if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
+    if (_occAvailable) {
+        if (_locDepthTex >= 0) {
+            // Bind to unit 7
+            glBindTextureUnit(7, _occDepthTex);
+            glUniform1i(_locDepthTex, 7);
+        }
 		if (_locViewport >= 0) glUniform2f(_locViewport, (float)_occW, (float)_occH);
 		if (_locView >= 0)     glUniformMatrix4fv(_locView, 1, GL_FALSE, glm::value_ptr(_occView));
 		if (_locProj >= 0)     glUniformMatrix4fv(_locProj, 1, GL_FALSE, glm::value_ptr(_occProj));

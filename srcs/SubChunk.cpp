@@ -335,7 +335,8 @@ void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
     // This produces soft, rounded patches instead of rigid 3x3 squares.
     double baseCenter = 0.010;                         // ~1.0% base
     double centerProb = baseCenter + 0.010 * std::max(0.0, f - 0.5) + 0.004 * (g - 0.5);
-    centerProb = std::clamp(centerProb, 0.002, 0.030);
+    // Slightly raise the minimum so patches appear a bit more consistently
+    centerProb = std::clamp(centerProb, 0.004, 0.030);
 
     double patchScore = 0.0;
     // Wider search window to allow larger patches
@@ -361,7 +362,7 @@ void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
     // Edge threshold with local jitter and slight bias from f
     double tEdge = 0.50;
     tEdge -= 0.10 * std::clamp(f - 0.5, -0.5, 0.5); // flowery areas slightly expand patches
-    tEdge += 0.08 * rand01(WX, WZ, 405);
+    tEdge += 0.06 * rand01(WX, WZ, 405); // slightly less jitter -> more coherent edges
     bool inPatch = (patchScore > tEdge);
 
     // --- Singles probabilities (kept low to preserve patch feel) ---
@@ -369,11 +370,11 @@ void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
     double jF = rand01(WX, WZ, 12);
     double jT = rand01(WX, WZ, 13); // type pick in patch
 
-    // Singles: light sprinkling
-    double singleGrassP  = 0.020 + 0.015 * (g - 0.5);                 // ~2% avg
-    double singleFlowerP = (0.006 + 0.014 * std::max(0.0, f - 0.3));  // ~0.6–2%
-    singleGrassP  = std::clamp(singleGrassP,  0.005, 0.05);
-    singleFlowerP = std::clamp(singleFlowerP, 0.002, 0.03);
+    // Singles: increase baseline grass to avoid deadlands, keep flowers modest
+    double singleGrassP  = 0.100 + 0.100 * (g - 0.5);                 // ~10% avg, 5–15% from noise
+    double singleFlowerP = (0.008 + 0.012 * std::max(0.0, f - 0.3));  // ~0.8–2.0%
+    singleGrassP  = std::clamp(singleGrassP,  0.060, 0.28);
+    singleFlowerP = std::clamp(singleFlowerP, 0.004, 0.03);
 
     // Normalize flower color weights
     double sumC = rC + yC + bC + 1e-6;
@@ -390,7 +391,7 @@ void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
         // Inside a patch: mostly grass with some flowers, and a little chance of holes
         // Bias with f so flowery regions get more flowers
         double flowerBias = 0.20 + 0.35 * std::clamp(f - 0.4, 0.0, 0.6); // ~20–41%
-        double holeP = 0.10; // small gaps to avoid carpets
+        double holeP = 0.06; // fewer holes -> patches look fuller
         if (jT < holeP) return; // leave empty
         if (jT < holeP + flowerBias) {
             placeFlower(rand01(WX, WZ, 502));

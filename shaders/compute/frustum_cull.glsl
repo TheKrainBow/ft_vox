@@ -124,23 +124,20 @@ void main() {
     if (i >= numDraws) return;
 
     DrawCmd t = templ[i];
+    if (t.instanceCount == 0u) return; // nothing to draw
+
     vec3 mn = posRes[i].xyz;
     vec3 mx = mn + vec3(chunkSize);
 
-    // When the draw list is very small (e.g., low render distance), avoid GPU-side
-    // culling altogether to prevent pathological cases where incorrect frustum
-    // inputs or precision issues drop all draws. Copy-through preserves visibility
-    // and the CPU fallback still filters instanceCount==0 draws efficiently.
-    if (numDraws < 2048u) {
-        if (t.instanceCount == 0u) return;
-        uint dst = atomicAdd(drawCount, 1u);
-        outCmds[dst]   = t;
-        outPosRes[dst] = vec4(mn, posRes[i].w);
-        return;
-    }
+    // Frustum test (conservative)
+    if (aabbOutsideFrustum(mn, mx)) return;
 
-	uint dst = atomicAdd(drawCount, 1u);
-    outCmds[dst]   = t;                      // compacted command
-    outPosRes[dst] = vec4(mn, posRes[i].w);  // matching compacted metadata
-    metaOut[dst]   = metaIn[i];              // compact per-draw meta (direction etc.)
+    // Optional previous-frame occlusion test (Hierarchical Z via hardware sampler LODs)
+    if (aabbOccluded(mn, mx)) return;
+
+    // Visible: append to compacted command/metadata buffers
+    uint dst = atomicAdd(drawCount, 1u);
+    outCmds[dst]   = t;
+    outPosRes[dst] = vec4(mn, posRes[i].w);
+    metaOut[dst]   = metaIn[i];
 }
