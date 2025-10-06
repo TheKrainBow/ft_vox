@@ -304,7 +304,7 @@ void StoneEngine::initData()
 
 	// Game data
 	sunPosition = {0.0f, 0.0f, 0.0f};
-	timeValue = 42000;
+	timeValue = 52000;
 	camTopBlock.pos.x = 0.0;
 	camTopBlock.pos.y = 0.0;
 	camTopBlock.type = AIR;
