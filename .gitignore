@@ -9,3 +9,6 @@ logs.txt
 includes/stb_image.h
 includes/stb_truetype.hpp
 glm/
+third_party/
+lib64/
+includes/GL/*
