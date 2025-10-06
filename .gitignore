@@ -11,4 +11,4 @@ includes/stb_truetype.hpp
 glm/
 third_party/
 lib64/
-includes/GL/*
+includes/GL/
