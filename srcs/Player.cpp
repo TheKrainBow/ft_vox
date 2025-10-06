@@ -242,6 +242,9 @@ void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 		_fallSpeed = 0.0f;
 		_cam.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
 	}
+
+	// Integrate vertical position
+	_cam.move({0.0f, -(_fallSpeed * _deltaTime), 0.0f});
 }
 
 void Player::updateSwimming(BlockType block)
