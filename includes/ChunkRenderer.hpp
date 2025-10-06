@@ -72,9 +72,9 @@ private:
 	GLint									_locView = -1;
 	GLint									_locProj = -1;
 	GLint									_locCamPos = -1;
-    GLint                                      _locDebugLogOcclu = -1;
-    GLint                                      _locHystThreshold = -1;
-    GLint                                      _locRevealThreshold = -1;
+	GLint                                      _locDebugLogOcclu = -1;
+	GLint                                      _locHystThreshold = -1;
+	GLint                                      _locRevealThreshold = -1;
 
 	// Previous-frame depth context for occlusion
 	GLuint                                      _occDepthTex = 0;

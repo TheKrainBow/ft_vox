@@ -1789,7 +1789,7 @@ void StoneEngine::display()
 	else
 	{
 		// In wireframe mode, previous blits changed GL_DRAW_FRAMEBUFFER.
-    // Render lines to the default framebuffer for visibility.
+	// Render lines to the default framebuffer for visibility.
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		renderTransparentObjects(); // direct
 	}
@@ -1845,7 +1845,7 @@ void StoneEngine::renderLoadingScreen()
 	}
 
 	// Center text by adjusting its starting position roughly to middle
-    // Textbox renders relative to internal offsets; re-init dimensions on resize
+	// Textbox renders relative to internal offsets; re-init dimensions on resize
 	_loadingBox.initData(_window, windowWidth / 2 - 90, windowHeight / 2 - 18, windowWidth, windowHeight);
 	_loadingBox.render();
 	glfwSwapBuffers(_window);
@@ -1986,7 +1986,7 @@ void StoneEngine::renderAimHighlight()
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
-    // Test against scene depth; avoid depth writes to preserve later passes
+	// Test against scene depth; avoid depth writes to preserve later passes
 	glDepthMask(GL_FALSE);
 
 	glBindVertexArray(_wireVAO);
@@ -2309,11 +2309,11 @@ void StoneEngine::renderSolidObjects()
 			float pitchDelta = std::abs(ang.y - _prevCamAngles.y);
 			float rotDelta   = std::max(yawDelta, pitchDelta);
 			float fovDelta   = std::abs(fov - _prevFov);
-            // Stricter thresholds to stabilize occlusion during close strafing
-            // ~0.25m movement, ~1.0 deg rotation, any noticeable FOV change
-            if (posDelta > 0.25f || rotDelta > 1.0f || fovDelta > 0.25f) {
-                _occlDisableFrames = std::max(_occlDisableFrames, 3);
-            }
+			// Stricter thresholds to stabilize occlusion during close strafing
+			// ~0.25m movement, ~1.0 deg rotation, any noticeable FOV change
+			if (posDelta > 0.25f || rotDelta > 1.0f || fovDelta > 0.25f) {
+				_occlDisableFrames = std::max(_occlDisableFrames, 3);
+			}
 		}
 		_prevCamPos   = cam;
 		_prevCamAngles= ang;
@@ -2483,7 +2483,7 @@ void StoneEngine::renderSkybox()
 		return;
 	}
 
-    // Ensure drawing targets the current MSAA buffer
+	// Ensure drawing targets the current MSAA buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 
 	// Rotation-only view so the cube follows the camera
@@ -3035,27 +3035,21 @@ void StoneEngine::mouseAction(double x, double y)
 	static bool firstMouse = true;
 	static double lastX = 0, lastY = 0;
 
-	// Get the current window size dynamically
-	int windowWidth, windowHeight;
-	glfwGetWindowSize(_window, &windowWidth, &windowHeight);
+	// Disable cursor
 	glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	camera.updateMousePos(x, y);
 
-	int windowCenterX = windowWidth / 2;
-	int windowCenterY = windowHeight / 2;
-
-	if (firstMouse || ignoreMouseEvent)
+	if (firstMouse)
 	{
-		lastX = windowCenterX;
-		lastY = windowCenterY;
+		lastX = x;
+		lastY = y;
 		firstMouse = false;
-		ignoreMouseEvent = false;
 		return;
 	}
 
-	float xOffset = lastX - x;
-	float yOffset = lastY - y;
+	float xOffset = static_cast<float>(lastX - x);
+	float yOffset = static_cast<float>(lastY - y);
 
 	lastX = x;
 	lastY = y;
@@ -3066,8 +3060,6 @@ void StoneEngine::mouseAction(double x, double y)
 
 	camera.rotate(1.0f, 0.0f, xOffset * ROTATION_SPEED);
 	camera.rotate(0.0f, 1.0f, yOffset * ROTATION_SPEED);
-	ignoreMouseEvent = true;
-	glfwSetCursorPos(_window, windowCenterX, windowCenterY);
 }
 
 void StoneEngine::mouseCallback(GLFWwindow *window, double x, double y)
@@ -3134,9 +3126,14 @@ int StoneEngine::initGLFW()
 	glfwSetScrollCallback(_window, scrollCallback);
 	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
 	glfwMakeContextCurrent(_window);
+	// Uncapped FPS (disable vsync)
 	glfwSwapInterval(0);
-	if (!isWSL())
+	// Prefer raw mouse motion if supported for smoother, acceleration-free deltas
+	if (glfwRawMouseMotionSupported())
+		glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+	if (!isWSL()) {
 		glfwSetCursorPosCallback(_window, mouseCallback);
+	}
 	_isFullscreen = (glfwGetWindowMonitor(_window) != nullptr);
 	return 1;
 }

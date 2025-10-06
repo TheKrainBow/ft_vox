@@ -201,47 +201,47 @@ void Player::findMoveRotationSpeed()
 // Player states updaters
 void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 {
-    // Target eye height above the ground block
-    const float eyeTarget = blockHeight + 1 + EYE_HEIGHT;
+	// Target eye height above the ground block
+	const float eyeTarget = blockHeight + 1 + EYE_HEIGHT;
 
-    // Start falling if above ground
-    if (!_falling && worldPos.y > eyeTarget + EPS)
-        _falling = true;
+	// Start falling if above ground
+	if (!_falling && worldPos.y > eyeTarget + EPS)
+		_falling = true;
 
-    // Apply gravity only when enabled, not swimming, and currently falling
-    if (_gravity && !_swimming && _falling)
-    {
-        // Update vertical velocity (per-second units)
-        _fallSpeed -= GRAVITY_PER_SEC * _deltaTime;
-        float decay = std::pow(FALL_DAMP_PER_TICK, TICK_RATE * _deltaTime);
-        _fallSpeed *= decay;
+	// Apply gravity only when enabled, not swimming, and currently falling
+	if (_gravity && !_swimming && _falling)
+	{
+		// Update vertical velocity (per-second units)
+		_fallSpeed -= GRAVITY_PER_SEC * _deltaTime;
+		float decay = std::pow(FALL_DAMP_PER_TICK, TICK_RATE * _deltaTime);
+		_fallSpeed *= decay;
 
-        // Predict next camera world Y using the same scaling as Camera::move via moveCheck
-        glm::vec3 offset(0.0f, -(_fallSpeed * _deltaTime), 0.0f);
-        vec3 nextPosInternal = _cam.moveCheck(offset);
-        float nextEyeY = -nextPosInternal.y;
+		// Predict next camera world Y using the same scaling as Camera::move via moveCheck
+		glm::vec3 offset(0.0f, -(_fallSpeed * _deltaTime), 0.0f);
+		vec3 nextPosInternal = _cam.moveCheck(offset);
+		float nextEyeY = -nextPosInternal.y;
 
-        // If next step would cross the ground, snap this frame and stop falling
-        if (nextEyeY <= eyeTarget + EPS)
-        {
-            _falling = false;
-            _fallSpeed = 0.0f;
-            _cam.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
-            return;
-        }
+		// If next step would cross the ground, snap this frame and stop falling
+		if (nextEyeY <= eyeTarget + EPS)
+		{
+			_falling = false;
+			_fallSpeed = 0.0f;
+			_cam.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
+			return;
+		}
 
-        // Otherwise integrate normally this frame
-        _cam.move(offset);
-        return;
-    }
+		// Otherwise integrate normally this frame
+		_cam.move(offset);
+		return;
+	}
 
-    // If not falling (or gravity/swimming disabled), ensure we don't drift below ground
-    if (_falling && worldPos.y <= eyeTarget + EPS)
-    {
-        _falling = false;
-        _fallSpeed = 0.0f;
-        _cam.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
-    }
+	// If not falling (or gravity/swimming disabled), ensure we don't drift below ground
+	if (_falling && worldPos.y <= eyeTarget + EPS)
+	{
+		_falling = false;
+		_fallSpeed = 0.0f;
+		_cam.setPos({-worldPos.x, -eyeTarget, -worldPos.z});
+	}
 }
 
 void Player::updateSwimming(BlockType block)

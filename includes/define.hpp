@@ -37,7 +37,8 @@
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
 # define SUBCHUNK_MARGIN_DOWN (0)
 # define LOD_THRESHOLD 16
-# define ROTATION_SPEED 1.0f
+// Base rotation multiplier for mouse look
+# define ROTATION_SPEED 2.0f
 # define CACHE_SIZE NB_CHUNKS * 2
 #ifndef EXTRA_CACHE_CHUNKS
 // Number of chunks allowed in addition to the visible grid

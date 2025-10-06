@@ -17,8 +17,8 @@ _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue),
 _hasBufferInitialized(false)
 {
-    // Disable heavy Hi-Z debug logging by default (prevents frame stalls)
-    _enableHiZDebugLogs = false;
+	// Disable heavy Hi-Z debug logging by default (prevents frame stalls)
+	_enableHiZDebugLogs = false;
 }
 
 ChunkRenderer::~ChunkRenderer()
@@ -81,7 +81,7 @@ void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
 {
 	// If draw data changed this frame, previous-frame depth may be invalid.
 	// In that case, disable occlusion for this frame to avoid popping.
-    // Do not gate solid-pass occlusion on transparent updates; the solid
+	// Do not gate solid-pass occlusion on transparent updates; the solid
 	// pass can safely use previous-frame depth even if transparent buffers
 	// haven’t been refreshed yet.
 	bool disableOcclusionThisFrame = _needUpdate.load();
@@ -391,9 +391,9 @@ void ChunkRenderer::initGpuCulling() {
 	_locView      = glGetUniformLocation(_cullProgram, "view");
 	_locProj      = glGetUniformLocation(_cullProgram, "proj");
 	_locCamPos    = glGetUniformLocation(_cullProgram, "camPos");
-    _locDebugLogOcclu = glGetUniformLocation(_cullProgram, "debugLogOcclusion");
-    _locHystThreshold = glGetUniformLocation(_cullProgram, "hystThreshold");
-    _locRevealThreshold = glGetUniformLocation(_cullProgram, "revealThreshold");
+	_locDebugLogOcclu = glGetUniformLocation(_cullProgram, "debugLogOcclusion");
+	_locHystThreshold = glGetUniformLocation(_cullProgram, "hystThreshold");
+	_locRevealThreshold = glGetUniformLocation(_cullProgram, "revealThreshold");
 
 	// Frustum UBO (6 vec4)
 	glCreateBuffers(1, &_frustumUBO);
@@ -426,11 +426,11 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 	glBindBufferBase(GL_UNIFORM_BUFFER,        3, _frustumUBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, param);  // counter
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, posDst); // write (compacted posRes)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, metaSrc); // read meta
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, metaDst); // write compacted meta
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, metaSrc); // read meta
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, metaDst); // write compacted meta
 
-    // Ensure hysteresis buffer exists and is sized/reset as needed
-    if (_hystSSBO == 0) glCreateBuffers(1, &_hystSSBO);
+	// Ensure hysteresis buffer exists and is sized/reset as needed
+	if (_hystSSBO == 0) glCreateBuffers(1, &_hystSSBO);
 	GLsizeiptr hystBytesNeeded = (GLsizeiptr)count * (GLsizeiptr)sizeof(GLuint);
 	if (_capHyst < hystBytesNeeded) {
 		GLsizeiptr cap = _capHyst > 0 ? _capHyst : (GLsizeiptr)256;
@@ -439,37 +439,37 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 		_capHyst = cap;
 		_hystDrawsStored = 0; // force zeroing below
 	}
-    if (_hystDrawsStored != (GLsizei)count) {
-        // Reset counters to zero when draw list size changes (mapping may change)
-        std::vector<GLuint> zeros(count, 0u);
-        glNamedBufferSubData(_hystSSBO, 0, hystBytesNeeded, zeros.data());
-        _hystDrawsStored = (GLsizei)count;
-    }
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 11, _hystSSBO); // read/write
+	if (_hystDrawsStored != (GLsizei)count) {
+		// Reset counters to zero when draw list size changes (mapping may change)
+		std::vector<GLuint> zeros(count, 0u);
+		glNamedBufferSubData(_hystSSBO, 0, hystBytesNeeded, zeros.data());
+		_hystDrawsStored = (GLsizei)count;
+	}
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 11, _hystSSBO); // read/write
 
-    // Ensure reveal-hold buffer exists and is sized/reset as needed
-    if (_revealSSBO == 0) glCreateBuffers(1, &_revealSSBO);
-    GLsizeiptr revealBytesNeeded = (GLsizeiptr)count * (GLsizeiptr)sizeof(GLuint);
-    if (_capReveal < revealBytesNeeded) {
-        GLsizeiptr cap = _capReveal > 0 ? _capReveal : (GLsizeiptr)256;
-        while (cap < revealBytesNeeded) cap *= 2;
-        glNamedBufferData(_revealSSBO, cap, nullptr, GL_DYNAMIC_DRAW);
-        _capReveal = cap;
-        _revealDrawsStored = 0;
-    }
-    if (_revealDrawsStored != (GLsizei)count) {
-        std::vector<GLuint> zeros(count, 0u);
-        glNamedBufferSubData(_revealSSBO, 0, revealBytesNeeded, zeros.data());
-        _revealDrawsStored = (GLsizei)count;
-    }
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 12, _revealSSBO);
+	// Ensure reveal-hold buffer exists and is sized/reset as needed
+	if (_revealSSBO == 0) glCreateBuffers(1, &_revealSSBO);
+	GLsizeiptr revealBytesNeeded = (GLsizeiptr)count * (GLsizeiptr)sizeof(GLuint);
+	if (_capReveal < revealBytesNeeded) {
+		GLsizeiptr cap = _capReveal > 0 ? _capReveal : (GLsizeiptr)256;
+		while (cap < revealBytesNeeded) cap *= 2;
+		glNamedBufferData(_revealSSBO, cap, nullptr, GL_DYNAMIC_DRAW);
+		_capReveal = cap;
+		_revealDrawsStored = 0;
+	}
+	if (_revealDrawsStored != (GLsizei)count) {
+		std::vector<GLuint> zeros(count, 0u);
+		glNamedBufferSubData(_revealSSBO, 0, revealBytesNeeded, zeros.data());
+		_revealDrawsStored = (GLsizei)count;
+	}
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 12, _revealSSBO);
 
 	glUniform1ui(_locNumDraws, (GLuint)count);
 	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
 	// Enable occlusion only when a valid previous-frame depth & transforms are available
-    if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
-    if (_locHystThreshold >= 0) glUniform1ui(_locHystThreshold, 2u);
-    if (_locRevealThreshold >= 0) glUniform1ui(_locRevealThreshold, 2u);
+	if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
+	if (_locHystThreshold >= 0) glUniform1ui(_locHystThreshold, 2u);
+	if (_locRevealThreshold >= 0) glUniform1ui(_locRevealThreshold, 2u);
 
 	// Disable Hi-Z debug recording to avoid GPU-CPU sync stalls
 	if (_locDebugLogOcclu >= 0) glUniform1i(_locDebugLogOcclu, 0);
@@ -491,7 +491,7 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 	glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 	glUseProgram(prev ? (GLuint)prev : 0);
 
-    // Heavy debug aggregation removed; this avoids large readbacks each frame.
+	// Heavy debug aggregation removed; this avoids large readbacks each frame.
 }
 
 // OpenGL setup for culling and rendering
