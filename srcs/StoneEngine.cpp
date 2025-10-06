@@ -2309,10 +2309,11 @@ void StoneEngine::renderSolidObjects()
 			float pitchDelta = std::abs(ang.y - _prevCamAngles.y);
 			float rotDelta   = std::max(yawDelta, pitchDelta);
 			float fovDelta   = std::abs(fov - _prevFov);
-			// Thresholds: ~0.5m movement, ~1.5 deg rotation, any noticeable FOV change
-			if (posDelta > 0.5f || rotDelta > 1.5f || fovDelta > 0.25f) {
-				_occlDisableFrames = std::max(_occlDisableFrames, 2);
-			}
+            // Stricter thresholds to stabilize occlusion during close strafing
+            // ~0.25m movement, ~1.0 deg rotation, any noticeable FOV change
+            if (posDelta > 0.25f || rotDelta > 1.0f || fovDelta > 0.25f) {
+                _occlDisableFrames = std::max(_occlDisableFrames, 3);
+            }
 		}
 		_prevCamPos   = cam;
 		_prevCamAngles= ang;

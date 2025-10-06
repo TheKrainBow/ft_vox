@@ -15,6 +15,9 @@ layout(std140, binding=3) uniform Frustum { vec4 planes[6]; };
 
 // Optional occlusion inputs (previous-frame depth)
 uniform bool  useOcclusion;
+uniform bool  debugLogOcclusion; // when true, record IDs culled by Hi-Z
+uniform uint  hystThreshold;     // frames to wait before actually culling
+uniform uint  revealThreshold;   // frames to keep visible after reveal
 uniform sampler2D depthTex;
 uniform mat4 view;
 uniform mat4 proj;
@@ -22,6 +25,14 @@ uniform vec2 viewport; // pixels
 uniform vec3 camPos;   // world-space camera position
 uniform float chunkSize;
 uniform uint  numDraws;
+
+// Debug output buffers (only used when debugLogOcclusion == true)
+layout(std430, binding=9)  writeonly buffer CullDebugIDs { uint culledIDs[]; };
+layout(std430, binding=10) coherent  buffer CullDebugCount { uint culledCount; };
+// Temporal hysteresis state (per draw)
+layout(std430, binding=11) buffer Hysteresis { uint hyst[]; };
+// Reveal-hold state (per draw)
+layout(std430, binding=12) buffer RevealHold { uint reveal[]; };
 
 bool aabbOutsideFrustum(vec3 mn, vec3 mx) {
 	vec3 c = 0.5*(mn+mx);
@@ -87,24 +98,30 @@ bool aabbOccluded(vec3 mn, vec3 mx) {
 		return false;
 	}
 
-	// Very near AABB: skip occlusion (avoid corner adjacency popping)
-	float d2 = dot(camPos - pClosest, camPos - pClosest);
-	if (d2 < 9.0) { // within ~3 blocks
-		return false;
-	}
+    // Very near AABB: skip occlusion (avoid corner adjacency popping and flicker)
+    float d2 = dot(camPos - pClosest, camPos - pClosest);
+    if (d2 < 16.0) { // within ~4 blocks
+        return false;
+    }
 
 	// Clamp rect to viewport
 	vec2 pxMinF = floor(clamp(uvMin * viewport, vec2(0.0), viewport - vec2(1.0)));
 	vec2 pxMaxF = ceil (clamp(uvMax * viewport, vec2(0.0), viewport - vec2(1.0)));
-	ivec2 pxMin = ivec2(pxMinF) - ivec2(2);
-	ivec2 pxMax = ivec2(pxMaxF) + ivec2(2);
-	pxMin = clamp(pxMin, ivec2(0), ivec2(viewport) - ivec2(1));
-	pxMax = clamp(pxMax, ivec2(0), ivec2(viewport) - ivec2(1));
-	if (pxMax.x < pxMin.x || pxMax.y < pxMin.y) return false; // empty
+    // Add a wider safety border to stabilize around thin occluders
+    ivec2 pxMin = ivec2(pxMinF) - ivec2(6);
+    ivec2 pxMax = ivec2(pxMaxF) + ivec2(6);
+    pxMin = clamp(pxMin, ivec2(0), ivec2(viewport) - ivec2(1));
+    pxMax = clamp(pxMax, ivec2(0), ivec2(viewport) - ivec2(1));
+    if (pxMax.x < pxMin.x || pxMax.y < pxMin.y) return false; // empty
+
+    // Skip occlusion for very small projected areas (highly unstable temporally)
+    ivec2 extent = pxMax - pxMin + ivec2(1);
+    int areaPx = extent.x * extent.y;
+    if (areaPx < 64) return false;
 
 	// Coarse sampling grid (reduced to lighten compute cost)
-	const int STEPS = 5;
-	float eps = 5e-2; // tolerance on depth compare (avoid edge flicker)
+    const int STEPS = 5;
+    float eps = 1.5e-1; // larger tolerance on depth compare (reduce popping)
 	for (int iy = 0; iy < STEPS; ++iy) {
 		for (int ix = 0; ix < STEPS; ++ix) {
 			float tx = (float(ix) + 0.5) / float(STEPS);
@@ -132,8 +149,41 @@ void main() {
 	// Frustum test (conservative)
 	if (aabbOutsideFrustum(mn, mx)) return;
 
-	// Optional previous-frame occlusion test (Hierarchical Z via hardware sampler LODs)
-	if (aabbOccluded(mn, mx)) return;
+    // Optional previous-frame occlusion test with temporal hysteresis
+    bool occl = aabbOccluded(mn, mx);
+    if (useOcclusion) {
+        uint h = hyst[i];
+        uint rv = reveal[i];
+
+        // If just became visible (occl=false), start/refresh a reveal hold
+        if (!occl) {
+            uint target = max(1u, revealThreshold);
+            if (rv < target) reveal[i] = target;
+            // Decay hysteresis so it doesn't quickly re-trigger cull
+            hyst[i] = (h > 0u) ? (h - 1u) : 0u;
+        } else {
+            // If in reveal hold window, force visible and decrement hold
+            if (rv > 0u) {
+                reveal[i] = rv - 1u;
+                occl = false;
+            }
+        }
+
+        if (occl) {
+            // Increase hysteresis; only cull when it reaches the threshold
+            uint nh = (h < 0xFFFFFFFFu) ? (h + 1u) : h;
+            hyst[i] = nh;
+            bool allowCull = (nh >= max(1u, hystThreshold));
+            if (allowCull) {
+                if (debugLogOcclusion) {
+                    uint idx = atomicAdd(culledCount, 1u);
+                    if (idx < numDraws) culledIDs[idx] = i;
+                }
+                return;
+            }
+            // Not yet allowed to cull: treat as visible this frame
+        }
+    }
 
 	// Visible: append to compacted command/metadata buffers
 	uint dst = atomicAdd(drawCount, 1u);

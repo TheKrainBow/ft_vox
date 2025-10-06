@@ -72,6 +72,9 @@ private:
 	GLint									_locView = -1;
 	GLint									_locProj = -1;
 	GLint									_locCamPos = -1;
+    GLint                                      _locDebugLogOcclu = -1;
+    GLint                                      _locHystThreshold = -1;
+    GLint                                      _locRevealThreshold = -1;
 
 	// Previous-frame depth context for occlusion
 	GLuint                                      _occDepthTex = 0;
@@ -84,6 +87,22 @@ private:
 
 	// Debug/metrics
 	long long								_lastSolidTris = 0;
+
+	// Debug Hi-Z culled IDs capture
+	GLuint                                      _cullDebugIDsSSBO = 0;   // binding=9
+	GLuint                                      _cullDebugCountBuf = 0;  // binding=10
+	GLsizeiptr                                  _capCullDebugIDs = 0;    // capacity in bytes
+	bool                                        _enableHiZDebugLogs = false;
+
+	// Occlusion hysteresis buffer (per-draw counters)
+    GLuint                                      _hystSSBO = 0;           // binding=11
+    GLsizeiptr                                  _capHyst = 0;            // bytes
+    GLsizei                                     _hystDrawsStored = 0;    // last count used to size/reset
+
+    // Reveal hold buffer (per-draw counters)
+    GLuint                                      _revealSSBO = 0;         // binding=12
+    GLsizeiptr                                  _capReveal = 0;          // bytes
+    GLsizei                                     _revealDrawsStored = 0;  // last count
 
 	// Last good GPU-cull counts to avoid flashing fallback when mapping fails
 	GLsizei									_lastGoodSolidCount = 0;
