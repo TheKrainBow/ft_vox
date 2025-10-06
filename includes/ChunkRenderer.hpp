@@ -41,12 +41,12 @@ private:
 	GLuint									_transpPosSrcSSBO = 0;  // binding 0 for transparent pass
 	GLuint									_solidInstSSBO = 0;     // binding=4 for SOLID
 	GLuint									_transpInstSSBO = 0;    // binding=4 for TRANSPARENT
-    // Per-draw meta (direction etc.)
-    // For compute: SRC is read-only; DST is compacted alongside commands
-    GLuint                                  _solidMetaSrcSSBO = 0;
-    GLuint                                  _transpMetaSrcSSBO = 0;
-    GLuint                                  _solidMetaSSBO    = 0; // compacted, bound at draw (binding=7)
-    GLuint                                  _transpMetaSSBO   = 0; // compacted, bound at draw (binding=7)
+	// Per-draw meta (direction etc.)
+	// For compute: SRC is read-only; DST is compacted alongside commands
+	GLuint									_solidMetaSrcSSBO = 0;
+	GLuint									_transpMetaSrcSSBO = 0;
+	GLuint									_solidMetaSSBO    = 0; // compacted, bound at draw (binding=7)
+	GLuint									_transpMetaSSBO   = 0; // compacted, bound at draw (binding=7)
 
 	// Update notifiers from ChunkManager
 	std::atomic_bool						_needUpdate;
@@ -66,28 +66,28 @@ private:
 	GLint									_locNumDraws = -1;
 	GLint									_locChunkSize = -1;
 	// Occlusion uniforms
-	GLint                                       _locUseOcclu = -1;
-	GLint                                       _locDepthTex = -1;
-	GLint                                       _locViewport = -1;
-	GLint                                       _locView = -1;
-	GLint                                       _locProj = -1;
-	GLint                                       _locCamPos = -1;
+	GLint									_locUseOcclu = -1;
+	GLint									_locDepthTex = -1;
+	GLint									_locViewport = -1;
+	GLint									_locView = -1;
+	GLint									_locProj = -1;
+	GLint									_locCamPos = -1;
 
 	// Previous-frame depth context for occlusion
 	GLuint                                      _occDepthTex = 0;
-	int                                         _occW = 0;
-	int                                         _occH = 0;
-	glm::mat4                                   _occView{1.0f};
-	glm::mat4                                   _occProj{1.0f};
-	bool                                        _occAvailable = false;
-	glm::vec3                                   _occCamPos{0.0f};
+	int									  _occW = 0;
+	int									  _occH = 0;
+	glm::mat4								_occView{1.0f};
+	glm::mat4								_occProj{1.0f};
+	bool									 _occAvailable = false;
+	glm::vec3								_occCamPos{0.0f};
 
-		// Debug/metrics
-		long long								_lastSolidTris = 0;
+	// Debug/metrics
+	long long								_lastSolidTris = 0;
 
-		// Last good GPU-cull counts to avoid flashing fallback when mapping fails
-		GLsizei									_lastGoodSolidCount = 0;
-		GLsizei									_lastGoodTranspCount = 0;
+	// Last good GPU-cull counts to avoid flashing fallback when mapping fails
+	GLsizei									_lastGoodSolidCount = 0;
+	GLsizei									_lastGoodTranspCount = 0;
 
 	// Buffer capacities to minimize reallocations
 	GLsizeiptr								_capTemplSolidCmd  = 0;
@@ -100,10 +100,10 @@ private:
 	GLsizeiptr								_capTranspSSBO     = 0;
 	GLsizeiptr								_capSolidSSBOSrc  = 0;
 	GLsizeiptr								_capTranspSSBOSrc = 0;
-    GLsizeiptr                                  _capSolidMetaSrc = 0;
-    GLsizeiptr                                  _capTranspMetaSrc = 0;
-    GLsizeiptr                                  _capSolidMeta   = 0;
-    GLsizeiptr                                  _capTranspMeta  = 0;
+	GLsizeiptr                                  _capSolidMetaSrc = 0;
+	GLsizeiptr                                  _capTranspMetaSrc = 0;
+	GLsizeiptr                                  _capSolidMeta   = 0;
+	GLsizeiptr                                  _capTranspMeta  = 0;
 
 	// Common mutexes between ChunkLoader and ChunkRenderer
 	std::mutex								&_solidDrawDataMutex;
@@ -121,9 +121,9 @@ private:
 	bool	_hasBufferInitialized;
 
 	// Optional GPU sync after each solid draw (used for shadow cascades)
-    bool    _syncAfterDraw = false;
-    // Fence to ensure previous frame finished before CPU uploads to shared buffers
-    GLsync  _uploadGuard = 0;
+	bool    _syncAfterDraw = false;
+	// Fence to ensure previous frame finished before CPU uploads to shared buffers
+	GLsync  _uploadGuard = 0;
 public:
 	ChunkRenderer(
 		std::mutex &solidDrawDataMutex,
@@ -162,7 +162,7 @@ private:
 	void initGpuCulling();
 	void runGpuCulling(bool transparent);
 
-	// Warmup frames after data upload where we draw using the
+    // Warmup frames after data upload that draw using the
 	// template indirect buffer + SOURCE positions to avoid any
 	// subtle compaction/driver edge cases on tiny batches.
 	int _solidWarmupFrames = 0;

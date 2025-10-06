@@ -20,9 +20,9 @@ _hasBufferInitialized(false)
 
 ChunkRenderer::~ChunkRenderer()
 {
-    delete _solidDrawData;
-    delete _transparentDrawData;
-    if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
+	delete _solidDrawData;
+	delete _transparentDrawData;
+	if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
 }
 
 // Explicit GL teardown
@@ -46,20 +46,20 @@ void ChunkRenderer::shutdownGL()
 	if (_transpPosSSBO) { glDeleteBuffers(1, &_transpPosSSBO); _transpPosSSBO = 0; }
 	if (_solidInstSSBO) { glDeleteBuffers(1, &_solidInstSSBO); _solidInstSSBO = 0; }
 	if (_transpInstSSBO) { glDeleteBuffers(1, &_transpInstSSBO); _transpInstSSBO = 0; }
-    if (_solidPosSrcSSBO)  { glDeleteBuffers(1, &_solidPosSrcSSBO);  _solidPosSrcSSBO = 0; }
-    if (_transpPosSrcSSBO) { glDeleteBuffers(1, &_transpPosSrcSSBO); _transpPosSrcSSBO = 0; }
-    if (_solidMetaSrcSSBO) { glDeleteBuffers(1, &_solidMetaSrcSSBO); _solidMetaSrcSSBO = 0; }
-    if (_transpMetaSrcSSBO){ glDeleteBuffers(1, &_transpMetaSrcSSBO); _transpMetaSrcSSBO = 0; }
-    if (_solidMetaSSBO)    { glDeleteBuffers(1, &_solidMetaSSBO);    _solidMetaSSBO = 0; }
-    if (_transpMetaSSBO)   { glDeleteBuffers(1, &_transpMetaSSBO);   _transpMetaSSBO = 0; }
+	if (_solidPosSrcSSBO)  { glDeleteBuffers(1, &_solidPosSrcSSBO);  _solidPosSrcSSBO = 0; }
+	if (_transpPosSrcSSBO) { glDeleteBuffers(1, &_transpPosSrcSSBO); _transpPosSrcSSBO = 0; }
+	if (_solidMetaSrcSSBO) { glDeleteBuffers(1, &_solidMetaSrcSSBO); _solidMetaSrcSSBO = 0; }
+	if (_transpMetaSrcSSBO){ glDeleteBuffers(1, &_transpMetaSrcSSBO); _transpMetaSrcSSBO = 0; }
+	if (_solidMetaSSBO)    { glDeleteBuffers(1, &_solidMetaSSBO);    _solidMetaSSBO = 0; }
+	if (_transpMetaSSBO)   { glDeleteBuffers(1, &_transpMetaSSBO);   _transpMetaSSBO = 0; }
 }
 
 // Shared data setters
 void ChunkRenderer::setViewProj(glm::vec4 planes[6]) {
-    // Orphan UBO storage to avoid writing into memory potentially in use
-    glNamedBufferData(_frustumUBO, 6 * sizeof(glm::vec4), planes, GL_DYNAMIC_DRAW);
-    // Reset occlusion source unless explicitly set for this view
-    _occAvailable = false;
+	// Orphan UBO storage to avoid writing into memory potentially in use
+	glNamedBufferData(_frustumUBO, 6 * sizeof(glm::vec4), planes, GL_DYNAMIC_DRAW);
+	// Reset occlusion source unless explicitly set for this view
+	_occAvailable = false;
 }
 
 void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
@@ -68,7 +68,7 @@ void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
 {
 	// If draw data changed this frame, previous-frame depth may be invalid.
 	// In that case, disable occlusion for this frame to avoid popping.
-	// Note: don't gate solid-pass occlusion on transparent updates; the solid
+    // Do not gate solid-pass occlusion on transparent updates; the solid
 	// pass can safely use previous-frame depth even if transparent buffers
 	// haven’t been refreshed yet.
 	bool disableOcclusionThisFrame = _needUpdate.load();
@@ -123,18 +123,18 @@ void ChunkRenderer::updateDrawData()
 	}
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
-    // removed debug mismatch logs for solid
-    // Transparent sanity (uses the same SSBO)
-    // removed debug mismatch logs for transparent
+	// removed debug mismatch logs for solid
+	// Transparent sanity (uses the same SSBO)
+	// removed debug mismatch logs for transparent
 }
 
 // Render passes for solid and transparent blocks
 int ChunkRenderer::renderSolidBlocks()
 {
-    if (!_solidDrawData) return 0;
-    if (_needUpdate) { pushVerticesToOpenGL(false); }
-    if (_solidDrawCount == 0) {
-		// No fresh commands this frame. If we have a last good count, draw those
+	if (!_solidDrawData) return 0;
+	if (_needUpdate) { pushVerticesToOpenGL(false); }
+	if (_solidDrawCount == 0) {
+		// No fresh commands this frame. If a last good count exists, draw those
 		// existing commands to avoid an empty frame while chunks update.
 		if (_lastGoodSolidCount > 0) {
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
@@ -155,136 +155,136 @@ int ChunkRenderer::renderSolidBlocks()
 		return 0;
 	}
 
-    // Warmup/template path for a few frames after uploads or when the batch is tiny
-    bool useTemplatePath = (_solidWarmupFrames > 0) || (_solidDrawCount <= 32);
-    if (_solidDrawCount > 0 && _solidPosSrcSSBO && _templIndirectBuffer && useTemplatePath) {
-        // Template path: bind SOURCE position, instances and per-draw meta
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSrcSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _solidMetaSrcSSBO);
-        glBindVertexArray(_vao);
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _templIndirectBuffer);
-        glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-        glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount,
-                                   sizeof(DrawArraysIndirectCommand));
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-        glBindVertexArray(0);
-        if (_solidWarmupFrames > 0) --_solidWarmupFrames;
-        return (int)_lastSolidTris;
-    }
+	// Warmup/template path for a few frames after uploads or when the batch is tiny
+	bool useTemplatePath = (_solidWarmupFrames > 0) || (_solidDrawCount <= 32);
+	if (_solidDrawCount > 0 && _solidPosSrcSSBO && _templIndirectBuffer && useTemplatePath) {
+		// Template path: bind SOURCE position, instances and per-draw meta
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSrcSSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _solidMetaSrcSSBO);
+		glBindVertexArray(_vao);
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _templIndirectBuffer);
+		glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+		glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _solidDrawCount,
+								   sizeof(DrawArraysIndirectCommand));
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+		glBindVertexArray(0);
+		if (_solidWarmupFrames > 0) --_solidWarmupFrames;
+		return (int)_lastSolidTris;
+	}
 
-    runGpuCulling(false);
+	runGpuCulling(false);
 
-    // Bind per-pass SSBOs (single-buffer path)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _solidMetaSSBO);
+	// Bind per-pass SSBOs (single-buffer path)
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _solidInstSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _solidMetaSSBO);
 
-    glBindVertexArray(_vao);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
-    glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf); // contains uint drawCount
-    // removed dump diagnostics for solid
-    // Defensive sanity: if the first few compacted commands are zero but we have a draw count,
-    // fall back to using template commands for this frame to avoid flicker.
-    if (_solidDrawCount > 0) {
-        const size_t probe = std::min<size_t>(8, (size_t)_solidDrawCount);
-        std::vector<DrawArraysIndirectCommand> head(probe);
-        glGetNamedBufferSubData(_indirectBuffer, 0, probe * sizeof(DrawArraysIndirectCommand), head.data());
-        bool allZero = true;
-        for (size_t i = 0; i < probe; ++i) {
-            if (head[i].instanceCount != 0u) { allZero = false; break; }
-        }
-        if (allZero) {
-            GLsizeiptr bytesCmd = (GLsizeiptr)_solidDrawCount * sizeof(DrawArraysIndirectCommand);
-            glCopyNamedBufferSubData(_templIndirectBuffer, _indirectBuffer, 0, 0, bytesCmd);
-            // Also mirror per-draw meta so directions match the template commands
-            GLsizeiptr bytesMeta = (GLsizeiptr)_solidDrawCount * sizeof(uint32_t);
-            glCopyNamedBufferSubData(_solidMetaSrcSSBO, _solidMetaSSBO, 0, 0, bytesMeta);
-            glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-            // silent fallback
-        }
-    }
+	glBindVertexArray(_vao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _indirectBuffer);
+	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf); // contains uint drawCount
+	// removed dump diagnostics for solid
+	// Defensive sanity: if the first few compacted commands are zero but a draw count exists,
+	// fall back to using template commands for this frame to avoid flicker.
+	if (_solidDrawCount > 0) {
+		const size_t probe = std::min<size_t>(8, (size_t)_solidDrawCount);
+		std::vector<DrawArraysIndirectCommand> head(probe);
+		glGetNamedBufferSubData(_indirectBuffer, 0, probe * sizeof(DrawArraysIndirectCommand), head.data());
+		bool allZero = true;
+		for (size_t i = 0; i < probe; ++i) {
+			if (head[i].instanceCount != 0u) { allZero = false; break; }
+		}
+		if (allZero) {
+			GLsizeiptr bytesCmd = (GLsizeiptr)_solidDrawCount * sizeof(DrawArraysIndirectCommand);
+			glCopyNamedBufferSubData(_templIndirectBuffer, _indirectBuffer, 0, 0, bytesCmd);
+			// Also mirror per-draw meta so directions match the template commands
+			GLsizeiptr bytesMeta = (GLsizeiptr)_solidDrawCount * sizeof(uint32_t);
+			glCopyNamedBufferSubData(_solidMetaSrcSSBO, _solidMetaSSBO, 0, 0, bytesMeta);
+			glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+			// silent fallback
+		}
+	}
 
-    glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
-                                   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
-                                   sizeof(DrawArraysIndirectCommand));
+	glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
+								   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
+								   sizeof(DrawArraysIndirectCommand));
 
-    // Robust path for small draw lists: avoid IndirectCount on some drivers
-    // that may drop draws when the count is small. Read the count and use
-    // glMultiDrawArraysIndirect explicitly.
-    bool usedExplicit = false;
-    if (_solidDrawCount <= 32) {
-        GLuint* mapped = (GLuint*)glMapNamedBufferRange(
-            _solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
-        GLuint dc = 0;
-        if (mapped) { dc = *mapped; glUnmapNamedBuffer(_solidParamsBuf); }
-        if (dc > 0) {
-            _lastGoodSolidCount = (GLsizei)dc;
-            glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-            glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, (GLsizei)dc,
-                                       sizeof(DrawArraysIndirectCommand));
-            glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
-            usedExplicit = true;
-        }
-    }
-    if (!usedExplicit) {
-        glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
-                                       /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
-                                       sizeof(DrawArraysIndirectCommand));
-    }
+	// Robust path for small draw lists: avoid IndirectCount on some drivers
+	// that may drop draws when the count is small. Read the count and use
+	// glMultiDrawArraysIndirect explicitly.
+	bool usedExplicit = false;
+	if (_solidDrawCount <= 32) {
+		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+			_solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+		GLuint dc = 0;
+		if (mapped) { dc = *mapped; glUnmapNamedBuffer(_solidParamsBuf); }
+		if (dc > 0) {
+			_lastGoodSolidCount = (GLsizei)dc;
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+			glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, (GLsizei)dc,
+									   sizeof(DrawArraysIndirectCommand));
+			glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+			usedExplicit = true;
+		}
+	}
+	if (!usedExplicit) {
+		glMultiDrawArraysIndirectCount(GL_TRIANGLE_STRIP, /*indirect*/ nullptr,
+									   /*drawcount*/ 0, /*maxcount*/ _solidDrawCount,
+									   sizeof(DrawArraysIndirectCommand));
+	}
 
-    // Safety fallback: if GPU culling produced zero draws OR mapping failed,
-    // render a conservative count to avoid empty frames.
-    if (!usedExplicit) {
-        bool needFallback = false;
-        bool zeroCount    = false;
-        GLuint* mapped = (GLuint*)glMapNamedBufferRange(
-            _solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
-        if (mapped) {
-            GLuint dc = *mapped;
-            glUnmapNamedBuffer(_solidParamsBuf);
-            zeroCount = (dc == 0u);
-            if (!zeroCount) {
-                _lastGoodSolidCount = (GLsizei)dc;
-            } else {
-                needFallback = true;
-            }
-        } else {
-            needFallback = true;
-        }
-        if (needFallback) {
-            GLsizei count = _lastGoodSolidCount > 0 ? _lastGoodSolidCount : _solidDrawCount;
-            if (count > 0) {
-                glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-                glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, count,
-                                           sizeof(DrawArraysIndirectCommand));
-                glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
-                if (_lastGoodSolidCount == 0) _lastGoodSolidCount = count;
-            }
-        }
-    }
-    glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	// Safety fallback: if GPU culling produced zero draws OR mapping failed,
+	// render a conservative count to avoid empty frames.
+	if (!usedExplicit) {
+		bool needFallback = false;
+		bool zeroCount    = false;
+		GLuint* mapped = (GLuint*)glMapNamedBufferRange(
+			_solidParamsBuf, 0, sizeof(GLuint), GL_MAP_READ_BIT);
+		if (mapped) {
+			GLuint dc = *mapped;
+			glUnmapNamedBuffer(_solidParamsBuf);
+			zeroCount = (dc == 0u);
+			if (!zeroCount) {
+				_lastGoodSolidCount = (GLsizei)dc;
+			} else {
+				needFallback = true;
+			}
+		} else {
+			needFallback = true;
+		}
+		if (needFallback) {
+			GLsizei count = _lastGoodSolidCount > 0 ? _lastGoodSolidCount : _solidDrawCount;
+			if (count > 0) {
+				glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+				glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, count,
+										   sizeof(DrawArraysIndirectCommand));
+				glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf);
+				if (_lastGoodSolidCount == 0) _lastGoodSolidCount = count;
+			}
+		}
+	}
+	glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
 
 	// When requested (e.g., during shadow-cascade rendering), insert a GPU fence
 	// so subsequent compute passes won’t overwrite shared buffers while this draw
 	// is still in flight. This avoids rare “scrambled subchunk” flashes.
-    if (_syncAfterDraw) {
-        GLsync fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        if (fence) {
-            // Wait until the GPU reaches the fence; flush if needed.
-            (void)glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000)); // 1s cap
-            glDeleteSync(fence);
-        }
-    }
+	if (_syncAfterDraw) {
+		GLsync fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		if (fence) {
+			// Wait until the GPU reaches the fence; flush if needed.
+			(void)glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000)); // 1s cap
+			glDeleteSync(fence);
+		}
+	}
 
-    // Always set an upload guard after finishing a draw using these buffers.
-    // Next time we upload new data, we will wait on this to avoid races.
-    if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
-    _uploadGuard = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+	// Always set an upload guard after finishing a draw using these buffers.
+	// On the next upload, wait on this to avoid races.
+	if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
+	_uploadGuard = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
 	// Prefer cached triangles count if CPU buffers were discarded
-    long long tris = 0;
+	long long tris = 0;
 	if (!_solidDrawData->indirectBufferData.empty()) {
 		for (const auto& c : _solidDrawData->indirectBufferData) {
 			long long per = (c.count >= 3) ? (c.count - 2) : 0;
@@ -297,52 +297,52 @@ int ChunkRenderer::renderSolidBlocks()
 
 	// After solid upload/draw, CPU-side solid draw data is no longer needed
 	// Keep ssboData for the transparent pass upload
-    if (!_needUpdate) {
-        _solidDrawData->vertexData.clear();
-        _solidDrawData->indirectBufferData.clear();
-        _solidDrawData->drawMeta.clear();
-        std::vector<int>().swap(_solidDrawData->vertexData);
-        std::vector<DrawArraysIndirectCommand>().swap(_solidDrawData->indirectBufferData);
-        std::vector<uint32_t>().swap(_solidDrawData->drawMeta);
-    }
-    // removed draw count log
-    return (int)tris;
+	if (!_needUpdate) {
+		_solidDrawData->vertexData.clear();
+		_solidDrawData->indirectBufferData.clear();
+		_solidDrawData->drawMeta.clear();
+		std::vector<int>().swap(_solidDrawData->vertexData);
+		std::vector<DrawArraysIndirectCommand>().swap(_solidDrawData->indirectBufferData);
+		std::vector<uint32_t>().swap(_solidDrawData->drawMeta);
+	}
+	// removed draw count log
+	return (int)tris;
 }
 
 int ChunkRenderer::renderTransparentBlocks()
 {
-    if (!_transparentDrawData) return 0;
-    if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
-    if (_transpDrawCount == 0) return 0;
+	if (!_transparentDrawData) return 0;
+	if (_needTransparentUpdate) { pushVerticesToOpenGL(true); }
+	if (_transpDrawCount == 0) return 0;
 
-    // Bypass compute compaction for transparent: use template commands and SOURCE buffers
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _transpMetaSrcSSBO);
+	// Bypass compute compaction for transparent: use template commands and SOURCE buffers
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _transpMetaSrcSSBO);
 
-    glDisable(GL_CULL_FACE);
-    glBindVertexArray(_transparentVao);
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transpTemplIndirectBuffer);
-    glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount,
-                              sizeof(DrawArraysIndirectCommand));
-    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-    glBindVertexArray(0);
-    // Set an upload guard after finishing transparent draw, too
-    if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
-    _uploadGuard = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    // After transparent upload/draw, CPU-side transparent draw data is no longer needed
-    if (!_needTransparentUpdate) {
-        _transparentDrawData->vertexData.clear();
-        _transparentDrawData->indirectBufferData.clear();
-        _transparentDrawData->drawMeta.clear();
-        std::vector<int>().swap(_transparentDrawData->vertexData);
-        std::vector<DrawArraysIndirectCommand>().swap(_transparentDrawData->indirectBufferData);
-        std::vector<uint32_t>().swap(_transparentDrawData->drawMeta);
-    }
-    return (int)_transpDrawCount;
-    // removed dumps for transparent
-    // Note: we early-return above; code below is never executed in template path
-    // Keeping function structure minimal for now while stabilizing visuals.
+	glDisable(GL_CULL_FACE);
+	glBindVertexArray(_transparentVao);
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _transpTemplIndirectBuffer);
+	glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, _transpDrawCount,
+							  sizeof(DrawArraysIndirectCommand));
+	glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+	glBindVertexArray(0);
+	// Set an upload guard after finishing transparent draw, too
+	if (_uploadGuard) { glDeleteSync(_uploadGuard); _uploadGuard = 0; }
+	_uploadGuard = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+	// After transparent upload/draw, CPU-side transparent draw data is no longer needed
+	if (!_needTransparentUpdate) {
+		_transparentDrawData->vertexData.clear();
+		_transparentDrawData->indirectBufferData.clear();
+		_transparentDrawData->drawMeta.clear();
+		std::vector<int>().swap(_transparentDrawData->vertexData);
+		std::vector<DrawArraysIndirectCommand>().swap(_transparentDrawData->indirectBufferData);
+		std::vector<uint32_t>().swap(_transparentDrawData->drawMeta);
+	}
+	return (int)_transpDrawCount;
+	// removed dumps for transparent
+	// Early-return above; code below is never executed in template path
+	// Keeping function structure minimal for now while stabilizing visuals.
 }
 
 int ChunkRenderer::renderTransparentBlocksNoCullForShadow()
@@ -352,10 +352,10 @@ int ChunkRenderer::renderTransparentBlocksNoCullForShadow()
 	if (_transpDrawCount == 0) return 0;
 
 	// Bind per-pass SSBOs: use SOURCE positions (binding=3) so no compute is required
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
-    // Use SOURCE meta here to match the template commands (no compaction)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _transpMetaSrcSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _transpPosSrcSSBO);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _transpInstSSBO);
+	// Use SOURCE meta here to match the template commands (no compaction)
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _transpMetaSrcSSBO);
 
 	glDisable(GL_CULL_FACE);
 	glBindVertexArray(_transparentVao);
@@ -379,9 +379,9 @@ void ChunkRenderer::initGpuCulling() {
 	_locProj      = glGetUniformLocation(_cullProgram, "proj");
 	_locCamPos    = glGetUniformLocation(_cullProgram, "camPos");
 
-    // Frustum UBO (6 vec4)
-    glCreateBuffers(1, &_frustumUBO);
-    glNamedBufferData(_frustumUBO, sizeof(glm::vec4) * 6, nullptr, GL_DYNAMIC_DRAW);
+	// Frustum UBO (6 vec4)
+	glCreateBuffers(1, &_frustumUBO);
+	glNamedBufferData(_frustumUBO, sizeof(glm::vec4) * 6, nullptr, GL_DYNAMIC_DRAW);
 }
 
 void ChunkRenderer::runGpuCulling(bool transparent) {
@@ -390,39 +390,39 @@ void ChunkRenderer::runGpuCulling(bool transparent) {
 	GLsizei count = transparent ? _transpDrawCount : _solidDrawCount;
 	if (count <= 0) return;
 
-    // reset counter to 0 using orphaning to avoid racing on in-use storage
-    GLuint zero = 0;
-    GLuint param = transparent ? _transpParamsBuf : _solidParamsBuf;
-    glNamedBufferData(param, sizeof(GLuint), &zero, GL_DYNAMIC_DRAW);
+	// reset counter to 0 using orphaning to avoid racing on in-use storage
+	GLuint zero = 0;
+	GLuint param = transparent ? _transpParamsBuf : _solidParamsBuf;
+	glNamedBufferData(param, sizeof(GLuint), &zero, GL_DYNAMIC_DRAW);
 
 	glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
 	GLint prev = 0; glGetIntegerv(GL_CURRENT_PROGRAM, &prev);
 	glUseProgram(_cullProgram);
-    GLuint posSrc = transparent ? _transpPosSrcSSBO : _solidPosSrcSSBO; // binding 0
-    GLuint posDst = transparent ? _transpPosSSBO    : _solidPosSSBO;    // binding 6
-    GLuint metaSrc= transparent ? _transpMetaSrcSSBO: _solidMetaSrcSSBO; // binding 7
-    GLuint metaDst= transparent ? _transpMetaSSBO   : _solidMetaSSBO;    // binding 8
+	GLuint posSrc = transparent ? _transpPosSrcSSBO : _solidPosSrcSSBO; // binding 0
+	GLuint posDst = transparent ? _transpPosSSBO    : _solidPosSSBO;    // binding 6
+	GLuint metaSrc= transparent ? _transpMetaSrcSSBO: _solidMetaSrcSSBO; // binding 7
+	GLuint metaDst= transparent ? _transpMetaSSBO   : _solidMetaSSBO;    // binding 8
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, posSrc); // read
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, templ);  // read
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, out);    // write (commands)
 	glBindBufferBase(GL_UNIFORM_BUFFER,        3, _frustumUBO);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, param);  // counter
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, posDst); // write (compacted posRes)
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, metaSrc); // read meta
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, metaDst); // write compacted meta
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, posDst); // write (compacted posRes)
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, metaSrc); // read meta
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, metaDst); // write compacted meta
 
 	glUniform1ui(_locNumDraws, (GLuint)count);
 	glUniform1f (_locChunkSize, (float)CHUNK_SIZE);
-    // Enable occlusion only when a valid previous-frame depth & transforms are available
-    if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
-    if (_occAvailable) {
-        if (_locDepthTex >= 0) {
-            // Bind to unit 7
-            glBindTextureUnit(7, _occDepthTex);
-            glUniform1i(_locDepthTex, 7);
-        }
+	// Enable occlusion only when a valid previous-frame depth & transforms are available
+	if (_locUseOcclu >= 0) glUniform1i(_locUseOcclu, _occAvailable ? 1 : 0);
+	if (_occAvailable) {
+		if (_locDepthTex >= 0) {
+			// Bind to unit 7
+			glBindTextureUnit(7, _occDepthTex);
+			glUniform1i(_locDepthTex, 7);
+		}
 		if (_locViewport >= 0) glUniform2f(_locViewport, (float)_occW, (float)_occH);
 		if (_locView >= 0)     glUniformMatrix4fv(_locView, 1, GL_FALSE, glm::value_ptr(_occView));
 		if (_locProj >= 0)     glUniformMatrix4fv(_locProj, 1, GL_FALSE, glm::value_ptr(_occProj));
@@ -470,12 +470,12 @@ void ChunkRenderer::initGLBuffer()
 	glCreateBuffers(1, &_templIndirectBuffer);
 	glCreateBuffers(1, &_transpTemplIndirectBuffer);
 
-    // Parameter buffers store the draw count written by the compute culling pass.
-    // Use glNamedBufferData so we can orphan storage safely when resetting.
-    glCreateBuffers(1, &_solidParamsBuf);
-    glNamedBufferData(_solidParamsBuf, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
-    glCreateBuffers(1, &_transpParamsBuf);
-    glNamedBufferData(_transpParamsBuf, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
+	// Parameter buffers store the draw count written by the compute culling pass.
+	// Use glNamedBufferData to orphan storage safely when resetting.
+	glCreateBuffers(1, &_solidParamsBuf);
+	glNamedBufferData(_solidParamsBuf, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
+	glCreateBuffers(1, &_transpParamsBuf);
+	glNamedBufferData(_transpParamsBuf, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
 	initGpuCulling();
 	_hasBufferInitialized = true;
 }
@@ -484,13 +484,13 @@ void ChunkRenderer::initGLBuffer()
 // For both solid and transparent
 void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 {
-    std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
-    // Ensure all previous GPU work that could use these buffers has completed
-    if (_uploadGuard) {
-        glClientWaitSync(_uploadGuard, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000));
-        glDeleteSync(_uploadGuard);
-        _uploadGuard = 0;
-    }
+	std::lock_guard<std::mutex> lock(_solidDrawDataMutex);
+	// Ensure all previous GPU work that could use these buffers has completed
+	if (_uploadGuard) {
+		glClientWaitSync(_uploadGuard, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(1000000000));
+		glDeleteSync(_uploadGuard);
+		_uploadGuard = 0;
+	}
 	auto ensureCapacityOnly = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, GLenum usage)
 	{
 		// Grow when needed, and also opportunistically shrink when the buffer is
@@ -501,7 +501,7 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 			glNamedBufferData(buf, newCap, nullptr, usage);
 			cap = newCap;
 		} else if (cap > 0 && neededBytes >= 0) {
-			// Shrink if we have grown far beyond current needs.
+			// Shrink if grown far beyond current needs.
 			// Threshold: if needed < 1/4 capacity and capacity > 1MB
 			const GLsizeiptr oneMB = (GLsizeiptr)1 << 20;
 			if (cap > oneMB && neededBytes < (cap / 4)) {
@@ -513,33 +513,33 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 		}
 	};
 
-    // Helper to orphan-and-upload each update to avoid races with driver threads
-    auto ensureCapacityAndUpload = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, const void* data, GLenum usage)
-    {
-        if (neededBytes <= 0) {
-            // keep minimal non-zero storage
-            glNamedBufferData(buf, 1, nullptr, usage);
-            cap = 1;
-            return;
-        }
-        // Orphan storage and upload new content in one step
-        glNamedBufferData(buf, neededBytes, data, usage);
-        cap = neededBytes;
-    };
+	// Helper to orphan-and-upload each update to avoid races with driver threads
+	auto ensureCapacityAndUpload = [](GLuint buf, GLsizeiptr& cap, GLsizeiptr neededBytes, const void* data, GLenum usage)
+	{
+		if (neededBytes <= 0) {
+			// keep minimal non-zero storage
+			glNamedBufferData(buf, 1, nullptr, usage);
+			cap = 1;
+			return;
+		}
+		// Orphan storage and upload new content in one step
+		glNamedBufferData(buf, neededBytes, data, usage);
+		cap = neededBytes;
+	};
 
-    if (transparent)
-    {
-    const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
-    const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
-    const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
-    const GLsizeiptr bytesInst = nInst * sizeof(int);
-    const GLsizeiptr bytesSSBO = (GLsizeiptr)_transparentDrawData->ssboData.size() * sizeof(glm::vec4);
-    const GLsizeiptr bytesMeta = (GLsizeiptr)_transparentDrawData->drawMeta.size() * sizeof(uint32_t);
+	if (transparent)
+	{
+	const GLsizeiptr nCmd      = (GLsizeiptr)_transparentDrawData->indirectBufferData.size();
+	const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+	const GLsizeiptr nInst     = (GLsizeiptr)_transparentDrawData->vertexData.size();
+	const GLsizeiptr bytesInst = nInst * sizeof(int);
+	const GLsizeiptr bytesSSBO = (GLsizeiptr)_transparentDrawData->ssboData.size() * sizeof(glm::vec4);
+	const GLsizeiptr bytesMeta = (GLsizeiptr)_transparentDrawData->drawMeta.size() * sizeof(uint32_t);
 
 		// Ensure buffers exist
 		if (!_transpInstSSBO) glCreateBuffers(1, &_transpInstSSBO);
 		if (!_transpPosSSBO)  glCreateBuffers(1, &_transpPosSSBO);     // DESTINATION (compute writes)
-		if (!_transpPosSrcSSBO) glCreateBuffers(1, &_transpPosSrcSSBO); // SOURCE (we upload)
+	if (!_transpPosSrcSSBO) glCreateBuffers(1, &_transpPosSrcSSBO); // SOURCE (uploaded here)
 
 		// Upload template + out commands (as before)
 		ensureCapacityAndUpload(_transpTemplIndirectBuffer, _capTemplTranspCmd, bytesCmd,
@@ -548,35 +548,35 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 			_transparentDrawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload instance SSBO (binding=4)
-    ensureCapacityAndUpload(_transpInstSSBO, _capTranspInst, bytesInst,
-        _transparentDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
+	ensureCapacityAndUpload(_transpInstSSBO, _capTranspInst, bytesInst,
+		_transparentDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload SOURCE pos SSBO (binding=0 for compute)
-    ensureCapacityAndUpload(_transpPosSrcSSBO, _capTranspSSBOSrc, bytesSSBO,
-        _transparentDrawData->ssboData.data(), GL_DYNAMIC_DRAW);
+	ensureCapacityAndUpload(_transpPosSrcSSBO, _capTranspSSBOSrc, bytesSSBO,
+		_transparentDrawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
-    // Upload SOURCE meta (compute reads), ensure DEST meta (compute writes)
-    if (!_transpMetaSrcSSBO) glCreateBuffers(1, &_transpMetaSrcSSBO);
-    ensureCapacityAndUpload(_transpMetaSrcSSBO, _capTranspMetaSrc, bytesMeta,
-        _transparentDrawData->drawMeta.data(), GL_DYNAMIC_DRAW);
-    if (!_transpMetaSSBO) glCreateBuffers(1, &_transpMetaSSBO);
-    ensureCapacityOnly(_transpMetaSSBO, _capTranspMeta, bytesMeta, GL_DYNAMIC_DRAW);
+	// Upload SOURCE meta (compute reads), ensure DEST meta (compute writes)
+	if (!_transpMetaSrcSSBO) glCreateBuffers(1, &_transpMetaSrcSSBO);
+	ensureCapacityAndUpload(_transpMetaSrcSSBO, _capTranspMetaSrc, bytesMeta,
+		_transparentDrawData->drawMeta.data(), GL_DYNAMIC_DRAW);
+	if (!_transpMetaSSBO) glCreateBuffers(1, &_transpMetaSSBO);
+	ensureCapacityOnly(_transpMetaSSBO, _capTranspMeta, bytesMeta, GL_DYNAMIC_DRAW);
 
 		// Ensure DESTINATION pos SSBO (binding=6 for compute, later bound for draw)
-		// NOTE: no SubData upload; compute shader fills it.
+		// No SubData upload; compute shader fills it.
 		ensureCapacityOnly(_transpPosSSBO, _capTranspSSBO, bytesSSBO, GL_DYNAMIC_DRAW);
 
-        _transpDrawCount = (GLsizei)nCmd;
-        _needTransparentUpdate = false;
-    }
-    else
-    {
-    const GLsizeiptr nCmd      = (GLsizeiptr)_solidDrawData->indirectBufferData.size();
-    const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
-    const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
-    const GLsizeiptr bytesInst = nInst * sizeof(int);
-    const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
-    const GLsizeiptr bytesMeta = (GLsizeiptr)_solidDrawData->drawMeta.size() * sizeof(uint32_t);
+		_transpDrawCount = (GLsizei)nCmd;
+		_needTransparentUpdate = false;
+	}
+	else
+	{
+	const GLsizeiptr nCmd      = (GLsizeiptr)_solidDrawData->indirectBufferData.size();
+	const GLsizeiptr bytesCmd  = nCmd * sizeof(DrawArraysIndirectCommand);
+	const GLsizeiptr nInst     = (GLsizeiptr)_solidDrawData->vertexData.size();
+	const GLsizeiptr bytesInst = nInst * sizeof(int);
+	const GLsizeiptr bytesSSBO = (GLsizeiptr)_solidDrawData->ssboData.size() * sizeof(glm::vec4);
+	const GLsizeiptr bytesMeta = (GLsizeiptr)_solidDrawData->drawMeta.size() * sizeof(uint32_t);
 
 		// Ensure buffers exist
 		if (!_solidInstSSBO)  glCreateBuffers(1, &_solidInstSSBO);
@@ -590,31 +590,31 @@ void ChunkRenderer::pushVerticesToOpenGL(bool transparent)
 			_solidDrawData->indirectBufferData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload instance SSBO (binding=4)
-    ensureCapacityAndUpload(_solidInstSSBO, _capSolidInst, bytesInst,
-        _solidDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
+	ensureCapacityAndUpload(_solidInstSSBO, _capSolidInst, bytesInst,
+		_solidDrawData->vertexData.data(), GL_DYNAMIC_DRAW);
 
 		// Upload SOURCE pos SSBO (binding=0 for compute)
-    ensureCapacityAndUpload(_solidPosSrcSSBO, _capSolidSSBOSrc, bytesSSBO,
-        _solidDrawData->ssboData.data(), GL_DYNAMIC_DRAW);
+	ensureCapacityAndUpload(_solidPosSrcSSBO, _capSolidSSBOSrc, bytesSSBO,
+		_solidDrawData->ssboData.data(), GL_DYNAMIC_DRAW);
 
-    // Upload SOURCE meta (compute reads), ensure DEST meta
-    if (!_solidMetaSrcSSBO) glCreateBuffers(1, &_solidMetaSrcSSBO);
-    ensureCapacityAndUpload(_solidMetaSrcSSBO, _capSolidMetaSrc, bytesMeta,
-        _solidDrawData->drawMeta.data(), GL_DYNAMIC_DRAW);
-    if (!_solidMetaSSBO) glCreateBuffers(1, &_solidMetaSSBO);
-    ensureCapacityOnly(_solidMetaSSBO, _capSolidMeta, bytesMeta, GL_DYNAMIC_DRAW);
+	// Upload SOURCE meta (compute reads), ensure DEST meta
+	if (!_solidMetaSrcSSBO) glCreateBuffers(1, &_solidMetaSrcSSBO);
+	ensureCapacityAndUpload(_solidMetaSrcSSBO, _capSolidMetaSrc, bytesMeta,
+		_solidDrawData->drawMeta.data(), GL_DYNAMIC_DRAW);
+	if (!_solidMetaSSBO) glCreateBuffers(1, &_solidMetaSSBO);
+	ensureCapacityOnly(_solidMetaSSBO, _capSolidMeta, bytesMeta, GL_DYNAMIC_DRAW);
 
 		// Ensure DESTINATION pos SSBO (binding=6 for compute, later bound for draw)
 		ensureCapacityOnly(_solidPosSSBO, _capSolidSSBO, bytesSSBO, GL_DYNAMIC_DRAW);
 
-        _solidDrawCount = (GLsizei)nCmd;
-        // Compute triangles count once while CPU data is present (unchanged)
-        long long tris = 0;
-        for (const auto& c : _solidDrawData->indirectBufferData) {
-            long long per = (c.count >= 3) ? (c.count - 2) : 0;
-            tris += (long long)c.instanceCount * per;
-        }
-        _lastSolidTris = tris;
-        _needUpdate = false;
-    }
+		_solidDrawCount = (GLsizei)nCmd;
+		// Compute triangles count once while CPU data is present (unchanged)
+		long long tris = 0;
+		for (const auto& c : _solidDrawData->indirectBufferData) {
+			long long per = (c.count >= 3) ? (c.count - 2) : 0;
+			tris += (long long)c.instanceCount * per;
+		}
+		_lastSolidTris = tris;
+		_needUpdate = false;
+	}
 }

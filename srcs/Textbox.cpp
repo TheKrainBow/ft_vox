@@ -173,12 +173,12 @@ void Textbox::render() {
 }
 
 Textbox::~Textbox() {
-    shutdownGL();
+	shutdownGL();
 }
 
 void Textbox::shutdownGL() {
-    if (fontTexture) {
-        glDeleteTextures(1, &fontTexture);
-        fontTexture = 0;
-    }
+	if (fontTexture) {
+		glDeleteTextures(1, &fontTexture);
+		fontTexture = 0;
+	}
 }

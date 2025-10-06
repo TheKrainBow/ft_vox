@@ -116,23 +116,23 @@ void ChunkManager::setOcclusionSource(GLuint depthTex, int width, int height,
 
 void ChunkManager::setRendererSyncMode(bool enabled)
 {
-    _chunkRenderer.setSyncAfterDraw(enabled);
+	_chunkRenderer.setSyncAfterDraw(enabled);
 }
 
 void ChunkManager::snapshotDebugCounters()
 {
-    _chunkLoader.snapshotDebugCounters();
+	_chunkLoader.snapshotDebugCounters();
 }
 
 // Chunks loading and unloading methods
 void ChunkManager::loadChunks(ivec2 camPos)
 {
-    _chunkLoader.loadChunks(camPos);
+	_chunkLoader.loadChunks(camPos);
 }
 
 void ChunkManager::unloadChunks(ivec2 camPos)
 {
-    _chunkLoader.unloadChunks(camPos);
+	_chunkLoader.unloadChunks(camPos);
 }
 
 // Draw data swapper
@@ -194,28 +194,28 @@ bool ChunkManager::raycastDeleteOne(const glm::vec3& originWorld,
 }
 
 bool ChunkManager::raycastPlaceOne(const glm::vec3& originWorld,
-                const glm::vec3& dirWorld,
-                float maxDistance,
-                BlockType block)
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block)
 {
-    return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block);
+	return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block);
 }
 
 bool ChunkManager::raycastPlaceOne(const glm::vec3& originWorld,
-                const glm::vec3& dirWorld,
-                float maxDistance,
-                BlockType block,
-                glm::ivec3& outPlaced)
+				const glm::vec3& dirWorld,
+				float maxDistance,
+				BlockType block,
+				glm::ivec3& outPlaced)
 {
-    return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block, outPlaced);
+	return _raycaster.raycastPlaceOne(originWorld, dirWorld, maxDistance, block, outPlaced);
 }
 
 void ChunkManager::fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out)
 {
-    _chunkLoader.fetchAndClearDiscoveredFlowers(out);
+	_chunkLoader.fetchAndClearDiscoveredFlowers(out);
 }
 
 void ChunkManager::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out)
 {
-    _chunkLoader.getDisplayedSubchunksSnapshot(out);
+	_chunkLoader.getDisplayedSubchunksSnapshot(out);
 }

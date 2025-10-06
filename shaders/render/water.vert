@@ -25,20 +25,20 @@ void main()
 
 	int instanceData = inst[gl_BaseInstance + gl_InstanceID];
 
-    int x = (instanceData >>  0) & 0x1F;
-    int y = (instanceData >>  5) & 0x1F;
-    int z = (instanceData >> 10) & 0x1F;
-    int direction = int(drawMeta[gl_DrawID] & 0x7u);
-    int lengthX   = (instanceData >> 15) & 0x1F;
-    int lengthY   = (instanceData >> 20) & 0x1F;
-    int textureID = (instanceData >> 25) & 0x7F;
+	int x = (instanceData >>  0) & 0x1F;
+	int y = (instanceData >>  5) & 0x1F;
+	int z = (instanceData >> 10) & 0x1F;
+	int direction = int(drawMeta[gl_DrawID] & 0x7u);
+	int lengthX   = (instanceData >> 15) & 0x1F;
+	int lengthY   = (instanceData >> 20) & 0x1F;
+	int textureID = (instanceData >> 25) & 0x7F;
 
-    // Keep only WATER in this pass
-    if (textureID != 6) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
-        TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
-        return;
-    }
+	// Keep only WATER in this pass
+	if (textureID != 6) {
+		gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
+		TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
+		return;
+	}
 
 	vec3 instancePos = vec3(x, y, z);
 	vec3 basePos = aPos;
@@ -55,12 +55,12 @@ void main()
 	if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
 	if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
 
-    if (direction == 0) normal = vec3(0,0,1);
-    if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,-1,0); }
-    if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(1,0,0); }
-    if (direction == 3) { basePos.x += res; normal = vec3(-1,0,0); }
-    if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
-    if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
+	if (direction == 0) normal = vec3(0,0,1);
+	if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,-1,0); }
+	if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(1,0,0); }
+	if (direction == 3) { basePos.x += res; normal = vec3(-1,0,0); }
+	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
+	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
 	basePos.y -= 0.1;
 

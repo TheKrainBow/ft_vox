@@ -93,29 +93,29 @@ private:
 	Frustum	_cachedFrustum;
 	bool	_hasCachedFrustum = false;
 
-    // Loaded chunks to be added to the display (common with ChunkRenderer)
-    std::queue<DisplayData *>	&_solidStagedDataQueue;
-    std::queue<DisplayData *>	&_transparentStagedDataQueue;
+	// Loaded chunks to be added to the display (common with ChunkRenderer)
+	std::queue<DisplayData *>	&_solidStagedDataQueue;
+	std::queue<DisplayData *>	&_transparentStagedDataQueue;
 
-    // Flowers discovered in world data (by subchunk), staged for the renderer
-    // Map: chunk -> subY -> list of (cell, type)
-    std::unordered_map<glm::ivec2, std::unordered_map<int, std::vector<std::pair<glm::ivec3, BlockType>>>, ivec2_hash> _discoveredFlowers;
-    // Guard for discovered flower structures
-    std::mutex _flowersMutex;
-    // Track which sublayers have been scanned to avoid re-scanning/duplicating
-    std::unordered_set<std::string> _flowersScannedKeys;
-    static std::string _flowerKey(const glm::ivec2& cpos, int subY) {
-        return std::to_string(cpos.x) + ":" + std::to_string(cpos.y) + ":" + std::to_string(subY);
-    }
-    // Snapshot of currently displayed subchunks per chunk (from last build)
-    std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> _lastDisplayedSubY;
+	// Flowers discovered in world data (by subchunk), staged for the renderer
+	// Map: chunk -> subY -> list of (cell, type)
+	std::unordered_map<glm::ivec2, std::unordered_map<int, std::vector<std::pair<glm::ivec3, BlockType>>>, ivec2_hash> _discoveredFlowers;
+	// Guard for discovered flower structures
+	std::mutex _flowersMutex;
+	// Track which sublayers have been scanned to avoid re-scanning/duplicating
+	std::unordered_set<std::string> _flowersScannedKeys;
+	static std::string _flowerKey(const glm::ivec2& cpos, int subY) {
+		return std::to_string(cpos.x) + ":" + std::to_string(cpos.y) + ":" + std::to_string(subY);
+	}
+	// Snapshot of currently displayed subchunks per chunk (from last build)
+	std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> _lastDisplayedSubY;
 	// Debug snapshot values exposed to UI (stable addresses, written on main thread)
 	size_t _dbg_chunksMemoryUsage{0};
-	int    _dbg_renderDistance{0};
-	int    _dbg_currentRender{0};
-	int    _dbg_chunksCount{0};
-	int    _dbg_displayedCount{0};
-	int    _dbg_modifiedCount{0};
+	int _dbg_renderDistance{0};
+	int _dbg_currentRender{0};
+	int _dbg_chunksCount{0};
+	int _dbg_displayedCount{0};
+	int _dbg_modifiedCount{0};
 
 	// Methods
 private:
@@ -126,8 +126,8 @@ private:
 	void applyPendingFor(const ivec2& pos);
 
 	// Runtime chunk loading/unloading
-    Chunk *loadChunk(int x, int z, int render, const ivec2 &chunkPos, int resolution);
-    bool hasMoved(const ivec2 &oldPos);
+	Chunk *loadChunk(int x, int z, int render, const ivec2 &chunkPos, int resolution);
+	bool hasMoved(const ivec2 &oldPos);
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
 	void updateFillData();
 
@@ -136,8 +136,8 @@ private:
 
 	// LRU + cache budget helpers
 	void touchLRU(const ivec2& pos);
-    void enforceCountBudget();
-    bool evictChunkAt(const ivec2& pos);
+	void enforceCountBudget();
+	bool evictChunkAt(const ivec2& pos);
 public:
 	ChunkLoader(
 		int seed,
@@ -155,11 +155,11 @@ public:
 	void initSpawn();
 
 	// Runtime chunk loading/unloading/updating
-    void	loadChunks(ivec2 camPosition);
-    void	unloadChunks(ivec2 newCamChunk);
-    void	scheduleDisplayUpdate();
-    // Synchronous rebuild of staged DisplayData snapshot (used for compaction)
-    void	rebuildDisplayDataNow();
+	void	loadChunks(ivec2 camPosition);
+	void	unloadChunks(ivec2 newCamChunk);
+	void	scheduleDisplayUpdate();
+	// Synchronous rebuild of staged DisplayData snapshot (used for compaction)
+	void	rebuildDisplayDataNow();
 	// Snapshot atomics into UI-visible plain fields (call on main thread)
 	void	snapshotDebugCounters();
 
@@ -178,15 +178,15 @@ public:
 	bool	setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer = true);
 	void	markChunkDirty(const ivec2& pos);
 	bool	setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer);
-    void	setViewProj(Frustum &f);
+	void	setViewProj(Frustum &f);
 
-    // Flowers: scan a subchunk once and stage its flower cells for the renderer
-    void scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, class SubChunk* sc, int resolution);
-    // Flowers: fetch and clear all staged flower cells
-    void fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out);
+	// Flowers: scan a subchunk once and stage its flower cells for the renderer
+	void scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, class SubChunk* sc, int resolution);
+	// Flowers: fetch and clear all staged flower cells
+	void fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out);
 
-    // Visible subchunks snapshot for external culling (e.g., flower instances)
-    void getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out);
+	// Visible subchunks snapshot for external culling (e.g., flower instances)
+	void getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out);
 
 	// Debug shared data getters and prints
 	size_t	*getMemorySizePtr();
@@ -195,10 +195,10 @@ public:
 	int		*getCachedChunksCountPtr();
 	int		*getDisplayedChunksCountPtr();
 	int		*getModifiedChunksCountPtr();
-    void	printSizes() const;
+	void	printSizes() const;
 
-private:
-    // Flowers helpers for lifetime across display cycles
-    void clearFlowerScanMarksFor(const glm::ivec2& cpos);
-    void rescanFlowersForChunk(const glm::ivec2& cpos);
+	private:
+	// Flowers helpers for lifetime across display cycles
+	void clearFlowerScanMarksFor(const glm::ivec2& cpos);
+	void rescanFlowersForChunk(const glm::ivec2& cpos);
 };

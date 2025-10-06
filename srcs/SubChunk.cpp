@@ -1,23 +1,23 @@
 #include "SubChunk.hpp"
 
 SubChunk::SubChunk(ivec3 position,
-    PerlinMap *perlinMap,
-    CaveGenerator &caveGen,
-    Chunk &chunk,
-    ChunkLoader &chunkLoader,
-    int resolution)
+	PerlinMap *perlinMap,
+	CaveGenerator &caveGen,
+	Chunk &chunk,
+	ChunkLoader &chunkLoader,
+	int resolution)
 : _chunkLoader(chunkLoader), _chunk(chunk), _caveGen(caveGen)
 {
-    _position = position;
-    _resolution = resolution;
-    _heightMap = &perlinMap->heightMap;
-    _treeMap = &perlinMap->treeMap;
-    _biomeMap = &perlinMap->biomeMap;
-    _grassMap = &perlinMap->grassMap;
-    _flowerMask = &perlinMap->flowerMask;
-    _flowerR = &perlinMap->flowerR;
-    _flowerY = &perlinMap->flowerY;
-    _flowerB = &perlinMap->flowerB;
+	_position = position;
+	_resolution = resolution;
+	_heightMap = &perlinMap->heightMap;
+	_treeMap = &perlinMap->treeMap;
+	_biomeMap = &perlinMap->biomeMap;
+	_grassMap = &perlinMap->grassMap;
+	_flowerMask = &perlinMap->flowerMask;
+	_flowerR = &perlinMap->flowerR;
+	_flowerY = &perlinMap->flowerY;
+	_flowerB = &perlinMap->flowerB;
 	_chunkSize = CHUNK_SIZE / resolution;
 	size_t size = _chunkSize * _chunkSize * _chunkSize;
 	_blocks = std::make_unique<uint8_t[]>(size);
@@ -155,257 +155,257 @@ void SubChunk::plantTree(int x, int y, int z, double /*proba*/) {
 
 void SubChunk::loadPlaine(int x, int z, size_t ground)
 {
-    // --- ground shaping ---
-    int y = ground - _position.y * CHUNK_SIZE;
+	// --- ground shaping ---
+	int y = ground - _position.y * CHUNK_SIZE;
 
-    for (int i = 1; i <= 4; i++)
-        if (getBlock({x, y - (i * _resolution), z}) != AIR)
-            setBlock(x, y - (i * _resolution), z, DIRT);
+	for (int i = 1; i <= 4; i++)
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
+			setBlock(x, y - (i * _resolution), z, DIRT);
 
-    if (getBlock({x, y, z}) == AIR)
+	if (getBlock({x, y, z}) == AIR)
 		return ;
 	setBlock(x, y, z, GRASS);
 
-    // --- deterministic RNG helpers (stable across reloads) ---
-    auto splitmix64 = [](uint64_t v) {
-        v += 0x9e3779b97f4a7c15ULL;
-        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
-        return v ^ (v >> 31);
-    };
-    auto hash2 = [&](int WX, int WZ, uint64_t salt){
-        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
-        k ^= salt * 0x9e3779b97f4a7c15ULL;
-        return splitmix64(k);
-    };
-    auto rand01 = [&](int WX, int WZ, uint64_t salt){
-        // Convert 53 high bits to double in [0,1)
-        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
-    };
+	// --- deterministic RNG helpers (stable across reloads) ---
+	auto splitmix64 = [](uint64_t v) {
+		v += 0x9e3779b97f4a7c15ULL;
+		v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+		v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+		return v ^ (v >> 31);
+	};
+	auto hash2 = [&](int WX, int WZ, uint64_t salt){
+		uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+		k ^= salt * 0x9e3779b97f4a7c15ULL;
+		return splitmix64(k);
+	};
+	auto rand01 = [&](int WX, int WZ, uint64_t salt){
+		// Convert 53 high bits to double in [0,1)
+		return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+	};
 
 
-    // --- world coords (for persistent RNG) ---
-    const int WX = x + _position.x * CHUNK_SIZE;
-    const int WZ = z + _position.z * CHUNK_SIZE;
+	// --- world coords (for persistent RNG) ---
+	const int WX = x + _position.x * CHUNK_SIZE;
+	const int WZ = z + _position.z * CHUNK_SIZE;
 
-    // --- sample maps (optional; guard for nullptrs) ---
-    int idx = z * CHUNK_SIZE + x;
+	// --- sample maps (optional; guard for nullptrs) ---
+	int idx = z * CHUNK_SIZE + x;
 
-    double g  = 0.5; // fallback if maps missing
-    double f  = 0.0;
-    double rC = 0.33, yC = 0.33, bC = 0.34;
+	double g  = 0.5; // fallback if maps missing
+	double f  = 0.0;
+	double rC = 0.33, yC = 0.33, bC = 0.34;
 
-    if (_grassMap && *_grassMap)           g  = (*_grassMap)[idx];
-    if (_flowerMask && *_flowerMask)       f  = (*_flowerMask)[idx];
-    if (_flowerR && *_flowerR)             rC = (*_flowerR)[idx];
-    if (_flowerY && *_flowerY)             yC = (*_flowerY)[idx];
-    if (_flowerB && *_flowerB)             bC = (*_flowerB)[idx];
+	if (_grassMap && *_grassMap)           g  = (*_grassMap)[idx];
+	if (_flowerMask && *_flowerMask)       f  = (*_flowerMask)[idx];
+	if (_flowerR && *_flowerR)             rC = (*_flowerR)[idx];
+	if (_flowerY && *_flowerY)             yC = (*_flowerY)[idx];
+	if (_flowerB && *_flowerB)             bC = (*_flowerB)[idx];
 
-    // --- deterministic RNG draws ---
-    double j0 = rand01(WX, WZ, 1); // grass gate
-    double j1 = rand01(WX, WZ, 2); // flower gate in cluster
-    double j2 = rand01(WX, WZ, 3); // flower color pick
+	// --- deterministic RNG draws ---
+	double j0 = rand01(WX, WZ, 1); // grass gate
+	double j1 = rand01(WX, WZ, 2); // flower gate in cluster
+	double j2 = rand01(WX, WZ, 3); // flower color pick
 
-    // --- biome weighting: default density for generic plains/forest behavior ---
-    double biomeGrass = 0.6;
+	// --- biome weighting: default density for generic plains/forest behavior ---
+	double biomeGrass = 0.6;
 
 	// Deterministic Bernoulli for grass (no Perlin patchiness),
-    // slightly modulated by g to add tiny variation.
-    double grassProb = biomeGrass + 0.2 * (g - 0.5);
-    if (grassProb < 0.0) grassProb = 0.0;
-    if (grassProb > 1.0) grassProb = 1.0;
-    bool spawnGrass = (j0 < grassProb);
+	// slightly modulated by g to add tiny variation.
+	double grassProb = biomeGrass + 0.2 * (g - 0.5);
+	if (grassProb < 0.0) grassProb = 0.0;
+	if (grassProb > 1.0) grassProb = 1.0;
+	bool spawnGrass = (j0 < grassProb);
 
-    // Flower clusters: loosen threshold + small gate inside cluster
-    bool inFlowerArea = (f > 0.4);
-    bool spawnFlower  = inFlowerArea && (j1 < 0.08); // ~8% inside clusters
+	// Flower clusters: loosen threshold + small gate inside cluster
+	bool inFlowerArea = (f > 0.4);
+	bool spawnFlower  = inFlowerArea && (j1 < 0.08); // ~8% inside clusters
 
-    // --- place plant above ground if air ---
-    if (getBlock({x, y+1, z}) != AIR)
-        return;
+	// --- place plant above ground if air ---
+	if (getBlock({x, y+1, z}) != AIR)
+		return;
 
-    if (spawnFlower) {
-        // weighted color pick
-        double sum = rC + yC + bC + 1e-6;
-        double pr = rC / sum, py = yC / sum; // pb = rest
-        char ftype = (j2 < pr) ? FLOWER_POPPY
-                  : (j2 < pr + py) ? FLOWER_DANDELION
-                                   : FLOWER_CYAN;
-        setBlock(x, y + 1, z, ftype);
-    } else if (spawnGrass) {
-        setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
-    }
+	if (spawnFlower) {
+		// weighted color pick
+		double sum = rC + yC + bC + 1e-6;
+		double pr = rC / sum, py = yC / sum; // pb = rest
+		char ftype = (j2 < pr) ? FLOWER_POPPY
+				  : (j2 < pr + py) ? FLOWER_DANDELION
+								   : FLOWER_CYAN;
+		setBlock(x, y + 1, z, ftype);
+	} else if (spawnGrass) {
+		setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+	}
 }
 
 // Plains variant: only rare short grass, no flowers
 void SubChunk::loadPlainsRare(int x, int z, size_t ground)
 {
-    // Ground shaping identical to loadPlaine
-    int y = ground - _position.y * CHUNK_SIZE;
-    for (int i = 1; i <= 4; i++)
-        if (getBlock({x, y - (i * _resolution), z}) != AIR)
-            setBlock(x, y - (i * _resolution), z, DIRT);
-    if (getBlock({x, y, z}) == AIR)
-        return;
-    setBlock(x, y, z, GRASS);
+	// Ground shaping identical to loadPlaine
+	int y = ground - _position.y * CHUNK_SIZE;
+	for (int i = 1; i <= 4; i++)
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
+			setBlock(x, y - (i * _resolution), z, DIRT);
+	if (getBlock({x, y, z}) == AIR)
+		return;
+	setBlock(x, y, z, GRASS);
 
-    // Deterministic RNG
-    auto splitmix64 = [](uint64_t v) {
-        v += 0x9e3779b97f4a7c15ULL;
-        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
-        return v ^ (v >> 31);
-    };
-    auto hash2 = [&](int WX, int WZ, uint64_t salt){
-        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
-        k ^= salt * 0x9e3779b97f4a7c15ULL;
-        return splitmix64(k);
-    };
-    auto rand01 = [&](int WX, int WZ, uint64_t salt){
-        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
-    };
+	// Deterministic RNG
+	auto splitmix64 = [](uint64_t v) {
+		v += 0x9e3779b97f4a7c15ULL;
+		v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+		v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+		return v ^ (v >> 31);
+	};
+	auto hash2 = [&](int WX, int WZ, uint64_t salt){
+		uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+		k ^= salt * 0x9e3779b97f4a7c15ULL;
+		return splitmix64(k);
+	};
+	auto rand01 = [&](int WX, int WZ, uint64_t salt){
+		return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+	};
 
-    const int WX = x + _position.x * CHUNK_SIZE;
-    const int WZ = z + _position.z * CHUNK_SIZE;
-    int idx = z * CHUNK_SIZE + x;
-    double g  = 0.5;
-    if (_grassMap && *_grassMap) g = (*_grassMap)[idx];
+	const int WX = x + _position.x * CHUNK_SIZE;
+	const int WZ = z + _position.z * CHUNK_SIZE;
+	int idx = z * CHUNK_SIZE + x;
+	double g  = 0.5;
+	if (_grassMap && *_grassMap) g = (*_grassMap)[idx];
 
-    // Only rare short grass, modulated very slightly by g
-    double j0 = rand01(WX, WZ, 11);
-    double grassProb = 0.02 + 0.02 * (g - 0.5); // ~2% baseline
-    if (grassProb < 0.0) grassProb = 0.0;
-    if (grassProb > 1.0) grassProb = 1.0;
+	// Only rare short grass, modulated very slightly by g
+	double j0 = rand01(WX, WZ, 11);
+	double grassProb = 0.02 + 0.02 * (g - 0.5); // ~2% baseline
+	if (grassProb < 0.0) grassProb = 0.0;
+	if (grassProb > 1.0) grassProb = 1.0;
 
-    // place plant above ground if air
-    if (getBlock({x, y+1, z}) != AIR)
-        return;
-    if (j0 < grassProb)
-        setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+	// place plant above ground if air
+	if (getBlock({x, y+1, z}) != AIR)
+		return;
+	if (j0 < grassProb)
+		setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
 }
 
 // Plains with clustered patches of grass/flowers + sparse singles
 void SubChunk::loadPlainsPatches(int x, int z, size_t ground)
 {
-    // --- ground shaping (same as plains) ---
-    int y = ground - _position.y * CHUNK_SIZE;
-    for (int i = 1; i <= 4; i++)
-        if (getBlock({x, y - (i * _resolution), z}) != AIR)
-            setBlock(x, y - (i * _resolution), z, DIRT);
-    if (getBlock({x, y, z}) == AIR)
-        return;
-    setBlock(x, y, z, GRASS);
+	// --- ground shaping (same as plains) ---
+	int y = ground - _position.y * CHUNK_SIZE;
+	for (int i = 1; i <= 4; i++)
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
+			setBlock(x, y - (i * _resolution), z, DIRT);
+	if (getBlock({x, y, z}) == AIR)
+		return;
+	setBlock(x, y, z, GRASS);
 
-    // Deterministic RNG helpers
-    auto splitmix64 = [](uint64_t v) {
-        v += 0x9e3779b97f4a7c15ULL;
-        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
-        return v ^ (v >> 31);
-    };
-    auto hash2 = [&](int WX, int WZ, uint64_t salt){
-        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
-        k ^= salt * 0x9e3779b97f4a7c15ULL;
-        return splitmix64(k);
-    };
-    auto rand01 = [&](int WX, int WZ, uint64_t salt){
-        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
-    };
+	// Deterministic RNG helpers
+	auto splitmix64 = [](uint64_t v) {
+		v += 0x9e3779b97f4a7c15ULL;
+		v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+		v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+		return v ^ (v >> 31);
+	};
+	auto hash2 = [&](int WX, int WZ, uint64_t salt){
+		uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+		k ^= salt * 0x9e3779b97f4a7c15ULL;
+		return splitmix64(k);
+	};
+	auto rand01 = [&](int WX, int WZ, uint64_t salt){
+		return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+	};
 
-    // World coordinates and map samples
-    const int WX = x + _position.x * CHUNK_SIZE;
-    const int WZ = z + _position.z * CHUNK_SIZE;
-    const int idx = z * CHUNK_SIZE + x;
+	// World coordinates and map samples
+	const int WX = x + _position.x * CHUNK_SIZE;
+	const int WZ = z + _position.z * CHUNK_SIZE;
+	const int idx = z * CHUNK_SIZE + x;
 
-    double g  = 0.5; // grass noise (fine scale)
-    double f  = 0.0; // low-frequency flower/patch mask
-    double rC = 0.33, yC = 0.33, bC = 0.34; // flower color weights
-    if (_grassMap && *_grassMap)     g  = (*_grassMap)[idx];
-    if (_flowerMask && *_flowerMask) f  = (*_flowerMask)[idx];
-    if (_flowerR && *_flowerR)       rC = (*_flowerR)[idx];
-    if (_flowerY && *_flowerY)       yC = (*_flowerY)[idx];
-    if (_flowerB && *_flowerB)       bC = (*_flowerB)[idx];
+	double g  = 0.5; // grass noise (fine scale)
+	double f  = 0.0; // low-frequency flower/patch mask
+	double rC = 0.33, yC = 0.33, bC = 0.34; // flower color weights
+	if (_grassMap && *_grassMap)     g  = (*_grassMap)[idx];
+	if (_flowerMask && *_flowerMask) f  = (*_flowerMask)[idx];
+	if (_flowerR && *_flowerR)       rC = (*_flowerR)[idx];
+	if (_flowerY && *_flowerY)       yC = (*_flowerY)[idx];
+	if (_flowerB && *_flowerB)       bC = (*_flowerB)[idx];
 
-    // Only place if above is empty
-    if (getBlock({x, y + 1, z}) != AIR)
-        return;
+	// Only place if above is empty
+	if (getBlock({x, y + 1, z}) != AIR)
+		return;
 
-    // --- Cluster centers and neighborhood membership (organic blobs) ---
-    // Select sparse centers, then compute a distance-weighted influence with jittered radii.
-    // This produces soft, rounded patches instead of rigid 3x3 squares.
-    double baseCenter = 0.010;                         // ~1.0% base
-    double centerProb = baseCenter + 0.010 * std::max(0.0, f - 0.5) + 0.004 * (g - 0.5);
-    // Slightly raise the minimum so patches appear a bit more consistently
-    centerProb = std::clamp(centerProb, 0.004, 0.030);
+	// --- Cluster centers and neighborhood membership (organic blobs) ---
+	// Select sparse centers, then compute a distance-weighted influence with jittered radii.
+	// This produces soft, rounded patches instead of rigid 3x3 squares.
+	double baseCenter = 0.010;                         // ~1.0% base
+	double centerProb = baseCenter + 0.010 * std::max(0.0, f - 0.5) + 0.004 * (g - 0.5);
+	// Slightly raise the minimum so patches appear a bit more consistently
+	centerProb = std::clamp(centerProb, 0.004, 0.030);
 
-    double patchScore = 0.0;
-    // Wider search window to allow larger patches
-    for (int dz = -6; dz <= 6; ++dz)
-    for (int dx = -6; dx <= 6; ++dx)
-    {
-        double sC = rand01(WX + dx, WZ + dz, 401);
-        if (sC >= centerProb) continue; // not a center
+	double patchScore = 0.0;
+	// Wider search window to allow larger patches
+	for (int dz = -6; dz <= 6; ++dz)
+	for (int dx = -6; dx <= 6; ++dx)
+	{
+		double sC = rand01(WX + dx, WZ + dz, 401);
+		if (sC >= centerProb) continue; // not a center
 
-        // Randomized radius per center (in blocks)
-        double R = 2.4 + 4.8 * rand01(WX + dx, WZ + dz, 402); // ~2.4 .. 7.2 (bigger max)
-        double d = std::sqrt(double(dx*dx + dz*dz));
-        if (d > R + 0.75) continue; // quick reject
-        double k = std::max(0.0, 1.0 - (d / std::max(0.001, R)));
+		// Randomized radius per center (in blocks)
+		double R = 2.4 + 4.8 * rand01(WX + dx, WZ + dz, 402); // ~2.4 .. 7.2 (bigger max)
+		double d = std::sqrt(double(dx*dx + dz*dz));
+		if (d > R + 0.75) continue; // quick reject
+		double k = std::max(0.0, 1.0 - (d / std::max(0.001, R)));
 
-        // Small anisotropic jitter to break symmetry
-        double jitter = 0.85 + 0.30 * rand01(WX + dx * 7, WZ + dz * 13, 406); // 0.85..1.15
-        k *= jitter;
+		// Small anisotropic jitter to break symmetry
+		double jitter = 0.85 + 0.30 * rand01(WX + dx * 7, WZ + dz * 13, 406); // 0.85..1.15
+		k *= jitter;
 
-        if (k > patchScore) patchScore = k;
-    }
+		if (k > patchScore) patchScore = k;
+	}
 
-    // Edge threshold with local jitter and slight bias from f
-    double tEdge = 0.50;
-    tEdge -= 0.10 * std::clamp(f - 0.5, -0.5, 0.5); // flowery areas slightly expand patches
-    tEdge += 0.06 * rand01(WX, WZ, 405); // slightly less jitter -> more coherent edges
-    bool inPatch = (patchScore > tEdge);
+	// Edge threshold with local jitter and slight bias from f
+	double tEdge = 0.50;
+	tEdge -= 0.10 * std::clamp(f - 0.5, -0.5, 0.5); // flowery areas slightly expand patches
+	tEdge += 0.06 * rand01(WX, WZ, 405); // slightly less jitter -> more coherent edges
+	bool inPatch = (patchScore > tEdge);
 
-    // --- Singles probabilities (kept low to preserve patch feel) ---
-    double jG = rand01(WX, WZ, 11);
-    double jF = rand01(WX, WZ, 12);
-    double jT = rand01(WX, WZ, 13); // type pick in patch
+	// --- Singles probabilities (kept low to preserve patch feel) ---
+	double jG = rand01(WX, WZ, 11);
+	double jF = rand01(WX, WZ, 12);
+	double jT = rand01(WX, WZ, 13); // type pick in patch
 
-    // Singles: increase baseline grass to avoid deadlands, keep flowers modest
-    double singleGrassP  = 0.100 + 0.100 * (g - 0.5);                 // ~10% avg, 5–15% from noise
-    double singleFlowerP = (0.008 + 0.012 * std::max(0.0, f - 0.3));  // ~0.8–2.0%
-    singleGrassP  = std::clamp(singleGrassP,  0.060, 0.28);
-    singleFlowerP = std::clamp(singleFlowerP, 0.004, 0.03);
+	// Singles: increase baseline grass to avoid deadlands, keep flowers modest
+	double singleGrassP  = 0.100 + 0.100 * (g - 0.5);                 // ~10% avg, 5–15% from noise
+	double singleFlowerP = (0.008 + 0.012 * std::max(0.0, f - 0.3));  // ~0.8–2.0%
+	singleGrassP  = std::clamp(singleGrassP,  0.060, 0.28);
+	singleFlowerP = std::clamp(singleFlowerP, 0.004, 0.03);
 
-    // Normalize flower color weights
-    double sumC = rC + yC + bC + 1e-6;
-    double pr = rC / sumC, py = yC / sumC; // pb = 1 - pr - py
+	// Normalize flower color weights
+	double sumC = rC + yC + bC + 1e-6;
+	double pr = rC / sumC, py = yC / sumC; // pb = 1 - pr - py
 
-    auto placeFlower = [&](double pick){
-        char ftype = (pick < pr) ? FLOWER_POPPY
-                    : (pick < pr + py) ? FLOWER_DANDELION
-                                       : FLOWER_CYAN;
-        setBlock(x, y + 1, z, ftype);
-    };
+	auto placeFlower = [&](double pick){
+		char ftype = (pick < pr) ? FLOWER_POPPY
+					: (pick < pr + py) ? FLOWER_DANDELION
+									   : FLOWER_CYAN;
+		setBlock(x, y + 1, z, ftype);
+	};
 
-    if (inPatch) {
-        // Inside a patch: mostly grass with some flowers, and a little chance of holes
-        // Bias with f so flowery regions get more flowers
-        double flowerBias = 0.20 + 0.35 * std::clamp(f - 0.4, 0.0, 0.6); // ~20–41%
-        double holeP = 0.06; // fewer holes -> patches look fuller
-        if (jT < holeP) return; // leave empty
-        if (jT < holeP + flowerBias) {
-            placeFlower(rand01(WX, WZ, 502));
-        } else {
-            setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
-        }
-    } else {
-        // Sparse singles outside patches
-        if (jF < singleFlowerP) {
-            placeFlower(rand01(WX, WZ, 503));
-        } else if (jG < singleGrassP) {
-            setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
-        }
-    }
+	if (inPatch) {
+		// Inside a patch: mostly grass with some flowers, and a little chance of holes
+		// Bias with f so flowery regions get more flowers
+		double flowerBias = 0.20 + 0.35 * std::clamp(f - 0.4, 0.0, 0.6); // ~20–41%
+		double holeP = 0.06; // fewer holes -> patches look fuller
+		if (jT < holeP) return; // leave empty
+		if (jT < holeP + flowerBias) {
+			placeFlower(rand01(WX, WZ, 502));
+		} else {
+			setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+		}
+	} else {
+		// Sparse singles outside patches
+		if (jF < singleFlowerP) {
+			placeFlower(rand01(WX, WZ, 503));
+		} else if (jG < singleGrassP) {
+			setBlock(x, y + 1, z, FLOWER_SHORT_GRASS);
+		}
+	}
 }
 
 void SubChunk::loadMountain(int x, int z, size_t ground)
@@ -421,56 +421,56 @@ void SubChunk::loadMountain(int x, int z, size_t ground)
 
 void SubChunk::loadDesert(int x, int z, size_t ground)
 {
-    int y = ground - _position.y * CHUNK_SIZE;
+	int y = ground - _position.y * CHUNK_SIZE;
 
-    setBlock(x, y, z, SAND);
-    for (int i = 1; i <= 4; i++)
-        setBlock(x, y - (i * _resolution), z, SAND);
+	setBlock(x, y, z, SAND);
+	for (int i = 1; i <= 4; i++)
+		setBlock(x, y - (i * _resolution), z, SAND);
 
-    // Decorations: cactus columns and rare dead bushes
-    // Deterministic RNG
-    auto splitmix64 = [](uint64_t v) {
-        v += 0x9e3779b97f4a7c15ULL;
-        v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
-        return v ^ (v >> 31);
-    };
-    auto hash2 = [&](int WX, int WZ, uint64_t salt){
-        uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
-        k ^= salt * 0x9e3779b97f4a7c15ULL;
-        return splitmix64(k);
-    };
-    auto rand01 = [&](int WX, int WZ, uint64_t salt){
-        return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
-    };
+	// Decorations: cactus columns and rare dead bushes
+	// Deterministic RNG
+	auto splitmix64 = [](uint64_t v) {
+		v += 0x9e3779b97f4a7c15ULL;
+		v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9ULL;
+		v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
+		return v ^ (v >> 31);
+	};
+	auto hash2 = [&](int WX, int WZ, uint64_t salt){
+		uint64_t k = (uint64_t)((uint32_t)WX) << 32 | (uint32_t)WZ;
+		k ^= salt * 0x9e3779b97f4a7c15ULL;
+		return splitmix64(k);
+	};
+	auto rand01 = [&](int WX, int WZ, uint64_t salt){
+		return (hash2(WX, WZ, salt) >> 11) * (1.0 / 9007199254740992.0);
+	};
 
-    const int WX = x + _position.x * CHUNK_SIZE;
-    const int WZ = z + _position.z * CHUNK_SIZE;
+	const int WX = x + _position.x * CHUNK_SIZE;
+	const int WZ = z + _position.z * CHUNK_SIZE;
 
-    if (getBlock({x, y+1, z}) != AIR)
-        return;
+	if (getBlock({x, y+1, z}) != AIR)
+		return;
 
-    double rCac = rand01(WX, WZ, 101);
-    double rBush = rand01(WX, WZ, 102);
+	double rCac = rand01(WX, WZ, 101);
+	double rBush = rand01(WX, WZ, 102);
 
-    // Try cactus first (sparser)
-    if (rCac < 0.006) {
-        int h = 2 + (int)std::floor(rand01(WX, WZ, 103) * 3.0); // 2..4
-        // Ensure vertical clearance
-        for (int i = 1; i <= h; ++i) {
-            if (y + i >= CHUNK_SIZE) { h = i - 1; break; }
-            if (getBlock({x, y + i, z}) != AIR) { h = i - 1; break; }
-        }
-        if (h >= 1) {
-            for (int i = 1; i <= h; ++i) setBlock(x, y + i, z, CACTUS);
-            return;
-        }
-    }
+	// Try cactus first (sparser)
+	if (rCac < 0.006) {
+		int h = 2 + (int)std::floor(rand01(WX, WZ, 103) * 3.0); // 2..4
+		// Ensure vertical clearance
+		for (int i = 1; i <= h; ++i) {
+			if (y + i >= CHUNK_SIZE) { h = i - 1; break; }
+			if (getBlock({x, y + i, z}) != AIR) { h = i - 1; break; }
+		}
+		if (h >= 1) {
+			for (int i = 1; i <= h; ++i) setBlock(x, y + i, z, CACTUS);
+			return;
+		}
+	}
 
-    // Otherwise, small chance for dead bush
-    if (rBush < 0.012) {
-        setBlock(x, y + 1, z, FLOWER_DEAD_BUSH);
-    }
+	// Otherwise, small chance for dead bush
+	if (rBush < 0.012) {
+		setBlock(x, y + 1, z, FLOWER_DEAD_BUSH);
+	}
 }
 
 void SubChunk::loadBeach(int x, int z, size_t ground)
@@ -511,30 +511,30 @@ void SubChunk::loadForest(int x, int z, size_t ground)
 
 	if (getBlock({x, yLocal, z}) != GRASS) return;
 
-    const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
-    if (treeP <= 0.64) return; // base density gate
+	const double treeP = (*_treeMap)[z * CHUNK_SIZE + x];
+	if (treeP <= 0.64) return; // base density gate
 
-    // Softer spacing: enforce a small local-maximum radius with tolerance
-    // to avoid trees being glued together, but not as restrictive as before.
-    // Radius 2 (~5x5) with 0.02 tolerance produces natural spacing.
-    {
-        const int radius = 2;
-        const double tol = 0.02; // allow near-equal neighbors
-        const double* tmap = *_treeMap;
-        for (int dz = -radius; dz <= radius; ++dz) {
-            int nz = z + dz;
-            if (nz < 0 || nz >= CHUNK_SIZE) continue;
-            for (int dx = -radius; dx <= radius; ++dx) {
-                int nx = x + dx;
-                if (nx < 0 || nx >= CHUNK_SIZE) continue;
-                if (dx == 0 && dz == 0) continue;
-                if (tmap[nz * CHUNK_SIZE + nx] > treeP + tol)
-                    return; // a clearly stronger neighbor nearby -> skip here
-            }
-        }
-    }
+	// Softer spacing: enforce a small local-maximum radius with tolerance
+	// to avoid trees being glued together, but not as restrictive as before.
+	// Radius 2 (~5x5) with 0.02 tolerance produces natural spacing.
+	{
+		const int radius = 2;
+		const double tol = 0.02; // allow near-equal neighbors
+		const double* tmap = *_treeMap;
+		for (int dz = -radius; dz <= radius; ++dz) {
+			int nz = z + dz;
+			if (nz < 0 || nz >= CHUNK_SIZE) continue;
+			for (int dx = -radius; dx <= radius; ++dx) {
+				int nx = x + dx;
+				if (nx < 0 || nx >= CHUNK_SIZE) continue;
+				if (dx == 0 && dz == 0) continue;
+				if (tmap[nz * CHUNK_SIZE + nx] > treeP + tol)
+					return; // a clearly stronger neighbor nearby -> skip here
+			}
+		}
+	}
 
-    plantTree(x, yLocal + 1, z, treeP);
+	plantTree(x, yLocal + 1, z, treeP);
 }
 
 void SubChunk::loadTree(int x, int z)
@@ -943,22 +943,22 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 	// Prevent readers during rebuild
 	markLoaded(false);
 
-    int prevResolution = _resolution;
-    _heightMap = &perlinMap->heightMap;
-    _biomeMap  = &perlinMap->biomeMap;
-    _treeMap   = &perlinMap->treeMap;
+	int prevResolution = _resolution;
+	_heightMap = &perlinMap->heightMap;
+	_biomeMap  = &perlinMap->biomeMap;
+	_treeMap   = &perlinMap->treeMap;
 
-    // Prepare fresh storage for new LOD, then atomically publish shape + buffer
-    int newChunkSize = CHUNK_SIZE / std::max(1, resolution);
-    size_t newSize = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
-    std::unique_ptr<uint8_t[]> fresh(new uint8_t[newSize]()); // zero-initialize
-    {
-        std::lock_guard<std::mutex> lk(_dataMutex);
-        _resolution = std::max(1, resolution);
-        _chunkSize = newChunkSize;
-        _blocks.swap(fresh);
-        _memorySize = sizeof(*this) + newSize;
-    }
+	// Prepare fresh storage for new LOD, then atomically publish shape + buffer
+	int newChunkSize = CHUNK_SIZE / std::max(1, resolution);
+	size_t newSize = static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize) * static_cast<size_t>(newChunkSize);
+	std::unique_ptr<uint8_t[]> fresh(new uint8_t[newSize]()); // zero-initialize
+	{
+		std::lock_guard<std::mutex> lk(_dataMutex);
+		_resolution = std::max(1, resolution);
+		_chunkSize = newChunkSize;
+		_blocks.swap(fresh);
+		_memorySize = sizeof(*this) + newSize;
+	}
 
 	// Rebuild content at the new resolution
 	loadHeight(prevResolution);
@@ -968,9 +968,9 @@ void SubChunk::updateResolution(int resolution, PerlinMap *perlinMap)
 
 void SubChunk::sendFacesToDisplay()
 {
-    if (!_isFullyLoaded)
-        return ;
-    clearFaces();
+	if (!_isFullyLoaded)
+		return ;
+	clearFaces();
 
 	for (int x = 0; x < CHUNK_SIZE; x += _resolution)
 	{
@@ -1029,8 +1029,8 @@ void SubChunk::sendFacesToDisplay()
 			}
 		}
 	}
-    processFaces(false);
-    processFaces(true);
+	processFaces(false);
+	processFaces(true);
 }
 
 void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
@@ -1055,13 +1055,13 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 	newVertex |= (x & 0x1F) << 0;			// 5 bits for x
 	newVertex |= (y & 0x1F) << 5;			// 5 bits for y
 	newVertex |= (z & 0x1F) << 10;			// 5 bits for z
-    // Repacked (direction moved to per-draw metadata)
-    // bits 15..19: lengthX (5)
-    // bits 20..24: lengthY (5)
-    // bits 25..31: textureID (7)
-    newVertex |= (lengthX & 0x1F) << 15;
-    newVertex |= (lengthY & 0x1F) << 20;
-    newVertex |= (textureID & 0x7F) << 25;
+	// Repacked (direction moved to per-draw metadata)
+	// bits 15..19: lengthX (5)
+	// bits 20..24: lengthY (5)
+	// bits 25..31: textureID (7)
+	newVertex |= (lengthX & 0x1F) << 15;
+	newVertex |= (lengthY & 0x1F) << 20;
+	newVertex |= (textureID & 0x7F) << 25;
 	vertexData->push_back(newVertex);
 }
 

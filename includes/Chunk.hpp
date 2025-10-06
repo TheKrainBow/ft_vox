@@ -36,8 +36,8 @@ class Chunk
 
 		std::vector<vec4>						_ssboSolid;
 		std::vector<vec4>						_ssboTransp;
-        std::vector<uint32_t>                 _metaSolid;
-        std::vector<uint32_t>                 _metaTransp;
+		std::vector<uint32_t>					_metaSolid;
+		std::vector<uint32_t>					_metaTransp;
 		std::vector<int>						_vertexData;
 		std::vector<int>						_transparentVertexData;
 		std::vector<DrawArraysIndirectCommand>	_transparentIndirectBufferData;
@@ -94,14 +94,14 @@ class Chunk
 			std::vector<int>&							outTranspVerts,
 			std::vector<DrawArraysIndirectCommand>&		outTranspCmds,
 			std::vector<vec4>&							outSSBOTransp,
-			std::vector<uint32_t>&                     outMetaSolid,
-			std::vector<uint32_t>&                     outMetaTransp);
+			std::vector<uint32_t>&						outMetaSolid,
+			std::vector<uint32_t>&						outMetaTransp);
 		TopBlock getFirstSolidBelow(int localX, int startLocalY, int localZ, int startSubY);
 		bool isBuilding() const;
 		void setAsModified();
 		bool getModified() const;
-        // Enumerate existing subchunk Y indices (thread-safe snapshot)
-        void getSubIndices(std::vector<int>& out);
+		// Enumerate existing subchunk Y indices (thread-safe snapshot)
+		void getSubIndices(std::vector<int>& out);
 	private:	
 		void updateHasAllNeighbors();
 };

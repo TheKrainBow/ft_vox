@@ -20,73 +20,73 @@ out vec3 FragPos;
 
 void main()
 {
-    vec4 ssboValue = ssbo[gl_DrawID];
-    float res = ssboValue.w;
+	vec4 ssboValue = ssbo[gl_DrawID];
+	float res = ssboValue.w;
 
-    int instanceData = inst[gl_BaseInstance + gl_InstanceID];
+	int instanceData = inst[gl_BaseInstance + gl_InstanceID];
 
-    int x = (instanceData >>  0) & 0x1F;
-    int y = (instanceData >>  5) & 0x1F;
-    int z = (instanceData >> 10) & 0x1F;
-    int direction = int(drawMeta[gl_DrawID] & 0x7u);
-    int lengthX   = (instanceData >> 15) & 0x1F;
-    int lengthY   = (instanceData >> 20) & 0x1F;
-    int textureID = (instanceData >> 25) & 0x7F;
+	int x = (instanceData >>  0) & 0x1F;
+	int y = (instanceData >>  5) & 0x1F;
+	int z = (instanceData >> 10) & 0x1F;
+	int direction = int(drawMeta[gl_DrawID] & 0x7u);
+	int lengthX   = (instanceData >> 15) & 0x1F;
+	int lengthY   = (instanceData >> 20) & 0x1F;
+	int textureID = (instanceData >> 25) & 0x7F;
 
-    // Only render LEAF (T_LEAF == 11)
-    if (textureID != 11) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
-        return;
-    }
+	// Only render LEAF (T_LEAF == 11)
+	if (textureID != 11) {
+		gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+		TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
+		return;
+	}
 
-    vec3 instancePos = vec3(x, y, z);
-    vec3 basePos = aPos;
-    vec2 finalUV = aPos.xy;
+	vec3 instancePos = vec3(x, y, z);
+	vec3 basePos = aPos;
+	vec2 finalUV = aPos.xy;
 
-    lengthX++; lengthY++;
-    finalUV.y = 1.0 - finalUV.y;
-    finalUV /= res;
-    basePos.x *= lengthX;
-    basePos.y *= lengthY;
+	lengthX++; lengthY++;
+	finalUV.y = 1.0 - finalUV.y;
+	finalUV /= res;
+	basePos.x *= lengthX;
+	basePos.y *= lengthY;
 
-    vec3 normal = vec3(0.0);
+	vec3 normal = vec3(0.0);
 
-    if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
-    if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
+	if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
+	if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
 
-    if (direction == 0) normal = vec3(0,0,1);
-    if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,-1,0); }
-    if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(1,0,0); }
-    if (direction == 3) { basePos.x += res; normal = vec3(-1,0,0); }
-    if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
-    if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
+	if (direction == 0) normal = vec3(0,0,1);
+	if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,-1,0); }
+	if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(1,0,0); }
+	if (direction == 3) { basePos.x += res; normal = vec3(-1,0,0); }
+	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
+	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
-    vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
-    // Slightly shrink leaves toward their block center to avoid z-fighting
-    const float LEAF_SCALE = 0.98; // 98% of block size
-    vec3 blockCenter = ssboValue.xyz + instancePos + vec3(0.5 * res);
-    worldPosition = blockCenter + (worldPosition - blockCenter) * LEAF_SCALE;
-    finalUV *= vec2(lengthX, lengthY);
+	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
+	// Slightly shrink leaves toward their block center to avoid z-fighting
+	const float LEAF_SCALE = 0.98; // 98% of block size
+	vec3 blockCenter = ssboValue.xyz + instancePos + vec3(0.5 * res);
+	worldPosition = blockCenter + (worldPosition - blockCenter) * LEAF_SCALE;
+	finalUV *= vec2(lengthX, lengthY);
 
-    // Subtle wind sway (camera-relative world XZ)
-    // Desync with tiny hash per block instance
-    float hash = fract(dot(instancePos, vec3(0.1031, 0.11369, 0.13787)));
-    float wPhase = time * 1.2 + hash * 6.28318;
-    // Low-frequency global wind direction changes slowly with time
-    vec2 windDir = normalize(vec2(sin(0.27 * time), cos(0.23 * time)));
-    // Keep amplitude tiny and proportional to block size (res)
-    float amp = 0.035 * res; // ~1.2% of block size
-    // Slightly stronger sway higher in world Y (gives a gentle bend feel)
-    float heightMask = clamp((worldPosition.y - (ssboValue.y + instancePos.y)) / max(res, 0.0001), 0.0, 1.0);
-    vec3 swayOffset = vec3(windDir.x, 0.0, windDir.y) * (amp * sin(wPhase)) * (0.5 + 0.5 * heightMask);
-    worldPosition += swayOffset;
+	// Subtle wind sway (camera-relative world XZ)
+	// Desync with tiny hash per block instance
+	float hash = fract(dot(instancePos, vec3(0.1031, 0.11369, 0.13787)));
+	float wPhase = time * 1.2 + hash * 6.28318;
+	// Low-frequency global wind direction changes slowly with time
+	vec2 windDir = normalize(vec2(sin(0.27 * time), cos(0.23 * time)));
+	// Keep amplitude tiny and proportional to block size (res)
+	float amp = 0.035 * res; // ~1.2% of block size
+	// Slightly stronger sway higher in world Y (gives a gentle bend feel)
+	float heightMask = clamp((worldPosition.y - (ssboValue.y + instancePos.y)) / max(res, 0.0001), 0.0, 1.0);
+	vec3 swayOffset = vec3(windDir.x, 0.0, windDir.y) * (amp * sin(wPhase)) * (0.5 + 0.5 * heightMask);
+	worldPosition += swayOffset;
 
-    // Camera-relative to avoid precision seams
-    vec3 relPos = worldPosition - cameraPos;
-    gl_Position = projection * view * model * vec4(relPos, 1.0);
-    TexCoord = finalUV;
-    TextureID = textureID;
-    Normal = mat3(transpose(inverse(model))) * normal;
-    FragPos = worldPosition;
+	// Camera-relative to avoid precision seams
+	vec3 relPos = worldPosition - cameraPos;
+	gl_Position = projection * view * model * vec4(relPos, 1.0);
+	TexCoord = finalUV;
+	TextureID = textureID;
+	Normal = mat3(transpose(inverse(model))) * normal;
+	FragPos = worldPosition;
 }

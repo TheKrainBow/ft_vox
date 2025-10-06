@@ -158,13 +158,13 @@ TextureManager::TextureManager() {
 }
 
 TextureManager::~TextureManager() {
-    // Delegate to explicit teardown (idempotent)
-    shutdownGL();
+	// Delegate to explicit teardown (idempotent)
+	shutdownGL();
 }
 
 void TextureManager::shutdownGL() {
-    if (_textureArrayID) {
-        glDeleteTextures(1, &_textureArrayID);
-        _textureArrayID = 0;
-    }
+	if (_textureArrayID) {
+		glDeleteTextures(1, &_textureArrayID);
+		_textureArrayID = 0;
+	}
 }

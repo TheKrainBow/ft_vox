@@ -28,10 +28,10 @@ vec3 Camera::getWorldPosition(void)
 }
 
 ivec2 Camera::getChunkPosition(int chunkSize) {
-    // Floor division on world coords to handle negatives correctly
-    std::lock_guard<std::mutex> lock(_positionMutex);
-    const float wx = -position.x;
-    const float wz = -position.z;
+	// Floor division on world coords to handle negatives correctly
+	std::lock_guard<std::mutex> lock(_positionMutex);
+	const float wx = -position.x;
+	const float wz = -position.z;
 	const float cs = static_cast<float>(chunkSize);
 	const int cx = static_cast<int>(std::floor(wx / cs));
 	const int cz = static_cast<int>(std::floor(wz / cs));
@@ -46,8 +46,8 @@ vec3 Camera::getPosition()
 
 fvec2 Camera::getAngles()
 {
-    std::lock_guard<std::mutex> lock(_angleMutex);
-    return angle;
+	std::lock_guard<std::mutex> lock(_angleMutex);
+	return angle;
 }
 
 vec3 *Camera::getPositionPtr()
@@ -68,9 +68,9 @@ fvec2 *Camera::getAnglesPtr()
 }
 
 vec3 Camera::getDirection() const {
-    std::lock_guard<std::mutex> lock(_angleMutex);
-    float pitch = radians(angle.y); // vertical
-    float yaw   = radians(angle.x); // horizontal
+	std::lock_guard<std::mutex> lock(_angleMutex);
+	float pitch = radians(angle.y); // vertical
+	float yaw   = radians(angle.x); // horizontal
 
 	vec3 dir;
 	dir.z = -cos(pitch) * cos(yaw);
@@ -81,9 +81,9 @@ vec3 Camera::getDirection() const {
 
 void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 {
-    std::lock_guard<std::mutex> lock(_angleMutex);
-    angle.x += xAngle * rotationSpeed;
-    angle.y += yAngle * rotationSpeed;
+	std::lock_guard<std::mutex> lock(_angleMutex);
+	angle.x += xAngle * rotationSpeed;
+	angle.y += yAngle * rotationSpeed;
 	angle.y = std::clamp(angle.y, -90.0f, 90.0f);
 	if (angle.x < 0)
 		angle.x += 360;
@@ -94,8 +94,8 @@ void Camera::rotate(float xAngle, float yAngle, double rotationSpeed)
 
 void Camera::invert()
 {
-    std::lock_guard<std::mutex> lock(_angleMutex);
-    angle.x += 180.0f;
+	std::lock_guard<std::mutex> lock(_angleMutex);
+	angle.x += 180.0f;
 	if (angle.x >= 360.0f)
 		angle.x -= 360.0f;
 }
@@ -113,22 +113,22 @@ void Camera::updateMousePos(int x, int y)
 
 void Camera::setPos(const float &x, const float &y, const float &z)
 {
-    std::lock_guard<std::mutex> lock(_positionMutex);
-    position = {x, y, z};
-    y_pos = -y;
+	std::lock_guard<std::mutex> lock(_positionMutex);
+	position = {x, y, z};
+	y_pos = -y;
 }
 
 void Camera::setPos(const vec3 &newPos)
 {
-    std::lock_guard<std::mutex> lock(_positionMutex);
-    position = newPos;
-    y_pos = -newPos.y;
+	std::lock_guard<std::mutex> lock(_positionMutex);
+	position = newPos;
+	y_pos = -newPos.y;
 }
 
 vec3 Camera::getForwardVector() const
 {
-    std::lock_guard<std::mutex> lock(_angleMutex);
-    float yawRad = angle.x * (M_PI / 180.0f);
+	std::lock_guard<std::mutex> lock(_angleMutex);
+	float yawRad = angle.x * (M_PI / 180.0f);
 	return vec3(
 		sin(yawRad),	// X axis
 		0.0f,
@@ -138,8 +138,8 @@ vec3 Camera::getForwardVector() const
 
 vec3 Camera::getStrafeVector() const
 {
-    std::lock_guard<std::mutex> lock(_angleMutex);
-    float yawRad = (angle.x + 90.0f) * (M_PI / 180.0f);
+	std::lock_guard<std::mutex> lock(_angleMutex);
+	float yawRad = (angle.x + 90.0f) * (M_PI / 180.0f);
 	return vec3(
 		sin(yawRad),
 		0.0f,

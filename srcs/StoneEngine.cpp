@@ -70,44 +70,44 @@ bool isTransparent(char block)
 // Display logs only if sides
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
-    // For leaves: always show faces, but if neighbor is also a leaf, only
-    // emit the face for positive-axis directions to avoid z-fighting between
-    // coincident quads (keep one of the two faces).
-    if (blockToDisplay == LEAF)
-    {
-        if (neighborBlock == LEAF)
-        {
-            return (dir == EAST || dir == UP || dir == SOUTH);
-        }
-        return true; // non-leaf neighbor: show the face regardless
-    }
+	// For leaves: always show faces, but if neighbor is also a leaf, only
+	// emit the face for positive-axis directions to avoid z-fighting between
+	// coincident quads (keep one of the two faces).
+	if (blockToDisplay == LEAF)
+	{
+		if (neighborBlock == LEAF)
+		{
+			return (dir == EAST || dir == UP || dir == SOUTH);
+		}
+		return true; // non-leaf neighbor: show the face regardless
+	}
 
-    // Apply the same neighboring-face rule used for logs to cactuses:
-    // always render side faces even when adjacent to the same block type.
-    const bool isLogOrCactus = (blockToDisplay == LOG || blockToDisplay == CACTUS);
-    if (isLogOrCactus && dir <= EAST)
-        return true;
+	// Apply the same neighboring-face rule used for logs to cactuses:
+	// always render side faces even when adjacent to the same block type.
+	const bool isLogOrCactus = (blockToDisplay == LOG || blockToDisplay == CACTUS);
+	if (isLogOrCactus && dir <= EAST)
+		return true;
 
-    return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock);
+	return (isTransparent(neighborBlock) && blockToDisplay != neighborBlock);
 }
 
 static inline void glResetActiveTextureTo0()
 {
-    glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(GL_TEXTURE0);
 }
 
 static inline void glUnbindCommonTextures()
 {
-    // Unbind the most common targets we touch
+    // Unbind common targets
     glBindTexture(GL_TEXTURE_2D, 0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 }
 
 static inline void glCleanupTextureState()
 {
-    glResetActiveTextureTo0();
-    glUnbindCommonTextures();
+	glResetActiveTextureTo0();
+	glUnbindCommonTextures();
 }
 
 void StoneEngine::updateFboWindowSize(PostProcessShader &shader)
@@ -144,19 +144,19 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(),
 
 StoneEngine::~StoneEngine()
 {
-    // Ensure the GL context is current during teardown
-    if (_window) glfwMakeContextCurrent(_window);
-    // Drain any in-flight GPU work before deleting GL objects
-    glFinish();
-    // Ensure _chunkMgr GL resources are freed before destroying the context
-    _chunkMgr.shutDownGL();
+	// Ensure the GL context is current during teardown
+	if (_window) glfwMakeContextCurrent(_window);
+	// Drain any in-flight GPU work before deleting GL objects
+	glFinish();
+	// Ensure _chunkMgr GL resources are freed before destroying the context
+	_chunkMgr.shutDownGL();
 
-    // Teardown GL resources owned by helper classes while context is valid
-    _skybox.shutdownGL();
-    _textureManager.shutdownGL();
-    debugBox.shutdownGL();
-    helpBox.shutdownGL();
-    _loadingBox.shutdownGL();
+	// Teardown GL resources owned by helper classes while context is valid
+	_skybox.shutdownGL();
+	_textureManager.shutdownGL();
+	debugBox.shutdownGL();
+	helpBox.shutdownGL();
+	_loadingBox.shutdownGL();
 
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
@@ -237,9 +237,9 @@ StoneEngine::~StoneEngine()
 	// destroying the context/window (reduces TSan races in Mesa).
 	glFlush();
 	glFinish();
-    // Terminate GLFW
-    glfwDestroyWindow(_window);
-    glfwTerminate();
+	// Terminate GLFW
+	glfwDestroyWindow(_window);
+	glfwTerminate();
 }
 
 void StoneEngine::run()
@@ -544,8 +544,8 @@ void StoneEngine::initRenderShaders()
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	alphaShaderProgram = createShaderProgram("shaders/render/alpha.vert", "shaders/render/alpha.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
-    skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
-    shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
+	skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
+	shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
 	initSkybox();
@@ -559,20 +559,20 @@ void StoneEngine::initShadowMapping()
 
 void StoneEngine::rebuildShadowResources(int effectiveRender)
 {
-    (void)effectiveRender;
+	(void)effectiveRender;
 
-    // Clamp shadow map size to hardware limits to avoid incomplete FBOs
-    GLint maxTex = 0;
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
-    if (maxTex > 0 && shadowMapSize > maxTex) {
-        shadowMapSize = maxTex;
-    }
+	// Clamp shadow map size to hardware limits to avoid incomplete FBOs
+	GLint maxTex = 0;
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+	if (maxTex > 0 && shadowMapSize > maxTex) {
+		shadowMapSize = maxTex;
+	}
 
-    if (shadowFBO) {
-        glDeleteFramebuffers(1, &shadowFBO);
-        shadowFBO = 0;
-    }
-    if (shadowMap) {
+	if (shadowFBO) {
+		glDeleteFramebuffers(1, &shadowFBO);
+		shadowFBO = 0;
+	}
+	if (shadowMap) {
 		glDeleteTextures(1, &shadowMap);
 		shadowMap = 0;
 	}
@@ -894,23 +894,23 @@ void StoneEngine::activateRenderShader()
 	radX = camera.getAngles().x * (M_PI / 180.0);
 	radY = camera.getAngles().y * (M_PI / 180.0);
 
-    // Build rotation-only view
-    mat4 viewRot = mat4(1.0f);
-    viewRot = rotate(viewRot, radY, vec3(-1.0f, 0.0f, 0.0f));
-    viewRot = rotate(viewRot, radX, vec3(0.0f, -1.0f, 0.0f));
+	// Build rotation-only view
+	mat4 viewRot = mat4(1.0f);
+	viewRot = rotate(viewRot, radY, vec3(-1.0f, 0.0f, 0.0f));
+	viewRot = rotate(viewRot, radX, vec3(0.0f, -1.0f, 0.0f));
 
-    // Build full view (with translation)
-    mat4 viewFull = viewRot;
-    viewFull = translate(viewFull, vec3(camera.getPosition()));
+	// Build full view (with translation)
+	mat4 viewFull = viewRot;
+	viewFull = translate(viewFull, vec3(camera.getPosition()));
 
-    this->viewMatrix = viewFull;
-    _chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
+	this->viewMatrix = viewFull;
+	_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 
 	glUseProgram(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
-    // Pass rotation-only view to terrain shader (camera-relative positions in VS)
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
+	// Pass rotation-only view to terrain shader (camera-relative positions in VS)
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 	glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
@@ -935,10 +935,10 @@ void StoneEngine::activateRenderShader()
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
 	glUniform1i(glGetUniformLocation(shaderProgram, "textureArray"), 0);
 
-    // Reactivate face culling for terrain (cull FRONT faces as requested)
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-    glFrontFace(GL_CCW);
+	// Reactivate face culling for terrain (cull FRONT faces as requested)
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+	glFrontFace(GL_CCW);
 }
 
 void StoneEngine::renderShadowMap()
@@ -983,7 +983,7 @@ void StoneEngine::renderShadowMap()
 
 	// ---------- Place light & build stable matrices (single cascade) ----------
 	const float shadowDist = std::max(halfWorld * 1.25f, 300.0f);
-	glm::vec3  up(0.0f, 0.0f, 1.0f);                             // Z-up like your code
+	glm::vec3  up(0.0f, 0.0f, 1.0f);                             // Z-up
 	glm::vec3  lightPos = center + sunDir * shadowDist;
 	glm::mat4  lightView = glm::lookAt(lightPos, center, up);
 
@@ -991,8 +991,8 @@ void StoneEngine::renderShadowMap()
 	_shadowFar  = shadowDist + halfWorld;
 
 	glm::mat4 lightProj = glm::ortho(-halfWorld, halfWorld,
-	                                 -halfWorld, halfWorld,
-	                                 _shadowNear, _shadowFar);
+									 -halfWorld, halfWorld,
+									 _shadowNear, _shadowFar);
 
 	// Texel snapping: snap the projected center to the shadow map pixel grid
 	{
@@ -1106,7 +1106,7 @@ void StoneEngine::renderChunkGrid()
 	float camY = camW.y;
 	int camSY = int(std::floor(camY / CS));
 	const int below = 2; // draw 2 subchunks below camera
-	const int above = 5; // and 5 above (tweak as you like)
+	const int above = 5; // and 5 above
 	int sy0 = camSY - below;
 	int sy1 = camSY + above;
 
@@ -1405,44 +1405,44 @@ void StoneEngine::initFlowerResources()
 	const int nfiles = (int)files.size();
 	int w = 0, h = 0, ch = 0;
 	unsigned char *data = (nfiles > 0) ? stbi_load(files[0].c_str(), &w, &h, &ch, 4) : nullptr;
-    if (data)
-    {
-        // Fallback: if no alpha present, carve background by edge flood-fill
-        bool anyTransparent0 = false;
-        for (int i = 0; i < w * h; ++i) if (data[4 * i + 3] < 255) { anyTransparent0 = true; break; }
-        if (!anyTransparent0 && w > 1 && h > 1)
-        {
-            auto getPx = [&](int x, int y) -> glm::ivec3 { unsigned char* p = data + 4*(y*w + x); return {p[0],p[1],p[2]}; };
-            glm::ivec3 corners[4] = {getPx(0,0), getPx(w-1,0), getPx(0,h-1), getPx(w-1,h-1)};
-            glm::ivec3 key = corners[0];
-            int best = 1;
-            for (int i = 0; i < 4; ++i) {
-                int cnt = 0; for (int j = 0; j < 4; ++j) if (glm::all(glm::equal(corners[i], corners[j]))) cnt++;
-                if (cnt > best) { best = cnt; key = corners[i]; }
-            }
-            auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b){
-                int dr = int(r) - key.r; int dg = int(g) - key.g; int db = int(b) - key.b;
-                return (abs(dr) + abs(dg) + abs(db)) <= 96; // generous threshold
-            };
-            std::vector<uint8_t> mark(w*h, 0);
-            std::deque<std::pair<int,int>> q;
-            auto push = [&](int x,int y){ if(x<0||y<0||x>=w||y>=h) return; int i=y*w+x; if(mark[i]) return; unsigned char* p=data+4*i; if(nearKey(p[0],p[1],p[2])){ mark[i]=1; q.emplace_back(x,y);} };
-            for(int x=0;x<w;x++){ push(x,0); push(x,h-1);} for(int y=0;y<h;y++){ push(0,y); push(w-1,y);} 
-            const int dx[8]={-1,0,1,-1,1,-1,0,1}; const int dy[8]={-1,-1,-1,0,0,1,1,1};
-            while(!q.empty()){
-                auto [x,y]=q.front(); q.pop_front();
-                for(int k=0;k<8;k++){ int nx=x+dx[k], ny=y+dy[k]; if(nx<0||ny<0||nx>=w||ny>=h) continue; int idx=ny*w+nx; if(mark[idx]) continue; unsigned char* p=data+4*idx; if(nearKey(p[0],p[1],p[2])){ mark[idx]=1; q.emplace_back(nx,ny);} }
-            }
-            for(int i=0;i<w*h;i++) if(mark[i]){ unsigned char* p=data+4*i; p[0]=p[1]=p[2]=0; p[3]=0; }
-        }
-        // Zero RGB where fully transparent to avoid fringes
-        for (int i = 0; i < w * h; ++i)
-        {
-            if (data[4 * i + 3] == 0)
-            {
-                data[4 * i + 0] = data[4 * i + 1] = data[4 * i + 2] = 0;
-            }
-        }
+	if (data)
+	{
+		// Fallback: if no alpha present, carve background by edge flood-fill
+		bool anyTransparent0 = false;
+		for (int i = 0; i < w * h; ++i) if (data[4 * i + 3] < 255) { anyTransparent0 = true; break; }
+		if (!anyTransparent0 && w > 1 && h > 1)
+		{
+			auto getPx = [&](int x, int y) -> glm::ivec3 { unsigned char* p = data + 4*(y*w + x); return {p[0],p[1],p[2]}; };
+			glm::ivec3 corners[4] = {getPx(0,0), getPx(w-1,0), getPx(0,h-1), getPx(w-1,h-1)};
+			glm::ivec3 key = corners[0];
+			int best = 1;
+			for (int i = 0; i < 4; ++i) {
+				int cnt = 0; for (int j = 0; j < 4; ++j) if (glm::all(glm::equal(corners[i], corners[j]))) cnt++;
+				if (cnt > best) { best = cnt; key = corners[i]; }
+			}
+			auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b){
+				int dr = int(r) - key.r; int dg = int(g) - key.g; int db = int(b) - key.b;
+				return (abs(dr) + abs(dg) + abs(db)) <= 96; // generous threshold
+			};
+			std::vector<uint8_t> mark(w*h, 0);
+			std::deque<std::pair<int,int>> q;
+			auto push = [&](int x,int y){ if(x<0||y<0||x>=w||y>=h) return; int i=y*w+x; if(mark[i]) return; unsigned char* p=data+4*i; if(nearKey(p[0],p[1],p[2])){ mark[i]=1; q.emplace_back(x,y);} };
+			for(int x=0;x<w;x++){ push(x,0); push(x,h-1);} for(int y=0;y<h;y++){ push(0,y); push(w-1,y);} 
+			const int dx[8]={-1,0,1,-1,1,-1,0,1}; const int dy[8]={-1,-1,-1,0,0,1,1,1};
+			while(!q.empty()){
+				auto [x,y]=q.front(); q.pop_front();
+				for(int k=0;k<8;k++){ int nx=x+dx[k], ny=y+dy[k]; if(nx<0||ny<0||nx>=w||ny>=h) continue; int idx=ny*w+nx; if(mark[idx]) continue; unsigned char* p=data+4*idx; if(nearKey(p[0],p[1],p[2])){ mark[idx]=1; q.emplace_back(nx,ny);} }
+			}
+			for(int i=0;i<w*h;i++) if(mark[i]){ unsigned char* p=data+4*i; p[0]=p[1]=p[2]=0; p[3]=0; }
+		}
+		// Zero RGB where fully transparent to avoid fringes
+		for (int i = 0; i < w * h; ++i)
+		{
+			if (data[4 * i + 3] == 0)
+			{
+				data[4 * i + 0] = data[4 * i + 1] = data[4 * i + 2] = 0;
+			}
+		}
 		glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, w, h, nfiles, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, w, h, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		stbi_image_free(data);
@@ -1452,27 +1452,27 @@ void StoneEngine::initFlowerResources()
 			unsigned char *d = stbi_load(files[layer].c_str(), &ww, &hh, &cc, 4);
 			if (!d)
 				continue;
-            // Fallback: add alpha via border flood-fill if needed
-            bool anyTransparent = false;
-            for (int i = 0; i < ww * hh; ++i) if (d[4 * i + 3] < 255) { anyTransparent = true; break; }
-            if (!anyTransparent && ww > 1 && hh > 1)
-            {
-                auto getPx = [&](int x, int y) -> glm::ivec3 { unsigned char* p = d + 4*(y*ww + x); return {p[0],p[1],p[2]}; };
-                glm::ivec3 corners[4] = {getPx(0,0), getPx(ww-1,0), getPx(0,hh-1), getPx(ww-1,hh-1)};
-                glm::ivec3 key = corners[0];
-                int best = 1; for(int i2=0;i2<4;i2++){ int cnt=0; for(int j=0;j<4;j++) if(glm::all(glm::equal(corners[i2], corners[j]))) cnt++; if(cnt>best){best=cnt; key=corners[i2];}}
-                auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b){ int dr=int(r)-key.r; int dg=int(g)-key.g; int db=int(b)-key.b; return (abs(dr)+abs(dg)+abs(db))<=96; };
-                std::vector<uint8_t> mark(ww*hh,0);
-                std::deque<std::pair<int,int>> q;
-                auto push=[&](int x,int y){ if(x<0||y<0||x>=ww||y>=hh) return; int i=y*ww+x; if(mark[i]) return; unsigned char* p=d+4*i; if(nearKey(p[0],p[1],p[2])){ mark[i]=1; q.emplace_back(x,y);} };
-                for(int x=0;x<ww;x++){ push(x,0); push(x,hh-1);} for(int y=0;y<hh;y++){ push(0,y); push(ww-1,y);} 
-                const int dx[8]={-1,0,1,-1,1,-1,0,1}; const int dy[8]={-1,-1,-1,0,0,1,1,1};
-                while(!q.empty()){
-                    auto [x,y]=q.front(); q.pop_front();
-                    for(int k=0;k<8;k++){ int nx=x+dx[k], ny=y+dy[k]; if(nx<0||ny<0||nx>=ww||ny>=hh) continue; int idx=ny*ww+nx; if(mark[idx]) continue; unsigned char* p=d+4*idx; if(nearKey(p[0],p[1],p[2])){ mark[idx]=1; q.emplace_back(nx,ny);} }
-                }
-                for(int i2=0;i2<ww*hh;i2++) if(mark[i2]){ unsigned char* p=d+4*i2; p[0]=p[1]=p[2]=0; p[3]=0; }
-            }
+			// Fallback: add alpha via border flood-fill if needed
+			bool anyTransparent = false;
+			for (int i = 0; i < ww * hh; ++i) if (d[4 * i + 3] < 255) { anyTransparent = true; break; }
+			if (!anyTransparent && ww > 1 && hh > 1)
+			{
+				auto getPx = [&](int x, int y) -> glm::ivec3 { unsigned char* p = d + 4*(y*ww + x); return {p[0],p[1],p[2]}; };
+				glm::ivec3 corners[4] = {getPx(0,0), getPx(ww-1,0), getPx(0,hh-1), getPx(ww-1,hh-1)};
+				glm::ivec3 key = corners[0];
+				int best = 1; for(int i2=0;i2<4;i2++){ int cnt=0; for(int j=0;j<4;j++) if(glm::all(glm::equal(corners[i2], corners[j]))) cnt++; if(cnt>best){best=cnt; key=corners[i2];}}
+				auto nearKey = [&](unsigned char r, unsigned char g, unsigned char b){ int dr=int(r)-key.r; int dg=int(g)-key.g; int db=int(b)-key.b; return (abs(dr)+abs(dg)+abs(db))<=96; };
+				std::vector<uint8_t> mark(ww*hh,0);
+				std::deque<std::pair<int,int>> q;
+				auto push=[&](int x,int y){ if(x<0||y<0||x>=ww||y>=hh) return; int i=y*ww+x; if(mark[i]) return; unsigned char* p=d+4*i; if(nearKey(p[0],p[1],p[2])){ mark[i]=1; q.emplace_back(x,y);} };
+				for(int x=0;x<ww;x++){ push(x,0); push(x,hh-1);} for(int y=0;y<hh;y++){ push(0,y); push(ww-1,y);} 
+				const int dx[8]={-1,0,1,-1,1,-1,0,1}; const int dy[8]={-1,-1,-1,0,0,1,1,1};
+				while(!q.empty()){
+					auto [x,y]=q.front(); q.pop_front();
+					for(int k=0;k<8;k++){ int nx=x+dx[k], ny=y+dy[k]; if(nx<0||ny<0||nx>=ww||ny>=hh) continue; int idx=ny*ww+nx; if(mark[idx]) continue; unsigned char* p=d+4*idx; if(nearKey(p[0],p[1],p[2])){ mark[idx]=1; q.emplace_back(nx,ny);} }
+				}
+				for(int i2=0;i2<ww*hh;i2++) if(mark[i2]){ unsigned char* p=d+4*i2; p[0]=p[1]=p[2]=0; p[3]=0; }
+			}
 			if (ww != w || hh != h)
 			{
 				std::vector<unsigned char> resized(w * h * 4);
@@ -1573,55 +1573,55 @@ void StoneEngine::rebuildVisibleFlowersVBO()
 					typeId = flowerShortGrassLayer;
 				else if (bt == FLOWER_DEAD_BUSH && _layerDeadBush >= 0)
 					typeId = _layerDeadBush;
-                glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
-                // Poppy can appear slightly above ground; nudge it down a bit
-                if (bt == FLOWER_POPPY)
-                    center.y -= 0.1f;
-                FlowerInstance inst{center, rotD(rng), scaD(rng), 1.0f, typeId};
+				glm::vec3 center(cell.x + 0.5f, cell.y + 0.0f, cell.z + 0.5f);
+				// Poppy can appear slightly above ground; nudge it down a bit
+				if (bt == FLOWER_POPPY)
+					center.y -= 0.1f;
+				FlowerInstance inst{center, rotD(rng), scaD(rng), 1.0f, typeId};
 				_flowersBySub[cpos][subY].push_back(inst);
 			}
 		}
 	}
-    std::vector<glm::ivec2> chunks;
-    _chunkMgr.getDisplayedChunksSnapshot(chunks);
-    std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
-    _chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
+	std::vector<glm::ivec2> chunks;
+	_chunkMgr.getDisplayedChunksSnapshot(chunks);
+	std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> visibleSub;
+	_chunkMgr.getDisplayedSubchunksSnapshot(visibleSub);
 
-    // Prune cached flower instances for chunks that are no longer displayed
-    // to avoid unbounded memory growth when roaming far.
-    if (!chunks.empty())
-    {
-        std::unordered_set<glm::ivec2, ivec2_hash> keep;
-        keep.reserve(chunks.size());
-        for (const auto &c : chunks) keep.insert(c);
-        for (auto it = _flowersBySub.begin(); it != _flowersBySub.end(); )
-        {
-            if (keep.find(it->first) == keep.end()) it = _flowersBySub.erase(it);
-            else ++it;
-        }
-    }
-    _visibleFlowers.clear();
-    for (const auto &c : chunks)
-    {
-        auto it = _flowersBySub.find(c);
-        if (it == _flowersBySub.end())
-            continue;
-        auto visIt = visibleSub.find(c);
-        // Only render flowers for sublayers that are actually displayed.
-        // If there is no snapshot yet for this chunk, skip for now to avoid
-        // flowers appearing before terrain meshes.
-        if (visIt == visibleSub.end() || visIt->second.empty())
-            continue;
-        const auto &allowed = visIt->second;
-        for (auto &kv : it->second)
-        {
-            int subY = kv.first;
-            if (allowed.find(subY) == allowed.end())
-                continue;
-            auto &vec = kv.second;
-            _visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
-        }
-    }
+	// Prune cached flower instances for chunks that are no longer displayed
+	// to avoid unbounded memory growth when roaming far.
+	if (!chunks.empty())
+	{
+		std::unordered_set<glm::ivec2, ivec2_hash> keep;
+		keep.reserve(chunks.size());
+		for (const auto &c : chunks) keep.insert(c);
+		for (auto it = _flowersBySub.begin(); it != _flowersBySub.end(); )
+		{
+			if (keep.find(it->first) == keep.end()) it = _flowersBySub.erase(it);
+			else ++it;
+		}
+	}
+	_visibleFlowers.clear();
+	for (const auto &c : chunks)
+	{
+		auto it = _flowersBySub.find(c);
+		if (it == _flowersBySub.end())
+			continue;
+		auto visIt = visibleSub.find(c);
+		// Only render flowers for sublayers that are actually displayed.
+		// If there is no snapshot yet for this chunk, skip for now to avoid
+		// flowers appearing before terrain meshes.
+		if (visIt == visibleSub.end() || visIt->second.empty())
+			continue;
+		const auto &allowed = visIt->second;
+		for (auto &kv : it->second)
+		{
+			int subY = kv.first;
+			if (allowed.find(subY) == allowed.end())
+				continue;
+			auto &vec = kv.second;
+			_visibleFlowers.insert(_visibleFlowers.end(), vec.begin(), vec.end());
+		}
+	}
 	flowerInstanceCount = (GLsizei)_visibleFlowers.size();
 	std::vector<unsigned char> buffer;
 	buffer.resize(_visibleFlowers.size() * (sizeof(float) * 6 + sizeof(int)));
@@ -1789,24 +1789,24 @@ void StoneEngine::display()
 	else
 	{
 		// In wireframe mode, previous blits changed GL_DRAW_FRAMEBUFFER.
-		// Ensure we render lines to the default framebuffer so they are visible.
+    // Render lines to the default framebuffer for visibility.
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		renderTransparentObjects(); // direct
 	}
 
-    // Run god rays BEFORE greedy fix so depth still marks sky properly
-    postProcessGodRays();
-    blitColor(writeFBO, readFBO);
+	// Run god rays BEFORE greedy fix so depth still marks sky properly
+	postProcessGodRays();
+	blitColor(writeFBO, readFBO);
 
-    // Greedy fix (needs depth, may WRITE gl_FragDepth)
-    postProcessGreedyFix();
-    blitColorDepth(writeFBO, readFBO);
+	// Greedy fix (needs depth, may WRITE gl_FragDepth)
+	postProcessGreedyFix();
+	blitColorDepth(writeFBO, readFBO);
 
-    // Fog
-    postProcessFog();
-    blitColor(writeFBO, readFBO);
-    postProcessSkyboxComposite();
-    blitColor(writeFBO, readFBO);
+	// Fog
+	postProcessFog();
+	blitColor(writeFBO, readFBO);
+	postProcessSkyboxComposite();
+	blitColor(writeFBO, readFBO);
 
 	displaySun(writeFBO);
 	blitColor(writeFBO, readFBO);
@@ -1845,7 +1845,7 @@ void StoneEngine::renderLoadingScreen()
 	}
 
 	// Center text by adjusting its starting position roughly to middle
-	// Textbox renders relative to internal offsets; we re-init dimensions on resize
+    // Textbox renders relative to internal offsets; re-init dimensions on resize
 	_loadingBox.initData(_window, windowWidth / 2 - 90, windowHeight / 2 - 18, windowWidth, windowHeight);
 	_loadingBox.render();
 	glfwSwapBuffers(_window);
@@ -1915,50 +1915,50 @@ void StoneEngine::renderAimHighlight()
 		(int)std::floor((float)hit.z / (float)CHUNK_SIZE));
 	BlockType hitBlock = _chunkMgr.getBlock(hitChunkPos, hit);
 
-    // Default: full block
-    glm::vec3 bboxOffset = glm::vec3(hit);
-    glm::vec3 bboxScale = glm::vec3(1.0f, 1.0f, 1.0f);
+	// Default: full block
+	glm::vec3 bboxOffset = glm::vec3(hit);
+	glm::vec3 bboxScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
-    // Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
-    if (hitBlock == LOG || hitBlock == CACTUS)
-    {
-        const float inset = 0.10f;
-        bboxOffset.x += inset;
-        bboxOffset.z += inset;
-        bboxScale.x = 1.0f - 2.0f * inset;
-        bboxScale.z = 1.0f - 2.0f * inset;
-    }
-    // Decorative plants (flowers/short grass) render as X-cross quads of width ~0.70m.
-    // Adapt the aim highlight to their smaller footprint so the wireframe hugs the plant.
-    else if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION ||
-             hitBlock == FLOWER_CYAN  || hitBlock == FLOWER_SHORT_GRASS ||
-             hitBlock == FLOWER_DEAD_BUSH)
-    {
-        // Base mesh half-width W = 0.35 (see initFlowerResources), so baseline total ~0.70.
-        // Cyan sprite is visually slimmer; match poppy/dandelion to cyan width.
-        float plantScaleXZ = 0.70f;
-        const float cyanScaleXZ = 0.60f;
-        // Use cyan-sized footprint for cyan, poppy, dandelion and dead bush
-        if (hitBlock == FLOWER_CYAN || hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION || hitBlock == FLOWER_DEAD_BUSH)
-            plantScaleXZ = cyanScaleXZ;
-        const float inset = (1.0f - plantScaleXZ) * 0.5f; // center within the voxel
-        bboxOffset.x += inset;
-        bboxOffset.z += inset;
-        bboxScale.x = plantScaleXZ;
-        bboxScale.z = plantScaleXZ;
-        // Adjust height per plant type for aim wireframe only
-        if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION)
-        {
-            // A bit taller than half of cyan's (baseline) height
-            bboxScale.y = 0.65f;
-        }
-        // Short grass: make wireframe almost a full block tall for visibility
-        if (hitBlock == FLOWER_SHORT_GRASS)
-        {
-            // Make the wireframe almost a full block tall for visibility
-            bboxScale.y = 0.95f;
-        }
-    }
+	// Match the visual inset used in shaders/render/terrain.vert (LOG_INSET = 0.10)
+	if (hitBlock == LOG || hitBlock == CACTUS)
+	{
+		const float inset = 0.10f;
+		bboxOffset.x += inset;
+		bboxOffset.z += inset;
+		bboxScale.x = 1.0f - 2.0f * inset;
+		bboxScale.z = 1.0f - 2.0f * inset;
+	}
+	// Decorative plants (flowers/short grass) render as X-cross quads of width ~0.70m.
+	// Adapt the aim highlight to their smaller footprint so the wireframe hugs the plant.
+	else if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION ||
+			 hitBlock == FLOWER_CYAN  || hitBlock == FLOWER_SHORT_GRASS ||
+			 hitBlock == FLOWER_DEAD_BUSH)
+	{
+		// Base mesh half-width W = 0.35 (see initFlowerResources), so baseline total ~0.70.
+		// Cyan sprite is visually slimmer; match poppy/dandelion to cyan width.
+		float plantScaleXZ = 0.70f;
+		const float cyanScaleXZ = 0.60f;
+		// Use cyan-sized footprint for cyan, poppy, dandelion and dead bush
+		if (hitBlock == FLOWER_CYAN || hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION || hitBlock == FLOWER_DEAD_BUSH)
+			plantScaleXZ = cyanScaleXZ;
+		const float inset = (1.0f - plantScaleXZ) * 0.5f; // center within the voxel
+		bboxOffset.x += inset;
+		bboxOffset.z += inset;
+		bboxScale.x = plantScaleXZ;
+		bboxScale.z = plantScaleXZ;
+		// Adjust height per plant type for aim wireframe only
+		if (hitBlock == FLOWER_POPPY || hitBlock == FLOWER_DANDELION)
+		{
+			// A bit taller than half of cyan's (baseline) height
+			bboxScale.y = 0.65f;
+		}
+		// Short grass: make wireframe almost a full block tall for visibility
+		if (hitBlock == FLOWER_SHORT_GRASS)
+		{
+			// Make the wireframe almost a full block tall for visibility
+			bboxScale.y = 0.95f;
+		}
+	}
 
 	// Setup state
 	glUseProgram(_wireProgram);
@@ -1986,7 +1986,7 @@ void StoneEngine::renderAimHighlight()
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
-	// Test against scene depth but don't write (so we don't disturb later passes)
+    // Test against scene depth; avoid depth writes to preserve later passes
 	glDepthMask(GL_FALSE);
 
 	glBindVertexArray(_wireVAO);
@@ -2126,9 +2126,9 @@ void StoneEngine::postProcessGodRays()
 	viewMatrix = glm::rotate(viewMatrix, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 	viewMatrix = glm::translate(viewMatrix, camera.getPosition());
 
-    vec3 camPos = camera.getWorldPosition();
-    // Match the same far distance used by the sun sprite so positions coincide
-    glm::vec3 sunPos = camPos + computeSunDirection(timeValue) * 6000.0f;
+	vec3 camPos = camera.getWorldPosition();
+	// Match the same far distance used by the sun sprite so positions coincide
+	glm::vec3 sunPos = camPos + computeSunDirection(timeValue) * 6000.0f;
 
 	// Uniforms
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
@@ -2138,8 +2138,8 @@ void StoneEngine::postProcessGodRays()
 
 	// Intensity scales with sun altitude and underwater state
 	float sunHeight = glm::clamp((sunPos.y - camPos.y) / 6000.0f, 0.0f, 1.0f);
-    // Boost underwater so rays are more visible while submerged, avoid overexposure
-    float baseIntensity = _player.isUnderWater() ? 1.25f : 0.60f;
+	// Boost underwater so rays are more visible while submerged, avoid overexposure
+	float baseIntensity = _player.isUnderWater() ? 1.25f : 0.60f;
 	float rayIntensity = baseIntensity * sunHeight;
 	glUniform1f(glGetUniformLocation(shader.program, "rayIntensity"), rayIntensity);
 
@@ -2185,12 +2185,12 @@ void StoneEngine::renderPlanarReflection()
 	glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
 	glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
 
-    // 0) Skybox into planar FBO so reflections include sky
-    if (_hasSkybox && skyboxProgram != 0)
-    {
-        glUseProgram(skyboxProgram);
-        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
-        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	// 0) Skybox into planar FBO so reflections include sky
+	if (_hasSkybox && skyboxProgram != 0)
+	{
+		glUseProgram(skyboxProgram);
+		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
+		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
 		glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);
@@ -2201,10 +2201,10 @@ void StoneEngine::renderPlanarReflection()
 			glEnable(GL_CULL_FACE);
 	}
 
-    glUseProgram(shaderProgram);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
-    glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
+	glUseProgram(shaderProgram);
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -2217,10 +2217,10 @@ void StoneEngine::renderPlanarReflection()
 	glm::mat4 prevView = this->viewMatrix;
 	_chunkMgr.setViewProj(viewFullMirror, projOblique); // <- use oblique for culling too
 	_chunkMgr.updateDrawData();
-    _chunkMgr.renderSolidBlocks();
+	_chunkMgr.renderSolidBlocks();
 
-    // Also render masked alpha (leaves) into planar reflection
-    glUseProgram(alphaShaderProgram);
+	// Also render masked alpha (leaves) into planar reflection
+	glUseProgram(alphaShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
@@ -2237,39 +2237,39 @@ void StoneEngine::renderPlanarReflection()
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	glDisable(GL_CULL_FACE);
-    _chunkMgr.renderTransparentBlocks();
-    _chunkMgr.setViewProj(prevView, projectionMatrix);
+	_chunkMgr.renderTransparentBlocks();
+	_chunkMgr.setViewProj(prevView, projectionMatrix);
 
-    // 2) Add the sun sprite to the planar reflection so it can reflect in water
-    {
-        glUseProgram(sunShaderProgram);
-        // Use full mirrored view (with translation) and oblique projection
-        glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewFullMirror));
-        glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
+	// 2) Add the sun sprite to the planar reflection so it can reflect in water
+	{
+		glUseProgram(sunShaderProgram);
+		// Use full mirrored view (with translation) and oblique projection
+		glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewFullMirror));
+		glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 
-        // Place sun far along its world-space direction relative to the mirrored camera
-        glm::vec3 sunDir = computeSunDirection(timeValue);
-        glm::vec3 sunPos = camMir + sunDir * 6000.0f;
-        glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
+		// Place sun far along its world-space direction relative to the mirrored camera
+		glm::vec3 sunDir = computeSunDirection(timeValue);
+		glm::vec3 sunPos = camMir + sunDir * 6000.0f;
+		glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
 
-        glm::vec3 sunColor(1.0f, 0.6f, 0.2f);
-        float height = clamp((sunPos.y - camMir.y) / 6000.0f, 0.0f, 1.0f);
-        sunColor = mix(sunColor, glm::vec3(1.0f), height);
-        glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
-        glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
+		glm::vec3 sunColor(1.0f, 0.6f, 0.2f);
+		float height = clamp((sunPos.y - camMir.y) / 6000.0f, 0.0f, 1.0f);
+		sunColor = mix(sunColor, glm::vec3(1.0f), height);
+		glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
+		glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
 
-        glEnable(GL_DEPTH_TEST);   // sun should be occluded by mirrored terrain
-        glDepthMask(GL_FALSE);     // but not write depth
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_ONE, GL_ONE); // additive
+		glEnable(GL_DEPTH_TEST);   // sun should be occluded by mirrored terrain
+		glDepthMask(GL_FALSE);     // but not write depth
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE); // additive
 
-        glBindVertexArray(sunVAO);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        glBindVertexArray(0);
+		glBindVertexArray(sunVAO);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glBindVertexArray(0);
 
-        glDisable(GL_BLEND);
-        glDepthMask(GL_TRUE);
-    }
+		glDisable(GL_BLEND);
+		glDepthMask(GL_TRUE);
+	}
 
 	if (cullWasEnabled)
 		glEnable(GL_CULL_FACE);
@@ -2438,33 +2438,33 @@ void StoneEngine::renderTransparentObjects()
 		_chunkMgr.renderTransparentBlocks();
 	}
 
-    // --- Only do MSAA bookkeeping when NOT in wireframe ---
-    if (!showTriangleMesh)
-    {
-        // Update SSR source to include leaves before drawing water
-        resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
-        blitColorDepth(writeFBO, readFBO);
+	// --- Only do MSAA bookkeeping when NOT in wireframe ---
+	if (!showTriangleMesh)
+	{
+		// Update SSR source to include leaves before drawing water
+		resolveMsaaToFbo(writeFBO, /*copyDepth=*/true);
+		blitColorDepth(writeFBO, readFBO);
 
-        // Restore draw target to MSAA FBO (resolve changed GL_DRAW_FRAMEBUFFER)
-        glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
-    }
-    else
-    {
-        // Wireframe: keep drawing to the default framebuffer
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
+		// Restore draw target to MSAA FBO (resolve changed GL_DRAW_FRAMEBUFFER)
+		glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
+	}
+	else
+	{
+		// Wireframe: keep drawing to the default framebuffer
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
 
-    // 2) Water
-    activateTransparentShader();         // already sets wireframe-friendly state when showTriangleMesh==true
-    drawnTriangles += _chunkMgr.renderTransparentBlocks();
+	// 2) Water
+	activateTransparentShader();         // already sets wireframe-friendly state when showTriangleMesh==true
+	drawnTriangles += _chunkMgr.renderTransparentBlocks();
 
-    // Restore polygon mode after wireframe water rendering
-    if (showTriangleMesh)
-    {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
+	// Restore polygon mode after wireframe water rendering
+	if (showTriangleMesh)
+	{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
 
-    glCleanupTextureState();
+	glCleanupTextureState();
 }
 
 void StoneEngine::renderSkybox()
@@ -2482,7 +2482,7 @@ void StoneEngine::renderSkybox()
 		return;
 	}
 
-	// Ensure we're drawing to the current MSAA target
+    // Ensure drawing targets the current MSAA buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
 
 	// Rotation-only view so the cube follows the camera
@@ -2798,19 +2798,19 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 origin = camera.getWorldPosition();
 		glm::vec3 dir = camera.getDirection();
 
-        // Pre-fetch which block we are about to delete
-        glm::ivec3 peek;
-        BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
-        // If deleting dirt/grass/sand, prefetch above cell type for flower instance cleanup
-        glm::ivec3 abovePeek = {peek.x, peek.y + 1, peek.z};
-        BlockType aboveBefore = AIR;
-        if (toDelete == DIRT || toDelete == GRASS || toDelete == SAND)
-        {
-            glm::ivec2 aboveChunkPos(
-                (int)std::floor((float)abovePeek.x / (float)CHUNK_SIZE),
-                (int)std::floor((float)abovePeek.z / (float)CHUNK_SIZE));
-            aboveBefore = _chunkMgr.getBlock(aboveChunkPos, abovePeek);
-        }
+		// Pre-fetch the block about to be deleted
+		glm::ivec3 peek;
+		BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
+		// If deleting dirt/grass/sand, prefetch above cell type for flower instance cleanup
+		glm::ivec3 abovePeek = {peek.x, peek.y + 1, peek.z};
+		BlockType aboveBefore = AIR;
+		if (toDelete == DIRT || toDelete == GRASS || toDelete == SAND)
+		{
+			glm::ivec2 aboveChunkPos(
+				(int)std::floor((float)abovePeek.x / (float)CHUNK_SIZE),
+				(int)std::floor((float)abovePeek.z / (float)CHUNK_SIZE));
+			aboveBefore = _chunkMgr.getBlock(aboveChunkPos, abovePeek);
+		}
 		// Delete the first solid block within 5 blocks of reach
 		bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
 		if (deleted)
@@ -2821,14 +2821,14 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 			{
 				removeFlowerAtCell(peek);
 			}
-            // If we broke dirt/grass/sand and there was a flower above, remove its instance as well
-            if ((toDelete == DIRT || toDelete == GRASS || toDelete == SAND) &&
-                (aboveBefore == FLOWER_POPPY || aboveBefore == FLOWER_DANDELION ||
-                 aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS ||
-                 aboveBefore == FLOWER_DEAD_BUSH))
-            {
-                removeFlowerAtCell(abovePeek);
-            }
+			// If the broken block is dirt/grass/sand and there was a flower above, remove its instance as well
+			if ((toDelete == DIRT || toDelete == GRASS || toDelete == SAND) &&
+				(aboveBefore == FLOWER_POPPY || aboveBefore == FLOWER_DANDELION ||
+				 aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS ||
+				 aboveBefore == FLOWER_DEAD_BUSH))
+			{
+				removeFlowerAtCell(abovePeek);
+			}
 		}
 	}
 	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && _player.getSelectedBlock() != AIR)
@@ -2843,9 +2843,9 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		if (placed)
 		{
 			_occlDisableFrames = std::max(_occlDisableFrames, 2);
-			// If we just placed a non-flower block, ensure any existing flower instance at that cell is removed
+			// If a non-flower block was placed, ensure any existing flower instance at that cell is removed
 			if (!(selectedBlock == FLOWER_POPPY || selectedBlock == FLOWER_DANDELION ||
-			      selectedBlock == FLOWER_CYAN  || selectedBlock == FLOWER_SHORT_GRASS))
+				  selectedBlock == FLOWER_CYAN  || selectedBlock == FLOWER_SHORT_GRASS))
 			{
 				removeFlowerAtCell(placedAt);
 			}
@@ -2866,10 +2866,10 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 				static std::mt19937 rng{std::random_device{}()};
 				std::uniform_real_distribution<float> rotD(-0.26f, 0.26f);
 				std::uniform_real_distribution<float> scaD(0.95f, 1.05f);
-                glm::vec3 center = glm::vec3(placedAt.x + 0.5f, placedAt.y + 0.0f, placedAt.z + 0.5f);
-                if (selectedBlock == FLOWER_POPPY)
-                    center.y -= 0.05f;
-                addFlower(center, typeId, rotD(rng), scaD(rng), 1.0f);
+				glm::vec3 center = glm::vec3(placedAt.x + 0.5f, placedAt.y + 0.0f, placedAt.z + 0.5f);
+				if (selectedBlock == FLOWER_POPPY)
+					center.y -= 0.05f;
+				addFlower(center, typeId, rotD(rng), scaD(rng), 1.0f);
 			}
 		}
 		_player.setPlacing(true);

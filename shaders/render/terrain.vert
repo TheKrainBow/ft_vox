@@ -9,13 +9,13 @@ uniform mat4 projection;
 uniform vec3 cameraPos; // world-space camera position
 
 layout(std430, binding = 3) readonly buffer ssbo1 {
-    vec4 ssbo[]; // per-draw subchunk origin (xyz) + res (w)
+	vec4 ssbo[]; // per-draw subchunk origin (xyz) + res (w)
 };
 layout(std430, binding = 4) readonly buffer instBuf {
-    int inst[];  // packed instance ints for all draws
+	int inst[];  // packed instance ints for all draws
 };
 layout(std430, binding = 7) readonly buffer drawMetaBuf {
-    uint drawMeta[]; // per-draw flags (bit0..2 = direction)
+	uint drawMeta[]; // per-draw flags (bit0..2 = direction)
 };
 
 out vec2 TexCoord;
@@ -38,11 +38,11 @@ void main() {
 	int x         = (instanceData >>  0) & 0x1F;
 	int y         = (instanceData >>  5) & 0x1F;
 	int z         = (instanceData >> 10) & 0x1F;
-    // Direction now comes from per-draw meta
-    int direction = int(drawMeta[gl_DrawID] & 0x7u);
-    int lengthX   = (instanceData >> 15) & 0x1F;
-    int lengthY   = (instanceData >> 20) & 0x1F;
-    int textureID = (instanceData >> 25) & 0x7F;
+	// Direction now comes from per-draw meta
+	int direction = int(drawMeta[gl_DrawID] & 0x7u);
+	int lengthX   = (instanceData >> 15) & 0x1F;
+	int lengthY   = (instanceData >> 20) & 0x1F;
+	int textureID = (instanceData >> 25) & 0x7F;
 
 	lengthX++; lengthY++; // greedy lengths are stored (len-1)
 
@@ -102,29 +102,29 @@ void main() {
 		normal = vec3(0,1,0);
 	}
 
-    // Shrink logs and cactus to look less boxy (same inset)
-    if (textureID == 10 || textureID == 9 || textureID == 12 || textureID == 13) {
-        float sx = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
-        float sz = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
+	// Shrink logs and cactus to look less boxy (same inset)
+	if (textureID == 10 || textureID == 9 || textureID == 12 || textureID == 13) {
+		float sx = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
+		float sz = max(1 - 2.0 * LOG_INSET, 0.0) / 1;
 
-        float cx = 0.5 * 1;
-        float cz = 0.5 * 1;
+		float cx = 0.5 * 1;
+		float cz = 0.5 * 1;
 
 		basePos.x = cx + (basePos.x - cx) * sx;
 		basePos.z = cz + (basePos.z - cz) * sz;
 	}
 
-    vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
-    #if DEBUG_DRAW_ORIGIN
-        // Override: draw a small 1x1 quad at the subchunk origin to validate positions
-        worldPosition = ssboValue.xyz + vec3(aPos.x, aPos.y, 0.0);
-        finalUV = vec2(0.0);
-    #endif
+	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
+	#if DEBUG_DRAW_ORIGIN
+		// Override: draw a small 1x1 quad at the subchunk origin to validate positions
+		worldPosition = ssboValue.xyz + vec3(aPos.x, aPos.y, 0.0);
+		finalUV = vec2(0.0);
+	#endif
 	finalUV *= vec2(float(lengthX), float(lengthY));
 
-    // Camera-relative rendering to avoid precision cracks at large coords
-    vec3 relPos = worldPosition - cameraPos;
-    gl_Position = projection * view * model * vec4(relPos, 1.0);
+	// Camera-relative rendering to avoid precision cracks at large coords
+	vec3 relPos = worldPosition - cameraPos;
+	gl_Position = projection * view * model * vec4(relPos, 1.0);
 	TexCoord = finalUV;
 	TextureID = textureID;
 	Normal = mat3(transpose(inverse(model))) * normal;

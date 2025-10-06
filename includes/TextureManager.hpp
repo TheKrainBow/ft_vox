@@ -28,13 +28,13 @@ enum TextureType {
 # define TEXTURE_SIZE 16
 
 class TextureManager {
-    private:
-        GLuint _textureArrayID = 0;
-    public:
-        TextureManager();
-        ~TextureManager();
-        // Explicit GL teardown (safe to call multiple times)
-        void shutdownGL();
-        void loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data);
-        GLuint getTextureArray() const;
+	private:
+		GLuint _textureArrayID = 0;
+	public:
+		TextureManager();
+		~TextureManager();
+		// Explicit GL teardown (safe to call multiple times)
+		void shutdownGL();
+		void loadTexturesArray(std::vector<std::pair<TextureType, std::string>> data);
+		GLuint getTextureArray() const;
 };

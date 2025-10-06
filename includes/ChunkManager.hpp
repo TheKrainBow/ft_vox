@@ -101,8 +101,8 @@ public:
 	void    snapshotDebugCounters();
 
 	// Chunks loading and unloading methods
-    void loadChunks(ivec2 camPos);
-    void unloadChunks(ivec2 camPos);
+	void loadChunks(ivec2 camPos);
+	void unloadChunks(ivec2 camPos);
 
 	// Draw data swapper
 	void updateDrawData();

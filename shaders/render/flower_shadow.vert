@@ -15,22 +15,22 @@ flat out int vType;
 
 void main()
 {
-    float scale = iScaleHeights.x;
-    float hscale = iScaleHeights.y;
+	float scale = iScaleHeights.x;
+	float hscale = iScaleHeights.y;
 
-    float c = cos(iPosRot.w);
-    float s = sin(iPosRot.w);
-    mat3 rotY = mat3(c, 0.0, -s,
-                     0.0, 1.0, 0.0,
-                     s, 0.0,  c);
+	float c = cos(iPosRot.w);
+	float s = sin(iPosRot.w);
+	mat3 rotY = mat3(c, 0.0, -s,
+					 0.0, 1.0, 0.0,
+					 s, 0.0,  c);
 
-    vec3 p = aPos;
-    p.xz *= scale;
-    p.y  *= hscale;
+	vec3 p = aPos;
+	p.xz *= scale;
+	p.y  *= hscale;
 
-    vec3 worldP = iPosRot.xyz + rotY * p;
-    gl_Position = lightSpaceMatrix * vec4(worldP, 1.0);
-    vUV = vec2(aUV.x, 1.0 - aUV.y);
-    vType = iType;
+	vec3 worldP = iPosRot.xyz + rotY * p;
+	gl_Position = lightSpaceMatrix * vec4(worldP, 1.0);
+	vUV = vec2(aUV.x, 1.0 - aUV.y);
+	vType = iType;
 }
 

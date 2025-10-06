@@ -120,24 +120,24 @@ bool aabbOccluded(vec3 mn, vec3 mx) {
 }
 
 void main() {
-    uint i = gl_GlobalInvocationID.x;
-    if (i >= numDraws) return;
+	uint i = gl_GlobalInvocationID.x;
+	if (i >= numDraws) return;
 
-    DrawCmd t = templ[i];
-    if (t.instanceCount == 0u) return; // nothing to draw
+	DrawCmd t = templ[i];
+	if (t.instanceCount == 0u) return; // nothing to draw
 
-    vec3 mn = posRes[i].xyz;
-    vec3 mx = mn + vec3(chunkSize);
+	vec3 mn = posRes[i].xyz;
+	vec3 mx = mn + vec3(chunkSize);
 
-    // Frustum test (conservative)
-    if (aabbOutsideFrustum(mn, mx)) return;
+	// Frustum test (conservative)
+	if (aabbOutsideFrustum(mn, mx)) return;
 
-    // Optional previous-frame occlusion test (Hierarchical Z via hardware sampler LODs)
-    if (aabbOccluded(mn, mx)) return;
+	// Optional previous-frame occlusion test (Hierarchical Z via hardware sampler LODs)
+	if (aabbOccluded(mn, mx)) return;
 
-    // Visible: append to compacted command/metadata buffers
-    uint dst = atomicAdd(drawCount, 1u);
-    outCmds[dst]   = t;
-    outPosRes[dst] = vec4(mn, posRes[i].w);
-    metaOut[dst]   = metaIn[i];
+	// Visible: append to compacted command/metadata buffers
+	uint dst = atomicAdd(drawCount, 1u);
+	outCmds[dst]   = t;
+	outPosRes[dst] = vec4(mn, posRes[i].w);
+	metaOut[dst]   = metaIn[i];
 }

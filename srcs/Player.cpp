@@ -363,7 +363,7 @@ void Player::toggleGravity() {
 	
 	if (_gravity)
 	{
-		// Smoothly re-enter gravity: reset vertical velocity so we don't snap
+		// Smoothly re-enter gravity: reset vertical velocity to avoid snapping
 		_falling = true;
 		_fallSpeed = 0.0f;
 	}

@@ -79,24 +79,24 @@ void ChunkLoader::initData()
 
 void ChunkLoader::initSpawn()
 {
-    // Load first chunk under the player, and pop their position on top of it
-    ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
-    vec3 worldPos  = _camera.getWorldPosition();
-    // Build the spawn chunk at full resolution so decorative plants
-    // (grass/flowers) are present immediately on first load.
-    // Using a coarse LOD here caused sparse or missing flora until
-    // the chunk was later reloaded/refined.
-    Chunk* first = loadChunk(0, 0, 0, chunkPos, RESOLUTION);
-    if (first) {
-        // Build faces immediately and push a synchronous display build so first frame has geometry
-        first->sendFacesToDisplay();
-        updateFillData();
-        // No refinement needed: we already loaded at full RESOLUTION.
-    }
-    TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
-    const vec3 &camPos = _camera.getPosition();
+	// Load first chunk under the player, and pop their position on top of it
+	ivec2 chunkPos = _camera.getChunkPosition(CHUNK_SIZE);
+	vec3 worldPos  = _camera.getWorldPosition();
+	// Build the spawn chunk at full resolution so decorative plants
+	// (grass/flowers) are present immediately on first load.
+	// Using a coarse LOD here caused sparse or missing flora until
+	// the chunk was later reloaded/refined.
+	Chunk* first = loadChunk(0, 0, 0, chunkPos, RESOLUTION);
+	if (first) {
+		// Build faces immediately and push a synchronous display build so first frame has geometry
+		first->sendFacesToDisplay();
+		updateFillData();
+		// No refinement needed: loaded at full RESOLUTION.
+	}
+	TopBlock topBlock = findTopBlockY(chunkPos, {worldPos.x, worldPos.z});
+	const vec3 &camPos = _camera.getPosition();
 
-    // Place camera: feet on ground
+	// Place camera: feet on ground
 	_camera.setPos({camPos.x - 0.5, -(topBlock.height + 1 + EYE_HEIGHT), camPos.z - 0.5});
 }
 
@@ -206,21 +206,21 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, i
 		}
 	}
 
-    bool displayInserted = false;
-    {
-        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-        auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
-        if (!inserted) it->second = chunk;
-        else {
-            ++_displayedCount;
-            displayInserted = true;
-        }
-    }
+	bool displayInserted = false;
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
+		if (!inserted) it->second = chunk;
+		else {
+			++_displayedCount;
+			displayInserted = true;
+		}
+	}
 
-    // If this chunk just became displayed again (from cache), refresh its flowers
-    if (displayInserted) {
-        rescanFlowersForChunk(pos);
-    }
+	// If this chunk just became displayed again (from cache), refresh its flowers
+	if (displayInserted) {
+		rescanFlowersForChunk(pos);
+	}
 
 	// Ensure a freshly created chunk becomes visible: build its mesh once
 	// and coalesce a display update. Skip if already meshed.
@@ -418,20 +418,20 @@ void ChunkLoader::unloadChunks(ivec2 newCamChunk)
 				toErase.push_back(kv.first);
 			}
 		}
-        for (const auto& key : toErase)
-        {
-            if (!getIsRunning())
-                break ;
-            auto it2 = _displayedChunks.find(key);
-            if (it2 != _displayedChunks.end()) {
-                _displayedChunks.erase(it2);
-                --_displayedCount;
-            }
-            // Allow re-scan of flowers when this chunk becomes displayed again
-            clearFlowerScanMarksFor(key);
-        }
-    }
-    updateFillData();
+		for (const auto& key : toErase)
+		{
+			if (!getIsRunning())
+				break ;
+			auto it2 = _displayedChunks.find(key);
+			if (it2 != _displayedChunks.end()) {
+				_displayedChunks.erase(it2);
+				--_displayedCount;
+			}
+			// Allow re-scan of flowers when this chunk becomes displayed again
+			clearFlowerScanMarksFor(key);
+		}
+	}
+	updateFillData();
 	// After display set shrinks, re-check cache pressure
 	enforceCountBudget();
 }
@@ -439,7 +439,7 @@ void ChunkLoader::unloadChunks(ivec2 newCamChunk)
 // Check if player moved
 bool ChunkLoader::hasMoved(const ivec2 &oldPos)
 {
-	// Debounce movement: only signal a cancel if we moved more than 1 chunk
+	// Debounce movement: only signal a cancel if movement exceeds 1 chunk
 	// away from the load center. This avoids restarting rings too aggressively
 	// when sprinting or moving quickly.
 	ivec2 camChunk = _camera.getChunkPosition(CHUNK_SIZE);
@@ -458,7 +458,7 @@ void ChunkLoader::updateFillData()
 	// Avoid piling up heavy builds and starving the render thread
 	if (_buildingDisplay.exchange(true))
 		return;
-	// If a staged update already exists, skip this build (we will coalesce)
+	// If a staged update already exists, skip this build (coalesced)
 	{
 		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
 		if (!_solidStagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
@@ -488,10 +488,10 @@ void ChunkLoader::updateFillData()
 
 // Vertices, indirect buffers, ssbo building
 void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transparentFillData) {
-    // snapshot displayed chunks
-    if (!getIsRunning())
-        return ;
-    std::vector<Chunk *> snapshot;
+	// snapshot displayed chunks
+	if (!getIsRunning())
+		return ;
+	std::vector<Chunk *> snapshot;
 	{
 		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
 		snapshot.reserve(_displayedChunks.size());
@@ -500,74 +500,74 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	// Pre-reserve to minimize reallocations during build
 	size_t totalSolidVerts = 0, totalTransVerts = 0;
 	size_t totalSolidCmds  = 0, totalTransCmds  = 0;
-    size_t totalSSBOS      = 0;
-    size_t totalSSBOT      = 0;
-    size_t totalMetaS      = 0;
-    size_t totalMetaT      = 0;
-    for (const auto& c : snapshot) {
-        if (!getIsRunning())
-            return ;
-        totalSolidVerts += c->getVertices().size();
-        totalTransVerts += c->getTransparentVertices().size();
-        totalSolidCmds  += c->getIndirectData().size();
-        totalTransCmds  += c->getTransparentIndirectData().size();
-        totalSSBOS      += c->getSSBOSolid().size();
-        totalSSBOT      += c->getSSBOTransp().size();
-        totalMetaS      += c->getIndirectData().size();
-        totalMetaT      += c->getTransparentIndirectData().size();
-    }
-    fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
-    fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
-    fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBOS);
-    transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
-    transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
-    transparentFillData->ssboData.reserve(transparentFillData->ssboData.size() + totalSSBOT);
-    fillData->drawMeta.reserve(fillData->drawMeta.size() + totalMetaS);
-    transparentFillData->drawMeta.reserve(transparentFillData->drawMeta.size() + totalMetaT);
+	size_t totalSSBOS      = 0;
+	size_t totalSSBOT      = 0;
+	size_t totalMetaS      = 0;
+	size_t totalMetaT      = 0;
+	for (const auto& c : snapshot) {
+		if (!getIsRunning())
+			return ;
+		totalSolidVerts += c->getVertices().size();
+		totalTransVerts += c->getTransparentVertices().size();
+		totalSolidCmds  += c->getIndirectData().size();
+		totalTransCmds  += c->getTransparentIndirectData().size();
+		totalSSBOS      += c->getSSBOSolid().size();
+		totalSSBOT      += c->getSSBOTransp().size();
+		totalMetaS      += c->getIndirectData().size();
+		totalMetaT      += c->getTransparentIndirectData().size();
+	}
+	fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
+	fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
+	fillData->ssboData.reserve(fillData->ssboData.size() + totalSSBOS);
+	transparentFillData->vertexData.reserve(transparentFillData->vertexData.size() + totalTransVerts);
+	transparentFillData->indirectBufferData.reserve(transparentFillData->indirectBufferData.size() + totalTransCmds);
+	transparentFillData->ssboData.reserve(transparentFillData->ssboData.size() + totalSSBOT);
+	fillData->drawMeta.reserve(fillData->drawMeta.size() + totalMetaS);
+	transparentFillData->drawMeta.reserve(transparentFillData->drawMeta.size() + totalMetaT);
 
-    // We'll build a fresh visible subchunk snapshot locally, then swap it in atomically
-    std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> nextDisplayedSubY;
+	// Build a fresh visible subchunk snapshot locally, then swap it in atomically
+	std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash> nextDisplayedSubY;
 
-    for (const auto& c : snapshot) {
-        if (!getIsRunning())
-            return ;
+	for (const auto& c : snapshot) {
+		if (!getIsRunning())
+			return ;
 
-        // Take a coherent snapshot of this chunk's display data under its internal lock
-        std::vector<int> sVerts, tVerts;
-        std::vector<DrawArraysIndirectCommand> sCmds, tCmds;
-        std::vector<vec4> ssboS, ssboT;
-        std::vector<uint32_t> metaS, metaT;
-        c->snapshotDisplayData(sVerts, sCmds, ssboS, tVerts, tCmds, ssboT, metaS, metaT);
+		// Take a coherent snapshot of this chunk's display data under its internal lock
+		std::vector<int> sVerts, tVerts;
+		std::vector<DrawArraysIndirectCommand> sCmds, tCmds;
+		std::vector<vec4> ssboS, ssboT;
+		std::vector<uint32_t> metaS, metaT;
+		c->snapshotDisplayData(sVerts, sCmds, ssboS, tVerts, tCmds, ssboT, metaS, metaT);
 
 		// SOLID
 		size_t vSizeBefore = fillData->vertexData.size();
 		if (!sVerts.empty())
 			fillData->vertexData.insert(fillData->vertexData.end(), sVerts.begin(), sVerts.end());
-        for (size_t i = 0; getIsRunning() && i < sCmds.size(); ++i) {
-            auto cmd = sCmds[i];
-            cmd.baseInstance += (uint32_t)vSizeBefore;
-            fillData->indirectBufferData.push_back(cmd);
-        }
-        if (!ssboS.empty())
-            fillData->ssboData.insert(fillData->ssboData.end(), ssboS.begin(), ssboS.end());
-        if (!metaS.empty())
-            fillData->drawMeta.insert(fillData->drawMeta.end(), metaS.begin(), metaS.end());
+		for (size_t i = 0; getIsRunning() && i < sCmds.size(); ++i) {
+			auto cmd = sCmds[i];
+			cmd.baseInstance += (uint32_t)vSizeBefore;
+			fillData->indirectBufferData.push_back(cmd);
+		}
+		if (!ssboS.empty())
+			fillData->ssboData.insert(fillData->ssboData.end(), ssboS.begin(), ssboS.end());
+		if (!metaS.empty())
+			fillData->drawMeta.insert(fillData->drawMeta.end(), metaS.begin(), metaS.end());
 
-        // Record which subY are being displayed for this chunk (into local map)
-        if (!ssboS.empty()) {
-            std::unordered_set<int> subs;
-            subs.reserve(ssboS.size());
-            for (const auto &v : ssboS) {
-                int subY = (int)std::floor(v.y / (float)CHUNK_SIZE + 0.5f);
-                subs.insert(subY);
-            }
-            // Need the chunk position; derive from first entry's x,z
-            glm::ivec2 cpos(
-                (int)std::floor(ssboS[0].x / (float)CHUNK_SIZE + 0.5f),
-                (int)std::floor(ssboS[0].z / (float)CHUNK_SIZE + 0.5f)
-            );
-            nextDisplayedSubY[cpos] = std::move(subs);
-        }
+		// Record which subY are being displayed for this chunk (into local map)
+		if (!ssboS.empty()) {
+			std::unordered_set<int> subs;
+			subs.reserve(ssboS.size());
+			for (const auto &v : ssboS) {
+				int subY = (int)std::floor(v.y / (float)CHUNK_SIZE + 0.5f);
+				subs.insert(subY);
+			}
+			// Need the chunk position; derive from first entry's x,z
+			glm::ivec2 cpos(
+				(int)std::floor(ssboS[0].x / (float)CHUNK_SIZE + 0.5f),
+				(int)std::floor(ssboS[0].z / (float)CHUNK_SIZE + 0.5f)
+			);
+			nextDisplayedSubY[cpos] = std::move(subs);
+		}
 
 		// TRANSPARENT
 		size_t tvBefore = transparentFillData->vertexData.size();
@@ -575,22 +575,22 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 			transparentFillData->vertexData.insert(
 				transparentFillData->vertexData.end(), tVerts.begin(), tVerts.end()
 			);
-        for (size_t i = 0; getIsRunning() && i < tCmds.size(); ++i) {
-            auto cmd = tCmds[i];
-            cmd.baseInstance += (uint32_t)tvBefore;
-            transparentFillData->indirectBufferData.push_back(cmd);
-        }
-        if (!ssboT.empty())
-            transparentFillData->ssboData.insert(transparentFillData->ssboData.end(), ssboT.begin(), ssboT.end());
-        if (!metaT.empty())
-            transparentFillData->drawMeta.insert(transparentFillData->drawMeta.end(), metaT.begin(), metaT.end());
-    }
+		for (size_t i = 0; getIsRunning() && i < tCmds.size(); ++i) {
+			auto cmd = tCmds[i];
+			cmd.baseInstance += (uint32_t)tvBefore;
+			transparentFillData->indirectBufferData.push_back(cmd);
+		}
+		if (!ssboT.empty())
+			transparentFillData->ssboData.insert(transparentFillData->ssboData.end(), ssboT.begin(), ssboT.end());
+		if (!metaT.empty())
+			transparentFillData->drawMeta.insert(transparentFillData->drawMeta.end(), metaT.begin(), metaT.end());
+	}
 
-    // Publish the freshly built visible subchunk snapshot atomically
-    {
-        std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
-        _lastDisplayedSubY.swap(nextDisplayedSubY);
-    }
+	// Publish the freshly built visible subchunk snapshot atomically
+	{
+		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
+		_lastDisplayedSubY.swap(nextDisplayedSubY);
+	}
 }
 
 // Dirty chunks management
@@ -709,13 +709,13 @@ bool ChunkLoader::getIsRunning() {
 }
 
 void ChunkLoader::snapshotDebugCounters() {
-    // Called from main thread before UI render
-    _dbg_chunksMemoryUsage = _chunksMemoryUsage.load(std::memory_order_relaxed);
-    _dbg_renderDistance   = _renderDistance.load(std::memory_order_relaxed);
-    _dbg_currentRender    = _currentRender.load(std::memory_order_relaxed);
-    _dbg_chunksCount      = _chunksCount.load(std::memory_order_relaxed);
-    _dbg_displayedCount   = _displayedCount.load(std::memory_order_relaxed);
-    _dbg_modifiedCount    = _modifiedCount.load(std::memory_order_relaxed);
+	// Called from main thread before UI render
+	_dbg_chunksMemoryUsage = _chunksMemoryUsage.load(std::memory_order_relaxed);
+	_dbg_renderDistance   = _renderDistance.load(std::memory_order_relaxed);
+	_dbg_currentRender    = _currentRender.load(std::memory_order_relaxed);
+	_dbg_chunksCount      = _chunksCount.load(std::memory_order_relaxed);
+	_dbg_displayedCount   = _displayedCount.load(std::memory_order_relaxed);
+	_dbg_modifiedCount    = _modifiedCount.load(std::memory_order_relaxed);
 }
 
 int *ChunkLoader::getCurrentRenderPtr() { return &_dbg_currentRender; }
@@ -728,9 +728,9 @@ NoiseGenerator &ChunkLoader::getNoiseGenerator() { return _perlinGenerator; }
 
 void ChunkLoader::printSizes() const
 {
-    {
-        // Intentionally left blank: debug size prints removed
-    }
+	{
+		// Intentionally left blank: debug size prints removed
+	}
 }
 
 // Shared data getters
@@ -742,29 +742,29 @@ void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
 }
 
 bool ChunkLoader::hasRenderableChunks() {
-    std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-    for (const auto& kv : _displayedChunks) {
-        Chunk* c = kv.second;
-        if (!c) continue;
-        if (!c->isReady()) continue;
-        // Consider renderable if any indirect commands exist (solid or transparent)
-        // Use thread-safe predicate to avoid reading vectors concurrently
-        if (c->hasAnyDraws())
-            return true;
-    }
-    return false;
+	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+	for (const auto& kv : _displayedChunks) {
+		Chunk* c = kv.second;
+		if (!c) continue;
+		if (!c->isReady()) continue;
+		// Consider renderable if any indirect commands exist (solid or transparent)
+		// Use thread-safe predicate to avoid reading vectors concurrently
+		if (c->hasAnyDraws())
+			return true;
+	}
+	return false;
 }
 
 void ChunkLoader::scheduleDisplayUpdate() {
-    if (_buildingDisplay) return;
-    if (!getIsRunning()) return;
-    _threadPool.enqueue(&ChunkLoader::updateFillData, this);
+	if (_buildingDisplay) return;
+	if (!getIsRunning()) return;
+	_threadPool.enqueue(&ChunkLoader::updateFillData, this);
 }
 
 void ChunkLoader::rebuildDisplayDataNow()
 {
-    // Build staged data synchronously; guards inside will noop if shutting down
-    updateFillData();
+	// Build staged data synchronously; guards inside will noop if shutting down
+	updateFillData();
 }
 
 // --- LRU + eviction helpers ---
@@ -911,82 +911,82 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 // --- Flowers discovery helpers ---
 void ChunkLoader::scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, SubChunk* sc, int resolution)
 {
-    if (!sc) return;
-    // Avoid scanning the same sublayer multiple times
-    const std::string key = _flowerKey(cpos, subY);
-    {
-        std::lock_guard<std::mutex> lk(_flowersMutex);
-        if (_flowersScannedKeys.find(key) != _flowersScannedKeys.end()) return;
-        _flowersScannedKeys.insert(key);
-    }
+	if (!sc) return;
+	// Avoid scanning the same sublayer multiple times
+	const std::string key = _flowerKey(cpos, subY);
+	{
+		std::lock_guard<std::mutex> lk(_flowersMutex);
+		if (_flowersScannedKeys.find(key) != _flowersScannedKeys.end()) return;
+		_flowersScannedKeys.insert(key);
+	}
 
-    // Iterate the subchunk cells at its resolution and record any FLOWER blocks
-    std::vector<std::pair<glm::ivec3, BlockType>> flowers;
-    flowers.reserve(8);
-    for (int z = 0; z < CHUNK_SIZE; z += resolution) {
-        for (int y = 0; y < CHUNK_SIZE; y += resolution) {
-            for (int x = 0; x < CHUNK_SIZE; x += resolution) {
-                BlockType b = sc->getBlock({x, y, z});
-                if (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH) {
-                    // Convert to absolute world cell
-                    glm::ivec3 cell(
-                        x + cpos.x * CHUNK_SIZE,
-                        y + subY   * CHUNK_SIZE,
-                        z + cpos.y * CHUNK_SIZE
-                    );
-                    flowers.emplace_back(cell, b);
-                }
-            }
-        }
-    }
-    if (!flowers.empty()) {
-        std::lock_guard<std::mutex> lk(_flowersMutex);
-        auto &bySub = _discoveredFlowers[cpos];
-        auto &vec = bySub[subY];
-        vec.insert(vec.end(), flowers.begin(), flowers.end());
-    }
+	// Iterate the subchunk cells at its resolution and record any FLOWER blocks
+	std::vector<std::pair<glm::ivec3, BlockType>> flowers;
+	flowers.reserve(8);
+	for (int z = 0; z < CHUNK_SIZE; z += resolution) {
+		for (int y = 0; y < CHUNK_SIZE; y += resolution) {
+			for (int x = 0; x < CHUNK_SIZE; x += resolution) {
+				BlockType b = sc->getBlock({x, y, z});
+				if (b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH) {
+					// Convert to absolute world cell
+					glm::ivec3 cell(
+						x + cpos.x * CHUNK_SIZE,
+						y + subY   * CHUNK_SIZE,
+						z + cpos.y * CHUNK_SIZE
+					);
+					flowers.emplace_back(cell, b);
+				}
+			}
+		}
+	}
+	if (!flowers.empty()) {
+		std::lock_guard<std::mutex> lk(_flowersMutex);
+		auto &bySub = _discoveredFlowers[cpos];
+		auto &vec = bySub[subY];
+		vec.insert(vec.end(), flowers.begin(), flowers.end());
+	}
 }
 
 void ChunkLoader::fetchAndClearDiscoveredFlowers(std::vector<std::tuple<glm::ivec2,int,glm::ivec3,BlockType>>& out)
 {
-    std::lock_guard<std::mutex> lk(_flowersMutex);
-    for (auto &kv : _discoveredFlowers) {
-        const glm::ivec2 cpos = kv.first;
-        for (auto &kv2 : kv.second) {
-            int subY = kv2.first;
-            auto &lst = kv2.second;
-            for (auto &p : lst) {
-                out.emplace_back(cpos, subY, p.first, p.second);
-            }
-        }
-    }
-    _discoveredFlowers.clear();
+	std::lock_guard<std::mutex> lk(_flowersMutex);
+	for (auto &kv : _discoveredFlowers) {
+		const glm::ivec2 cpos = kv.first;
+		for (auto &kv2 : kv.second) {
+			int subY = kv2.first;
+			auto &lst = kv2.second;
+			for (auto &p : lst) {
+				out.emplace_back(cpos, subY, p.first, p.second);
+			}
+		}
+	}
+	_discoveredFlowers.clear();
 }
 
 void ChunkLoader::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, std::unordered_set<int>, ivec2_hash>& out)
 {
-    std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
-    out = _lastDisplayedSubY;
+	std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
+	out = _lastDisplayedSubY;
 }
 
 void ChunkLoader::clearFlowerScanMarksFor(const glm::ivec2& cpos)
 {
-    std::lock_guard<std::mutex> lk(_flowersMutex);
-    const std::string prefix = std::to_string(cpos.x) + ":" + std::to_string(cpos.y) + ":";
-    for (auto it = _flowersScannedKeys.begin(); it != _flowersScannedKeys.end(); ) {
-        if (it->rfind(prefix, 0) == 0) it = _flowersScannedKeys.erase(it);
-        else ++it;
-    }
+	std::lock_guard<std::mutex> lk(_flowersMutex);
+	const std::string prefix = std::to_string(cpos.x) + ":" + std::to_string(cpos.y) + ":";
+	for (auto it = _flowersScannedKeys.begin(); it != _flowersScannedKeys.end(); ) {
+		if (it->rfind(prefix, 0) == 0) it = _flowersScannedKeys.erase(it);
+		else ++it;
+	}
 }
 
 void ChunkLoader::rescanFlowersForChunk(const glm::ivec2& cpos)
 {
-    Chunk* c = getChunk(cpos);
-    if (!c) return;
-    if (c->getResolution() != 1) return; // only scan at full-res
-    std::vector<int> subs; c->getSubIndices(subs);
-    for (int subY : subs) {
-        SubChunk* sc = c->getSubChunk(subY);
-        if (sc) scanAndRecordFlowersFor(cpos, subY, sc, c->getResolution());
-    }
+	Chunk* c = getChunk(cpos);
+	if (!c) return;
+	if (c->getResolution() != 1) return; // only scan at full-res
+	std::vector<int> subs; c->getSubIndices(subs);
+	for (int subY : subs) {
+		SubChunk* sc = c->getSubChunk(subY);
+		if (sc) scanAndRecordFlowersFor(cpos, subY, sc, c->getResolution());
+	}
 }

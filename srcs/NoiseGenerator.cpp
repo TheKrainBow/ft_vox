@@ -148,60 +148,60 @@ ivec2 NoiseGenerator::getBorderWarping(double x, double z)
 
 double NoiseGenerator::getTemperatureNoise(ivec2 pos)
 {
-    // Domain warp softened so temperature moves less quickly
-    NoiseData warp = { 1.0, 0.0025, 0.5, 2.0, 2 };
-    _data = warp;
-    double wx = noise(pos.x + 1337, pos.y + 42);
-    double wy = noise(pos.y + 4242, pos.x + 7);
+	// Domain warp softened so temperature moves less quickly
+	NoiseData warp = { 1.0, 0.0025, 0.5, 2.0, 2 };
+	_data = warp;
+	double wx = noise(pos.x + 1337, pos.y + 42);
+	double wy = noise(pos.y + 4242, pos.x + 7);
 
-    // Main temperature field: slower variation across larger distances
-    ivec2 p2 = { (int)(pos.x + wx * 260.0), (int)(pos.y + wy * 260.0) };
-    NoiseData tempData = {
-        1.0,    // amplitude
-        0.0006, // lower frequency -> slower change while walking
-        0.55,   // persistence
-        2.1,    // lacunarity
-        5       // octaves
-    };
+	// Main temperature field: slower variation across larger distances
+	ivec2 p2 = { (int)(pos.x + wx * 260.0), (int)(pos.y + wy * 260.0) };
+	NoiseData tempData = {
+		1.0,    // amplitude
+		0.0006, // lower frequency -> slower change while walking
+		0.55,   // persistence
+		2.1,    // lacunarity
+		5       // octaves
+	};
 
-    _data = tempData;
-    double tempNoise = noise(p2.x, p2.y);
-    setNoiseData(NoiseData());
-    return tempNoise;
+	_data = tempData;
+	double tempNoise = noise(p2.x, p2.y);
+	setNoiseData(NoiseData());
+	return tempNoise;
 }
 
 double NoiseGenerator::getHumidityNoise(ivec2 pos)
 {
-    // Domain warp softened for smoother humidity regions
-    NoiseData warp = { 1.0, 0.003, 0.5, 2.0, 2 };
-    _data = warp;
-    double wx = noise(pos.x + 9157, pos.y + 271);
-    double wy = noise(pos.y + 613,  pos.x + 8899);
+	// Domain warp softened for smoother humidity regions
+	NoiseData warp = { 1.0, 0.003, 0.5, 2.0, 2 };
+	_data = warp;
+	double wx = noise(pos.x + 9157, pos.y + 271);
+	double wy = noise(pos.y + 613,  pos.x + 8899);
 
-    ivec2 p2 = { (int)(pos.x + wx * 300.0), (int)(pos.y + wy * 300.0) };
-    NoiseData humidData = {
-        1.0,
-        0.0009, // a bit faster than temp, still slow
-        0.6,
-        2.1,
-        5
-    };
+	ivec2 p2 = { (int)(pos.x + wx * 300.0), (int)(pos.y + wy * 300.0) };
+	NoiseData humidData = {
+		1.0,
+		0.0009, // a bit faster than temp, still slow
+		0.6,
+		2.1,
+		5
+	};
 
-    _data = humidData;
-    double humidNoise = noise(p2.x, p2.y);
-    setNoiseData(NoiseData());
-    return humidNoise;
+	_data = humidData;
+	double humidNoise = noise(p2.x, p2.y);
+	setNoiseData(NoiseData());
+	return humidNoise;
 }
 
 ivec2 NoiseGenerator::getBiomeBorderWarping(int x, int z)
 {
-    NoiseData nData = {
-        1.0,   // amplitude
-        0.003, // much lower frequency for smoother biome borders
-        0.5,   // persistence
-        2.2,   // lacunarity
-        4      // nb_octaves
-    };
+	NoiseData nData = {
+		1.0,   // amplitude
+		0.003, // much lower frequency for smoother biome borders
+		0.5,   // persistence
+		2.2,   // lacunarity
+		4      // nb_octaves
+	};
 
 	setNoiseData(nData);
 	double noiseX = noise(x, z);
@@ -223,7 +223,7 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 	double humidity = getHumidityNoise(pos);
 
 	// Add large-scale variation and physically-inspired biases
-	// Elevation (cooler and drier as we go up)
+// Elevation (cooler and drier with altitude)
 	double alt01 = std::clamp((height - (double)OCEAN_HEIGHT) / (double)(MOUNT_HEIGHT - OCEAN_HEIGHT), 0.0, 1.0);
 
 	// Latitudinal bands (very low frequency): use trigs to create belts
@@ -253,16 +253,16 @@ Biome NoiseGenerator::getBiome(ivec2 pos, double height)
 		return Biome::BEACH;
 
 	// Climate-driven biomes
-    // Desert selection
-    // 1) High-temperature override tuned to observed range (max ~0.4)
-    //    Slightly hot (>=0.2) and moderately dry becomes desert
-    if (temp > 0.20) {
-        return Biome::DESERT;
-    }
-    // 2) Warm and dry also becomes desert (even if not very hot)
-    if (temp > 0.0 && humidity < -0.10) {
-        return Biome::DESERT;
-    }
+	// Desert selection
+	// 1) High-temperature override tuned to observed range (max ~0.4)
+	//    Slightly hot (>=0.2) and moderately dry becomes desert
+	if (temp > 0.20) {
+		return Biome::DESERT;
+	}
+	// 2) Warm and dry also becomes desert (even if not very hot)
+	if (temp > 0.0 && humidity < -0.10) {
+		return Biome::DESERT;
+	}
 
 	// Snowy/taiga: cold
 	if (temp <= -0.2)
@@ -372,9 +372,9 @@ void NoiseGenerator::updatePerlinMapResolution(PerlinMap *map, int newResolution
 
 	map->resolution = newResolution;
 	_perlinMaps[map->position] = map;
-    // Rebuild downsampled plant maps for this resolution
-    buildTreeMap(map, newResolution);
-    buildPlantMaps(map, newResolution);
+	// Rebuild downsampled plant maps for this resolution
+	buildTreeMap(map, newResolution);
+	buildPlantMaps(map, newResolution);
 }
 
 
@@ -405,8 +405,8 @@ PerlinMap *NoiseGenerator::addPerlinMap(ivec2 &pos, int size, int resolution)
 				map->lowest = map->heightMap[index];
 		}
 	}
-    buildTreeMap(map, resolution);
-    buildPlantMaps(map, resolution);
+	buildTreeMap(map, resolution);
+	buildPlantMaps(map, resolution);
 	_perlinMaps[pos] = map;
 	return (map);
 }
@@ -542,81 +542,81 @@ void NoiseGenerator::buildTreeMap(PerlinMap* map, int resolution)
 
 double NoiseGenerator::getGrassNoise(ivec2 pos)
 {
-    NoiseData nData = {
-        1.0,    // amplitude
-        0.02,   // frequency: fairly high for fine distribution
-        0.6,    // persistence
-        2.0,    // lacunarity
-        4       // octaves
-    };
-    setNoiseData(nData);
-    double n = noise(pos.x, pos.y);
-    setNoiseData(NoiseData());
-    return n;
+	NoiseData nData = {
+		1.0,    // amplitude
+		0.02,   // frequency: fairly high for fine distribution
+		0.6,    // persistence
+		2.0,    // lacunarity
+		4       // octaves
+	};
+	setNoiseData(nData);
+	double n = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return n;
 }
 
 double NoiseGenerator::getFlowerBaseNoise(ivec2 pos)
 {
-    NoiseData nData = {
-        1.0,
-        0.004,  // low frequency -> larger flower regions
-        0.5,
-        2.0,
-        4
-    };
-    setNoiseData(nData);
-    double n = noise(pos.x, pos.y);
-    setNoiseData(NoiseData());
-    return n;
+	NoiseData nData = {
+		1.0,
+		0.004,  // low frequency -> larger flower regions
+		0.5,
+		2.0,
+		4
+	};
+	setNoiseData(nData);
+	double n = noise(pos.x, pos.y);
+	setNoiseData(NoiseData());
+	return n;
 }
 
 double NoiseGenerator::getFlowerClusterNoise(ivec2 pos, int channel)
 {
-    // Different offsets to decorrelate channels
-    ivec2 p = pos;
-    if (channel == 0) p += ivec2(15731, 789221);
-    else if (channel == 1) p += ivec2(12497, 28341);
-    else p += ivec2(95121, 6427);
-    NoiseData nData = {
-        1.0,
-        0.006,  // cluster scale
-        0.5,
-        2.0,
-        3
-    };
-    setNoiseData(nData);
-    double n = noise(p.x, p.y);
-    setNoiseData(NoiseData());
-    return n;
+	// Different offsets to decorrelate channels
+	ivec2 p = pos;
+	if (channel == 0) p += ivec2(15731, 789221);
+	else if (channel == 1) p += ivec2(12497, 28341);
+	else p += ivec2(95121, 6427);
+	NoiseData nData = {
+		1.0,
+		0.006,  // cluster scale
+		0.5,
+		2.0,
+		3
+	};
+	setNoiseData(nData);
+	double n = noise(p.x, p.y);
+	setNoiseData(NoiseData());
+	return n;
 }
 
 void NoiseGenerator::buildPlantMaps(PerlinMap* map, int resolution)
 {
-    if (!map) return;
-    int size = map->size;
-    if (!map->grassMap)   map->grassMap   = new double[size * size];
-    if (!map->flowerMask) map->flowerMask = new double[size * size];
-    if (!map->flowerR)    map->flowerR    = new double[size * size];
-    if (!map->flowerY)    map->flowerY    = new double[size * size];
-    if (!map->flowerB)    map->flowerB    = new double[size * size];
+	if (!map) return;
+	int size = map->size;
+	if (!map->grassMap)   map->grassMap   = new double[size * size];
+	if (!map->flowerMask) map->flowerMask = new double[size * size];
+	if (!map->flowerR)    map->flowerR    = new double[size * size];
+	if (!map->flowerY)    map->flowerY    = new double[size * size];
+	if (!map->flowerB)    map->flowerB    = new double[size * size];
 
-    for (int x = 0; x < size; x += resolution)
-    for (int z = 0; z < size; z += resolution)
-    {
-        ivec2 worldXZ = { map->position.x * size + x,
-                          map->position.y * size + z };
-        // Normalize noises to [0,1]
-        double g  = 0.5 * (getGrassNoise(worldXZ) + 1.0);
-        double fb = 0.5 * (getFlowerBaseNoise(worldXZ) + 1.0);
-        double r  = 0.5 * (getFlowerClusterNoise(worldXZ, 0) + 1.0);
-        double y  = 0.5 * (getFlowerClusterNoise(worldXZ, 1) + 1.0);
-        double b  = 0.5 * (getFlowerClusterNoise(worldXZ, 2) + 1.0);
+	for (int x = 0; x < size; x += resolution)
+	for (int z = 0; z < size; z += resolution)
+	{
+		ivec2 worldXZ = { map->position.x * size + x,
+						  map->position.y * size + z };
+		// Normalize noises to [0,1]
+		double g  = 0.5 * (getGrassNoise(worldXZ) + 1.0);
+		double fb = 0.5 * (getFlowerBaseNoise(worldXZ) + 1.0);
+		double r  = 0.5 * (getFlowerClusterNoise(worldXZ, 0) + 1.0);
+		double y  = 0.5 * (getFlowerClusterNoise(worldXZ, 1) + 1.0);
+		double b  = 0.5 * (getFlowerClusterNoise(worldXZ, 2) + 1.0);
 
-        map->grassMap[z * size + x]   = g;
-        map->flowerMask[z * size + x] = fb;
-        map->flowerR[z * size + x]    = r;
-        map->flowerY[z * size + x]    = y;
-        map->flowerB[z * size + x]    = b;
+		map->grassMap[z * size + x]   = g;
+		map->flowerMask[z * size + x] = fb;
+		map->flowerR[z * size + x]    = r;
+		map->flowerY[z * size + x]    = y;
+		map->flowerB[z * size + x]    = b;
 		// Stamp into the local resolution x resolution block
 		int xmax = std::min(x + resolution, size);
 		int zmax = std::min(z + resolution, size);
@@ -629,5 +629,5 @@ void NoiseGenerator::buildPlantMaps(PerlinMap* map, int resolution)
 			map->flowerY[idx]    = y;
 			map->flowerB[idx]    = b;
 		}
-    }
+	}
 }

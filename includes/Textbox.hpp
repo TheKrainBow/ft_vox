@@ -104,15 +104,15 @@ private:
 	void initializeFont(const std::string& fontPath, float fontSize);
 
 public:
-    Textbox();
-    void loadFont(const std::string& fontPath, float fontSize);
-    void addLine(const std::string& label, e_type type, void* value);
-    void addStaticText(const std::string& text);
-    void render();
-    void initData(GLFWwindow* window, int x, int y, int width, int height);
-    // Explicit GL teardown (safe to call multiple times)
-    void shutdownGL();
-    ~Textbox();
+	Textbox();
+	void loadFont(const std::string& fontPath, float fontSize);
+	void addLine(const std::string& label, e_type type, void* value);
+	void addStaticText(const std::string& text);
+	void render();
+	void initData(GLFWwindow* window, int x, int y, int width, int height);
+	// Explicit GL teardown (safe to call multiple times)
+	void shutdownGL();
+	~Textbox();
 };
 
 #endif

@@ -11,14 +11,14 @@
 Skybox::Skybox() : textureID(0), VAO(0), VBO(0) {}
 
 Skybox::~Skybox() {
-    // If a GL context is still current, these calls are fine; otherwise a no-op is safer.
-    shutdownGL();
+	// If a GL context is still current, these calls are fine; otherwise a no-op is safer.
+	shutdownGL();
 }
 
 void Skybox::shutdownGL() {
-    if (VAO) { glDeleteVertexArrays(1, &VAO); VAO = 0; }
-    if (VBO) { glDeleteBuffers(1, &VBO); VBO = 0; }
-    if (textureID) { glDeleteTextures(1, &textureID); textureID = 0; }
+	if (VAO) { glDeleteVertexArrays(1, &VAO); VAO = 0; }
+	if (VBO) { glDeleteBuffers(1, &VBO); VBO = 0; }
+	if (textureID) { glDeleteTextures(1, &textureID); textureID = 0; }
 }
 
 // (PPM loader removed)
@@ -97,7 +97,7 @@ bool Skybox::loadFromPNG(const std::array<std::string, 6>& faces, bool fixSeams)
 				for (int y=0;y<h;++y){ unsigned char* pa = &A.rgba[(y*w + xA)*4]; unsigned char* pb = &B.rgba[(y*w + xB)*4]; for(int c=0;c<3;++c){ unsigned int m=pa[c]+pb[c]; pa[c]=pb[c]=(unsigned char)(m/2);} }
 			}
 		};
-		// Adjacency (assuming standard orientation). Adjust if your images differ.
+		// Adjacency (assuming standard orientation). Adjust if images differ.
 		// +X(0) with +Y(2) top edge, -Y(3) bottom; +Z(4) left, -Z(5) right
 		avgRows(imgs[0], imgs[2], true ); // +X top with +Y bottom
 		avgRows(imgs[0], imgs[3], false); // +X bottom with -Y top

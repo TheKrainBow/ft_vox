@@ -14,7 +14,7 @@ _pool(pool),
 _isBuilding(false),
 _isModified(false)
 {
-    _north = _south = _east = _west = nullptr;
+	_north = _south = _east = _west = nullptr;
 }
 
 void Chunk::loadBlocks() {
@@ -91,14 +91,14 @@ TopBlock Chunk::getTopBlock(int localX, int localZ) {
 		if (it == _subChunks.end() || !it->second) continue;
 
 		SubChunk* sub = it->second;
-    for (int y = CHUNK_SIZE - 1; y >= 0; --y) {
-        uint8_t block = sub->getBlock({localX, y, localZ});
-        // Treat decorative plants as non-solid for ground queries
-        if (block != AIR && block != WATER &&
-            block != FLOWER_POPPY && block != FLOWER_DANDELION &&
-            block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS && block != FLOWER_DEAD_BUSH)
-            return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
-    }
+	for (int y = CHUNK_SIZE - 1; y >= 0; --y) {
+		uint8_t block = sub->getBlock({localX, y, localZ});
+		// Treat decorative plants as non-solid for ground queries
+		if (block != AIR && block != WATER &&
+			block != FLOWER_POPPY && block != FLOWER_DANDELION &&
+			block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS && block != FLOWER_DEAD_BUSH)
+			return {subY * CHUNK_SIZE + y, (char)block, {0.0, 0.0}};
+	}
 	}
 	return {0, 0, {0.0, 0.0}};
 }
@@ -132,15 +132,15 @@ TopBlock Chunk::getFirstSolidBelow(int localX, int startLocalY, int localZ, int 
 		SubChunk* sub = it->second;
 		const int yStart = (subY == startSubY) ? startLocalY : (CHUNK_SIZE - 1);
 
-        for (int y = yStart; y >= 0; --y) {
-            const uint8_t block = sub->getBlock({localX, y, localZ});
-            // Ignore decorative plants for collision/ground detection
-            if (block != AIR && block != WATER &&
-                block != FLOWER_POPPY && block != FLOWER_DANDELION &&
-                block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS && block != FLOWER_DEAD_BUSH) {
-                return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
-            }
-        }
+		for (int y = yStart; y >= 0; --y) {
+			const uint8_t block = sub->getBlock({localX, y, localZ});
+			// Ignore decorative plants for collision/ground detection
+			if (block != AIR && block != WATER &&
+				block != FLOWER_POPPY && block != FLOWER_DANDELION &&
+				block != FLOWER_CYAN && block != FLOWER_SHORT_GRASS && block != FLOWER_DEAD_BUSH) {
+				return { subY * CHUNK_SIZE + y, static_cast<char>(block), {0.0, 0.0} };
+			}
+		}
 	}
 	return {0, 0, {0.0, 0.0}};
 }
@@ -161,7 +161,7 @@ void Chunk::getNeighbors()
 	_east = _chunkLoader.getChunk(eastPos);
 	_west = _chunkLoader.getChunk(westPos);
 
-	// Update our own neighbor-completeness flag so we can emit faces even if
+	// Update neighbor-completeness flag so faces can be emitted even if
 	// all neighbors already existed before this chunk was created.
 	_hasAllNeighbors = _north && _south && _east && _west;
 
@@ -182,7 +182,7 @@ void Chunk::getNeighbors()
 		_west->sendFacesToDisplay();
 	}
 
-	// If we are now fully surrounded, generate our faces immediately.
+	// If fully surrounded, generate faces immediately.
 	if (_hasAllNeighbors)
 		sendFacesToDisplay();
 }
@@ -256,14 +256,14 @@ SubChunk* Chunk::getOrCreateSubChunk(int subY, bool generate) {
 bool Chunk::isReady() { return _facesSent; }
 
 void Chunk::clearFaces() {
-    _vertexData.clear();
-    _indirectBufferData.clear();
-    _transparentVertexData.clear();
-    _transparentIndirectBufferData.clear();
-    _ssboSolid.clear();
-    _ssboTransp.clear();
-    _metaSolid.clear();
-    _metaTransp.clear();
+	_vertexData.clear();
+	_indirectBufferData.clear();
+	_transparentVertexData.clear();
+	_transparentIndirectBufferData.clear();
+	_ssboSolid.clear();
+	_ssboTransp.clear();
+	_metaSolid.clear();
+	_metaTransp.clear();
 }
 
 void Chunk::sendFacesToDisplay()
@@ -285,89 +285,89 @@ void Chunk::sendFacesToDisplay()
 	std::lock_guard<std::mutex> lkSend(_sendFacesMutex);
 	clearFaces();
 
-    // First pass: build subchunk meshes and compute total sizes to reserve
-    size_t totalSolid = 0;
-    size_t totalTrans = 0;
-    size_t badDirSum  = 0;
-    for (SubChunk* sc : subs) {
-        if (!sc) continue;
-        sc->sendFacesToDisplay();
-        totalSolid += sc->getVertices().size();
-        totalTrans += sc->getTransparentVertices().size();
-        // Debug: verify per-direction counts sum to total
-        const int* dc  = sc->getDirCounts();
-        const int* tdc = sc->getTranspDirCounts();
-        size_t sumS = 0, sumT = 0;
-        if (dc)  for (int i=0;i<6;++i) sumS += (size_t)dc[i];
-        if (tdc) for (int i=0;i<6;++i) sumT += (size_t)tdc[i];
-        if (sumS != sc->getVertices().size() || sumT != sc->getTransparentVertices().size()) {
-            ++badDirSum;
-        }
-    }
+	// First pass: build subchunk meshes and compute total sizes to reserve
+	size_t totalSolid = 0;
+	size_t totalTrans = 0;
+	size_t badDirSum  = 0;
+	for (SubChunk* sc : subs) {
+		if (!sc) continue;
+		sc->sendFacesToDisplay();
+		totalSolid += sc->getVertices().size();
+		totalTrans += sc->getTransparentVertices().size();
+		// Debug: verify per-direction counts sum to total
+		const int* dc  = sc->getDirCounts();
+		const int* tdc = sc->getTranspDirCounts();
+		size_t sumS = 0, sumT = 0;
+		if (dc)  for (int i=0;i<6;++i) sumS += (size_t)dc[i];
+		if (tdc) for (int i=0;i<6;++i) sumT += (size_t)tdc[i];
+		if (sumS != sc->getVertices().size() || sumT != sc->getTransparentVertices().size()) {
+			++badDirSum;
+		}
+	}
 
 	// Reserve to reduce reallocations
-    // Up to 6 draws per subchunk (one per face direction)
-    _indirectBufferData.reserve(_indirectBufferData.size() + subs.size() * 6);
-    _transparentIndirectBufferData.reserve(_transparentIndirectBufferData.size() + subs.size() * 6);
-    _ssboSolid.reserve(_ssboSolid.size() + subs.size() * 6);
-    _ssboTransp.reserve(_ssboTransp.size() + subs.size() * 6);
-    _metaSolid.reserve(_metaSolid.size() + subs.size() * 6);
-    _metaTransp.reserve(_metaTransp.size() + subs.size() * 6);
-    // Reserve draw meta arrays in staged data (filled by ChunkLoader)
+	// Up to 6 draws per subchunk (one per face direction)
+	_indirectBufferData.reserve(_indirectBufferData.size() + subs.size() * 6);
+	_transparentIndirectBufferData.reserve(_transparentIndirectBufferData.size() + subs.size() * 6);
+	_ssboSolid.reserve(_ssboSolid.size() + subs.size() * 6);
+	_ssboTransp.reserve(_ssboTransp.size() + subs.size() * 6);
+	_metaSolid.reserve(_metaSolid.size() + subs.size() * 6);
+	_metaTransp.reserve(_metaTransp.size() + subs.size() * 6);
+	// Reserve draw meta arrays in staged data (filled by ChunkLoader)
 	_vertexData.reserve(_vertexData.size() + totalSolid);
 	_transparentVertexData.reserve(_transparentVertexData.size() + totalTrans);
 
 	// Second pass: emit draw commands and append streams (no extra copies)
-    for (SubChunk* sc : subs)
-    {
-        if (!sc) continue;
+	for (SubChunk* sc : subs)
+	{
+		if (!sc) continue;
 
-        auto &vertices            = sc->getVertices();
-        auto &transparentVertices = sc->getTransparentVertices();
-        const int* dirCounts      = sc->getDirCounts();
-        const int* tDirCounts     = sc->getTranspDirCounts();
+		auto &vertices            = sc->getVertices();
+		auto &transparentVertices = sc->getTransparentVertices();
+		const int* dirCounts      = sc->getDirCounts();
+		const int* tDirCounts     = sc->getTranspDirCounts();
 
-        // Base offsets before appending this subchunk's vertices
-        uint32_t baseSolidOffset = (uint32_t)_vertexData.size();
-        uint32_t baseTransOffset = (uint32_t)_transparentVertexData.size();
+		// Base offsets before appending this subchunk's vertices
+		uint32_t baseSolidOffset = (uint32_t)_vertexData.size();
+		uint32_t baseTransOffset = (uint32_t)_transparentVertexData.size();
 
-        // Append instance streams (kept in directional order by SubChunk)
-        _vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
-        _transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
+		// Append instance streams (kept in directional order by SubChunk)
+		_vertexData.insert(_vertexData.end(), vertices.begin(), vertices.end());
+		_transparentVertexData.insert(_transparentVertexData.end(), transparentVertices.begin(), transparentVertices.end());
 
-        // Per-direction draws for SOLID
-        ivec3 pos = sc->getPosition();
-        uint32_t running = baseSolidOffset;
-        int order[6] = { UP, DOWN, NORTH, SOUTH, EAST, WEST };
-        for (int ii = 0; ii < 6; ++ii) {
-            int d = order[ii];
-            int count = dirCounts ? dirCounts[d] : 0;
-            if (count <= 0) continue;
-            _indirectBufferData.push_back(DrawArraysIndirectCommand{ 4, (uint32_t)count, 0, running });
-            _ssboSolid.push_back(vec4{ pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load() });
-            _metaSolid.push_back((uint32_t)d);
-            running += (uint32_t)count;
-        }
-        // Per-direction draws for TRANSPARENT
-        running = baseTransOffset;
-        int torder[6] = { UP, DOWN, NORTH, SOUTH, EAST, WEST };
-        for (int ii = 0; ii < 6; ++ii) {
-            int d = torder[ii];
-            int count = tDirCounts ? tDirCounts[d] : 0;
-            if (count <= 0) continue;
-            _transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{ 4, (uint32_t)count, 0, running });
-            // duplicate ssbo origin for matching draw (transparent pass uses same origins)
-            _ssboTransp.push_back(vec4{ pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load() });
-            _metaTransp.push_back((uint32_t)d);
-            running += (uint32_t)count;
-        }
+		// Per-direction draws for SOLID
+		ivec3 pos = sc->getPosition();
+		uint32_t running = baseSolidOffset;
+		int order[6] = { UP, DOWN, NORTH, SOUTH, EAST, WEST };
+		for (int ii = 0; ii < 6; ++ii) {
+			int d = order[ii];
+			int count = dirCounts ? dirCounts[d] : 0;
+			if (count <= 0) continue;
+			_indirectBufferData.push_back(DrawArraysIndirectCommand{ 4, (uint32_t)count, 0, running });
+			_ssboSolid.push_back(vec4{ pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load() });
+			_metaSolid.push_back((uint32_t)d);
+			running += (uint32_t)count;
+		}
+		// Per-direction draws for TRANSPARENT
+		running = baseTransOffset;
+		int torder[6] = { UP, DOWN, NORTH, SOUTH, EAST, WEST };
+		for (int ii = 0; ii < 6; ++ii) {
+			int d = torder[ii];
+			int count = tDirCounts ? tDirCounts[d] : 0;
+			if (count <= 0) continue;
+			_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{ 4, (uint32_t)count, 0, running });
+			// duplicate ssbo origin for matching draw (transparent pass uses same origins)
+			_ssboTransp.push_back(vec4{ pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load() });
+			_metaTransp.push_back((uint32_t)d);
+			running += (uint32_t)count;
+		}
 
-        // Discover and record any flower cells in this subchunk for the renderer
-        if (_resolution == 1)
-            _chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
-    }
-    _facesSent = true;
-    (void)badDirSum;
+		// Discover and record any flower cells in this subchunk for the renderer
+		if (_resolution == 1)
+			_chunkLoader.scanAndRecordFlowersFor(_position, pos.y, sc, _resolution.load());
+	}
+	_facesSent = true;
+	(void)badDirSum;
 }
 
 void Chunk::setNorthChunk(Chunk *c) { _north = c; updateHasAllNeighbors(); }
@@ -394,13 +394,13 @@ std::vector<int> &Chunk::getTransparentVertices() {
 	return _transparentVertexData;
 }
 std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData() {
-    std::lock_guard<std::mutex> lock(_sendFacesMutex);
-    return _transparentIndirectBufferData;
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return _transparentIndirectBufferData;
 }
 
 bool Chunk::hasAnyDraws() {
-    std::lock_guard<std::mutex> lock(_sendFacesMutex);
-    return (!_indirectBufferData.empty() || !_transparentIndirectBufferData.empty());
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return (!_indirectBufferData.empty() || !_transparentIndirectBufferData.empty());
 }
 
 void Chunk::freeSubChunks() {
@@ -467,24 +467,24 @@ void Chunk::getAABB(glm::vec3& minp, glm::vec3& maxp) {
 std::atomic_int &Chunk::getResolution() { return _resolution; }
 
 void Chunk::snapshotDisplayData(
-    std::vector<int>& outSolidVerts,
-    std::vector<DrawArraysIndirectCommand>& outSolidCmds,
-    std::vector<vec4>& outSSBOSolid,
-    std::vector<int>& outTranspVerts,
-    std::vector<DrawArraysIndirectCommand>& outTranspCmds,
-    std::vector<vec4>& outSSBOTransp,
-    std::vector<uint32_t>& outMetaSolid,
-    std::vector<uint32_t>& outMetaTransp)
+	std::vector<int>& outSolidVerts,
+	std::vector<DrawArraysIndirectCommand>& outSolidCmds,
+	std::vector<vec4>& outSSBOSolid,
+	std::vector<int>& outTranspVerts,
+	std::vector<DrawArraysIndirectCommand>& outTranspCmds,
+	std::vector<vec4>& outSSBOTransp,
+	std::vector<uint32_t>& outMetaSolid,
+	std::vector<uint32_t>& outMetaTransp)
 {
-    std::lock_guard<std::mutex> lockk(_sendFacesMutex);
-    outSolidVerts   = _vertexData;
-    outSolidCmds    = _indirectBufferData;
-    outSSBOSolid    = _ssboSolid;
-    outTranspVerts  = _transparentVertexData;
-    outTranspCmds   = _transparentIndirectBufferData;
-    outSSBOTransp   = _ssboTransp;
-    outMetaSolid    = _metaSolid;
-    outMetaTransp   = _metaTransp;
+	std::lock_guard<std::mutex> lockk(_sendFacesMutex);
+	outSolidVerts   = _vertexData;
+	outSolidCmds    = _indirectBufferData;
+	outSSBOSolid    = _ssboSolid;
+	outTranspVerts  = _transparentVertexData;
+	outTranspCmds   = _transparentIndirectBufferData;
+	outSSBOTransp   = _ssboTransp;
+	outMetaSolid    = _metaSolid;
+	outMetaTransp   = _metaTransp;
 }
 
 bool Chunk::isBuilding() const { return _isBuilding.load(); }
@@ -495,9 +495,9 @@ bool Chunk::getModified() const { return _isModified.load(); }
 
 void Chunk::getSubIndices(std::vector<int>& out)
 {
-    out.clear();
-    std::lock_guard<std::mutex> lk(_subChunksMutex);
-    out.reserve(_subChunks.size());
-    for (const auto& kv : _subChunks)
-        out.push_back(kv.first);
+	out.clear();
+	std::lock_guard<std::mutex> lk(_subChunksMutex);
+	out.reserve(_subChunks.size());
+	for (const auto& kv : _subChunks)
+		out.push_back(kv.first);
 }
