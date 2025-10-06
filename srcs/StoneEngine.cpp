@@ -3127,7 +3127,7 @@ int StoneEngine::initGLFW()
 	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
 	glfwMakeContextCurrent(_window);
 	// Uncapped FPS (disable vsync)
-	glfwSwapInterval(0);
+	// glfwSwapInterval(16);
 	// Prefer raw mouse motion if supported for smoother, acceleration-free deltas
 	if (glfwRawMouseMotionSupported())
 		glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
