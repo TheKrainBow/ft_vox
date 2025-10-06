@@ -8,26 +8,6 @@
 #include <unistd.h>
 #endif
 
-namespace
-{
-	size_t readResidentMemoryBytes()
-	{
-#if defined(__linux__)
-		std::ifstream statm("/proc/self/statm");
-		size_t totalPages = 0;
-		size_t residentPages = 0;
-		if (!(statm >> totalPages >> residentPages))
-			return 0;
-		long pageSize = sysconf(_SC_PAGESIZE);
-		if (pageSize <= 0)
-			pageSize = 4096;
-		return residentPages * static_cast<size_t>(pageSize);
-#else
-		return 0;
-#endif
-	}
-}
-
 static glm::mat4 makeObliqueProjection(const glm::mat4 &proj,
 									   const glm::mat4 &view,
 									   const glm::vec4 &planeWorld)
@@ -788,7 +768,6 @@ void StoneEngine::initDebugTextBox()
 	debugBox.loadFont("textures/CASCADIAMONO.TTF", 20);
 	debugBox.addLine("FPS: ", Textbox::DOUBLE, &fps);
 	debugBox.addLine("Triangles: ", Textbox::INT, &drawnTriangles);
-	debugBox.addLine("Memory Usage: ", Textbox::SIZE_T, &_processMemoryUsage);
 	debugBox.addLine("Chunk Memory: ", Textbox::SIZE_T, _chunkMgr.getMemorySizePtr());
 	debugBox.addLine("RenderDistance: ", Textbox::INT, _chunkMgr.getRenderDistancePtr());
 	debugBox.addLine("CurrentRender: ", Textbox::INT, _chunkMgr.getCurrentRenderPtr());
@@ -2608,15 +2587,6 @@ ivec2 StoneEngine::getChunkPos(vec2 camPosXZ)
 		static_cast<int>(std::floor(wz / cs))};
 }
 
-void StoneEngine::updateProcessMemoryUsage()
-{
-	const size_t rss = readResidentMemoryBytes();
-	if (rss > 0)
-		_processMemoryUsage = rss;
-	else
-		_processMemoryUsage = *_chunkMgr.getMemorySizePtr();
-}
-
 void StoneEngine::updateMovement()
 {
 	vec3 oldPos = camera.getWorldPosition();
@@ -2756,7 +2726,6 @@ void StoneEngine::update()
 	_player.updatePlayerDirection();
 	_player.updateMovement();
 	updateBiomeData();
-	updateProcessMemoryUsage();
 	display();
 }
 

@@ -19,6 +19,7 @@
 
 # define W_WIDTH 1000
 # define W_HEIGHT 800
+
 // Fixed window size when leaving fullscreen
 #ifndef WINDOWED_FIXED_W
 # define WINDOWED_FIXED_W 1280
@@ -37,15 +38,18 @@
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
 # define SUBCHUNK_MARGIN_DOWN (0)
 # define LOD_THRESHOLD 16
+
 // Base rotation multiplier for mouse look
 # define ROTATION_SPEED 2.0f
 # define CACHE_SIZE NB_CHUNKS * 2
-#ifndef EXTRA_CACHE_CHUNKS
+
 // Number of chunks allowed in addition to the visible grid
 // (RenderDistance*RenderDistance). Eviction will try to keep the
 // farthest non-modified, non-displayed chunks pruned beyond this slack.
+#ifndef EXTRA_CACHE_CHUNKS
 # define EXTRA_CACHE_CHUNKS 100
 #endif
+
 # define MOVEMENT_SPEED 0.5f
 # define FALL_INCREMENT 9.8f / 40.0f
 # define FALL_INCREMENT_WATER 9.8f / 1000.0f

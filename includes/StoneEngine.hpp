@@ -153,7 +153,6 @@ class StoneEngine {
 		int drawnTriangles;
 		Textbox debugBox;
 		Textbox helpBox;
-		size_t _processMemoryUsage = 0;
 	
 		// World gen
 		NoiseGenerator noise_gen;
@@ -281,7 +280,6 @@ class StoneEngine {
 		void renderPlanarReflection();
 		void setShadowCascadeRenderSync(bool enable);
 		ivec2 getChunkPos(vec2 camPosXZ);
-		void updateProcessMemoryUsage();
 		void activateTransparentShader();
 		void updateBiomeData();
 		void renderChunkGrid();
