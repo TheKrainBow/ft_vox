@@ -206,13 +206,21 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, i
 		}
 	}
 
-	{
-		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-		auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
-		if (!inserted) it->second = chunk;
-		else
-			++_displayedCount;
-	}
+    bool displayInserted = false;
+    {
+        std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+        auto [it, inserted] = _displayedChunks.emplace(pos, chunk);
+        if (!inserted) it->second = chunk;
+        else {
+            ++_displayedCount;
+            displayInserted = true;
+        }
+    }
+
+    // If this chunk just became displayed again (from cache), refresh its flowers
+    if (displayInserted) {
+        rescanFlowersForChunk(pos);
+    }
 
 	// Ensure a freshly created chunk becomes visible: build its mesh once
 	// and coalesce a display update. Skip if already meshed.
@@ -410,19 +418,20 @@ void ChunkLoader::unloadChunks(ivec2 newCamChunk)
 				toErase.push_back(kv.first);
 			}
 		}
-		for (const auto& key : toErase)
-		{
-			if (!getIsRunning())
-				break ;
-			auto it2 = _displayedChunks.find(key);
-			if (it2 != _displayedChunks.end()) {
-				_displayedChunks.erase(it2);
-				--_displayedCount;
-			}
-
-		}
-	}
-	updateFillData();
+        for (const auto& key : toErase)
+        {
+            if (!getIsRunning())
+                break ;
+            auto it2 = _displayedChunks.find(key);
+            if (it2 != _displayedChunks.end()) {
+                _displayedChunks.erase(it2);
+                --_displayedCount;
+            }
+            // Allow re-scan of flowers when this chunk becomes displayed again
+            clearFlowerScanMarksFor(key);
+        }
+    }
+    updateFillData();
 	// After display set shrinks, re-check cache pressure
 	enforceCountBudget();
 }
@@ -747,9 +756,15 @@ bool ChunkLoader::hasRenderableChunks() {
 }
 
 void ChunkLoader::scheduleDisplayUpdate() {
-	if (_buildingDisplay) return;
-	if (!getIsRunning()) return;
-	_threadPool.enqueue(&ChunkLoader::updateFillData, this);
+    if (_buildingDisplay) return;
+    if (!getIsRunning()) return;
+    _threadPool.enqueue(&ChunkLoader::updateFillData, this);
+}
+
+void ChunkLoader::rebuildDisplayDataNow()
+{
+    // Build staged data synchronously; guards inside will noop if shutting down
+    updateFillData();
 }
 
 // --- LRU + eviction helpers ---
@@ -952,4 +967,26 @@ void ChunkLoader::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, s
 {
     std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
     out = _lastDisplayedSubY;
+}
+
+void ChunkLoader::clearFlowerScanMarksFor(const glm::ivec2& cpos)
+{
+    std::lock_guard<std::mutex> lk(_flowersMutex);
+    const std::string prefix = std::to_string(cpos.x) + ":" + std::to_string(cpos.y) + ":";
+    for (auto it = _flowersScannedKeys.begin(); it != _flowersScannedKeys.end(); ) {
+        if (it->rfind(prefix, 0) == 0) it = _flowersScannedKeys.erase(it);
+        else ++it;
+    }
+}
+
+void ChunkLoader::rescanFlowersForChunk(const glm::ivec2& cpos)
+{
+    Chunk* c = getChunk(cpos);
+    if (!c) return;
+    if (c->getResolution() != 1) return; // only scan at full-res
+    std::vector<int> subs; c->getSubIndices(subs);
+    for (int subY : subs) {
+        SubChunk* sc = c->getSubChunk(subY);
+        if (sc) scanAndRecordFlowersFor(cpos, subY, sc, c->getResolution());
+    }
 }

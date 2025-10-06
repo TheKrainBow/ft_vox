@@ -492,3 +492,12 @@ bool Chunk::isBuilding() const { return _isBuilding.load(); }
 // If a block was destroyed/placed mark this chunk dirty
 void Chunk::setAsModified() { _isModified = true; };
 bool Chunk::getModified() const { return _isModified.load(); }
+
+void Chunk::getSubIndices(std::vector<int>& out)
+{
+    out.clear();
+    std::lock_guard<std::mutex> lk(_subChunksMutex);
+    out.reserve(_subChunks.size());
+    for (const auto& kv : _subChunks)
+        out.push_back(kv.first);
+}

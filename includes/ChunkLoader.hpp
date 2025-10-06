@@ -157,7 +157,9 @@ public:
 	// Runtime chunk loading/unloading/updating
     void	loadChunks(ivec2 camPosition);
     void	unloadChunks(ivec2 newCamChunk);
-	void	scheduleDisplayUpdate();
+    void	scheduleDisplayUpdate();
+    // Synchronous rebuild of staged DisplayData snapshot (used for compaction)
+    void	rebuildDisplayDataNow();
 	// Snapshot atomics into UI-visible plain fields (call on main thread)
 	void	snapshotDebugCounters();
 
@@ -193,5 +195,10 @@ public:
 	int		*getCachedChunksCountPtr();
 	int		*getDisplayedChunksCountPtr();
 	int		*getModifiedChunksCountPtr();
-	void	printSizes() const;
+    void	printSizes() const;
+
+private:
+    // Flowers helpers for lifetime across display cycles
+    void clearFlowerScanMarksFor(const glm::ivec2& cpos);
+    void rescanFlowersForChunk(const glm::ivec2& cpos);
 };
