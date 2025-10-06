@@ -11,9 +11,14 @@
 Skybox::Skybox() : textureID(0), VAO(0), VBO(0) {}
 
 Skybox::~Skybox() {
-	if (VAO) glDeleteVertexArrays(1, &VAO);
-	if (VBO) glDeleteBuffers(1, &VBO);
-	if (textureID) glDeleteTextures(1, &textureID);
+    // If a GL context is still current, these calls are fine; otherwise a no-op is safer.
+    shutdownGL();
+}
+
+void Skybox::shutdownGL() {
+    if (VAO) { glDeleteVertexArrays(1, &VAO); VAO = 0; }
+    if (VBO) { glDeleteBuffers(1, &VBO); VBO = 0; }
+    if (textureID) { glDeleteTextures(1, &textureID); textureID = 0; }
 }
 
 // (PPM loader removed)

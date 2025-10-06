@@ -29,9 +29,9 @@
 
 // Minimum time (ms) to keep the loading splash visible after startup
 #ifndef LOADING_SPLASH_MS
-# define LOADING_SPLASH_MS 2000
+# define LOADING_SPLASH_MS 10
 #endif
-# define RENDER_DISTANCE 21
+# define RENDER_DISTANCE 30
 # define NB_CHUNKS RENDER_DISTANCE * RENDER_DISTANCE
 # define CHUNK_SIZE 32
 # define SUBCHUNK_MARGIN_UP   (2 * CHUNK_SIZE)
@@ -43,7 +43,7 @@
 // Number of chunks allowed in addition to the visible grid
 // (RenderDistance*RenderDistance). Eviction will try to keep the
 // farthest non-modified, non-displayed chunks pruned beyond this slack.
-# define EXTRA_CACHE_CHUNKS 1000
+# define EXTRA_CACHE_CHUNKS 100
 #endif
 # define MOVEMENT_SPEED 0.5f
 # define FALL_INCREMENT 9.8f / 40.0f

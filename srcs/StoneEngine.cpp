@@ -148,8 +148,15 @@ StoneEngine::~StoneEngine()
     if (_window) glfwMakeContextCurrent(_window);
     // Drain any in-flight GPU work before deleting GL objects
     glFinish();
-	// Ensure _chunkMgr GL resources are freed before destroying the context
-	_chunkMgr.shutDownGL();
+    // Ensure _chunkMgr GL resources are freed before destroying the context
+    _chunkMgr.shutDownGL();
+
+    // Teardown GL resources owned by helper classes while context is valid
+    _skybox.shutdownGL();
+    _textureManager.shutdownGL();
+    debugBox.shutdownGL();
+    helpBox.shutdownGL();
+    _loadingBox.shutdownGL();
 
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
@@ -230,9 +237,9 @@ StoneEngine::~StoneEngine()
 	// destroying the context/window (reduces TSan races in Mesa).
 	glFlush();
 	glFinish();
-	// Terminate GLFW
-	glfwDestroyWindow(_window);
-	glfwTerminate();
+    // Terminate GLFW
+    glfwDestroyWindow(_window);
+    glfwTerminate();
 }
 
 void StoneEngine::run()

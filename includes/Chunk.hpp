@@ -100,6 +100,8 @@ class Chunk
 		bool isBuilding() const;
 		void setAsModified();
 		bool getModified() const;
+        // Enumerate existing subchunk Y indices (thread-safe snapshot)
+        void getSubIndices(std::vector<int>& out);
 	private:	
 		void updateHasAllNeighbors();
 };
