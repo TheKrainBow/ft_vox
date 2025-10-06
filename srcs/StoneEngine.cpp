@@ -559,13 +559,20 @@ void StoneEngine::initShadowMapping()
 
 void StoneEngine::rebuildShadowResources(int effectiveRender)
 {
-	(void)effectiveRender;
+    (void)effectiveRender;
 
-	if (shadowFBO) {
-		glDeleteFramebuffers(1, &shadowFBO);
-		shadowFBO = 0;
-	}
-	if (shadowMap) {
+    // Clamp shadow map size to hardware limits to avoid incomplete FBOs
+    GLint maxTex = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+    if (maxTex > 0 && shadowMapSize > maxTex) {
+        shadowMapSize = maxTex;
+    }
+
+    if (shadowFBO) {
+        glDeleteFramebuffers(1, &shadowFBO);
+        shadowFBO = 0;
+    }
+    if (shadowMap) {
 		glDeleteTextures(1, &shadowMap);
 		shadowMap = 0;
 	}
