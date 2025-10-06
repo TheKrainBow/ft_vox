@@ -68,7 +68,10 @@ void ChunkRenderer::setOcclusionSource(GLuint depthTex, int width, int height,
 {
 	// If draw data changed this frame, previous-frame depth may be invalid.
 	// In that case, disable occlusion for this frame to avoid popping.
-	bool disableOcclusionThisFrame = (_needUpdate.load() || _needTransparentUpdate.load());
+	// Note: don't gate solid-pass occlusion on transparent updates; the solid
+	// pass can safely use previous-frame depth even if transparent buffers
+	// haven’t been refreshed yet.
+	bool disableOcclusionThisFrame = _needUpdate.load();
 
 	_occDepthTex = depthTex;
 	_occW = width;
