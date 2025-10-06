@@ -2798,19 +2798,19 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::vec3 origin = camera.getWorldPosition();
 		glm::vec3 dir = camera.getDirection();
 
-		// Pre-fetch which block we are about to delete
-		glm::ivec3 peek;
-		BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
-		// If deleting dirt/grass, prefetch above cell type for flower instance cleanup
-		glm::ivec3 abovePeek = {peek.x, peek.y + 1, peek.z};
-		BlockType aboveBefore = AIR;
-		if (toDelete == DIRT || toDelete == GRASS)
-		{
-			glm::ivec2 aboveChunkPos(
-				(int)std::floor((float)abovePeek.x / (float)CHUNK_SIZE),
-				(int)std::floor((float)abovePeek.z / (float)CHUNK_SIZE));
-			aboveBefore = _chunkMgr.getBlock(aboveChunkPos, abovePeek);
-		}
+        // Pre-fetch which block we are about to delete
+        glm::ivec3 peek;
+        BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
+        // If deleting dirt/grass/sand, prefetch above cell type for flower instance cleanup
+        glm::ivec3 abovePeek = {peek.x, peek.y + 1, peek.z};
+        BlockType aboveBefore = AIR;
+        if (toDelete == DIRT || toDelete == GRASS || toDelete == SAND)
+        {
+            glm::ivec2 aboveChunkPos(
+                (int)std::floor((float)abovePeek.x / (float)CHUNK_SIZE),
+                (int)std::floor((float)abovePeek.z / (float)CHUNK_SIZE));
+            aboveBefore = _chunkMgr.getBlock(aboveChunkPos, abovePeek);
+        }
 		// Delete the first solid block within 5 blocks of reach
 		bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
 		if (deleted)
@@ -2821,13 +2821,14 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 			{
 				removeFlowerAtCell(peek);
 			}
-			// If we broke dirt/grass and there was a flower above, remove its instance as well
-			if ((toDelete == DIRT || toDelete == GRASS) &&
-			    (aboveBefore == FLOWER_POPPY || aboveBefore == FLOWER_DANDELION ||
-			     aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS))
-			{
-				removeFlowerAtCell(abovePeek);
-			}
+            // If we broke dirt/grass/sand and there was a flower above, remove its instance as well
+            if ((toDelete == DIRT || toDelete == GRASS || toDelete == SAND) &&
+                (aboveBefore == FLOWER_POPPY || aboveBefore == FLOWER_DANDELION ||
+                 aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS ||
+                 aboveBefore == FLOWER_DEAD_BUSH))
+            {
+                removeFlowerAtCell(abovePeek);
+            }
 		}
 	}
 	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && _player.getSelectedBlock() != AIR)
