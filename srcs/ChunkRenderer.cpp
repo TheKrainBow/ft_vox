@@ -121,7 +121,8 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_solidStagedDataQueue.pop();
 		_needUpdate = true;
-		_solidWarmupFrames = 8; // draw via template for a few frames after upload
+		// Avoid warmup template path to prevent initial full-scene flash
+		_solidWarmupFrames = 0;
 	}
 	if (!_transparentStagedDataQueue.empty())
 	{
@@ -132,7 +133,8 @@ void ChunkRenderer::updateDrawData()
 		stagedData = nullptr;
 		_transparentStagedDataQueue.pop();
 		_needTransparentUpdate = true;
-		_transpWarmupFrames = 8;
+		// Avoid warmup template path for transparent as well
+		_transpWarmupFrames = 0;
 	}
 
 	// SSBOs are uploaded per-pass in pushVerticesToOpenGL
@@ -168,8 +170,8 @@ int ChunkRenderer::renderSolidBlocks()
 		return 0;
 	}
 
-	// Warmup/template path for a few frames after uploads or when the batch is tiny
-	bool useTemplatePath = (_solidWarmupFrames > 0) || (_solidDrawCount <= 32);
+	// Warmup/template path intentionally disabled on startup to avoid flashing
+	bool useTemplatePath = (_solidWarmupFrames > 0);
 	if (_solidDrawCount > 0 && _solidPosSrcSSBO && _templIndirectBuffer && useTemplatePath) {
 		// Template path: bind SOURCE position, instances and per-draw meta
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _solidPosSrcSSBO);
@@ -198,8 +200,9 @@ int ChunkRenderer::renderSolidBlocks()
 	glBindBuffer(GL_PARAMETER_BUFFER_ARB, _solidParamsBuf); // contains uint drawCount
 	// removed dump diagnostics for solid
 	// Defensive sanity: if the first few compacted commands are zero but a draw count exists,
-	// fall back to using template commands for this frame to avoid flicker.
-	if (_solidDrawCount > 0) {
+	// previously we fell back to using template commands (draw-all). That causes visible flashes.
+	// Only attempt a fallback when we have a non-zero last good count; otherwise, skip.
+	if (_solidDrawCount > 0 && _lastGoodSolidCount > 0) {
 		const size_t probe = std::min<size_t>(8, (size_t)_solidDrawCount);
 		std::vector<DrawArraysIndirectCommand> head(probe);
 		glGetNamedBufferSubData(_indirectBuffer, 0, probe * sizeof(DrawArraysIndirectCommand), head.data());
@@ -208,13 +211,8 @@ int ChunkRenderer::renderSolidBlocks()
 			if (head[i].instanceCount != 0u) { allZero = false; break; }
 		}
 		if (allZero) {
-			GLsizeiptr bytesCmd = (GLsizeiptr)_solidDrawCount * sizeof(DrawArraysIndirectCommand);
-			glCopyNamedBufferSubData(_templIndirectBuffer, _indirectBuffer, 0, 0, bytesCmd);
-			// Also mirror per-draw meta so directions match the template commands
-			GLsizeiptr bytesMeta = (GLsizeiptr)_solidDrawCount * sizeof(uint32_t);
-			glCopyNamedBufferSubData(_solidMetaSrcSSBO, _solidMetaSSBO, 0, 0, bytesMeta);
-			glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-			// silent fallback
+			// Skip copying full template to avoid draw-all; rely on last good count instead.
+			// No action here; the safety block below will use _lastGoodSolidCount.
 		}
 	}
 
@@ -247,7 +245,7 @@ int ChunkRenderer::renderSolidBlocks()
 	}
 
 	// Safety fallback: if GPU culling produced zero draws OR mapping failed,
-	// render a conservative count to avoid empty frames.
+	// prefer to reuse last good count; do NOT fall back to drawing all commands.
 	if (!usedExplicit) {
 		bool needFallback = false;
 		bool zeroCount    = false;
@@ -266,7 +264,8 @@ int ChunkRenderer::renderSolidBlocks()
 			needFallback = true;
 		}
 		if (needFallback) {
-			GLsizei count = _lastGoodSolidCount > 0 ? _lastGoodSolidCount : _solidDrawCount;
+			// Only draw when we have a prior valid count; otherwise, skip to avoid flashing.
+			GLsizei count = _lastGoodSolidCount;
 			if (count > 0) {
 				glBindBuffer(GL_PARAMETER_BUFFER_ARB, 0);
 				glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, nullptr, count,
