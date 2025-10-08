@@ -1,4 +1,5 @@
 #include "StoneEngine.hpp"
+#include "stb_image.h"
 
 #include <fstream>
 #include <string>
@@ -3087,6 +3088,22 @@ int StoneEngine::initGLFW()
 		std::cerr << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
 		return 0;
+	}
+
+	// Set window icon (fun): load PNG and pass to GLFW
+	// Works on Windows and X11; no-op on macOS/most Wayland compositors
+	{
+		int iw = 0, ih = 0, ic = 0;
+		stbi_uc* pixels = stbi_load("textures/mcicon.png", &iw, &ih, &ic, 4);
+		if (pixels && iw > 0 && ih > 0)
+		{
+			GLFWimage img;
+			img.width = iw;
+			img.height = ih;
+			img.pixels = pixels;
+			glfwSetWindowIcon(_window, 1, &img);
+		}
+		if (pixels) stbi_image_free(pixels);
 	}
 
 	glfwSetWindowUserPointer(_window, this);
