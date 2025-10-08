@@ -78,8 +78,8 @@ static inline void glResetActiveTextureTo0()
 
 static inline void glUnbindCommonTextures()
 {
-    // Unbind common targets
-    glBindTexture(GL_TEXTURE_2D, 0);
+	// Unbind common targets
+	glBindTexture(GL_TEXTURE_2D, 0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 }
@@ -3102,6 +3102,16 @@ int StoneEngine::initGLFW()
 		glfwSetInputMode(_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 	if (!isWSL()) {
 		glfwSetCursorPosCallback(_window, mouseCallback);
+	}
+	// Place cursor at the window center on launch for consistent initial deltas
+	{
+		int w = 0, h = 0;
+		glfwGetWindowSize(_window, &w, &h);
+		if (w > 0 && h > 0)
+				glfwSetCursorPos(_window, w / 2.0, h / 2.0);
+		// If mouse capture is enabled by default, disable the cursor now
+		if (mouseCaptureToggle)
+				glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	}
 	_isFullscreen = (glfwGetWindowMonitor(_window) != nullptr);
 	return 1;
