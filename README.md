@@ -55,3 +55,31 @@ Notes
 - The project links against OpenGL, GLU, GLEW and GLFW (see Makefile:4). GLM is header‑only. 
 - A static GLEW is included in lib64 for convenience; system packages also work. 
 - First launch shows a short loading splash while initial chunks stream in. 
+## Screenshots
+
+A quick look at terrain generation, rendering passes, and water/atmosphere effects.
+
+### World generation and shaders
+
+<p>
+	<a href="screenshots/spawn.png"><img src="screenshots/spawn.png" width="49%" alt="Spawn area"></a>
+	<a href="screenshots/mountains.png"><img src="screenshots/mountains.png" width="49%" alt="Mountains and terrain shaping"></a>
+</p>
+
+<p>
+	<a href="screenshots/caves.png"><img src="screenshots/caves.png" width="49%" alt="Cave generation"></a>
+	<a href="screenshots/render_distance_LOD.png"><img src="screenshots/render_distance_LOD.png" width="49%" alt="Render distance and LOD"></a>
+</p>
+
+### Meshing & rendering
+
+<p>
+	<a href="screenshots/greedy_meshing.png"><img src="screenshots/greedy_meshing.png" width="70%" alt="Greedy meshing output"></a>
+</p>
+
+### Water & underwater
+
+<p>
+	<a href="screenshots/water_reflects.png"><img src="screenshots/water_reflects.png" width="49%" alt="Water with planar reflections"></a>
+	<a href="screenshots/under_water.png"><img src="screenshots/under_water.png" width="49%" alt="Underwater view"></a>
+</p>
