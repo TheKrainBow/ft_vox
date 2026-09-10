@@ -114,7 +114,14 @@ class StoneEngine {
 		mat4 viewMatrix;
 		TextureManager _textureManager;
 		ThreadPool &_pool;
-		float _fov = 80.0f;
+		static constexpr float DEFAULT_FOV = 80.0f;
+		float _fov = DEFAULT_FOV;
+		fvec2 _mouseGlide = fvec2(0.0f);
+		double _mouseLookTime = 0.0;
+		double _mouseGlideEnd = 0.0;
+		bool _firstMouse = true;
+		double _lastMouseX = 0.0;
+		double _lastMouseY = 0.0;
 		// Shadow biasing data
 		float _shadowBiasSlope = 0.5f;
 		float _shadowBiasConstant = 0.001f;
@@ -220,6 +227,7 @@ class StoneEngine {
 		// Event hook actions
 		void keyAction(int key, int scancode, int action, int mods);
 		void mouseAction(double x, double y);
+		void updateMouseLook();
 		void reshapeAction(int width, int height);
 		void scrollAction(double yoffset);
 		void mouseButtonAction(int button, int action, int mods);

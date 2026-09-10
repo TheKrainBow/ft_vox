@@ -2689,6 +2689,7 @@ void StoneEngine::updateBiomeData()
 
 void StoneEngine::update()
 {
+	updateMouseLook();
 	// Time acceleration (numeric keypad + / -)
 	_timeAccelerating = (accelPlus || accelMinus);
 	if (accelPlus)  { timeValue += 50; }
@@ -2933,7 +2934,8 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_F)
 	{
 		// Change FOV without rebuilding framebuffers to avoid culling flashes
-		_fov = 80.0f;
+		_fov = DEFAULT_FOV;
+		_mouseGlide = fvec2(0.0f);
 		// Update projection only; viewport is unchanged
 		projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
 	}
@@ -2967,7 +2969,13 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 			showDebugInfo = false; // help replaces debug
 	}
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
+	{
 		mouseCaptureToggle = !mouseCaptureToggle;
+		_mouseGlide = fvec2(0.0f);
+		_firstMouse = true;
+		glfwSetInputMode(_window, GLFW_CURSOR,
+			mouseCaptureToggle ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+	}
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (action == GLFW_PRESS && (key == GLFW_KEY_P)) pauseTime = !pauseTime;
 	if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(_window, GL_TRUE);
@@ -2995,6 +3003,29 @@ void StoneEngine::keyPress(GLFWwindow *window, int key, int scancode, int action
 		engine->keyAction(key, scancode, action, mods);
 }
 
+void StoneEngine::updateMouseLook()
+{
+	const double now = glfwGetTime();
+	const float elapsed = static_cast<float>(std::max(0.0, now - _mouseLookTime));
+	_mouseLookTime = now;
+	if (!mouseCaptureToggle || _fov >= DEFAULT_FOV)
+	{
+		_mouseGlide = fvec2(0.0f);
+		return;
+	}
+	const float zoomScale = std::min(1.0f,
+		std::tan(radians(_fov) * 0.5f) / std::tan(radians(DEFAULT_FOV) * 0.5f));
+	const float glideDuration = 0.3f * (1.0f - zoomScale);
+
+	// Stronger zoom gives a longer tail; finish it within 0.3 seconds of input.
+	// Five time constants leave less than 1% to settle at the deadline.
+	const float blend = now >= _mouseGlideEnd ? 1.0f
+		: -std::expm1(-elapsed / (glideDuration / 5.0f));
+	const fvec2 rotation = _mouseGlide * blend;
+	_mouseGlide -= rotation;
+	camera.rotate(rotation.x, rotation.y, 1.0);
+}
+
 void StoneEngine::mouseAction(double x, double y)
 {
 	if (!mouseCaptureToggle)
@@ -3002,34 +3033,38 @@ void StoneEngine::mouseAction(double x, double y)
 		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		return;
 	}
-	static bool firstMouse = true;
-	static double lastX = 0, lastY = 0;
 
 	// Disable cursor
 	glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	camera.updateMousePos(x, y);
 
-	if (firstMouse)
+	if (_firstMouse)
 	{
-		lastX = x;
-		lastY = y;
-		firstMouse = false;
+		_lastMouseX = x;
+		_lastMouseY = y;
+		_firstMouse = false;
 		return;
 	}
 
-	float xOffset = static_cast<float>(lastX - x);
-	float yOffset = static_cast<float>(lastY - y);
+	float xOffset = static_cast<float>(_lastMouseX - x);
+	float yOffset = static_cast<float>(_lastMouseY - y);
 
-	lastX = x;
-	lastY = y;
+	_lastMouseX = x;
+	_lastMouseY = y;
 
-	float sensitivity = 0.05f;
-	xOffset *= sensitivity;
-	yOffset *= sensitivity;
+	updateMouseLook();
+	// Match sensitivity to perspective magnification only on the zoomed-in side.
+	const float zoomScale = std::min(1.0f,
+		std::tan(radians(_fov) * 0.5f) / std::tan(radians(DEFAULT_FOV) * 0.5f));
+	const float sensitivity = 0.05f * zoomScale * ROTATION_SPEED;
+	const fvec2 rotation(xOffset * sensitivity, yOffset * sensitivity);
+	const float glideShare = 0.3f * (1.0f - zoomScale);
+	_mouseGlide += rotation * glideShare;
+	if (xOffset != 0.0f || yOffset != 0.0f)
+		_mouseGlideEnd = _mouseLookTime + 0.3 * (1.0f - zoomScale);
 
-	camera.rotate(1.0f, 0.0f, xOffset * ROTATION_SPEED);
-	camera.rotate(0.0f, 1.0f, yOffset * ROTATION_SPEED);
+	camera.rotate(rotation.x, rotation.y, 1.0f - glideShare);
 }
 
 void StoneEngine::mouseCallback(GLFWwindow *window, double x, double y)
@@ -3044,6 +3079,8 @@ void StoneEngine::scrollAction(double yoffset)
 {
 	_fov -= (float)yoffset;
 	_fov = std::clamp(_fov, 1.0f, 90.0f);
+	if (_fov >= DEFAULT_FOV)
+		_mouseGlide = fvec2(0.0f);
 
 	// Update projection only; avoid full framebuffer reset to prevent flashes
 	projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
