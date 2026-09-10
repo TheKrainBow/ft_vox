@@ -162,8 +162,10 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, i
 
 	if (chunk)
 	{
-		if (chunk->getResolution() > resolution)
+		if (chunk->getResolution() > resolution) {
+			std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
 			chunk->updateResolution(resolution);
+		}
 		applyPendingFor(pos);
 		// Touch LRU for recently used chunk
 		touchLRU(pos);
@@ -467,6 +469,7 @@ void ChunkLoader::updateFillData()
 			return;
 		}
 	}
+	flushDirtyChunks();
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -648,6 +651,7 @@ BlockType ChunkLoader::getBlock(ivec2 chunkPos, ivec3 worldPos) {
 
 // Shared chunk setters
 bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer) {
+    std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
 	auto chunk = getChunk(chunkPos);
 	if (!chunk) return false;
 
@@ -659,12 +663,20 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool
 	const int ly = (worldPos.y % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 	const int lz = (worldPos.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
 
+	const char previous = sc->getBlock({lx, ly, lz});
+	if (previous == value) return true;
 	// Write directly with localized coordinates to avoid re-dispatch loops
 	sc->setBlockLocal(lx, ly, lz, value);
 
 	// Only player actions count as modifications for eviction protection UI
 	if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
 	markChunkDirty(chunkPos);
+	if (byPlayer) queueWater(worldPos);
+	// Corner heights depend on diagonal cells as well as face neighbors.
+	for (int dx = -1; dx <= 1; ++dx)
+		for (int dz = -1; dz <= 1; ++dz)
+			markChunkDirty({(int)std::floor(double(worldPos.x + dx) / CHUNK_SIZE),
+			                (int)std::floor(double(worldPos.z + dz) / CHUNK_SIZE)});
 	return true;
 }
 
@@ -831,6 +843,7 @@ void ChunkLoader::enforceCountBudget() {
 }
 
 bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
+    std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
 	// Lookup the chunk
 	Chunk* chunk = nullptr;
 	{
@@ -989,4 +1002,87 @@ void ChunkLoader::rescanFlowersForChunk(const glm::ivec2& cpos)
 		SubChunk* sc = c->getSubChunk(subY);
 		if (sc) scanAndRecordFlowersFor(cpos, subY, sc, c->getResolution());
 	}
+}
+
+void ChunkLoader::queueWater(const glm::ivec3& p) {
+    static const glm::ivec3 offsets[] = {{0,0,0}, {1,0,0}, {-1,0,0},
+        {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1},
+        {1,1,0}, {-1,1,0}, {0,1,1}, {0,1,-1}};
+    std::lock_guard<std::mutex> lock(_waterMutex);
+    for (auto offset : offsets) {
+        auto q = p + offset;
+        if (q.y <= 0) continue; // Bedrock is the world's lower boundary.
+        if (_waterQueued.insert({q.x, q.y, q.z}).second) _waterQueue.push(q);
+    }
+}
+
+void ChunkLoader::stepWater() {
+    std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
+    std::vector<glm::ivec3> batch;
+    {
+        std::lock_guard<std::mutex> lock(_waterMutex);
+        size_t count = std::min<size_t>(512, _waterQueue.size());
+        while (count--) {
+            auto p = _waterQueue.front(); _waterQueue.pop();
+            _waterQueued.erase({p.x, p.y, p.z});
+            batch.push_back(p);
+        }
+    }
+    auto retry = [&](glm::ivec3 p) {
+        std::lock_guard<std::mutex> lock(_waterMutex);
+        if (_waterQueued.insert({p.x,p.y,p.z}).second) _waterQueue.push(p);
+    };
+    const glm::ivec3 sides[] = {{1,0,0}, {-1,0,0}, {0,0,1}, {0,0,-1}};
+    auto chunkAt = [](glm::ivec3 p) {
+        return glm::ivec2((int)std::floor(double(p.x) / CHUNK_SIZE),
+                          (int)std::floor(double(p.z) / CHUNK_SIZE));
+    };
+    // Evaluate a snapshot before writing, so one tick advances one cell.
+    std::vector<std::pair<glm::ivec3, char>> changes;
+    for (auto p : batch) {
+        bool unknown = false;
+        auto read = [&](glm::ivec3 q) -> char {
+            if (q.y <= 0) return BEDROCK;
+            auto cp = chunkAt(q);
+            Chunk* c = getChunk(cp);
+            if (!c || !c->isReady() || c->isBuilding() || c->getResolution() != 1) {
+                unknown = true;
+                return BEDROCK;
+            }
+            // Ready columns contain all terrain layers down to bedrock; missing
+            // layers above them are empty. Allocate only when a write is needed.
+            return getBlock(cp, q);
+        };
+        char current = read(p);
+        if (!waterReplaceable(current)) {
+            if (unknown) retry(p);
+            continue;
+        }
+        char above = read(p + glm::ivec3(0,1,0));
+        char below = read(p - glm::ivec3(0,1,0));
+        std::array<char,4> adjacent, floors;
+        for (int i = 0; i < 4; ++i) {
+            adjacent[i] = read(p + sides[i]);
+            floors[i] = read(p + sides[i] - glm::ivec3(0,1,0));
+        }
+        // Retain boundary work until neighboring full-resolution chunks are ready.
+        if (unknown) { retry(p); continue; }
+        char next = nextWater(current, above, below, adjacent, floors);
+        if (next != current) changes.push_back({p, next});
+    }
+    for (const auto& change : changes)
+        setBlock(chunkAt(change.first), change.first, change.second, true);
+}
+
+// Simulation must run even when a display snapshot is waiting for the renderer.
+// The game's fixed-step accumulator calls this once for every elapsed tick.
+void ChunkLoader::updateWaterTick() {
+    stepWater();
+    bool dirty;
+    {
+        std::lock_guard<std::mutex> lock(_dirtyMutex);
+        dirty = !_dirtyChunks.empty();
+    }
+    // Retry publication on later ticks if a previous snapshot is still staged.
+    if (dirty) scheduleDisplayUpdate();
 }

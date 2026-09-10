@@ -2,6 +2,7 @@
 
 #include <unordered_set>
 #include <queue>
+#include <set>
 #include <list>
 #include <atomic>
 #include <mutex>
@@ -27,6 +28,13 @@ class Chunk;
 class ChunkLoader
 {
 private:
+	std::recursive_mutex _blockEditMutex; // Serialize simulation with edits and eviction.
+	std::mutex _waterMutex;
+	std::queue<glm::ivec3> _waterQueue;
+	std::set<std::array<int, 3>> _waterQueued;
+	void queueWater(const glm::ivec3& p);
+	void stepWater();
+
 	// Modification queue for blocks breaking
 	struct PendingBlock {
 		glm::ivec3 worldPos;
@@ -158,6 +166,8 @@ public:
 	void	loadChunks(ivec2 camPosition);
 	void	unloadChunks(ivec2 newCamChunk);
 	void	scheduleDisplayUpdate();
+	// Advance simulation once per fixed game tick; rendering only consumes meshes.
+	void	updateWaterTick();
 	// Synchronous rebuild of staged DisplayData snapshot (used for compaction)
 	void	rebuildDisplayDataNow();
 	// Snapshot atomics into UI-visible plain fields (call on main thread)

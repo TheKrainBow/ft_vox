@@ -219,3 +219,8 @@ void ChunkManager::getDisplayedSubchunksSnapshot(std::unordered_map<glm::ivec2, 
 {
 	_chunkLoader.getDisplayedSubchunksSnapshot(out);
 }
+
+void ChunkManager::updateWaterTick()
+{
+	_chunkLoader.updateWaterTick();
+}

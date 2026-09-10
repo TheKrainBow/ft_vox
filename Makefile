@@ -156,3 +156,9 @@ re: fclean all
 re_debug: fclean debug
 
 .PHONY: all debug clean fclean re re_debug
+
+.PHONY: test-water
+test-water:
+	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/water.cpp -o /tmp/ft_vox-water-test
+	/tmp/ft_vox-water-test
+	glslangValidator shaders/render/water.vert shaders/render/water.frag shaders/render/terrain_shadow.vert

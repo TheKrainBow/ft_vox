@@ -2,6 +2,7 @@
 
 #include "ft_vox.hpp"
 #include "Camera.hpp"
+#include "Swimming.hpp"
 #include "define.hpp"
 #include "ChunkManager.hpp"
 
@@ -25,6 +26,9 @@ private:
 	float _moveSpeed;
 	float _rotationSpeed;
 	float _fallSpeed = 0.0f;
+	float _swimVelocity = 0.0f;
+	float _swimBobPhase = 0.0f;
+	float _waterSurface = 0.0f;
 	float _deltaTime;
 
 	// Selected block for placement
@@ -33,7 +37,6 @@ private:
 
 	// Player actions cooldown
 	std::chrono::steady_clock::time_point _jumpCooldown;
-	std::chrono::steady_clock::time_point _swimUpCooldownOnRise;
 	std::chrono::steady_clock::time_point _placeCooldown;
 	std::chrono::steady_clock::time_point _now;
 
@@ -59,7 +62,6 @@ public:
 	bool isSprinting() const;
 	bool isUnderWater() const;
 	void updateMovement();
-	void updateSwimSpeed();
 	void findMoveRotationSpeed();
 	bool updatePlacing();
 	void updatePlayerDirection();
@@ -73,6 +75,8 @@ public:
 	void toggleGravity();
 private:
 	// Movement check
+	bool waterSurfaceAt(const glm::vec3& worldPos, float& surface);
+	bool isPointInWater(const glm::vec3& worldPos);
 	bool canMove(const glm::vec3& offset, float extra);
 
 	// Udate player states

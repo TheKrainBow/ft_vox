@@ -33,6 +33,12 @@ void main()
 	int lengthY   = (instanceData >> 20) & 0x1F;
 	int textureID = (instanceData >> 25) & 0x7F;
 
+	bool shapedWater = (uint(instanceData) & 0x80000000u) != 0u;
+	if (shapedWater) {
+		textureID = 6;
+		lengthX = 0;
+		lengthY = 0;
+	}
 	// Keep only WATER in this pass
 	if (textureID != 6) {
 		gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
@@ -55,14 +61,31 @@ void main()
 	if (direction == 2 || direction == 3) basePos.xyz = basePos.zyx;
 	if (direction == 4 || direction == 5) basePos.zy  = basePos.yz;
 
-	if (direction == 0) normal = vec3(0,0,1);
-	if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,-1,0); }
-	if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(1,0,0); }
-	if (direction == 3) { basePos.x += res; normal = vec3(-1,0,0); }
-	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,0,-1); }
+	if (direction == 0) normal = vec3(0,0,-1);
+	if (direction == 1) { basePos.x = -basePos.x + lengthX; basePos.z += res; normal = vec3(0,0,1); }
+	if (direction == 2) { basePos.y = -basePos.y + lengthY; finalUV.y = 1.0 - finalUV.y; normal = vec3(-1,0,0); }
+	if (direction == 3) { basePos.x += res; normal = vec3(1,0,0); }
+	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,-1,0); }
 	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
-	basePos.y -= 0.1;
+	// Four shared corner heights replace the rectangle dimensions for shaped water.
+	vec4 heights = vec4(14.0 / 15.0);
+	if (shapedWater) {
+		uint corners = uint(instanceData) >> 15;
+		heights = vec4(float(corners & 15u), float((corners >> 4) & 15u),
+		    float((corners >> 8) & 15u), float((corners >> 12) & 15u)) / 15.0;
+	}
+	vec2 corner = clamp(basePos.xz / res, 0.0, 1.0);
+	float height = mix(mix(heights.x, heights.y, corner.x),
+	                   mix(heights.z, heights.w, corner.x), corner.y);
+	// Only lower upper vertices. Bottoms stay on the block boundary so falls join.
+	if (direction == 5 || (direction != 4 && basePos.y > 0.0))
+		basePos.y -= res * (1.0 - height);
+	if (direction == 5) {
+		float dx = mix(heights.y - heights.x, heights.w - heights.z, corner.y);
+		float dz = mix(heights.z - heights.x, heights.w - heights.y, corner.x);
+		normal = normalize(vec3(-dx, 1.0, -dz));
+	}
 
 	vec3 worldPosition = ssboValue.xyz + basePos + instancePos;
 	finalUV *= vec2(lengthX, lengthY);

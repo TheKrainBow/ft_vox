@@ -351,8 +351,29 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 	// newFace.size = ivec2(1, 1);
 	newFace.direction = dir;
 	newFace.texture = texture;
+	if (texture == T_WATER && _resolution == 1)
+		newFace.waterCorners = waterCorners(position);
 	if (isTransparent)
 		_transparentFaces[dir].push_back(newFace);
 	else
 		_faces[dir].push_back(newFace);
+}
+
+// Every cell sharing a corner samples the same four world cells, including
+// across chunk boundaries. Flat source surfaces retain greedy meshing.
+uint32_t SubChunk::waterCorners(ivec3 position) {
+    auto read = [&](ivec3 local) -> char {
+        if (local.x >= 0 && local.x < CHUNK_SIZE && local.y >= 0 &&
+            local.y < CHUNK_SIZE && local.z >= 0 && local.z < CHUNK_SIZE)
+            return getBlock(local);
+        ivec3 world = _position * CHUNK_SIZE + local;
+        return _chunkLoader.getBlock({(int)std::floor(double(world.x) / CHUNK_SIZE),
+            (int)std::floor(double(world.z) / CHUNK_SIZE)}, world);
+    };
+    auto heights = waterSurfaceCorners([&](int x, int y, int z) {
+        return read(position + ivec3(x, y, z));
+    });
+    uint32_t packed = 0;
+    for (int i = 0; i < 4; ++i) packed |= uint32_t(heights[i]) << (4 * i);
+    return packed == 0xeeeeu ? 0 : (0x80000000u | (packed << 15));
 }

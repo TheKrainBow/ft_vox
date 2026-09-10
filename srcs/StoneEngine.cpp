@@ -45,12 +45,13 @@ bool isTransparent(char block)
 {
 	// Treat CACTUS like LOG for face-visibility decisions so ground caps render
 	// under the inset mesh (prevents a visible ring gap around the base).
-	return block == AIR || block == WATER || block == LOG || block == CACTUS || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
+	return block == AIR || isWater(block) || block == LOG || block == CACTUS || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
 }
 
 // Display logs only if sides
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
+	if (isWater(blockToDisplay) && isWater(neighborBlock)) return false;
 	// For leaves: always show faces, but if neighbor is also a leaf, only
 	// emit the face for positive-axis directions to avoid z-fighting between
 	// coincident quads (keep one of the two faces).
@@ -2604,6 +2605,7 @@ void StoneEngine::updateMovement()
 
 void StoneEngine::updateGameTick()
 {
+	_chunkMgr.updateWaterTick();
 	if (!pauseTime)
 		timeValue += 6; // Increment time value per game tick
 	// std::cout << "timeValue: " << timeValue << std::endl;
@@ -2627,7 +2629,6 @@ void StoneEngine::updateGameTick()
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
 		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 52000);
 	}
-	_player.updateSwimSpeed();
 }
 
 void StoneEngine::updateChunkWorker()
@@ -2705,10 +2706,10 @@ void StoneEngine::update()
 	// Check for delta and apply to move and rotation speeds
 	_player.updateNow(now);
 
-	// Fixed 20 Hz world tick (day/night, water nudges), independent of FPS
+	// Fixed world ticks (day/night and water), catching up after slow frames.
 	static auto tickPrev = std::chrono::steady_clock::now();
 	static double tickAcc = 0.0;
-	const double tickStep = 1.0 / 20.0;
+	const double tickStep = 1.0 / TICK_RATE;
 	tickAcc += std::chrono::duration<double>(end - tickPrev).count();
 	tickPrev = end;
 	int safety = 0;

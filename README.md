@@ -83,3 +83,32 @@ A quick look at terrain generation, rendering passes, and water/atmosphere effec
 	<a href="screenshots/water_reflects.png"><img src="screenshots/water_reflects.png" width="49%" alt="Water with planar reflections"></a>
 	<a href="screenshots/under_water.png"><img src="screenshots/under_water.png" width="49%" alt="Underwater view"></a>
 </p>
+
+
+### Water simulation
+
+Generated water and water placed from the block picker are sources. Breaking or
+placing a block wakes nearby water. Streams update on every fixed game tick (20 Hz), fall down
+to bedrock, and spread through six horizontal levels. Falling water starts a new
+six-block reach at its landing point. Two horizontal source neighbors create a
+source when the target has solid ground or another source underneath it. Streams
+recede when their supply is removed, and water replaces decorative plants.
+
+Flow surfaces share corner heights, dropping steeply near sources and flattening
+toward the end of a stream. Swimming and underwater effects sample that same
+sloped surface, so shallow flow lowers the swimming level. Holding Space smoothly
+raises the feet slightly above the surface with a gentle 1.2-second bob to clear
+source-block banks; releasing
+Space gently sinks the player. A small exit margin prevents waterline jitter.
+Flat source surfaces
+still use greedy meshing.
+The fixed-step game clock catches up after slow frames; simulation does not wait
+for mesh builds or staged render snapshots. Simulation processes at most 512
+cells per tick and waits at unloaded or coarse
+LOD boundaries until full-resolution terrain is available. Water changes are kept
+in the same in-memory modified-chunk cache as player edits.
+
+Run `make test-water` for propagation regressions and shader validation (requires
+`glslangValidator`), and `make -j4` to build the game. In-game checks: dig a bank
+beside water; place a source on a flat platform and above a drop; block an existing
+stream; and open a supported gap between two sources. Repeat across chunk edges.

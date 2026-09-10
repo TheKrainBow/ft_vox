@@ -271,6 +271,13 @@ void main() {
 
 	vec3 viewDir = normalize(waveFragPos - viewPos);
 	NormalInfo nfo = computeWaterNormal(waveFragPos);
+	// Orient ripples and reflections to the actual sloped surface.
+	vec3 surfaceNormal = normalize(Normal);
+	vec3 tangent = normalize(abs(surfaceNormal.x) < 0.9 ?
+	    cross(vec3(1,0,0), surfaceNormal) : cross(vec3(0,0,1), surfaceNormal));
+	vec3 bitangent = cross(surfaceNormal, tangent);
+	nfo.normal = normalize(tangent * nfo.normal.x + surfaceNormal * nfo.normal.y +
+	                       bitangent * nfo.normal.z);
 	float heightFade = computeHeightFade(viewPos, waveFragPos);
 
 	// Water fragment screen-space depth (used for a coarse SSR occlusion test)

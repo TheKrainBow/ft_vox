@@ -106,6 +106,7 @@ public:
 
 	// Draw data swapper
 	void updateDrawData();
+	void updateWaterTick();
 
 	// Mesh rendering methods
 	int renderSolidBlocks();

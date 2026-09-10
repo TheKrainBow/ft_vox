@@ -1000,6 +1000,9 @@ void SubChunk::sendFacesToDisplay()
 					case SAND:
 						addBlock(SAND, ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
 						break;
+					case WATER_FLOW_1: case WATER_FLOW_2: case WATER_FLOW_3:
+					case WATER_FLOW_4: case WATER_FLOW_5: case WATER_FLOW_6:
+					case WATER_FALLING:
 					case WATER:
 						addBlock(WATER, ivec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
 						break;
@@ -1042,6 +1045,11 @@ void SubChunk::addTextureVertex(Face face, std::vector<int> *vertexData)
 	int direction = face.direction;
 	if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE || direction >= 6)
 		return ;
+	if (face.waterCorners) {
+		uint32_t packed = uint32_t(x) | (uint32_t(y) << 5) | (uint32_t(z) << 10);
+		vertexData->push_back(static_cast<int>(packed | face.waterCorners));
+		return;
+	}
 	int newVertex = 0;
 	int lengthX = face.size.x - 1;
 	int lengthY = face.size.y - 1;
@@ -1069,25 +1077,39 @@ void SubChunk::processFaces(bool isTransparent)
 {
 	if (isTransparent)
 	{
+		std::vector<Face> waterFaces[6];
+		for (int dir = 0; dir < 6; ++dir) {
+			auto& faces = _transparentFaces[dir];
+			for (const auto& face : faces)
+				if (face.waterCorners) waterFaces[dir].push_back(face);
+			faces.erase(std::remove_if(faces.begin(), faces.end(),
+				[](const Face& f) { return f.waterCorners != 0; }), faces.end());
+		}
 		// Reset counts
 		for (int i=0;i<6;++i) _transpDirCounts[i]=0;
 		size_t before = _transparentVertexData.size();
 		processUpVertex(_transparentFaces, &_transparentVertexData);
+		for (const auto& face : waterFaces[UP]) addTextureVertex(face, &_transparentVertexData);
 		_transpDirCounts[UP] = (int)(_transparentVertexData.size() - before);
 		before = _transparentVertexData.size();
 		processDownVertex(_transparentFaces, &_transparentVertexData);
+		for (const auto& face : waterFaces[DOWN]) addTextureVertex(face, &_transparentVertexData);
 		_transpDirCounts[DOWN] = (int)(_transparentVertexData.size() - before);
 		before = _transparentVertexData.size();
 		processNorthVertex(_transparentFaces, &_transparentVertexData);
+		for (const auto& face : waterFaces[NORTH]) addTextureVertex(face, &_transparentVertexData);
 		_transpDirCounts[NORTH] = (int)(_transparentVertexData.size() - before);
 		before = _transparentVertexData.size();
 		processSouthVertex(_transparentFaces, &_transparentVertexData);
+		for (const auto& face : waterFaces[SOUTH]) addTextureVertex(face, &_transparentVertexData);
 		_transpDirCounts[SOUTH] = (int)(_transparentVertexData.size() - before);
 		before = _transparentVertexData.size();
 		processEastVertex(_transparentFaces, &_transparentVertexData);
+		for (const auto& face : waterFaces[EAST]) addTextureVertex(face, &_transparentVertexData);
 		_transpDirCounts[EAST] = (int)(_transparentVertexData.size() - before);
 		before = _transparentVertexData.size();
 		processWestVertex(_transparentFaces, &_transparentVertexData);
+		for (const auto& face : waterFaces[WEST]) addTextureVertex(face, &_transparentVertexData);
 		_transpDirCounts[WEST] = (int)(_transparentVertexData.size() - before);
 	}
 	else

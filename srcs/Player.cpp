@@ -14,80 +14,73 @@ void Player::updateNow(std::chrono::steady_clock::time_point &now)
 	_now = now;
 }
 
+bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface)
+{
+	ivec3 cell = ivec3(glm::floor(worldPos));
+	auto read = [&](int x, int y, int z) {
+		ivec3 p = cell + ivec3(x, y, z);
+		ivec2 chunkPos = {(int)std::floor(double(p.x) / CHUNK_SIZE),
+		                  (int)std::floor(double(p.z) / CHUNK_SIZE)};
+		return _chunkMgr.getBlock(chunkPos, p);
+	};
+	if (!isWater(read(0, 0, 0))) return false;
+	auto corners = waterSurfaceCorners(read);
+	surface = cell.y + waterSurfaceHeight(corners,
+		worldPos.x - cell.x, worldPos.z - cell.z);
+	return true;
+}
+
+bool Player::isPointInWater(const glm::vec3& worldPos)
+{
+	float surface;
+	return waterSurfaceAt(worldPos, surface) && worldPos.y < surface;
+}
+
 void Player::updatePlayerStates()
 {
-	if (_gravity)
+	vec3 worldPos = _cam.getWorldPosition();
+	// Underwater effects follow the visible surface, including shallow slopes.
+	_isUnderWater = isPointInWater(worldPos);
+	if (!_gravity) return;
+
+	int worldX = static_cast<int>(std::floor(worldPos.x));
+	int worldZ = static_cast<int>(std::floor(worldPos.z));
+	ivec2 chunkPos = {
+		static_cast<int>(std::floor(double(worldX) / CHUNK_SIZE)),
+		static_cast<int>(std::floor(double(worldZ) / CHUNK_SIZE))};
+	int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
+	_camTopBlock = _chunkMgr.findBlockUnderPlayer(chunkPos,
+		{worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
+
+	// Keep a small exit margin around the waterline. This lets the feet clear
+	// a source's bank without alternating between gravity and swimming.
+	bool inWater = false;
+	float feetY = worldPos.y - EYE_HEIGHT;
+	float margin = _swimming ? SWIM_EXIT_MARGIN : 0.0f;
+	_waterSurface = -std::numeric_limits<float>::infinity();
+	for (int y = static_cast<int>(std::floor(feetY - margin)); y <= static_cast<int>(std::floor(worldPos.y)); ++y)
 	{
-		vec3 worldPos = _cam.getWorldPosition();
-		BlockType camStandingBlock = AIR;
-		BlockType camBodyBlockLegs = AIR;
-		BlockType camBodyBlockTorso = AIR;
-	
-		// Compute world integer cell first
-		int worldX = static_cast<int>(std::floor(worldPos.x));
-		int worldZ = static_cast<int>(std::floor(worldPos.z));
-	
-		// Derive chunk strictly from the integer world cell to avoid float-boundary mismatches
-		ivec2 chunkPos = {
-			static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-			static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
-	
-		// Compute foot cell from eye height
-		int footCell = static_cast<int>(std::floor(worldPos.y - EYE_HEIGHT + EPS));
-		// int footSubY = static_cast<int>(std::floor(static_cast<float>(footCell) / static_cast<float>(CHUNK_SIZE)));
-	
-		// If the destination chunk or the needed subchunk is not yet loaded, avoid updating
-		// ground/physics to prevent erroneous falling while streaming catches up.
-		// if (Chunk* c = _chunkMgr.getChunk(chunkPos); c == nullptr || c->getSubChunk(std::max(0, footSubY)) == nullptr)
-		// 	return;
-	
-		_camTopBlock = _chunkMgr.findBlockUnderPlayer(chunkPos, {worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
-		camStandingBlock = _chunkMgr.getBlock(chunkPos, {worldX, footCell - 1, worldZ});
-		camBodyBlockLegs = _chunkMgr.getBlock(chunkPos, {worldX, footCell, worldZ});
-		camBodyBlockTorso = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 1, worldZ});
-	
-		// Consider underwater slightly sooner by biasing eye sample downward
-		const float eyeBias = 0.10f;
-		int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-		BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
-		_isUnderWater = (camHeadBlock == WATER);
-	
-		// Body blocks states debug
-		// std::cout << '[' << camStandingBlock << ']' << std::endl;
-		// std::cout << '[' << camBodyBlockLegs << ']' << std::endl;
-		// std::cout << '[' << camBodyBlockTorso << ']' << std::endl;
-	
-		BlockType inWater = (camStandingBlock == WATER || camBodyBlockLegs == WATER || camBodyBlockTorso == WATER) ? WATER : AIR;
-	
-		BlockType camBodyOverHead = AIR;
-		_ascending = _fallSpeed > 0.0;
-		if (_ascending)
+		float surface;
+		if (waterSurfaceAt({worldPos.x, float(y), worldPos.z}, surface) && feetY < surface + margin)
 		{
-			// Ceiling check
-			camBodyOverHead = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
-			if (camBodyOverHead != WATER && camBodyOverHead != AIR)
-			{
-				_falling = false;
-				_fallSpeed = 0.0;
-			}
+			inWater = true;
+			_waterSurface = std::max(_waterSurface, surface);
 		}
-		updateFalling(worldPos, _camTopBlock.height);
-		updateSwimming(inWater);
-		updateJumping();
 	}
-	else
+	updateSwimming(inWater ? WATER : AIR);
+
+	_ascending = _swimming ? _swimVelocity > 0.0f : _fallSpeed > 0.0f;
+	if (_ascending)
 	{
-		vec3 worldPos = _cam.getWorldPosition();
-		int worldX = static_cast<int>(std::floor(worldPos.x));
-		int worldZ = static_cast<int>(std::floor(worldPos.z));
-		ivec2 chunkPos = {
-			static_cast<int>(std::floor(static_cast<float>(worldX) / static_cast<float>(CHUNK_SIZE))),
-			static_cast<int>(std::floor(static_cast<float>(worldZ) / static_cast<float>(CHUNK_SIZE)))};
-		const float eyeBias = 0.30f;
-		int eyeCellY = static_cast<int>(std::floor(worldPos.y - eyeBias));
-		BlockType camHeadBlock = _chunkMgr.getBlock(chunkPos, {worldX, eyeCellY, worldZ});
-		_isUnderWater = (camHeadBlock == WATER);
+		BlockType overhead = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
+		if (!isWater(overhead) && overhead != AIR)
+		{
+			_falling = false;
+			_fallSpeed = 0.0;
+		}
 	}
+	updateFalling(worldPos, _camTopBlock.height);
+	updateJumping();
 }
 
 bool Player::canMove(const glm::vec3& offset, float extra)
@@ -114,7 +107,7 @@ bool Player::canMove(const glm::vec3& offset, float extra)
 	BlockType blockTorso = _chunkMgr.getBlock(chunkPos, worldPosTorso);
 	auto passable = [](BlockType b)
 	{
-		return (b == AIR || b == WATER || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH);
+		return (b == AIR || isWater(b) || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH);
 	};
 	return (passable(blockFeet) && passable(blockTorso));
 }
@@ -163,7 +156,6 @@ void Player::initPlayerStates()
 	_now = std::chrono::steady_clock::now();
 	_jumpCooldown = _now;
 	_placeCooldown = _now;
-	_swimUpCooldownOnRise = _now;
 	_moveSpeed = 0.0;
 	_rotationSpeed = 0.0;
 
@@ -203,6 +195,25 @@ void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 {
 	// Target eye height above the ground block
 	const float eyeTarget = blockHeight + 1 + EYE_HEIGHT;
+	if (_swimming)
+	{
+		float surfaceTarget = swimmingSurfaceTarget(worldPos.y,
+			_waterSurface + EYE_HEIGHT + SWIM_SURFACE_CLEARANCE,
+			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimBobPhase);
+		float nextY = advanceSwimming(worldPos.y, surfaceTarget,
+			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimVelocity);
+		nextY = std::max(nextY, eyeTarget);
+		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
+		if (nextY > worldPos.y && !canMove({0, -(nextY - worldPos.y) / std::max(scale, 0.001f), 0}, 0))
+		{
+			nextY = worldPos.y;
+			_swimVelocity = 0.0f;
+		}
+		if (nextY == eyeTarget && _swimVelocity < 0.0f) _swimVelocity = 0.0f;
+		_falling = nextY > eyeTarget + EPS;
+		_cam.setPos({-worldPos.x, -nextY, -worldPos.z});
+		return;
+	}
 
 	// Start falling if above ground
 	if (!_falling && worldPos.y > eyeTarget + EPS)
@@ -249,15 +260,18 @@ void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 
 void Player::updateSwimming(BlockType block)
 {
-	if (!_swimming && block == WATER)
+	if (!_swimming && isWater(block))
 	{
 		_swimming = true;
+		_swimBobPhase = 0.0f;
+		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
+		_swimVelocity = std::clamp(_fallSpeed * scale, -3.0f, 3.0f);
 	}
-	if (_swimming && block != WATER)
+	if (_swimming && !isWater(block))
 	{
 		_swimming = false;
-		_fallSpeed = 0.0;
-		_swimUpCooldownOnRise = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
+		_fallSpeed = _swimVelocity / std::max(scale, 0.001f);
 	}
 }
 
@@ -338,22 +352,6 @@ bool Player::updatePlacing()
 void Player::updateDeltaTime(float &newDelta)
 {
 	_deltaTime = newDelta;
-}
-
-void Player::updateSwimSpeed()
-{
-	// Water tweaks
-	if (_swimming)
-	{
-		if (_gravity && _falling)
-		{
-			_fallSpeed = -0.25f;
-		}
-		if (keyStates[GLFW_KEY_SPACE] && std::chrono::steady_clock::now() > _swimUpCooldownOnRise)
-		{
-			_fallSpeed += 0.75f;
-		}
-	}
 }
 
 // Keys updater

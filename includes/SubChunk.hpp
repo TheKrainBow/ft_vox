@@ -18,6 +18,7 @@ class SubChunk
 		typedef struct s_Face
 		{
 			ivec3	position;
+			uint32_t waterCorners = 0;
 			ivec2	size;
 			TextureType	texture;
 			Direction	direction;
@@ -104,6 +105,7 @@ class SubChunk
 		void addEastFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
 		void addWestFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
 	
+		uint32_t waterCorners(ivec3 position);
 		void processFaces(bool isTransparent);
 		void processUpVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
 		void processDownVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
