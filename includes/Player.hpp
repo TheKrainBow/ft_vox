@@ -29,6 +29,8 @@ private:
 	float _swimVelocity = 0.0f;
 	float _swimBobPhase = 0.0f;
 	float _waterSurface = 0.0f;
+	glm::vec3 _waterCurrent{0.0f};
+	glm::vec3 _currentVelocity{0.0f};
 	float _deltaTime;
 
 	// Selected block for placement
@@ -75,7 +77,7 @@ public:
 	void toggleGravity();
 private:
 	// Movement check
-	bool waterSurfaceAt(const glm::vec3& worldPos, float& surface);
+	bool waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current = nullptr);
 	bool isPointInWater(const glm::vec3& worldPos);
 	bool canMove(const glm::vec3& offset, float extra);
 

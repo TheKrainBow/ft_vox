@@ -179,6 +179,11 @@ test-water:
 	/tmp/ft_vox-water-test
 	glslangValidator shaders/render/water.vert shaders/render/water.frag shaders/render/terrain_shadow.vert
 
+.PHONY: test-swimming
+test-swimming:
+	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/swimming_currents.cpp -o /tmp/ft_vox-swimming-test
+	/tmp/ft_vox-swimming-test
+
 # Xvfb keeps the pointer-warp regression away from the desktop session.
 .PHONY: test-mouse-capture
 test-mouse-capture:

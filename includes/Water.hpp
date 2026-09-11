@@ -2,6 +2,7 @@
 #include "define.hpp"
 #include <array>
 #include <algorithm>
+#include <cmath>
 
 // WATER remains the source type used by generation and the block picker.
 constexpr char WATER_FLOW_1 = '1';
@@ -47,6 +48,38 @@ inline char nextWater(char current, char above, char below,
 constexpr int waterHeight(char b) {
     constexpr int heights[] = {14, 9, 6, 4, 3, 2, 1};
     return b == WATER_FALLING ? 15 : (isWater(b) ? heights[waterDistance(b)] : 0);
+}
+
+// World-space direction: streams run away from their feeder towards lower water.
+// Sources are still; falling cells pull straight down. Missing/solid neighbors
+// do not contribute, so banks cannot create a sideways current.
+template<class Read>
+std::array<float, 3> waterCurrent(Read read) {
+    char block = read(0, 0, 0);
+    if (block == WATER_FALLING) return {0.0f, -1.0f, 0.0f};
+    if (block < WATER_FLOW_1 || block > WATER_FLOW_6) return {};
+    float x = 0.0f, z = 0.0f;
+    constexpr int offsets[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+    // Prefer the feeder, including sources feeding FLOW_1. A falling outlet
+    // also has distance zero and must not cancel the source's outward push.
+    bool hasFeeder = false;
+    for (auto& offset : offsets) {
+        char neighbor = read(offset[0], 0, offset[1]);
+        if (isWater(neighbor) && neighbor != WATER_FALLING &&
+            waterDistance(neighbor) < waterDistance(block)) hasFeeder = true;
+    }
+    for (auto& offset : offsets) {
+        char neighbor = read(offset[0], 0, offset[1]);
+        if (!isWater(neighbor)) continue;
+        if (hasFeeder && (neighbor == WATER_FALLING ||
+            waterDistance(neighbor) >= waterDistance(block))) continue;
+        float drop = float(waterDistance(neighbor) - waterDistance(block));
+        x += offset[0] * drop;
+        z += offset[1] * drop;
+    }
+    float length = std::sqrt(x * x + z * z);
+    if (length == 0.0f) return {};
+    return {x / length, 0.0f, z / length};
 }
 
 // The mesher and swimming probes must use identical corner samples and rounding.

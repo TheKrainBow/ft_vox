@@ -14,7 +14,7 @@ void Player::updateNow(std::chrono::steady_clock::time_point &now)
 	_now = now;
 }
 
-bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface)
+bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current)
 {
 	ivec3 cell = ivec3(glm::floor(worldPos));
 	auto read = [&](int x, int y, int z) {
@@ -24,6 +24,10 @@ bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface)
 		return _chunkMgr.getBlock(chunkPos, p);
 	};
 	if (!isWater(read(0, 0, 0))) return false;
+	if (current) {
+		auto flow = waterCurrent(read);
+		*current = {flow[0], flow[1], flow[2]};
+	}
 	auto corners = waterSurfaceCorners(read);
 	surface = cell.y + waterSurfaceHeight(corners,
 		worldPos.x - cell.x, worldPos.z - cell.z);
@@ -41,7 +45,11 @@ void Player::updatePlayerStates()
 	vec3 worldPos = _cam.getWorldPosition();
 	// Underwater effects follow the visible surface, including shallow slopes.
 	_isUnderWater = isPointInWater(worldPos);
-	if (!_gravity) return;
+	_waterCurrent = glm::vec3(0.0f);
+	if (!_gravity) {
+		_currentVelocity = glm::vec3(0.0f);
+		return;
+	}
 
 	int worldX = static_cast<int>(std::floor(worldPos.x));
 	int worldZ = static_cast<int>(std::floor(worldPos.z));
@@ -58,16 +66,23 @@ void Player::updatePlayerStates()
 	float feetY = worldPos.y - EYE_HEIGHT;
 	float margin = _swimming ? SWIM_EXIT_MARGIN : 0.0f;
 	_waterSurface = -std::numeric_limits<float>::infinity();
+	float submerged = 0.0f;
 	for (int y = static_cast<int>(std::floor(feetY - margin)); y <= static_cast<int>(std::floor(worldPos.y)); ++y)
 	{
 		float surface;
-		if (waterSurfaceAt({worldPos.x, float(y), worldPos.z}, surface) && feetY < surface + margin)
+		glm::vec3 current;
+		if (waterSurfaceAt({worldPos.x, float(y), worldPos.z}, surface, &current) && feetY < surface + margin)
 		{
 			inWater = true;
 			_waterSurface = std::max(_waterSurface, surface);
+			float depth = std::max(0.0f, std::min(worldPos.y, surface) - std::max(feetY, float(y)));
+			_waterCurrent += current * depth;
+			submerged += depth;
 		}
 	}
+	if (submerged > 0.0f) _waterCurrent /= submerged;
 	updateSwimming(inWater ? WATER : AIR);
+	if (!inWater) _currentVelocity = glm::vec3(0.0f);
 
 	_ascending = _swimming ? _swimVelocity > 0.0f : _fallSpeed > 0.0f;
 	if (_ascending)
@@ -201,7 +216,8 @@ void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 			_waterSurface + EYE_HEIGHT + SWIM_SURFACE_CLEARANCE,
 			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimBobPhase);
 		float nextY = advanceSwimming(worldPos.y, surfaceTarget,
-			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimVelocity);
+			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimVelocity,
+			_waterCurrent.y * SWIM_FALLING_CURRENT_SPEED);
 		nextY = std::max(nextY, eyeTarget);
 		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
 		if (nextY > worldPos.y && !canMove({0, -(nextY - worldPos.y) / std::max(scale, 0.001f), 0}, 0))
@@ -313,6 +329,18 @@ void Player::updateMovement()
 
 	if (_gravity)
 	{
+		if (_swimming) {
+			float worldX = -moveVec.x, worldZ = -moveVec.z;
+			resistSwimmingCurrent(worldX, worldZ, _waterCurrent.x, _waterCurrent.z);
+			moveVec.x = -worldX;
+			moveVec.z = -worldZ;
+			// Camera offsets have the opposite sign and a legacy speed scale.
+			float scale = std::max(glm::length(_cam.moveCheck({1, 0, 0}) - _cam.getPosition()), 0.001f);
+			moveVec.x -= advanceCurrent(_waterCurrent.x * SWIM_HORIZONTAL_CURRENT_SPEED,
+				_deltaTime, _currentVelocity.x) / scale;
+			moveVec.z -= advanceCurrent(_waterCurrent.z * SWIM_HORIZONTAL_CURRENT_SPEED,
+				_deltaTime, _currentVelocity.z) / scale;
+		}
 		float stepSize = 0.5f;
 
 		glm::vec3 moveX(moveVec.x, 0.0f, 0.0f);
