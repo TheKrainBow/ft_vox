@@ -2874,7 +2874,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 		glm::ivec3 hit;
 		BlockType blockFound;
 
-		blockFound = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, hit);
+		blockFound = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, hit, true);
 
 		// Guard from selecting any type of blocks
 		if (blockFound != BEDROCK && blockFound != AIR)

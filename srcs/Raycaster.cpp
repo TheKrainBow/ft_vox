@@ -113,7 +113,8 @@ bool Raycaster::raycastHit(const glm::vec3& originWorld,
 BlockType Raycaster::raycastHitFetch(const glm::vec3& originWorld,
 						const glm::vec3& dirWorld,
 						float maxDistance,
-						glm::ivec3& outBlock)
+						glm::ivec3& outBlock,
+						bool includeWaterSources)
 {
 	if (maxDistance <= 0.0f) return AIR;
 
@@ -172,7 +173,7 @@ BlockType Raycaster::raycastHitFetch(const glm::vec3& originWorld,
 			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
 		);
 		BlockType b = _chunkLoader.getBlock(chunkPos, voxel);
-		if (isSolidDeletable(b)) {
+		if (isSolidDeletable(b) || (includeWaterSources && b == WATER)) {
 			outBlock = voxel;
 			return b;
 		}

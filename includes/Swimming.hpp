@@ -5,8 +5,8 @@
 constexpr float SWIM_SURFACE_CLEARANCE = 0.12f;
 constexpr float SWIM_EXIT_MARGIN = 0.25f;
 
-constexpr float SWIM_BOB_AMPLITUDE = 0.09f;
-constexpr float SWIM_BOB_PERIOD = 1.2f;
+constexpr float SWIM_BOB_AMPLITUDE = 0.12f;
+constexpr float SWIM_BOB_PERIOD = 0.9f;
 
 inline float swimmingSurfaceTarget(float eyeY, float surfaceEyeY, bool rise, float dt, float& phase) {
     if (!rise || std::abs(eyeY - surfaceEyeY) >= 0.4f) {
@@ -22,7 +22,7 @@ inline float swimmingSurfaceTarget(float eyeY, float surfaceEyeY, bool rise, flo
 
 // World-space velocity and displacement; independent of camera movement scaling.
 inline float advanceSwimming(float eyeY, float surfaceEyeY, bool rise, float dt, float& velocity) {
-    float desired = rise ? std::clamp((surfaceEyeY - eyeY) * 6.0f, -2.5f, 2.5f) : -0.6f;
+    float desired = rise ? std::clamp((surfaceEyeY - eyeY) * 6.0f, -2.5f, 2.5f) : -0.78f;
     float decay = std::exp(-12.0f * dt);
     float displacement = desired * dt + (velocity - desired) * (1.0f - decay) / 12.0f;
     velocity = desired + (velocity - desired) * decay;

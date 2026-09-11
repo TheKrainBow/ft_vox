@@ -181,9 +181,10 @@ bool ChunkManager::raycastHit(const glm::vec3& originWorld,
 BlockType ChunkManager::raycastHitFetch(const glm::vec3& originWorld,
 						const glm::vec3& dirWorld,
 						float maxDistance,
-						glm::ivec3& outBlock)
+						glm::ivec3& outBlock,
+						bool includeWaterSources)
 {
-	return _raycaster.raycastHitFetch(originWorld, dirWorld, maxDistance, outBlock);
+	return _raycaster.raycastHitFetch(originWorld, dirWorld, maxDistance, outBlock, includeWaterSources);
 }
 
 bool ChunkManager::raycastDeleteOne(const glm::vec3& originWorld,

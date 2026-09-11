@@ -127,7 +127,8 @@ public:
 	BlockType raycastHitFetch(const glm::vec3& originWorld,
 		const glm::vec3& dirWorld,
 		float maxDistance,
-		glm::ivec3& outBlock);
+		glm::ivec3& outBlock,
+		bool includeWaterSources = false);
 	bool raycastDeleteOne(const glm::vec3& originWorld,
 		const glm::vec3& dirWorld,
 		float maxDistance = 5.0f);
