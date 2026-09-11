@@ -162,6 +162,11 @@ re_debug: fclean debug
 
 .PHONY: all debug clean fclean re re_debug
 
+.PHONY: test-raycast
+test-raycast: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/raycast_below_bedrock.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-raycast-test $(LDFLAGS)
+	/tmp/ft_vox-raycast-test
+
 .PHONY: test-flowing-water
 test-flowing-water: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
 	$(CC) $(CFLAGS) $(INCLUDES) tests/flowing_water_meshing.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-flowing-water-test $(LDFLAGS)

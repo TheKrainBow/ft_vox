@@ -640,7 +640,8 @@ SubChunk* ChunkLoader::getSubChunk(ivec3 &position) {
 BlockType ChunkLoader::getBlock(ivec2 chunkPos, ivec3 worldPos) {
 	auto chunk = getChunk(chunkPos);
 	if (!chunk) return AIR;
-	int subChunkIndex = static_cast<int>(floor(worldPos.y / CHUNK_SIZE));
+	// Floor before resolving local coordinates so negative Y cannot alias subchunk 0.
+	int subChunkIndex = floor_div(worldPos.y, CHUNK_SIZE);
 	SubChunk *subchunk = chunk->getSubChunk(subChunkIndex);
 	if (!subchunk) return AIR;
 	int localX = (worldPos.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
