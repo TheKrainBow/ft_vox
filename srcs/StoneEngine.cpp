@@ -2638,6 +2638,7 @@ void StoneEngine::updateGameTick()
 		glUseProgram(postProcessShaders[GREEDYFIX].program);
 		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 52000);
 	}
+	_player.updateSwimSpeed();
 }
 
 void StoneEngine::updateChunkWorker()

@@ -102,11 +102,13 @@ source when the target has solid ground or another source underneath it. Streams
 recede when their supply is removed, and water replaces decorative plants.
 
 Flow surfaces share corner heights, dropping steeply near sources and flattening
-toward the end of a stream. Swimming and underwater effects sample that same
-sloped surface, so shallow flow lowers the swimming level. Holding Space smoothly
-raises the feet slightly above the surface with a gentle 1.2-second bob to clear
-source-block banks; releasing
-Space gently sinks the player. A small exit margin prevents waterline jitter.
+toward the end of a stream. Underwater effects sample that same sloped surface.
+Swimming checks the standing, leg, and torso blocks, with its bobbing level
+following the visible water height so shallow flow bobs lower. Holding Space
+applies upward pulses on each game tick; leaving water resets vertical speed and
+adds a 250 ms cooldown before rising again. Releasing Space lets the player sink.
+Currents still carry the player downstream, resist upstream movement, and pull
+downward in waterfalls.
 Flat source surfaces
 still use greedy meshing.
 The fixed-step game clock catches up after slow frames; simulation does not wait

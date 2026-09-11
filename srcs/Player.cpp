@@ -60,31 +60,27 @@ void Player::updatePlayerStates()
 	_camTopBlock = _chunkMgr.findBlockUnderPlayer(chunkPos,
 		{worldX, static_cast<int>(std::floor(worldPos.y)), worldZ});
 
-	// Keep a small exit margin around the waterline. This lets the feet clear
-	// a source's bank without alternating between gravity and swimming.
+	// Keep the original surface pulses, lowering their exit height in shallow flow.
 	bool inWater = false;
 	float feetY = worldPos.y - EYE_HEIGHT;
-	float margin = _swimming ? SWIM_EXIT_MARGIN : 0.0f;
-	_waterSurface = -std::numeric_limits<float>::infinity();
 	float submerged = 0.0f;
-	for (int y = static_cast<int>(std::floor(feetY - margin)); y <= static_cast<int>(std::floor(worldPos.y)); ++y)
+	for (int y = footCell - 2; y <= static_cast<int>(std::floor(worldPos.y)); ++y)
 	{
 		float surface;
 		glm::vec3 current;
-		if (waterSurfaceAt({worldPos.x, float(y), worldPos.z}, surface, &current) && feetY < surface + margin)
+		if (waterSurfaceAt({worldPos.x, float(y), worldPos.z}, surface, &current))
 		{
-			inWater = true;
-			_waterSurface = std::max(_waterSurface, surface);
+			if (y <= footCell + 1 && swimmingSurfaceContact(feetY, surface))
+				inWater = true;
 			float depth = std::max(0.0f, std::min(worldPos.y, surface) - std::max(feetY, float(y)));
 			_waterCurrent += current * depth;
 			submerged += depth;
 		}
 	}
 	if (submerged > 0.0f) _waterCurrent /= submerged;
-	updateSwimming(inWater ? WATER : AIR);
 	if (!inWater) _currentVelocity = glm::vec3(0.0f);
 
-	_ascending = _swimming ? _swimVelocity > 0.0f : _fallSpeed > 0.0f;
+	_ascending = _fallSpeed > 0.0f;
 	if (_ascending)
 	{
 		BlockType overhead = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
@@ -95,6 +91,7 @@ void Player::updatePlayerStates()
 		}
 	}
 	updateFalling(worldPos, _camTopBlock.height);
+	updateSwimming(inWater ? WATER : AIR);
 	updateJumping();
 }
 
@@ -170,6 +167,7 @@ void Player::initPlayerStates()
 	// Cooldowns
 	_now = std::chrono::steady_clock::now();
 	_jumpCooldown = _now;
+	_swimUpCooldownOnRise = _now;
 	_placeCooldown = _now;
 	_moveSpeed = 0.0;
 	_rotationSpeed = 0.0;
@@ -191,7 +189,11 @@ void Player::findMoveRotationSpeed()
 	if (!_gravity && keyStates[GLFW_KEY_LEFT_CONTROL])
 		_moveSpeed = (MOVEMENT_SPEED * ((20.0 * !_gravity) + (2 * _gravity))) * _deltaTime;
 	else if (_gravity && _sprinting)
-		_moveSpeed = (MOVEMENT_SPEED * ((20.0 * !_gravity) + (2 * _gravity))) * _deltaTime;
+	{
+		// Apply half of the normal sprint bonus whenever the player is in water.
+		float sprintMultiplier = (_swimming || _isUnderWater) ? 1.5f : 2.0f;
+		_moveSpeed = MOVEMENT_SPEED * sprintMultiplier * _deltaTime;
+	}
 	else
 		_moveSpeed = MOVEMENT_SPEED * _deltaTime;
 
@@ -210,26 +212,6 @@ void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 {
 	// Target eye height above the ground block
 	const float eyeTarget = blockHeight + 1 + EYE_HEIGHT;
-	if (_swimming)
-	{
-		float surfaceTarget = swimmingSurfaceTarget(worldPos.y,
-			_waterSurface + EYE_HEIGHT + SWIM_SURFACE_CLEARANCE,
-			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimBobPhase);
-		float nextY = advanceSwimming(worldPos.y, surfaceTarget,
-			keyStates[GLFW_KEY_SPACE], _deltaTime, _swimVelocity,
-			_waterCurrent.y * SWIM_FALLING_CURRENT_SPEED);
-		nextY = std::max(nextY, eyeTarget);
-		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
-		if (nextY > worldPos.y && !canMove({0, -(nextY - worldPos.y) / std::max(scale, 0.001f), 0}, 0))
-		{
-			nextY = worldPos.y;
-			_swimVelocity = 0.0f;
-		}
-		if (nextY == eyeTarget && _swimVelocity < 0.0f) _swimVelocity = 0.0f;
-		_falling = nextY > eyeTarget + EPS;
-		_cam.setPos({-worldPos.x, -nextY, -worldPos.z});
-		return;
-	}
 
 	// Start falling if above ground
 	if (!_falling && worldPos.y > eyeTarget + EPS)
@@ -279,15 +261,12 @@ void Player::updateSwimming(BlockType block)
 	if (!_swimming && isWater(block))
 	{
 		_swimming = true;
-		_swimBobPhase = 0.0f;
-		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
-		_swimVelocity = std::clamp(_fallSpeed * scale, -3.0f, 3.0f);
 	}
 	if (_swimming && !isWater(block))
 	{
 		_swimming = false;
-		float scale = std::abs(_cam.moveCheck({0,1,0}).y - _cam.getPosition().y);
-		_fallSpeed = _swimVelocity / std::max(scale, 0.001f);
+		_fallSpeed = 0.0;
+		_swimUpCooldownOnRise = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
 	}
 }
 
@@ -340,6 +319,9 @@ void Player::updateMovement()
 				_deltaTime, _currentVelocity.x) / scale;
 			moveVec.z -= advanceCurrent(_waterCurrent.z * SWIM_HORIZONTAL_CURRENT_SPEED,
 				_deltaTime, _currentVelocity.z) / scale;
+			// Falling currents remain in world units, independent of the swim pulses.
+			moveVec.y -= advanceCurrent(_waterCurrent.y * SWIM_FALLING_CURRENT_SPEED,
+				_deltaTime, _currentVelocity.y, 12.0f) / scale;
 		}
 		float stepSize = 0.5f;
 
@@ -380,6 +362,16 @@ bool Player::updatePlacing()
 void Player::updateDeltaTime(float &newDelta)
 {
 	_deltaTime = newDelta;
+}
+
+void Player::updateSwimSpeed()
+{
+	// Water tweaks
+	if (_swimming)
+	{
+		_fallSpeed = swimmingTickVelocity(_fallSpeed, _gravity && _falling,
+			keyStates[GLFW_KEY_SPACE] && std::chrono::steady_clock::now() > _swimUpCooldownOnRise);
+	}
 }
 
 // Keys updater

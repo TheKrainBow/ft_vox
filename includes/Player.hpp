@@ -26,9 +26,6 @@ private:
 	float _moveSpeed;
 	float _rotationSpeed;
 	float _fallSpeed = 0.0f;
-	float _swimVelocity = 0.0f;
-	float _swimBobPhase = 0.0f;
-	float _waterSurface = 0.0f;
 	glm::vec3 _waterCurrent{0.0f};
 	glm::vec3 _currentVelocity{0.0f};
 	float _deltaTime;
@@ -39,6 +36,7 @@ private:
 
 	// Player actions cooldown
 	std::chrono::steady_clock::time_point _jumpCooldown;
+	std::chrono::steady_clock::time_point _swimUpCooldownOnRise;
 	std::chrono::steady_clock::time_point _placeCooldown;
 	std::chrono::steady_clock::time_point _now;
 
@@ -64,6 +62,7 @@ public:
 	bool isSprinting() const;
 	bool isUnderWater() const;
 	void updateMovement();
+	void updateSwimSpeed();
 	void findMoveRotationSpeed();
 	bool updatePlacing();
 	void updatePlayerDirection();
