@@ -162,6 +162,12 @@ re_debug: fclean debug
 
 .PHONY: all debug clean fclean re re_debug
 
+.PHONY: test-flowing-water
+test-flowing-water: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/flowing_water_meshing.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-flowing-water-test $(LDFLAGS)
+	/tmp/ft_vox-flowing-water-test
+	glslangValidator shaders/render/water.vert shaders/render/water.frag shaders/render/terrain_shadow.vert
+
 .PHONY: test-water
 test-water:
 	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/water.cpp -o /tmp/ft_vox-water-test

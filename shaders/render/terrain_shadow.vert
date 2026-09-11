@@ -31,7 +31,7 @@ void main() {
 	int lengthX   = (instanceData >> 15) & 0x1F;
 	int lengthY   = (instanceData >> 20) & 0x1F;
 	int textureID = (instanceData >> 25) & 0x7F;
-	if (textureID == 6 || (uint(instanceData) & 0x80000000u) != 0u) {
+	if (textureID == 6 || textureID == 14 || (uint(instanceData) & 0x80000000u) != 0u) {
 		gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 		TexCoord = vec2(0.0); TextureID = 6;
 		return;

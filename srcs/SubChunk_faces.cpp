@@ -351,8 +351,21 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 	// newFace.size = ivec2(1, 1);
 	newFace.direction = dir;
 	newFace.texture = texture;
-	if (texture == T_WATER && _resolution == 1)
+	if (texture == T_WATER && _resolution == 1) {
 		newFace.waterCorners = waterCorners(position);
+		// Only the corners touching this face determine whether it is a full
+		// rectangle. Bottom faces always lie on the block boundary.
+		uint32_t corners = (newFace.waterCorners >> 15) & 0xffffu;
+		uint32_t mask = 0xffffu;
+		if (dir == NORTH) mask = 0x00ffu;
+		if (dir == SOUTH) mask = 0xff00u;
+		if (dir == WEST) mask = 0x0f0fu;
+		if (dir == EAST) mask = 0xf0f0u;
+		if (dir == DOWN || (corners & mask) == mask) {
+			newFace.texture = T_WATER_FULL;
+			newFace.waterCorners = 0;
+		}
+	}
 	if (isTransparent)
 		_transparentFaces[dir].push_back(newFace);
 	else

@@ -34,6 +34,8 @@ void main()
 	int textureID = (instanceData >> 25) & 0x7F;
 
 	bool shapedWater = (uint(instanceData) & 0x80000000u) != 0u;
+	bool fullWater = !shapedWater && textureID == 14; // T_WATER_FULL
+	if (fullWater) textureID = 6;
 	if (shapedWater) {
 		textureID = 6;
 		lengthX = 0;
@@ -69,7 +71,7 @@ void main()
 	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
 	// Four shared corner heights replace the rectangle dimensions for shaped water.
-	vec4 heights = vec4(14.0 / 15.0);
+	vec4 heights = vec4(fullWater ? 1.0 : 14.0 / 15.0);
 	if (shapedWater) {
 		uint corners = uint(instanceData) >> 15;
 		heights = vec4(float(corners & 15u), float((corners >> 4) & 15u),
