@@ -3,6 +3,10 @@ DEBUG_NAME	=	ft_voxDebug
 
 LDFLAGS =	-lGL -lGLU -Llib64 -lGLEW -lglfw
 
+ifeq ($(shell uname -s),Linux)
+LDFLAGS += -lX11
+endif
+
 CFLAGS	=	-Wall -Wextra -Werror -O3 -std=c++17 -g3 #-fsanitize=address
 DEBUG_CFLAGS	=	-DNDEBUG -Wall -Wextra -Werror -g3
 
@@ -41,6 +45,7 @@ GLEW_LIB		=	lib64/libGLEW.a
 SRC_NAME	=	stb_truetype.cpp		\
 				main.cpp				\
 				StoneEngine.cpp			\
+				MouseCapture.cpp			\
 				Camera.cpp				\
 				TextureManager.cpp		\
 				Chunk.cpp				\
@@ -162,3 +167,9 @@ test-water:
 	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/water.cpp -o /tmp/ft_vox-water-test
 	/tmp/ft_vox-water-test
 	glslangValidator shaders/render/water.vert shaders/render/water.frag shaders/render/terrain_shadow.vert
+
+# Xvfb keeps the pointer-warp regression away from the desktop session.
+.PHONY: test-mouse-capture
+test-mouse-capture:
+	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/mouse_capture.cpp srcs/MouseCapture.cpp -lglfw -lX11 -lXtst -o /tmp/ft_vox-mouse-test
+	xvfb-run -a -s "-screen 0 800x600x24" /tmp/ft_vox-mouse-test

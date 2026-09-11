@@ -53,7 +53,14 @@ Toggles & Tools
  
 Notes 
 - The project links against OpenGL, GLU, GLEW and GLFW (see Makefile:4). GLM is header‑only. 
-- A static GLEW is included in lib64 for convenience; system packages also work. 
+- A static GLEW is included in lib64 for convenience; system packages also work.
+- On Linux/X11, mouse capture stays eight pixels inside the window to prevent
+  desktop docks from appearing during mouse look. M releases capture; Alt-Tab
+  releases it while unfocused. The game pauses rendering and simulation while
+  unfocused or minimized.
+- `make test-mouse-capture` checks confinement, raw input, clicks, fullscreen
+  transitions and focus recovery on a virtual display (requires `xvfb` and
+  `libxtst-dev`). Linux builds also require the X11 development library (`libx11-dev`).
 - First launch shows a short loading splash while initial chunks stream in. 
 ## Screenshots
 

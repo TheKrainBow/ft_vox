@@ -10,6 +10,7 @@
 #include "ChunkManager.hpp"
 #include "Raycaster.hpp"
 #include "Player.hpp"
+#include "MouseCapture.hpp"
 #include <cstddef>
 #include <vector>
 #include <string>
@@ -120,6 +121,8 @@ class StoneEngine {
 		double _mouseLookTime = 0.0;
 		double _mouseGlideEnd = 0.0;
 		bool _firstMouse = true;
+		MouseCapture _mouseCapture;
+		bool _resetTickClock = false;
 		double _lastMouseX = 0.0;
 		double _lastMouseY = 0.0;
 		// Shadow biasing data
@@ -238,6 +241,8 @@ class StoneEngine {
 		static void reshape(GLFWwindow* window, int width, int height); 
 		static void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods);
 		static void mouseCallback(GLFWwindow* window, double x, double y);
+		static void focusCallback(GLFWwindow* window, int focused);
+		static void iconifyCallback(GLFWwindow* window, int iconified);
 		static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 		static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 

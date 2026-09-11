@@ -126,6 +126,7 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(),
 
 StoneEngine::~StoneEngine()
 {
+	if (_window) _mouseCapture.release(_window);
 	// Ensure the GL context is current during teardown
 	if (_window) glfwMakeContextCurrent(_window);
 	// Drain any in-flight GPU work before deleting GL objects
@@ -236,9 +237,17 @@ void StoneEngine::run()
 
 	while (!glfwWindowShouldClose(_window))
 	{
+		glfwPollEvents();
+		if (glfwWindowShouldClose(_window))
+			break;
+		if (!glfwGetWindowAttrib(_window, GLFW_FOCUSED)
+			|| glfwGetWindowAttrib(_window, GLFW_ICONIFIED))
+		{
+			glfwWaitEventsTimeout(0.05);
+			continue;
+		}
 		glClear(GL_COLOR_BUFFER_BIT);
 		update();
-		glfwPollEvents();
 	}
 	{
 		std::lock_guard<std::mutex> g(_isRunningMutex);
@@ -2710,6 +2719,11 @@ void StoneEngine::update()
 	static auto tickPrev = std::chrono::steady_clock::now();
 	static double tickAcc = 0.0;
 	const double tickStep = 1.0 / TICK_RATE;
+	if (_resetTickClock)
+	{
+		tickPrev = end;
+		_resetTickClock = false;
+	}
 	tickAcc += std::chrono::duration<double>(end - tickPrev).count();
 	tickPrev = end;
 	int safety = 0;
@@ -2761,7 +2775,7 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 {
 	(void)mods;
 	// Only when mouse is captured (so clicks aren't for UI)
-	if (!mouseCaptureToggle)
+	if (!mouseCaptureToggle || !glfwGetWindowAttrib(_window, GLFW_FOCUSED))
 		return;
 	BlockType selectedBlock = _player.getSelectedBlock();
 
@@ -2890,6 +2904,9 @@ void StoneEngine::mouseButtonCallback(GLFWwindow *window, int button, int action
 
 void StoneEngine::reshapeAction(int width, int height)
 {
+	if (width <= 0 || height <= 0)
+		return;
+	_mouseCapture.apply(_window, mouseCaptureToggle);
 	glViewport(0, 0, width, height);
 	glMatrixMode(GL_PROJECTION);
 
@@ -2974,8 +2991,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		mouseCaptureToggle = !mouseCaptureToggle;
 		_mouseGlide = fvec2(0.0f);
 		_firstMouse = true;
-		glfwSetInputMode(_window, GLFW_CURSOR,
-			mouseCaptureToggle ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+		_mouseCapture.apply(_window, mouseCaptureToggle);
 	}
 	if (action == GLFW_PRESS && (key == GLFW_KEY_F5)) camera.invert();
 	if (action == GLFW_PRESS && (key == GLFW_KEY_P)) pauseTime = !pauseTime;
@@ -3009,7 +3025,8 @@ void StoneEngine::updateMouseLook()
 	const double now = glfwGetTime();
 	const float elapsed = static_cast<float>(std::max(0.0, now - _mouseLookTime));
 	_mouseLookTime = now;
-	if (!mouseCaptureToggle || _fov >= DEFAULT_FOV)
+	if (!mouseCaptureToggle || !glfwGetWindowAttrib(_window, GLFW_FOCUSED)
+		|| _fov >= DEFAULT_FOV)
 	{
 		_mouseGlide = fvec2(0.0f);
 		return;
@@ -3029,14 +3046,8 @@ void StoneEngine::updateMouseLook()
 
 void StoneEngine::mouseAction(double x, double y)
 {
-	if (!mouseCaptureToggle)
-	{
-		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	if (!mouseCaptureToggle || !glfwGetWindowAttrib(_window, GLFW_FOCUSED))
 		return;
-	}
-
-	// Disable cursor
-	glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	camera.updateMousePos(x, y);
 
@@ -3074,6 +3085,24 @@ void StoneEngine::mouseCallback(GLFWwindow *window, double x, double y)
 
 	if (engine)
 		engine->mouseAction(x, y);
+}
+
+void StoneEngine::focusCallback(GLFWwindow* window, int focused)
+{
+	StoneEngine* engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
+	if (!engine)
+		return;
+	engine->_firstMouse = true;
+	engine->_mouseGlide = fvec2(0.0f);
+	engine->_mouseLookTime = glfwGetTime();
+	engine->_resetTickClock = true;
+	engine->_mouseCapture.apply(window, focused && engine->mouseCaptureToggle);
+}
+
+void StoneEngine::iconifyCallback(GLFWwindow* window, int iconified)
+{
+	// Focus and minimize notifications can arrive in either order on X11.
+	focusCallback(window, !iconified && glfwGetWindowAttrib(window, GLFW_FOCUSED));
 }
 
 void StoneEngine::scrollAction(double yoffset)
@@ -3149,6 +3178,8 @@ int StoneEngine::initGLFW()
 	glfwSetKeyCallback(_window, keyPress);
 	glfwSetScrollCallback(_window, scrollCallback);
 	glfwSetMouseButtonCallback(_window, mouseButtonCallback);
+	glfwSetWindowFocusCallback(_window, focusCallback);
+	glfwSetWindowIconifyCallback(_window, iconifyCallback);
 	glfwMakeContextCurrent(_window);
 	// Uncapped FPS (disable vsync)
 	// glfwSwapInterval(16);
@@ -3165,8 +3196,7 @@ int StoneEngine::initGLFW()
 		if (w > 0 && h > 0)
 				glfwSetCursorPos(_window, w / 2.0, h / 2.0);
 		// If mouse capture is enabled by default, disable the cursor now
-		if (mouseCaptureToggle)
-				glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		_mouseCapture.apply(_window, mouseCaptureToggle);
 	}
 	_isFullscreen = (glfwGetWindowMonitor(_window) != nullptr);
 	return 1;
@@ -3229,6 +3259,9 @@ void StoneEngine::setFullscreen(bool enable)
 		glfwRestoreWindow(_window);
 		_isFullscreen = false;
 	}
+	_firstMouse = true;
+	_mouseGlide = fvec2(0.0f);
+	_mouseCapture.apply(_window, mouseCaptureToggle);
 }
 
 bool StoneEngine::getIsRunning()
