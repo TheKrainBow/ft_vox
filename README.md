@@ -94,30 +94,17 @@ A quick look at terrain generation, rendering passes, and water/atmosphere effec
 
 ### Water simulation
 
-Generated water and water placed from the block picker are sources. Breaking or
-placing a block wakes nearby water. Streams update on every fixed game tick (20 Hz), fall down
-to bedrock, and spread through six horizontal levels. Falling water starts a new
-six-block reach at its landing point. Two horizontal source neighbors create a
-source when the target has solid ground or another source underneath it. Streams
-recede when their supply is removed, and water replaces decorative plants.
+Water uses discrete scheduled updates every five game ticks (250 ms). Sources
+spread through seven horizontal levels, prefer nearby drops, and feed full-strength
+waterfalls. Supported gaps between two sources regenerate; removing a source wakes
+flows so they recede. Stable water stops simulation work. Unavailable chunk borders
+wait for terrain-load events rather than polling or force-loading chunks.
 
-Flow surfaces share corner heights, dropping steeply near sources and flattening
-toward the end of a stream. Underwater effects sample that same sloped surface.
-Swimming checks the standing, leg, and torso blocks, with its bobbing level
-following the visible water height so shallow flow bobs lower. Holding Space
-applies upward pulses on each game tick; leaving water resets vertical speed and
-adds a 250 ms cooldown before rising again. Releasing Space lets the player sink.
-Currents still carry the player downstream, resist upstream movement, and pull
-downward in waterfalls.
-Flat source surfaces
-still use greedy meshing.
-The fixed-step game clock catches up after slow frames; simulation does not wait
-for mesh builds or staged render snapshots. Simulation processes at most 512
-cells per tick and waits at unloaded or coarse
-LOD boundaries until full-resolution terrain is available. Water changes are kept
-in the same in-memory modified-chunk cache as player edits.
+Water currents push the player using the existing swimming controller. Shared
+surface corners follow water amounts and become full-height beneath other water.
+Press **F7** for a water-state slice at your feet (`S`, `F8`, or amount `7..1`).
+Water edits persist in the existing in-memory modified-chunk cache; the project
+does not save worlds to disk.
 
-Run `make test-water` for propagation regressions and shader validation (requires
-`glslangValidator`), and `make -j4` to build the game. In-game checks: dig a bank
-beside water; place a source on a flat platform and above a drop; block an existing
-stream; and open a supported gap between two sources. Repeat across chunk edges.
+Run `make test` for all regressions, or `make test-water` for the fluid rules and
+shader validation. See [water architecture, rules, tests and parity limits](docs/water.md).

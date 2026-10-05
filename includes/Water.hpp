@@ -4,7 +4,8 @@
 #include <algorithm>
 #include <cmath>
 
-// WATER remains the source type used by generation and the block picker.
+// Preserve the existing byte IDs (including falling '7') in chunk storage.
+// Depth is a storage convention only: amount = 8 - depth, never a volume.
 constexpr char WATER_FLOW_1 = '1';
 constexpr char WATER_FLOW_2 = '2';
 constexpr char WATER_FLOW_3 = '3';
@@ -12,74 +13,68 @@ constexpr char WATER_FLOW_4 = '4';
 constexpr char WATER_FLOW_5 = '5';
 constexpr char WATER_FLOW_6 = '6';
 constexpr char WATER_FALLING = '7';
-constexpr int WATER_MAX_DISTANCE = 6;
+constexpr char WATER_FLOW_7 = '8';
+constexpr char WATER_UNKNOWN = '?';
+constexpr int WATER_MAX_DISTANCE = 7;
+constexpr int WATER_TICK_DELAY = 5;
+constexpr int WATER_SLOPE_DISTANCE = 4;
 constexpr bool isWater(char b) {
-    return b == WATER || (b >= WATER_FLOW_1 && b <= WATER_FALLING);
+    return b == WATER || (b >= WATER_FLOW_1 && b <= WATER_FLOW_7);
 }
 constexpr bool waterReplaceable(char b) {
     return b == AIR || isWater(b) || b == FLOWER_POPPY || b == FLOWER_DANDELION ||
         b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH;
 }
 constexpr int waterDistance(char b) {
-    return b == WATER || b == WATER_FALLING ? 0 :
-        (b >= WATER_FLOW_1 && b <= WATER_FLOW_6 ? b - WATER_FLOW_1 + 1 : 7);
+    return b == WATER || b == WATER_FALLING ? 0 : b == WATER_FLOW_7 ? 7 :
+        (b >= WATER_FLOW_1 && b <= WATER_FLOW_6 ? b - WATER_FLOW_1 + 1 : 8);
+}
+constexpr int waterAmount(char b) { return 8 - waterDistance(b); }
+constexpr char waterFromAmount(int amount) {
+    return amount <= 0 ? AIR : amount == 8 ? WATER : amount == 1 ? WATER_FLOW_7 :
+        WATER_FLOW_1 + 7 - amount;
+}
+constexpr bool waterSupport(char b) {
+    return b != WATER_UNKNOWN && (!waterReplaceable(b) || b == WATER);
 }
 
-// Pure local rule; unknown terrain must be supplied as solid by the caller.
-inline char nextWater(char current, char above, char below,
-                      const std::array<char, 4>& sides,
-                      const std::array<char, 4>& sideFloors) {
-    if (!waterReplaceable(current) || current == WATER) return current;
-    int sources = std::count(sides.begin(), sides.end(), WATER);
-    if (sources >= 2 && (!waterReplaceable(below) || below == WATER)) return WATER;
-    if (isWater(above)) return WATER_FALLING;
-    int distance = 7;
-    for (int i = 0; i < 4; ++i) {
-        // Sources always feed their banks. Streams fall before spreading sideways.
-        if (sides[i] == WATER || (isWater(sides[i]) &&
-            (!waterReplaceable(sideFloors[i]) || sideFloors[i] == WATER)))
-            distance = std::min(distance, waterDistance(sides[i]) + 1);
-    }
-    if (distance <= WATER_MAX_DISTANCE) return WATER_FLOW_1 + distance - 1;
-    return isWater(current) ? AIR : current;
-}
-
-// Quantized heights in fifteenths: the drop is steep near a source, then eases.
+// Fifteenths are the renderer's existing four-bit corner format. Approximate
+// amount / 9 here; falling is full strength, not a ninth horizontal level.
 constexpr int waterHeight(char b) {
-    constexpr int heights[] = {14, 9, 6, 4, 3, 2, 1};
-    return b == WATER_FALLING ? 15 : (isWater(b) ? heights[waterDistance(b)] : 0);
+    return isWater(b) ? (waterAmount(b) * 15 + 4) / 9 : 0;
 }
 
-// World-space direction: streams run away from their feeder towards lower water.
-// Sources are still; falling cells pull straight down. Missing/solid neighbors
-// do not contribute, so banks cannot create a sideways current.
+// Gradients use effective fluid depth, independently of surface quantization.
+// An empty ledge samples water one block below. Falling water adds downward
+// pull near a bank; the player controller supplies drag and tunable strength.
 template<class Read>
 std::array<float, 3> waterCurrent(Read read) {
     char block = read(0, 0, 0);
-    if (block == WATER_FALLING) return {0.0f, -1.0f, 0.0f};
-    if (block < WATER_FLOW_1 || block > WATER_FLOW_6) return {};
+    if (!isWater(block)) return {};
     float x = 0.0f, z = 0.0f;
+    bool bank = false;
     constexpr int offsets[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-    // Prefer the feeder, including sources feeding FLOW_1. A falling outlet
-    // also has distance zero and must not cancel the source's outward push.
-    bool hasFeeder = false;
     for (auto& offset : offsets) {
         char neighbor = read(offset[0], 0, offset[1]);
-        if (isWater(neighbor) && neighbor != WATER_FALLING &&
-            waterDistance(neighbor) < waterDistance(block)) hasFeeder = true;
-    }
-    for (auto& offset : offsets) {
-        char neighbor = read(offset[0], 0, offset[1]);
-        if (!isWater(neighbor)) continue;
-        if (hasFeeder && (neighbor == WATER_FALLING ||
-            waterDistance(neighbor) >= waterDistance(block))) continue;
-        float drop = float(waterDistance(neighbor) - waterDistance(block));
+        float drop = 0.0f;
+        if (isWater(neighbor))
+            drop = float(waterAmount(block) - waterAmount(neighbor)) / 9.0f;
+        else if (waterReplaceable(neighbor)) {
+            char lower = read(offset[0], -1, offset[1]);
+            if (isWater(lower)) drop = float(waterAmount(block)) / 9.0f -
+                (float(waterAmount(lower)) / 9.0f - 8.0f / 9.0f);
+        }
+        bank = bank || !waterReplaceable(neighbor) ||
+            !waterReplaceable(read(offset[0], 1, offset[1]));
         x += offset[0] * drop;
         z += offset[1] * drop;
     }
     float length = std::sqrt(x * x + z * z);
-    if (length == 0.0f) return {};
-    return {x / length, 0.0f, z / length};
+    if (length > 0.0f) { x /= length; z /= length; }
+    float y = block == WATER_FALLING && bank ? -6.0f : 0.0f;
+    length = std::sqrt(x * x + y * y + z * z);
+    return length > 0.0f ? std::array<float, 3>{x / length, y / length, z / length} :
+        std::array<float, 3>{};
 }
 
 // The mesher and swimming probes must use identical corner samples and rounding.
@@ -97,7 +92,7 @@ std::array<int, 4> waterSurfaceCorners(Read read) {
             total += waterHeight(b);
             ++count;
         }
-        heights[x + 2 * z] = full ? 15 : (count ? (total + count / 2) / count : 14);
+        heights[x + 2 * z] = full ? 15 : (count ? (total + count / 2) / count : waterHeight(WATER));
     }
     return heights;
 }

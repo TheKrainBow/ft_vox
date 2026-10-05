@@ -121,6 +121,9 @@ class StoneEngine {
 		double _mouseLookTime = 0.0;
 		double _mouseGlideEnd = 0.0;
 		bool _firstMouse = true;
+		bool _breakingBlocks = false;
+		double _nextBlockBreakTime = 0.0;
+		static constexpr double BLOCK_BREAK_INTERVAL = 0.15;
 		MouseCapture _mouseCapture;
 		bool _resetTickClock = false;
 		double _lastMouseX = 0.0;
@@ -162,6 +165,10 @@ class StoneEngine {
 		Chrono chronoHelper;
 		int drawnTriangles;
 		Textbox debugBox;
+        bool _showWaterDebug = false;
+        std::unique_ptr<Textbox> _waterDebugBox;
+        std::array<std::string,17> _waterDebugRows;
+        std::string _waterDebugTitle;
 		Textbox helpBox;
 	
 		// World gen
@@ -231,6 +238,8 @@ class StoneEngine {
 		void keyAction(int key, int scancode, int action, int mods);
 		void mouseAction(double x, double y);
 		void updateMouseLook();
+		void updateBlockBreaking();
+		void breakTargetedBlock();
 		void reshapeAction(int width, int height);
 		void scrollAction(double yoffset);
 		void mouseButtonAction(int button, int action, int mods);

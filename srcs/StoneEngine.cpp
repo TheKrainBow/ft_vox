@@ -139,6 +139,7 @@ StoneEngine::~StoneEngine()
 	_textureManager.shutdownGL();
 	debugBox.shutdownGL();
 	helpBox.shutdownGL();
+	if (_waterDebugBox) _waterDebugBox->shutdownGL();
 	_loadingBox.shutdownGL();
 
 	glDeleteProgram(shaderProgram);
@@ -808,6 +809,7 @@ void StoneEngine::initHelpTextBox()
 	helpBox.addStaticText("Help / Keybinds");
 	helpBox.addStaticText("");
 	helpBox.addStaticText("Esc: Quit");
+	helpBox.addStaticText("F7: Water state slice at feet");
 	helpBox.addStaticText("");
 	helpBox.addStaticText("W/A/S/D: Move");
 	helpBox.addStaticText("Space: Jump");
@@ -836,7 +838,7 @@ void StoneEngine::initHelpTextBox()
 	helpBox.addLine("M or ;: Mouse Capture ", Textbox::STRING, &_hMouseCapture);
 	helpBox.addLine("C:      Generation ", Textbox::STRING, &_hGeneration);
 	helpBox.addStaticText("");
-	helpBox.addStaticText("Mouse Left:  Break block");
+	helpBox.addStaticText("Mouse Left:  Hold to break blocks");
 	helpBox.addStaticText("Mouse Right: Place block");
 	helpBox.addStaticText("Mouse Middle: Pick block");
 }
@@ -2526,7 +2528,14 @@ void StoneEngine::renderOverlayAndUI()
 
 	glActiveTexture(GL_TEXTURE0); // <— make unit 0 active for fixed pipeline text
 
-	if (showHelp)
+    if (_showWaterDebug) {
+        auto p = glm::ivec3(glm::floor(camera.getWorldPosition() - glm::vec3(0,EYE_HEIGHT,0)));
+        _waterDebugTitle = "Water y=" + std::to_string(p.y) + " center " +
+            std::to_string(p.x) + "," + std::to_string(p.z) + " (+X right, +Z down)";
+        _chunkMgr.waterDebugSlice(p,_waterDebugRows);
+        _waterDebugBox->render();
+    }
+    else if (showHelp)
 	{
 		updateHelpStatusText();
 		helpBox.render();
@@ -2744,6 +2753,7 @@ void StoneEngine::update()
 	_player.updatePlayerDirection();
 	_player.updateMovement();
 	updateBiomeData();
+	updateBlockBreaking();
 	display();
 }
 
@@ -2772,9 +2782,67 @@ void StoneEngine::resetFrameBuffers()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 }
 
+void StoneEngine::updateBlockBreaking()
+{
+	if (!mouseCaptureToggle || !glfwGetWindowAttrib(_window, GLFW_FOCUSED)
+		|| glfwGetMouseButton(_window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS)
+	{
+		_breakingBlocks = false;
+		return;
+	}
+	const double now = glfwGetTime();
+	if (_breakingBlocks && now >= _nextBlockBreakTime)
+	{
+		_nextBlockBreakTime = now + BLOCK_BREAK_INTERVAL;
+		breakTargetedBlock();
+	}
+}
+
+void StoneEngine::breakTargetedBlock()
+{
+	// Ray origin and direction in WORLD space
+	glm::vec3 origin = camera.getWorldPosition();
+	glm::vec3 dir = camera.getDirection();
+
+	// Pre-fetch the block about to be deleted
+	glm::ivec3 peek;
+	BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
+	// If deleting dirt/grass/sand, prefetch above cell type for flower instance cleanup
+	glm::ivec3 abovePeek = {peek.x, peek.y + 1, peek.z};
+	BlockType aboveBefore = AIR;
+	if (toDelete == DIRT || toDelete == GRASS || toDelete == SAND)
+	{
+		glm::ivec2 aboveChunkPos(
+			(int)std::floor((float)abovePeek.x / (float)CHUNK_SIZE),
+			(int)std::floor((float)abovePeek.z / (float)CHUNK_SIZE));
+		aboveBefore = _chunkMgr.getBlock(aboveChunkPos, abovePeek);
+	}
+	// Delete the first solid block within 5 blocks of reach
+	bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
+	if (deleted)
+	{
+		// Disable occlusion briefly to prevent one-frame pop after edit
+		_occlDisableFrames = std::max(_occlDisableFrames, 2);
+		if (toDelete == FLOWER_POPPY || toDelete == FLOWER_DANDELION || toDelete == FLOWER_CYAN || toDelete == FLOWER_SHORT_GRASS || toDelete == FLOWER_DEAD_BUSH)
+		{
+			removeFlowerAtCell(peek);
+		}
+		// If the broken block is dirt/grass/sand and there was a flower above, remove its instance as well
+		if ((toDelete == DIRT || toDelete == GRASS || toDelete == SAND) &&
+			(aboveBefore == FLOWER_POPPY || aboveBefore == FLOWER_DANDELION ||
+			 aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS ||
+			 aboveBefore == FLOWER_DEAD_BUSH))
+		{
+			removeFlowerAtCell(abovePeek);
+		}
+	}
+}
+
 void StoneEngine::mouseButtonAction(int button, int action, int mods)
 {
 	(void)mods;
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
+		_breakingBlocks = false;
 	// Only when mouse is captured (so clicks aren't for UI)
 	if (!mouseCaptureToggle || !glfwGetWindowAttrib(_window, GLFW_FOCUSED))
 		return;
@@ -2782,42 +2850,9 @@ void StoneEngine::mouseButtonAction(int button, int action, int mods)
 
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
 	{
-		// Ray origin and direction in WORLD space
-		glm::vec3 origin = camera.getWorldPosition();
-		glm::vec3 dir = camera.getDirection();
-
-		// Pre-fetch the block about to be deleted
-		glm::ivec3 peek;
-		BlockType toDelete = _chunkMgr.raycastHitFetch(origin, dir, 5.0f, peek);
-		// If deleting dirt/grass/sand, prefetch above cell type for flower instance cleanup
-		glm::ivec3 abovePeek = {peek.x, peek.y + 1, peek.z};
-		BlockType aboveBefore = AIR;
-		if (toDelete == DIRT || toDelete == GRASS || toDelete == SAND)
-		{
-			glm::ivec2 aboveChunkPos(
-				(int)std::floor((float)abovePeek.x / (float)CHUNK_SIZE),
-				(int)std::floor((float)abovePeek.z / (float)CHUNK_SIZE));
-			aboveBefore = _chunkMgr.getBlock(aboveChunkPos, abovePeek);
-		}
-		// Delete the first solid block within 5 blocks of reach
-		bool deleted = _chunkMgr.raycastDeleteOne(origin, dir, 5.0f);
-		if (deleted)
-		{
-			// Disable occlusion briefly to prevent one-frame pop after edit
-			_occlDisableFrames = std::max(_occlDisableFrames, 2);
-			if (toDelete == FLOWER_POPPY || toDelete == FLOWER_DANDELION || toDelete == FLOWER_CYAN || toDelete == FLOWER_SHORT_GRASS || toDelete == FLOWER_DEAD_BUSH)
-			{
-				removeFlowerAtCell(peek);
-			}
-			// If the broken block is dirt/grass/sand and there was a flower above, remove its instance as well
-			if ((toDelete == DIRT || toDelete == GRASS || toDelete == SAND) &&
-				(aboveBefore == FLOWER_POPPY || aboveBefore == FLOWER_DANDELION ||
-				 aboveBefore == FLOWER_CYAN  || aboveBefore == FLOWER_SHORT_GRASS ||
-				 aboveBefore == FLOWER_DEAD_BUSH))
-			{
-				removeFlowerAtCell(abovePeek);
-			}
-		}
+		_breakingBlocks = true;
+		_nextBlockBreakTime = glfwGetTime() + BLOCK_BREAK_INTERVAL;
+		breakTargetedBlock();
 	}
 	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && _player.getSelectedBlock() != AIR)
 	{
@@ -2975,6 +3010,17 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		showUI = !showUI;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L)
 		showLight = !showLight;
+    if (action == GLFW_PRESS && key == GLFW_KEY_F7) {
+        _showWaterDebug = !_showWaterDebug;
+        if (_showWaterDebug && !_waterDebugBox) {
+            _waterDebugBox = std::make_unique<Textbox>();
+            _waterDebugBox->initData(_window,0,0,650,450);
+            _waterDebugBox->loadFont("textures/CASCADIAMONO.TTF",16);
+            _waterDebugBox->addLine("",Textbox::STRING,&_waterDebugTitle);
+            _waterDebugBox->addStaticText("S source | F8 falling | 7..1 amount | # solid | ? unloaded");
+            for (auto& row : _waterDebugRows) _waterDebugBox->addLine("",Textbox::STRING,&row);
+        }
+    }
 	if (action == GLFW_PRESS && key == GLFW_KEY_F3)
 	{
 		showDebugInfo = !showDebugInfo;
@@ -2990,6 +3036,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && (key == GLFW_KEY_M || key == GLFW_KEY_SEMICOLON))
 	{
 		mouseCaptureToggle = !mouseCaptureToggle;
+		_breakingBlocks = false;
 		_mouseGlide = fvec2(0.0f);
 		_firstMouse = true;
 		_mouseCapture.apply(_window, mouseCaptureToggle);
@@ -3093,6 +3140,7 @@ void StoneEngine::focusCallback(GLFWwindow* window, int focused)
 	StoneEngine* engine = static_cast<StoneEngine*>(glfwGetWindowUserPointer(window));
 	if (!engine)
 		return;
+	engine->_breakingBlocks = false;
 	engine->_firstMouse = true;
 	engine->_mouseGlide = fvec2(0.0f);
 	engine->_mouseLookTime = glfwGetTime();

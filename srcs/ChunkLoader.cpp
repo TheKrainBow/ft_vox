@@ -165,6 +165,7 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, i
 		if (chunk->getResolution() > resolution) {
 			std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
 			chunk->updateResolution(resolution);
+			waterChunkLoaded(*chunk);
 		}
 		applyPendingFor(pos);
 		// Touch LRU for recently used chunk
@@ -198,6 +199,7 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, i
 		{
 			// Heavy init outside the map lock so neighbors created later can find us.
 			chunk->loadBlocks();
+			waterChunkLoaded(*chunk);
 			chunk->getNeighbors();
 
 			_chunksMemoryUsage.fetch_add(chunk->getMemorySize(), std::memory_order_relaxed);
@@ -672,7 +674,7 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool
 	// Only player actions count as modifications for eviction protection UI
 	if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
 	markChunkDirty(chunkPos);
-	if (byPlayer) queueWater(worldPos);
+	queueWater(worldPos);
 	// Corner heights depend on diagonal cells as well as face neighbors.
 	for (int dx = -1; dx <= 1; ++dx)
 		for (int dz = -1; dz <= 1; ++dz)
@@ -1006,73 +1008,113 @@ void ChunkLoader::rescanFlowersForChunk(const glm::ivec2& cpos)
 }
 
 void ChunkLoader::queueWater(const glm::ivec3& p) {
-    static const glm::ivec3 offsets[] = {{0,0,0}, {1,0,0}, {-1,0,0},
-        {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1},
-        {1,1,0}, {-1,1,0}, {0,1,1}, {0,1,-1}};
     std::lock_guard<std::mutex> lock(_waterMutex);
-    for (auto offset : offsets) {
-        auto q = p + offset;
-        if (q.y <= 0) continue; // Bedrock is the world's lower boundary.
-        if (_waterQueued.insert({q.x, q.y, q.z}).second) _waterQueue.push(q);
+    auto schedule = [&](glm::ivec3 q) {
+        glm::ivec2 cp(floor_div(q.x, CHUNK_SIZE), floor_div(q.z, CHUNK_SIZE));
+        if (isWater(getBlock(cp,q))) _waterQueue.schedule({q.x,q.y,q.z});
+    };
+    schedule(p);
+    for (auto d : WATER_SIDES) schedule({p.x+d[0],p.y,p.z+d[2]});
+    schedule({p.x,p.y+1,p.z});
+    schedule({p.x,p.y-1,p.z});
+}
+
+void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
+    std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
+    if (chunk.getResolution() != 1 || !chunk.hasBlockData()) return;
+    auto cp = chunk.getPosition();
+    {
+        std::lock_guard<std::mutex> lock(_waterMutex);
+        auto it = _waterWaiting.find({cp.x,cp.y});
+        if (it != _waterWaiting.end()) {
+            for (auto p : it->second) _waterQueue.schedule(p);
+            _waterWaiting.erase(it);
+        }
     }
+    // One-time initialization, never a per-frame scan. Interior ocean sources
+    // cannot spread; only exposed and boundary water needs an initial tick.
+    std::vector<int> subs;
+    chunk.getSubIndices(subs);
+    std::sort(subs.begin(), subs.end());
+    for (int sy : subs) {
+        auto* sc = chunk.getSubChunk(sy);
+        for (int y = 0; y < CHUNK_SIZE; ++y)
+        for (int z = 0; z < CHUNK_SIZE; ++z)
+        for (int x = 0; x < CHUNK_SIZE; ++x) {
+            char b = sc->getBlock({x,y,z});
+            if (!isWater(b)) continue;
+            glm::ivec3 p(cp.x*CHUNK_SIZE+x, sy*CHUNK_SIZE+y, cp.y*CHUNK_SIZE+z);
+            bool active = b != WATER || x == 0 || z == 0 ||
+                x == CHUNK_SIZE-1 || z == CHUNK_SIZE-1;
+            for (auto d : {glm::ivec3(1,0,0), glm::ivec3(-1,0,0),
+                glm::ivec3(0,0,1), glm::ivec3(0,0,-1), glm::ivec3(0,-1,0)}) {
+                auto q = p+d;
+                if (floor_div(q.x, CHUNK_SIZE) != cp.x ||
+                    floor_div(q.z, CHUNK_SIZE) != cp.y) continue;
+                char neighbor = getBlock(cp, q);
+                active = active || (waterReplaceable(neighbor) && !isWater(neighbor));
+            }
+            if (active) {
+                std::lock_guard<std::mutex> lock(_waterMutex);
+                _waterQueue.schedule({p.x,p.y,p.z});
+            }
+        }
+    }
+    // Diagonal surface samples must refresh when formerly missing data arrives.
+    for (int dx = -1; dx <= 1; ++dx)
+        for (int dz = -1; dz <= 1; ++dz) markChunkDirty({cp.x+dx,cp.y+dz});
 }
 
 void ChunkLoader::stepWater() {
     std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
-    std::vector<glm::ivec3> batch;
+    std::vector<WaterPos> batch;
     {
         std::lock_guard<std::mutex> lock(_waterMutex);
-        size_t count = std::min<size_t>(512, _waterQueue.size());
-        while (count--) {
-            auto p = _waterQueue.front(); _waterQueue.pop();
-            _waterQueued.erase({p.x, p.y, p.z});
-            batch.push_back(p);
-        }
+        batch = _waterQueue.advance();
     }
-    auto retry = [&](glm::ivec3 p) {
-        std::lock_guard<std::mutex> lock(_waterMutex);
-        if (_waterQueued.insert({p.x,p.y,p.z}).second) _waterQueue.push(p);
+    auto chunkAt = [](WaterPos p) {
+        return glm::ivec2(floor_div(p[0], CHUNK_SIZE), floor_div(p[2], CHUNK_SIZE));
     };
-    const glm::ivec3 sides[] = {{1,0,0}, {-1,0,0}, {0,0,1}, {0,0,-1}};
-    auto chunkAt = [](glm::ivec3 p) {
-        return glm::ivec2((int)std::floor(double(p.x) / CHUNK_SIZE),
-                          (int)std::floor(double(p.z) / CHUNK_SIZE));
-    };
-    // Evaluate a snapshot before writing, so one tick advances one cell.
-    std::vector<std::pair<glm::ivec3, char>> changes;
     for (auto p : batch) {
-        bool unknown = false;
-        auto read = [&](glm::ivec3 q) -> char {
-            if (q.y <= 0) return BEDROCK;
+        std::map<WaterPos, char> cache;
+        std::set<std::array<int, 2>> missing;
+        auto read = [&](WaterPos q) -> char {
+            if (q[1] <= 0) return BEDROCK;
+            auto found = cache.find(q);
+            if (found != cache.end()) return found->second;
             auto cp = chunkAt(q);
             Chunk* c = getChunk(cp);
-            if (!c || !c->isReady() || c->isBuilding() || c->getResolution() != 1) {
-                unknown = true;
-                return BEDROCK;
-            }
-            // Ready columns contain all terrain layers down to bedrock; missing
-            // layers above them are empty. Allocate only when a write is needed.
-            return getBlock(cp, q);
+            char b = WATER_UNKNOWN;
+            if (!c || !c->hasBlockData() || c->getResolution() != 1)
+                missing.insert({cp.x,cp.y});
+            else b = getBlock(cp, {q[0],q[1],q[2]});
+            cache[q] = b;
+            return b;
         };
-        char current = read(p);
-        if (!waterReplaceable(current)) {
-            if (unknown) retry(p);
-            continue;
+        std::map<WaterPos, char> changes;
+        auto write = [&](WaterPos q, char b) {
+            changes[q] = b;
+            cache[q] = b;
+        };
+        processWaterTick(read, write, p, _waterSourceConversion);
+        if (!missing.empty()) {
+            std::lock_guard<std::mutex> lock(_waterMutex);
+            for (auto cp : missing) _waterWaiting[cp].insert(p);
+        } else {
+            for (auto [q,b] : changes)
+                setBlock(chunkAt(q), {q[0],q[1],q[2]}, b, true);
         }
-        char above = read(p + glm::ivec3(0,1,0));
-        char below = read(p - glm::ivec3(0,1,0));
-        std::array<char,4> adjacent, floors;
-        for (int i = 0; i < 4; ++i) {
-            adjacent[i] = read(p + sides[i]);
-            floors[i] = read(p + sides[i] - glm::ivec3(0,1,0));
-        }
-        // Retain boundary work until neighboring full-resolution chunks are ready.
-        if (unknown) { retry(p); continue; }
-        char next = nextWater(current, above, below, adjacent, floors);
-        if (next != current) changes.push_back({p, next});
     }
-    for (const auto& change : changes)
-        setBlock(chunkAt(change.first), change.first, change.second, true);
+}
+
+void ChunkLoader::setWaterSourceConversion(bool enabled) {
+    std::lock_guard<std::recursive_mutex> lock(_blockEditMutex);
+    _waterSourceConversion = enabled;
+}
+
+size_t ChunkLoader::pendingWaterUpdates() {
+    std::lock_guard<std::mutex> lock(_waterMutex);
+    return _waterQueue.size();
 }
 
 // Simulation must run even when a display snapshot is waiting for the renderer.
@@ -1086,4 +1128,23 @@ void ChunkLoader::updateWaterTick() {
     }
     // Retry publication on later ticks if a previous snapshot is still staged.
     if (dirty) scheduleDisplayUpdate();
+}
+
+// A bounded debug snapshot; disabled mode never calls this or scans water.
+void ChunkLoader::waterDebugSlice(glm::ivec3 center, std::array<std::string,17>& rows) {
+    std::lock_guard<std::recursive_mutex> lock(_blockEditMutex);
+    for (int z = -8; z <= 8; ++z) {
+        auto& row = rows[z+8];
+        row.clear();
+        for (int x = -8; x <= 8; ++x) {
+            auto p = center + glm::ivec3(x,0,z);
+            glm::ivec2 cp(floor_div(p.x,CHUNK_SIZE),floor_div(p.z,CHUNK_SIZE));
+            auto c = getChunk(cp);
+            char b = c && c->hasBlockData() && c->getResolution() == 1 ? getBlock(cp,p) : WATER_UNKNOWN;
+            std::string label = b == WATER ? "S" : b == WATER_FALLING ? "F8" :
+                isWater(b) ? std::to_string(waterAmount(b)) : b == WATER_UNKNOWN ? "?" :
+                waterReplaceable(b) ? "." : "#";
+            row += label + std::string(3-label.size(),' ');
+        }
+    }
 }

@@ -4,17 +4,17 @@
 #include <iostream>
 
 int main() {
-    // Each flow level lowers the surface pulse's exit point; sources retain
-    // the original two-block feet height. Check both positive and negative Y.
+    // Each flow level lowers the existing swimming contact threshold.
+    // Check both positive and negative world heights.
     for (float base : {-10.0f, 10.0f}) {
         float previousExit = base + 2.0f;
-        for (char block : std::array<char, 7>{WATER, WATER_FLOW_1, WATER_FLOW_2,
-                WATER_FLOW_3, WATER_FLOW_4, WATER_FLOW_5, WATER_FLOW_6}) {
+        for (char block : std::array<char, 8>{WATER, WATER_FLOW_1, WATER_FLOW_2,
+                WATER_FLOW_3, WATER_FLOW_4, WATER_FLOW_5, WATER_FLOW_6, WATER_FLOW_7}) {
             auto corners = waterSurfaceCorners([&](int, int y, int) -> char {
                 return y == 0 ? block : AIR;
             });
             float surface = base + waterSurfaceHeight(corners, 0.5f, 0.5f);
-            float exit = base + 2.0f - EPS + (waterHeight(block) - waterHeight(WATER)) / 15.0f;
+            float exit = surface + 0.9066667f - EPS;
             assert(swimmingSurfaceContact(exit - 0.01f, surface));
             assert(!swimmingSurfaceContact(exit + 0.01f, surface));
             if (block != WATER) assert(exit < previousExit);
@@ -26,7 +26,7 @@ int main() {
                 return y == 0 ? block : (y == 1 ? WATER_FALLING : AIR);
             });
             float surface = base + waterSurfaceHeight(corners, 0.5f, 0.5f);
-            assert(swimmingSurfaceContact(base + 2.0f, surface));
+            assert(swimmingSurfaceContact(base + 1.85f, surface));
             assert(!swimmingSurfaceContact(base + 2.1f, surface));
         }
     }
@@ -43,8 +43,8 @@ int main() {
     assert(reversed[0] == -1.0f);
     auto rotated = waterCurrent([&](int x, int y, int z) { return stream(z, y, x); });
     assert(rotated[2] == 1.0f);
-    // The first stream cell pushes even before another stream cell exists,
-    // and when it leads immediately into a waterfall.
+    // The first stream cell pushes before another stream cell exists. Equal
+    // full-strength source/falling neighbors cancel the horizontal gradient.
     for (char outlet : std::array<char, 2>{AIR, WATER_FALLING}) {
         auto first = waterCurrent([&](int x, int y, int z) -> char {
             if (y || z) return STONE;
@@ -52,8 +52,16 @@ int main() {
             if (x == 0) return WATER_FLOW_1;
             return outlet;
         });
-        assert(first[0] == 1.0f && first[2] == 0.0f);
+        assert(first[0] == (outlet == AIR ? 1.0f : 0.0f) && first[2] == 0.0f);
     }
+    auto waterfall = waterCurrent([](int x, int, int) -> char {
+        return x == 1 ? STONE : WATER_FALLING;
+    });
+    assert(waterfall[1] == -1.0f);
+    auto sourceEdge = waterCurrent([](int x, int y, int z) -> char {
+        return y == 0 && z == 0 && x == 1 ? WATER_FLOW_1 : WATER;
+    });
+    assert(sourceEdge[0] == 1.0f);
     float upstreamX = -10.0f, sidewaysZ = 3.0f;
     resistSwimmingCurrent(upstreamX, sidewaysZ, 1.0f, 0.0f);
     assert(std::abs(upstreamX + 7.5f) < 0.0001f && sidewaysZ == 3.0f);
@@ -66,7 +74,7 @@ int main() {
     for (char block : std::array<char, 4>{AIR, WATER, WATER_FLOW_3, WATER_FALLING}) {
         auto uniform = waterCurrent([&](int, int, int) { return block; });
         assert(uniform[0] == 0.0f && uniform[2] == 0.0f);
-        assert(uniform[1] == (block == WATER_FALLING ? -1.0f : 0.0f));
+        assert(uniform[1] == 0.0f);
     }
     auto diagonal = waterCurrent([](int x, int, int z) {
         return (x == -1 || z == -1) ? WATER : WATER_FLOW_1;

@@ -388,5 +388,5 @@ uint32_t SubChunk::waterCorners(ivec3 position) {
     });
     uint32_t packed = 0;
     for (int i = 0; i < 4; ++i) packed |= uint32_t(heights[i]) << (4 * i);
-    return packed == 0xeeeeu ? 0 : (0x80000000u | (packed << 15));
+    return packed == 0xddddu ? 0 : (0x80000000u | (packed << 15));
 }

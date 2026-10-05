@@ -71,7 +71,7 @@ void main()
 	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
 	// Four shared corner heights replace the rectangle dimensions for shaped water.
-	vec4 heights = vec4(fullWater ? 1.0 : 14.0 / 15.0);
+	vec4 heights = vec4(fullWater ? 1.0 : 13.0 / 15.0);
 	if (shapedWater) {
 		uint corners = uint(instanceData) >> 15;
 		heights = vec4(float(corners & 15u), float((corners >> 4) & 15u),

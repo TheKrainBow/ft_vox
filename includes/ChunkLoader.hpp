@@ -11,6 +11,7 @@
 #include <limits>
 
 #include "ft_vox.hpp"
+#include "WaterSimulation.hpp"
 #include "NoiseGenerator.hpp"
 #include "SubChunk.hpp"
 #include "CaveGenerator.hpp"
@@ -27,11 +28,14 @@ class Chunk;
 
 class ChunkLoader
 {
+	friend struct WaterIntegrationTest;
 private:
 	std::recursive_mutex _blockEditMutex; // Serialize simulation with edits and eviction.
 	std::mutex _waterMutex;
-	std::queue<glm::ivec3> _waterQueue;
-	std::set<std::array<int, 3>> _waterQueued;
+	WaterUpdateQueue _waterQueue;
+	std::map<std::array<int, 2>, std::set<WaterPos>> _waterWaiting;
+	bool _waterSourceConversion = true;
+	void waterChunkLoaded(Chunk& chunk);
 	void queueWater(const glm::ivec3& p);
 	void stepWater();
 
@@ -168,6 +172,9 @@ public:
 	void	scheduleDisplayUpdate();
 	// Advance simulation once per fixed game tick; rendering only consumes meshes.
 	void	updateWaterTick();
+	void setWaterSourceConversion(bool enabled);
+	size_t pendingWaterUpdates();
+	void waterDebugSlice(glm::ivec3 center, std::array<std::string,17>& rows);
 	// Synchronous rebuild of staged DisplayData snapshot (used for compaction)
 	void	rebuildDisplayDataNow();
 	// Snapshot atomics into UI-visible plain fields (call on main thread)

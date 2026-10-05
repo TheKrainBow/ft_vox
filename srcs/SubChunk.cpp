@@ -836,11 +836,12 @@ void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType textu
 		return;
 	}
 	auto chunk = _chunk.getNorthChunk();      // neighbor chunk
-	// If neighbor isn't loaded yet, consider border as visible (air)
-	if (!chunk) { addFace(position, NORTH, texture, isTransparent); return; }
+	// Unknown water boundaries are closed until the neighboring terrain arrives.
+	if (!chunk) { if (!isWater(current)) addFace(position, NORTH, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
+	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, NORTH, texture, isTransparent); return; }
+	if (!subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
 		return;
 
 	addFace(position, NORTH, texture, isTransparent);
@@ -854,10 +855,11 @@ void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType textu
 		return;
 	}
 	auto chunk = _chunk.getSouthChunk();
-	if (!chunk) { addFace(position, SOUTH, texture, isTransparent); return; }
+	if (!chunk) { if (!isWater(current)) addFace(position, SOUTH, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
+	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, SOUTH, texture, isTransparent); return; }
+	if (!subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
 		return;
 
 	addFace(position, SOUTH, texture, isTransparent);
@@ -871,10 +873,11 @@ void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType textur
 		return;
 	}
 	auto chunk = _chunk.getWestChunk();
-	if (!chunk) { addFace(position, WEST, texture, isTransparent); return; }
+	if (!chunk) { if (!isWater(current)) addFace(position, WEST, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
+	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, WEST, texture, isTransparent); return; }
+	if (!subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
 		return;
 
 	addFace(position, WEST, texture, isTransparent);
@@ -888,10 +891,11 @@ void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType textur
 		return;
 	}
 	auto chunk = _chunk.getEastChunk();
-	if (!chunk) { addFace(position, EAST, texture, isTransparent); return; }
+	if (!chunk) { if (!isWater(current)) addFace(position, EAST, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk || !subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))
+	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, EAST, texture, isTransparent); return; }
+	if (!subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))
 		return;
 
 	addFace(position, EAST, texture, isTransparent);
@@ -1001,7 +1005,7 @@ void SubChunk::sendFacesToDisplay()
 						addBlock(SAND, ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
 						break;
 					case WATER_FLOW_1: case WATER_FLOW_2: case WATER_FLOW_3:
-					case WATER_FLOW_4: case WATER_FLOW_5: case WATER_FLOW_6:
+					case WATER_FLOW_4: case WATER_FLOW_5: case WATER_FLOW_6: case WATER_FLOW_7:
 					case WATER_FALLING:
 					case WATER:
 						addBlock(WATER, ivec3(x, y, z), T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, T_WATER, true);
@@ -1149,26 +1153,16 @@ std::vector<int> &SubChunk::getTransparentVertices()
 # define IS_SOLID false
 
 bool SubChunk::isNeighborTransparent(ivec3 position, Direction dir, char viewerBlock, int viewerResolution) {
-	if (viewerResolution == _resolution)
-		return (faceDisplayCondition(viewerBlock, getBlock(position), dir));
-	if (viewerResolution < _resolution)
-		return (IS_SOLID);
-	position /= _resolution;
-	position *= _resolution;
-	int res2 = _resolution * 2;
-	for (int x = 0; x < res2; x += _resolution) {
-		for (int y = 0; y < res2; y += _resolution) {
-			for (int z = 0; z < res2; z += _resolution) {
-				if (faceDisplayCondition(viewerBlock, getBlock(ivec3(position.x + x, position.y + y, position.z + z)), dir))
-					return IS_TRANSPARENT;
-				if (dir == NORTH || dir == SOUTH)
-					break ;
-				}
-				if (dir == UP || dir == DOWN)
-					break ;
-			}
-		if (dir == EAST || dir == WEST)
-			break ;
-	}
-	return IS_SOLID;
+    if (viewerResolution <= _resolution)
+        return faceDisplayCondition(viewerBlock, getBlock(position), dir);
+    // Sample the entire touching face, not a fixed 2x2 patch or its volume.
+    int widthX = (dir == EAST || dir == WEST) ? 1 : viewerResolution;
+    int widthY = (dir == UP || dir == DOWN) ? 1 : viewerResolution;
+    int widthZ = (dir == NORTH || dir == SOUTH) ? 1 : viewerResolution;
+    for (int x = 0; x < widthX; x += _resolution)
+        for (int y = 0; y < widthY; y += _resolution)
+            for (int z = 0; z < widthZ; z += _resolution)
+                if (faceDisplayCondition(viewerBlock, getBlock(position + ivec3(x,y,z)), dir))
+                    return IS_TRANSPARENT;
+    return IS_SOLID;
 }

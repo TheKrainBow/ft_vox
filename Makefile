@@ -189,3 +189,14 @@ test-swimming:
 test-mouse-capture:
 	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/mouse_capture.cpp srcs/MouseCapture.cpp -lglfw -lX11 -lXtst -o /tmp/ft_vox-mouse-test
 	xvfb-run -a -s "-screen 0 800x600x24" /tmp/ft_vox-mouse-test
+
+.PHONY: test-water-integration test-water-meshing test
+test-water-integration: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/water_integration.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-water-integration-test $(LDFLAGS)
+	/tmp/ft_vox-water-integration-test
+
+test-water-meshing: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/water_meshing.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-water-meshing-test $(LDFLAGS)
+	/tmp/ft_vox-water-meshing-test
+
+test: test-water test-water-integration test-water-meshing test-flowing-water test-swimming test-raycast test-mouse-capture

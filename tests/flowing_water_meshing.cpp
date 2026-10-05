@@ -38,27 +38,22 @@ int main() {
     fill(*center.getSubChunk(2), AIR);
     fill(*adjacent, AIR);
 
-    // A rectangular waterfall merges in both axes, on every exposed side.
+    // A covered waterfall is full-height and merges in both side axes.
     for (int y = 4; y < 20; ++y)
         for (int z = 8; z < 11; ++z)
             for (int x = 8; x < 12; ++x)
                 water->setBlockLocal(x, y, z, WATER_FALLING);
     water->sendFacesToDisplay();
-    for (int dir = 0; dir < 6; ++dir)
-        assert(water->getTranspDirCounts()[dir] == 1);
+    assert(water->getTranspDirCounts()[DOWN] == 1);
+    for (auto dir : {NORTH,SOUTH,EAST,WEST})
+        assert(water->getTranspDirCounts()[dir] == 2); // full column + exposed cap
+    bool full = false, cap = false;
     for (int packed : water->getTransparentVertices()) {
         uint32_t bits = uint32_t(packed);
-        assert((bits & 0x80000000u) == 0);
-        assert(((bits >> 25) & 0x7f) == T_WATER_FULL);
+        full = full || (!(bits & 0x80000000u) && ((bits >> 25) & 0x7f) == T_WATER_FULL);
+        cap = cap || (!(bits & 0x80000000u) && ((bits >> 25) & 0x7f) == T_WATER);
     }
-    size_t index = 0;
-    for (auto dir : {UP, DOWN, NORTH, SOUTH, EAST, WEST}) {
-        uint32_t bits = uint32_t(water->getTransparentVertices()[index++]);
-        int width = int((bits >> 15) & 31u) + 1;
-        int height = int((bits >> 20) & 31u) + 1;
-        assert(width == ((dir == EAST || dir == WEST) ? 3 : 4));
-        assert(height == ((dir == UP || dir == DOWN) ? 3 : 16));
-    }
+    assert(full && cap);
 
     // Covered flowing cells are full-height too, regardless of flow distance.
     for (int y = 4; y < 19; ++y)
@@ -66,8 +61,8 @@ int main() {
             for (int x = 8; x < 12; ++x)
                 water->setBlockLocal(x, y, z, WATER_FLOW_3);
     water->sendFacesToDisplay();
-    for (int dir = 0; dir < 6; ++dir)
-        assert(water->getTranspDirCounts()[dir] == 1);
+    for (auto dir : {NORTH,SOUTH,EAST,WEST})
+        assert(water->getTranspDirCounts()[dir] == 2);
 
     // Lower stream surfaces retain their quantized corner heights.
     fill(*water, AIR);
@@ -78,7 +73,7 @@ int main() {
         uint32_t bits = uint32_t(packed);
         if (bits & 0x80000000u) {
             ++shaped;
-            assert(((bits >> 15) & 0xffffu) == 0x9999u);
+            assert(((bits >> 15) & 0xffffu) == 0xccccu);
         }
     }
     assert(shaped == 5); // Bottom remains a mergeable rectangle.

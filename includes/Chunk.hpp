@@ -58,6 +58,7 @@ class Chunk
 		void updateResolution(int newResolution);
 		void sendFacesToDisplay();
 		bool isReady();
+		bool hasBlockData() const { return _isInit.load() && !_isBuilding.load(); }
 		std::atomic_int	&getResolution();
 		ivec2 getPosition();
 		size_t getMemorySize();
