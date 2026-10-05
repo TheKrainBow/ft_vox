@@ -39,6 +39,8 @@ void SubChunk::loadHeight(int prevResolution)
 		for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
 		{
 			int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
+			const auto caveColumn = _caveGen.prepareColumn(
+				x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE, maxHeight);
 			for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
 			{
 				int globalY = y + _position.y * CHUNK_SIZE;
@@ -51,12 +53,8 @@ void SubChunk::loadHeight(int prevResolution)
 				if (globalY > maxHeight)
 					break;
 				
-				if (!CAVES || _resolution != 1 || !_caveGen.isAir(
-						x + _position.x * CHUNK_SIZE,
-						globalY,
-						z + _position.z * CHUNK_SIZE,
-						maxHeight + 40
-					))
+				if (!CAVES || _resolution != 1 ||
+					_caveGen.classify(caveColumn, globalY) == CaveKind::Solid)
 					setBlock(x, y, z, STONE);
 			}
 		}
@@ -423,9 +421,11 @@ void SubChunk::loadDesert(int x, int z, size_t ground)
 {
 	int y = ground - _position.y * CHUNK_SIZE;
 
-	setBlock(x, y, z, SAND);
+	if (getBlock({x, y, z}) != AIR)
+		setBlock(x, y, z, SAND);
 	for (int i = 1; i <= 4; i++)
-		setBlock(x, y - (i * _resolution), z, SAND);
+		if (getBlock({x, y - (i * _resolution), z}) != AIR)
+			setBlock(x, y - (i * _resolution), z, SAND);
 
 	// Decorations: cactus columns and rare dead bushes
 	// Deterministic RNG
@@ -588,6 +588,10 @@ void SubChunk::loadBiome(int prevResolution)
 			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
 			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
 			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
+			if (CAVES && _resolution == 1 && _caveGen.isAir(
+				x + _position.x * CHUNK_SIZE, int(surfaceLevel),
+				z + _position.z * CHUNK_SIZE, int(surfaceLevel)))
+				continue;
 			switch (biome)
 			{
 				case PLAINS:

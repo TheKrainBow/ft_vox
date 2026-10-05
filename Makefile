@@ -200,3 +200,17 @@ test-water-meshing: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
 	/tmp/ft_vox-water-meshing-test
 
 test: test-water test-water-integration test-water-meshing test-flowing-water test-swimming test-raycast test-mouse-capture
+
+.PHONY: test-caves
+test-caves:
+	$(CC) $(CFLAGS) -Iincludes tests/caves.cpp srcs/CaveGenerator.cpp srcs/Noise3DGenerator.cpp -pthread -o /tmp/ft_vox-caves-test
+	/tmp/ft_vox-caves-test /tmp/ft_vox-caves.ppm
+
+test: test-caves
+
+.PHONY: test-caves-integration
+test-caves-integration: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/caves_integration.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-caves-integration-test $(LDFLAGS)
+	/tmp/ft_vox-caves-integration-test
+
+test: test-caves-integration

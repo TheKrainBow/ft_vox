@@ -27,7 +27,7 @@ _threadPool(pool),
 _buildingDisplay(false),
 _isRunning(isRunning),
 _perlinGenerator(seed),
-_caveGen(1000, 0.01f, 0.05f, 0.6f, 0.6f, seed),
+_caveGen(seed),
 _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue)
 {

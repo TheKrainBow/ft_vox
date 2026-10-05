@@ -21,7 +21,7 @@ int main() {
     std::mutex drawMutex;
     std::queue<DisplayData*> solids, transparent;
     ChunkLoader loader(42, camera, pool, chrono, &running, drawMutex, solids, transparent);
-    CaveGenerator caves(256, 0.01f, 0.05f, 0.6f, 0.6f, 42);
+    CaveGenerator caves(42);
     PerlinMap map;
     map.heightMap = new double[CHUNK_SIZE * CHUNK_SIZE]();
     map.biomeMap = new Biome[CHUNK_SIZE * CHUNK_SIZE];
