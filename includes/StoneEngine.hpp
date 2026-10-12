@@ -143,7 +143,7 @@ class StoneEngine {
 		bool showDebugInfo;
 		bool showHelp;
 		bool showUI;
-		bool showLight;
+		bool playerLightEnabled;
 		bool pauseTime = false;
 		bool gravity;
 		bool accelPlus = false;
@@ -216,7 +216,7 @@ class StoneEngine {
 		std::string _hGeneration;
 		std::string _hSprinting;
 		std::string _hUI;
-		std::string _hLighting;
+		std::string _hPlayerLight;
 		std::string _hMouseCapture;
 		std::string _hDebug;
 		std::string _hHelp;
@@ -273,6 +273,7 @@ class StoneEngine {
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
 		void	initWireframeResources();
 		void	renderAimHighlight();
+		void	setPlayerLightUniforms(GLuint program);
 		void	postProcessSkyboxComposite();
 		void	setFullscreen(bool enable);
 		void	renderLoadingScreen();

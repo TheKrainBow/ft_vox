@@ -44,7 +44,7 @@ Toggles & Tools
 - F3: Debug overlay 
 - F4: Triangle mesh (wireframe) view 
 - F5: Invert camera 
-- L: Toggle dynamic lighting (forces daytime when off) 
+- L: Toggle player light (10-block radius; soft light and shadow fill fading smoothly with distance)
 - G: Toggle gravity 
 - C: Toggle world generation/streaming 
 - P: Pause day/night time update 

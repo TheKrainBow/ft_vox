@@ -7,6 +7,17 @@ in vec3 vWorldPos;
 
 out vec4 FragColor;
 
+uniform vec3 playerLightPos;
+uniform float playerLightRadius;
+uniform bool playerLightEnabled;
+
+float calculatePlayerLight(vec3 worldPos) {
+	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
+	// Fade gently across the full radius, with a smooth slope at both ends.
+	float distanceToPlayer = distance(worldPos, playerLightPos);
+	return 0.5 * (1.0 - smoothstep(0.0, playerLightRadius, distanceToPlayer));
+}
+
 uniform sampler2DArray flowerTex;
 uniform int shortGrassLayer; // layer index for short_grass (greyscale), -1 if not present
 uniform vec3  cameraPos;
@@ -69,7 +80,7 @@ void main() {
 	float dayPhase = clamp((float(timeValue) - dayStart) / dayLen, 0.0, 1.0);
 	float sunPhase = smoothstep(0.0, 0.15, sin(dayPhase * pi));
 	float diffuse = sun * 0.2 * sunPhase;
-	float total = clamp(ambient * 0.6 + diffuse * 0.9 + 0.1, 0.0, 1.0);
+	float total = clamp(ambient * 0.6 + diffuse * 0.9 + 0.1, 0.0, 1.0) + calculatePlayerLight(vWorldPos);
 
 	float ao = mix(0.9, 1.0, vHeightMask);
 	vec3 rgb = col.rgb * ao * lightColor * total;

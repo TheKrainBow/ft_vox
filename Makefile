@@ -214,3 +214,20 @@ test-caves-integration: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
 	/tmp/ft_vox-caves-integration-test
 
 test: test-caves-integration
+
+# Surfaceless EGL exercises the terrain shader without opening a game window.
+.PHONY: test-player-light
+test-player-light:
+	$(CC) -std=c++17 -Wall -Wextra -Werror tests/player_lighting.cpp -lEGL -lGL -o /tmp/ft_vox-player-light-test
+	/tmp/ft_vox-player-light-test
+	glslangValidator -l shaders/render/terrain.vert shaders/render/terrain.frag
+	glslangValidator -l shaders/render/alpha.vert shaders/render/alpha.frag
+	glslangValidator -l shaders/render/flower.vert shaders/render/flower.frag
+	glslangValidator -l shaders/render/water.vert shaders/render/water.frag
+
+.PHONY: test-spawn-flora
+test-spawn-flora: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/spawn_flora.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-spawn-flora-test $(LDFLAGS)
+	/tmp/ft_vox-spawn-flora-test
+
+test: test-spawn-flora

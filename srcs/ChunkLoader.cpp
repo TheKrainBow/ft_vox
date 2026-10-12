@@ -558,20 +558,14 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 		if (!metaS.empty())
 			fillData->drawMeta.insert(fillData->drawMeta.end(), metaS.begin(), metaS.end());
 
-		// Record which subY are being displayed for this chunk (into local map)
-		if (!ssboS.empty()) {
-			std::unordered_set<int> subs;
-			subs.reserve(ssboS.size());
-			for (const auto &v : ssboS) {
-				int subY = (int)std::floor(v.y / (float)CHUNK_SIZE + 0.5f);
-				subs.insert(subY);
-			}
-			// Need the chunk position; derive from first entry's x,z
-			glm::ivec2 cpos(
-				(int)std::floor(ssboS[0].x / (float)CHUNK_SIZE + 0.5f),
-				(int)std::floor(ssboS[0].z / (float)CHUNK_SIZE + 0.5f)
-			);
-			nextDisplayedSubY[cpos] = std::move(subs);
+		// Plants have their own mesh, so a plant-only subchunk has no terrain
+		// draw commands. Include all loaded layers once this chunk has terrain
+		// in the display snapshot (also allowing transparent-only terrain).
+		if (!sCmds.empty() || !tCmds.empty()) {
+			std::vector<int> subs;
+			c->getSubIndices(subs);
+			auto &displayed = nextDisplayedSubY[c->getPosition()];
+			displayed.insert(subs.begin(), subs.end());
 		}
 
 		// TRANSPARENT
@@ -757,9 +751,16 @@ void ChunkLoader::getDisplayedChunksSnapshot(std::vector<ivec2>& out) {
 }
 
 bool ChunkLoader::hasRenderableChunks() {
-	std::lock_guard<std::mutex> lk(_displayedChunksMutex);
-	for (const auto& kv : _displayedChunks) {
-		Chunk* c = kv.second;
+	// Meshing takes the chunk's display-data lock before plant discovery
+	// checks the displayed set. Release the set lock before inspecting meshes
+	// so the startup readiness check cannot take these locks in reverse order.
+	std::vector<Chunk*> snapshot;
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		snapshot.reserve(_displayedChunks.size());
+		for (const auto &kv : _displayedChunks) snapshot.push_back(kv.second);
+	}
+	for (Chunk* c : snapshot) {
 		if (!c) continue;
 		if (!c->isReady()) continue;
 		// Consider renderable if any indirect commands exist (solid or transparent)
@@ -928,6 +929,13 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 void ChunkLoader::scanAndRecordFlowersFor(const glm::ivec2& cpos, int subY, SubChunk* sc, int resolution)
 {
 	if (!sc) return;
+	// Neighbor linking can mesh a chunk before loadChunk registers it for
+	// display. Publishing plants then lets the renderer prune them as absent,
+	// while the scan mark prevents their discovery after registration.
+	{
+		std::lock_guard<std::mutex> lk(_displayedChunksMutex);
+		if (_displayedChunks.find(cpos) == _displayedChunks.end()) return;
+	}
 	// Avoid scanning the same sublayer multiple times
 	const std::string key = _flowerKey(cpos, subY);
 	{

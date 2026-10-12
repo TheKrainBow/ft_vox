@@ -268,7 +268,7 @@ void StoneEngine::initData()
 	showDebugInfo		= SHOW_DEBUG;
 	showHelp            = false;
 	showUI				= SHOW_UI;
-	showLight			= SHOW_LIGHTING;
+	playerLightEnabled			= PLAYER_LIGHT_ENABLED;
 	selectedBlockDebug	= air;
 	gravity 			= GRAVITY;
 
@@ -818,7 +818,7 @@ void StoneEngine::initHelpTextBox()
 	_hGeneration = "";
 	_hSprinting = "";
 	_hUI = "";
-	_hLighting = "";
+	_hPlayerLight = "";
 	_hMouseCapture = "";
 	_hDebug = "";
 	_hHelp = "";
@@ -834,7 +834,7 @@ void StoneEngine::initHelpTextBox()
 	helpBox.addLine("F5:     Invert Camera", Textbox::STRING, &_empty); // no state; keep placeholder spacing
 	helpBox.addLine("F11:    Fullscreen ", Textbox::STRING, &_hFullscreen);
 	helpBox.addLine("G:      Gravity ", Textbox::STRING, &_hGravity);
-	helpBox.addLine("L:      Lighting ", Textbox::STRING, &_hLighting);
+	helpBox.addLine("L:      Player Light (10 blocks) ", Textbox::STRING, &_hPlayerLight);
 	helpBox.addLine("M or ;: Mouse Capture ", Textbox::STRING, &_hMouseCapture);
 	helpBox.addLine("C:      Generation ", Textbox::STRING, &_hGeneration);
 	helpBox.addStaticText("");
@@ -851,7 +851,7 @@ void StoneEngine::updateHelpStatusText()
 	_hGeneration = onoff(updateChunk);
 	_hSprinting = onoff(_player.isSprinting());
 	_hUI = onoff(showUI);
-	_hLighting = onoff(showLight);
+	_hPlayerLight = onoff(playerLightEnabled);
 	_hMouseCapture = onoff(mouseCaptureToggle);
 	_hDebug = onoff(showDebugInfo);
 	_hHelp = onoff(showHelp);
@@ -879,6 +879,15 @@ void StoneEngine::calculateFps()
 	}
 }
 
+void StoneEngine::setPlayerLightUniforms(GLuint program)
+{
+	// Use the actual player position even when the render camera is mirrored.
+	const glm::vec3 position = camera.getWorldPosition();
+	glUniform3fv(glGetUniformLocation(program, "playerLightPos"), 1, glm::value_ptr(position));
+	glUniform1f(glGetUniformLocation(program, "playerLightRadius"), 10.0f);
+	glUniform1i(glGetUniformLocation(program, "playerLightEnabled"), playerLightEnabled ? 1 : 0);
+}
+
 void StoneEngine::activateRenderShader()
 {
 	mat4 modelMatrix = mat4(1.0f);
@@ -899,6 +908,7 @@ void StoneEngine::activateRenderShader()
 	_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 
 	glUseProgram(shaderProgram);
+	setPlayerLightUniforms(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 	// Pass rotation-only view to terrain shader (camera-relative positions in VS)
@@ -1161,6 +1171,7 @@ void StoneEngine::activateTransparentShader()
 	vec3 viewPos = camera.getWorldPosition();
 
 	glUseProgram(waterShaderProgram);
+	setPlayerLightUniforms(waterShaderProgram);
 
 	// Matrices & camera
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -1641,6 +1652,7 @@ void StoneEngine::renderFlowers()
 		return;
 
 	glUseProgram(flowerProgram);
+	setPlayerLightUniforms(flowerProgram);
 
 	// Build rotation-only view (same convention as terrain/water)
 	float radY = camera.getAngles().y * (M_PI / 180.0f);
@@ -2194,6 +2206,7 @@ void StoneEngine::renderPlanarReflection()
 	}
 
 	glUseProgram(shaderProgram);
+	setPlayerLightUniforms(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
@@ -2213,6 +2226,7 @@ void StoneEngine::renderPlanarReflection()
 
 	// Also render masked alpha (leaves) into planar reflection
 	glUseProgram(alphaShaderProgram);
+	setPlayerLightUniforms(alphaShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
@@ -2411,6 +2425,7 @@ void StoneEngine::renderTransparentObjects()
 		_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 		vec3 viewPos = camera.getWorldPosition();
 		glUseProgram(alphaShaderProgram);
+		setPlayerLightUniforms(alphaShaderProgram);
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
@@ -2632,21 +2647,10 @@ void StoneEngine::updateGameTick()
 		timeValue = 0;
 	if (timeValue < 0)
 		timeValue = 86400;
-	if (showLight)
-	{
-		glUseProgram(shaderProgram);
-		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
-		glUseProgram(postProcessShaders[GREEDYFIX].program);
-		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), timeValue);
-	}
-	else
-	{
-		// Always daytime
-		glUseProgram(shaderProgram);
-		glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), 52000);
-		glUseProgram(postProcessShaders[GREEDYFIX].program);
-		glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), 52000);
-	}
+	glUseProgram(shaderProgram);
+	glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
+	glUseProgram(postProcessShaders[GREEDYFIX].program);
+	glUniform1i(glGetUniformLocation(postProcessShaders[GREEDYFIX].program, "timeValue"), timeValue);
 	_player.updateSwimSpeed();
 }
 
@@ -3009,7 +3013,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_F1)
 		showUI = !showUI;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L)
-		showLight = !showLight;
+		playerLightEnabled = !playerLightEnabled;
     if (action == GLFW_PRESS && key == GLFW_KEY_F7) {
         _showWaterDebug = !_showWaterDebug;
         if (_showWaterDebug && !_waterDebugBox) {

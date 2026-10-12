@@ -29,6 +29,7 @@ class Chunk;
 class ChunkLoader
 {
 	friend struct WaterIntegrationTest;
+	friend struct SpawnFloraTest;
 private:
 	std::recursive_mutex _blockEditMutex; // Serialize simulation with edits and eviction.
 	std::mutex _waterMutex;

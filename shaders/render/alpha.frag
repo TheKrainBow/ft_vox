@@ -14,6 +14,17 @@ in vec3 FragPos;
 
 out vec4 FragColor;
 
+uniform vec3 playerLightPos;
+uniform float playerLightRadius;
+uniform bool playerLightEnabled;
+
+float calculatePlayerLight(vec3 worldPos) {
+	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
+	// Fade gently across the full radius, with a smooth slope at both ends.
+	float distanceToPlayer = distance(worldPos, playerLightPos);
+	return 0.5 * (1.0 - smoothstep(0.0, playerLightRadius, distanceToPlayer));
+}
+
 // Lighting helpers copied from terrain.frag
 vec3 computeSunPosition(float time) {
 	vec3 viewPos = cameraPos;
@@ -99,7 +110,7 @@ void main() {
 	float finalAmbient  = ambient * ambientWeight;
 	float finalDiffuse  = diffuse * diffuseWeight * diffuseFactor;
 	float finalSpecular = specular * specularWeight;
-	float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular + 0.1, 0.0, 1.0);
+	float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular + 0.1, 0.0, 1.0) + calculatePlayerLight(FragPos);
 
 	vec3 result = totalLight * lightColor * texColor.rgb;
 	FragColor = vec4(result, 1.0);

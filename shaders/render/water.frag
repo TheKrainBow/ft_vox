@@ -99,6 +99,17 @@ uniform mat4  planarProjection;
 
 out vec4 FragColor;
 
+uniform vec3 playerLightPos;
+uniform float playerLightRadius;
+uniform bool playerLightEnabled;
+
+float calculatePlayerLight(vec3 worldPos) {
+	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
+	// Fade gently across the full radius, with a smooth slope at both ends.
+	float distanceToPlayer = distance(worldPos, playerLightPos);
+	return 0.5 * (1.0 - smoothstep(0.0, playerLightRadius, distanceToPlayer));
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -254,7 +265,7 @@ void main() {
 		sun = smoothstep(0.0, 0.15, sun);
 		float ambient = mix(0.10, 0.35, sun); // darker nights, brighter days
 		float finalDiffuse = diffuse * 0.9 * (0.2 * sun);
-		float totalLight = clamp(ambient * 0.6 + finalDiffuse + 0.1, 0.0, 1.0);
+		float totalLight = clamp(ambient * 0.6 + finalDiffuse + 0.1, 0.0, 1.0) + calculatePlayerLight(FragPos);
 		vec3 color = tex.rgb * lightColor * totalLight;
 		FragColor = vec4(color, 1.0);
 		return;
@@ -335,11 +346,13 @@ void main() {
 		float alphaUW = mix(0.25, 0.60, depthUnder);
 		alphaUW *= mix(0.60, 1.00, viewFactor);
 		alphaUW = clamp(alphaUW, 0.15, 0.70);
+		finalColor += distanceTint(viewPos, waveFragPos) * lightColor * calculatePlayerLight(waveFragPos);
 		FragColor = vec4(finalColor, alphaUW);
 		return;
 	}
 
 	vec3 baseTint = distanceTint(viewPos, waveFragPos);
 	finalColor    = mix(baseTint, reflection, reflMix);
+	finalColor += baseTint * lightColor * calculatePlayerLight(waveFragPos);
 	FragColor     = vec4(finalColor, alpha);
 }

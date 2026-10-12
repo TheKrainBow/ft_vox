@@ -21,6 +21,17 @@ in vec3 FragPos;
 
 out vec4 FragColor;
 
+uniform vec3 playerLightPos;
+uniform float playerLightRadius;
+uniform bool playerLightEnabled;
+
+float calculatePlayerLight(vec3 worldPos) {
+	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
+	// Fade gently across the full radius, with a smooth slope at both ends.
+	float distanceToPlayer = distance(worldPos, playerLightPos);
+	return 0.5 * (1.0 - smoothstep(0.0, playerLightRadius, distanceToPlayer));
+}
+
 float calculateDiffuseLight(float time, vec3 lightDir) {
 	vec3 norm = normalize(Normal);
 	return max(dot(norm, lightDir), 0.0);
@@ -89,12 +100,15 @@ void main() {
 	float sunAmt = smoothstep(0.0, 0.15, sin(dayPhase * pi));
 	float diffuseFactor = 0.2 * sunAmt;
 
+	float playerLight = calculatePlayerLight(FragPos);
 	float shadow = computeShadow(FragPos, norm, lightDir);
-	float shadowFactor = 1.0 - shadow;
+	// Fill sun shadows near the player, restoring their full contrast at 10 blocks.
+	float shadowFill = clamp(playerLight * 2.0, 0.0, 1.0);
+	float shadowFactor = 1.0 - shadow * (1.0 - shadowFill);
 
 	float totalLight = clamp(ambient * 0.6 +
 						   diffuse * 0.9 * diffuseFactor * shadowFactor +
-						   specular * 0.5 * shadowFactor + 0.1, 0.0, 1.0);
+						   specular * 0.5 * shadowFactor + 0.1, 0.0, 1.0) + playerLight;
 
 	vec3 result = totalLight * lightColor * texColor.rgb;
 	FragColor = vec4(result, texColor.a);
