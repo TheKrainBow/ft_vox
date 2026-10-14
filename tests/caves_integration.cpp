@@ -20,9 +20,10 @@ int main() {
 	CaveGenerator caves(42);
 	CaveWaterSettings drySettings;
 	drySettings.caveWaterFrequency = 0;
-	ChunkLoader dryLoader(42, camera, pool, chrono, &running, drawMutex, solids, transparent, drySettings);
-	size_t checked = 0, crossings = 0, waterVoxels = 0, wetChunks = 0;
-	std::set<std::tuple<int,int,int>> waterPositions;
+	LavaSettings noLava; noLava.caveFrequency=0; noLava.surfaceChance=0;
+	ChunkLoader dryLoader(42, camera, pool, chrono, &running, drawMutex, solids, transparent, drySettings,noLava);
+	size_t checked = 0, crossings = 0, waterVoxels = 0, wetChunks = 0, lavaVoxels = 0;
+	std::set<std::tuple<int,int,int>> waterPositions, lavaPositions;
 	auto start = std::chrono::steady_clock::now();
 	// Adjacent actual terrain columns, including negative chunk coordinates.
 	for (int cz = -4; cz <= 4; ++cz) for (int cx = -4; cx <= 4; ++cx) {
@@ -33,6 +34,15 @@ int main() {
 		chunk.loadBlocks(); // Production worker pool: height, then surface pass.
 		Chunk repeated(pos, map, caves, loader, pool, 1);
 		repeated.loadBlocks();
+		std::map<std::tuple<int,int,int>,char> surfacePlan;
+		auto heightAt=[&](int x,int z) { return int(terrain.getHeight({x,z})); };
+		auto baseGeometry=[&](CaveWaterPos p) {
+			int h=heightAt(p.x,p.z);
+			return p.y>h || caves.isAir(p.x,p.y,p.z,h) ? CaveWaterVoxel::Air : CaveWaterVoxel::Solid;
+		};
+		auto allowed=[&](int x,int z) { auto b=terrain.getBiome({x,z},heightAt(x,z)); return b==PLAINS || b==DESERT || b==MOUNTAINS; };
+		for (auto p:loader.getLavaGenerator().surface({cx*32,0,cz*32},{cx*32+32,640,cz*32+32},heightAt,baseGeometry,allowed))
+			surfacePlan[{p.position.x,p.position.y,p.position.z}]=p.block;
 		Chunk dry(pos, map, caves, dryLoader, pool, 1);
 		dry.loadBlocks();
 		for (int z = 0; z < 32; ++z) for (int x = 0; x < 32; ++x) {
@@ -48,6 +58,10 @@ int main() {
 					++waterVoxels;
 					waterPositions.emplace(cx*32+x,y,cz*32+z);
 					assert(y >= 12 && y < 180 && y < height-24);
+				} else if (block==LAVA) {
+					++lavaVoxels;
+					lavaPositions.emplace(cx*32+x,y,cz*32+z);
+					assert(y>=8 && y<180 && y<height-24);
 				} else assert(block == dryBlock);
 				assert(block == repeated.getSubChunk(y/32)->getBlock({x,y%32,z}));
 				++checked;
@@ -61,7 +75,9 @@ int main() {
 				auto* wetSub = chunk.getSubChunk(y/32);
 				auto* drySub = dry.getSubChunk(y/32);
 				assert(wetSub && drySub);
-				assert(wetSub->getBlock({x,y%32,z}) == drySub->getBlock({x,y%32,z}));
+				auto planned=surfacePlan.find({cx*32+x,y,cz*32+z});
+				char expected=planned==surfacePlan.end() ? drySub->getBlock({x,y%32,z}) : planned->second;
+				assert(wetSub->getBlock({x,y%32,z}) == expected);
 			}
 		}
 		wetChunks += waterVoxels > waterBefore;
@@ -94,6 +110,9 @@ int main() {
 		assert(drop >= 2 && drop <= 16);
 	}
 	assert(springs > 0);
+	assert(lavaVoxels>0);
+	for (auto [x,y,z]:lavaPositions) for (int dz=-2;dz<=2;++dz) for (int dy=-2;dy<=2;++dy) for (int dx=-2;dx<=2;++dx)
+		assert(!waterPositions.count({x+dx,y+dy,z+dz}));
 	// Exercise entrance preservation in the biome pass, including desert caps,
 	// using a broad but deterministic entrance mask to guarantee coverage.
 	CaveGenerationSettings settings;
@@ -120,7 +139,25 @@ int main() {
 		}
 	}
 	assert(openings > 0);
+	// Verify the rare surface planner also finds valid pools on actual terrain,
+	// rather than only on the flat synthetic fixture.
+	std::map<std::pair<int,int>,CaveGenerator::Column> surfaceColumns;
+	auto surfaceHeight=[&](int x,int z) {
+		auto key=std::make_pair(x,z);
+		auto it=surfaceColumns.find(key);
+		if (it==surfaceColumns.end()) it=surfaceColumns.emplace(key,caves.prepareColumn(x,z,int(terrain.getHeight({x,z})))).first;
+		return it->second.surfaceY;
+	};
+	auto surfaceGeometry=[&](CaveWaterPos p) {
+		int h=surfaceHeight(p.x,p.z);
+		return p.y>h || caves.classify(surfaceColumns.at({p.x,p.z}),p.y)!=CaveKind::Solid ? CaveWaterVoxel::Air : CaveWaterVoxel::Solid;
+	};
+	auto surfaceAllowed=[&](int x,int z) { auto b=terrain.getBiome({x,z},surfaceHeight(x,z)); return b==PLAINS || b==DESERT || b==MOUNTAINS; };
+	auto surfacePools=loader.getLavaGenerator().surface({-8192,0,-8192},{8192,640,8192},surfaceHeight,surfaceGeometry,surfaceAllowed);
+	size_t realSurfaceLava=0;
+	for (auto p:surfacePools) if (p.block==LAVA) ++realSurfaceLava;
+	assert(realSurfaceLava>0);
 	std::cout << "Production chunks: " << checked << " underground stone/air checks, "
-		<< waterVoxels << " cave water voxels in " << wetChunks << "/81 chunks, " << springs << " wall springs, " << crossings << " border crossings, " << openings << " preserved biome mouths; "
+		<< realSurfaceLava << " planned rare surface lava voxels, " << lavaVoxels << " cave lava voxels, " << waterVoxels << " cave water voxels in " << wetChunks << "/81 chunks, " << springs << " wall springs, " << crossings << " border crossings, " << openings << " preserved biome mouths; "
 		<< std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count() << " seconds\n";
 }

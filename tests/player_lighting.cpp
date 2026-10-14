@@ -4,6 +4,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <cmath>
+#include "LavaLighting.hpp"
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -128,6 +129,7 @@ void main() {
 	glBindVertexArray(vao);
 	glViewport(0, 0, 1, 1);
 
+	float lastPixel[4]{};
 	auto render = [&](float distance, bool enabled, bool shadowed, float shadowDepth = -1.0f) {
 		glUniform3f(loc("playerLightPos"), distance, 0, 0);
 		glUniform1i(loc("playerLightEnabled"), enabled);
@@ -136,10 +138,9 @@ void main() {
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, 1, 1, 0,
 			GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
-		float pixel[4];
-		glReadPixels(0, 0, 1, 1, GL_RGBA, GL_FLOAT, pixel);
+		glReadPixels(0, 0, 1, 1, GL_RGBA, GL_FLOAT, lastPixel);
 		require(glGetError() == GL_NO_ERROR, "OpenGL render error");
-		return pixel[0];
+		return lastPixel[0];
 	};
 	const float sun = render(0, false, false);
 	const float dark = render(0, false, true);
@@ -189,7 +190,31 @@ void main() {
 	for (bool shadowed : {false,true})
 		require(std::abs(render(12,false,shadowed)-0.2f)<0.0001f,
 			"Full lighting must reveal terrain regardless of sun or occlusion");
-	std::cout << "Player lighting, dark caves/night and full lighting GPU regressions passed\n";
+	glUniform1i(loc("fullBright"),false);
+	GLuint lavaBuffers[2];
+	glGenBuffers(2,lavaBuffers);
+	auto lavaLights=[&](const std::vector<LavaEmitter>& emitters) {
+		auto grid=buildLavaLightGrid(emitters);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER,lavaBuffers[0]);
+		glBufferData(GL_SHADER_STORAGE_BUFFER,grid.cells.size()*sizeof(LavaLightCell),grid.cells.data(),GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER,13,lavaBuffers[0]);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER,lavaBuffers[1]);
+		glBufferData(GL_SHADER_STORAGE_BUFFER,grid.emitters.size()*sizeof(LavaEmitter),grid.emitters.data(),GL_STATIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER,14,lavaBuffers[1]);
+		glUniform1i(loc("lavaLightMask"),grid.mask);
+	};
+	lavaLights({{1,0,0,0}});
+	const float lavaLit=render(12,false,true);
+	require(lavaLit > dark+0.1f && lastPixel[0] > lastPixel[1]*2 && lastPixel[1]>lastPixel[2],
+		"An exposed lava face must cast orange light on dark cave terrain");
+	lavaLights({{4.1f,0,0,0}});
+	require(std::abs(render(12,false,true)-dark)<0.0001f,
+		"Lava face emission must stop beyond four world blocks");
+	lavaLights({});
+	require(std::abs(render(12,false,true)-dark)<0.0001f,
+		"Removing the last lava face must remove its light");
+	glDeleteBuffers(2,lavaBuffers);
+	std::cout << "Player/sun/moon lighting and four-block lava emission GPU regressions passed\n";
 	glDeleteVertexArrays(1, &vao);
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteTextures(1, &output);

@@ -59,6 +59,40 @@ void SubChunk::loadHeight(int prevResolution)
 			}
 		}
 	}
+	_surfaceLavaColumns.fill(false);
+	// Stamp rare surface features before biome caps/decorations, which skip
+	// their reserved columns. Sampling never depends on loaded neighbors.
+	std::unique_ptr<NoiseGenerator> terrain;
+	std::map<std::pair<int,int>,CaveGenerator::Column> columns;
+	auto height = [&](int x,int z) {
+		auto key=std::make_pair(x,z);
+		auto it=columns.find(key);
+		if (it==columns.end()) {
+			if (!terrain) terrain=std::make_unique<NoiseGenerator>(_chunkLoader.getCaveWaterGenerator().seed());
+			it=columns.emplace(key,_caveGen.prepareColumn(x,z,int(terrain->getHeight({x,z})))).first;
+		}
+		return it->second.surfaceY;
+	};
+	auto geometry = [&](CaveWaterPos p) {
+		int surface=height(p.x,p.z);
+		if (p.y<=0) return CaveWaterVoxel::Protected;
+		if (p.y>surface) return CaveWaterVoxel::Air;
+		return _caveGen.classify(columns.at({p.x,p.z}),p.y)==CaveKind::Solid ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
+	};
+	auto allowed = [&](int x,int z) {
+		int surface=height(x,z);
+		Biome biome=terrain->getBiome({x,z},surface);
+		return biome==PLAINS || biome==DESERT || biome==MOUNTAINS;
+	};
+	CaveWaterPos origin{_position.x*32,_position.y*32,_position.z*32};
+	for (auto placement:_chunkLoader.getLavaGenerator().surface(origin,{origin.x+32,origin.y+32,origin.z+32},height,geometry,allowed)) {
+		auto p=placement.position;
+		int x=p.x-origin.x,z=p.z-origin.z;
+		_surfaceLavaColumns[z*32+x]=true;
+		if (p.y>=origin.y && p.y<origin.y+32 && x%_resolution==0 && z%_resolution==0 && (p.y-origin.y)%_resolution==0)
+			setBlockLocal(x,p.y-origin.y,z,placement.block);
+	}
+
 }
 
 void SubChunk::loadOcean(int x, int z, size_t ground, size_t adjustOceanHeight)
@@ -584,6 +618,7 @@ void SubChunk::loadBiome(int prevResolution)
 	{
 		for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 		{
+			if (_surfaceLavaColumns[z*CHUNK_SIZE+x]) continue;
 			Biome biome = (*_biomeMap)[z * CHUNK_SIZE + x];
 			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
 			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
@@ -630,7 +665,9 @@ void SubChunk::loadBiome(int prevResolution)
 		const auto& water = _chunkLoader.getCaveWaterGenerator();
 		const auto& settings = water.settings();
 		CaveWaterPos origin{_position.x*CHUNK_SIZE, _position.y*CHUNK_SIZE, _position.z*CHUNK_SIZE};
-		if (origin.y < settings.caveWaterMaxY && origin.y+CHUNK_SIZE > settings.caveWaterMinY) {
+		const auto& lavaSettings=_chunkLoader.getLavaGenerator().settings();
+		if (origin.y < std::max(settings.caveWaterMaxY,lavaSettings.caveMaxY) &&
+			origin.y+CHUNK_SIZE > std::min(settings.caveWaterMinY,lavaSettings.caveMinY)) {
 			// getHeight changes its noise settings. Use a private sampler rather than
 			// racing the loader's terrain sampler on generation workers.
 			std::unique_ptr<NoiseGenerator> terrain;
@@ -663,6 +700,12 @@ void SubChunk::loadBiome(int prevResolution)
 				char block = getBlock({x,y,z});
 				if (block == AIR || block == STONE) setBlockLocal(x,y,z,WATER);
 			}
+			for (auto p : _chunkLoader.getLavaGenerator().caves(origin,{origin.x+32,origin.y+32,origin.z+32},sample,water)) {
+				int x=p.x-origin.x,y=p.y-origin.y,z=p.z-origin.z;
+				char block=getBlock({x,y,z});
+				if (block==AIR || block==STONE) setBlockLocal(x,y,z,LAVA);
+			}
+
 		}
 	}
 	_isFullyLoaded = true;
@@ -881,10 +924,10 @@ void SubChunk::addNorthFace(BlockType current, ivec3 position, TextureType textu
 	}
 	auto chunk = _chunk.getNorthChunk();      // neighbor chunk
 	// Unknown water boundaries are closed until the neighboring terrain arrives.
-	if (!chunk) { if (!isWater(current)) addFace(position, NORTH, texture, isTransparent); return; }
+	if (!chunk) { if (!isLiquid(current)) addFace(position, NORTH, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, NORTH, texture, isTransparent); return; }
+	if (!subChunk) { if (isLiquid(current) && chunk->hasBlockData()) addFace(position, NORTH, texture, isTransparent); return; }
 	if (!subChunk->isNeighborTransparent(ivec3(position.x, position.y, CHUNK_SIZE - subChunk->_resolution), NORTH, current, _resolution))
 		return;
 
@@ -899,10 +942,10 @@ void SubChunk::addSouthFace(BlockType current, ivec3 position, TextureType textu
 		return;
 	}
 	auto chunk = _chunk.getSouthChunk();
-	if (!chunk) { if (!isWater(current)) addFace(position, SOUTH, texture, isTransparent); return; }
+	if (!chunk) { if (!isLiquid(current)) addFace(position, SOUTH, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, SOUTH, texture, isTransparent); return; }
+	if (!subChunk) { if (isLiquid(current) && chunk->hasBlockData()) addFace(position, SOUTH, texture, isTransparent); return; }
 	if (!subChunk->isNeighborTransparent(ivec3(position.x, position.y, 0), SOUTH, current, _resolution))
 		return;
 
@@ -917,10 +960,10 @@ void SubChunk::addWestFace(BlockType current, ivec3 position, TextureType textur
 		return;
 	}
 	auto chunk = _chunk.getWestChunk();
-	if (!chunk) { if (!isWater(current)) addFace(position, WEST, texture, isTransparent); return; }
+	if (!chunk) { if (!isLiquid(current)) addFace(position, WEST, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, WEST, texture, isTransparent); return; }
+	if (!subChunk) { if (isLiquid(current) && chunk->hasBlockData()) addFace(position, WEST, texture, isTransparent); return; }
 	if (!subChunk->isNeighborTransparent(ivec3(CHUNK_SIZE - subChunk->_resolution, position.y, position.z), WEST, current, _resolution))
 		return;
 
@@ -935,10 +978,10 @@ void SubChunk::addEastFace(BlockType current, ivec3 position, TextureType textur
 		return;
 	}
 	auto chunk = _chunk.getEastChunk();
-	if (!chunk) { if (!isWater(current)) addFace(position, EAST, texture, isTransparent); return; }
+	if (!chunk) { if (!isLiquid(current)) addFace(position, EAST, texture, isTransparent); return; }
 
 	SubChunk* subChunk = chunk->getSubChunk(_position.y);
-	if (!subChunk) { if (isWater(current) && chunk->hasBlockData()) addFace(position, EAST, texture, isTransparent); return; }
+	if (!subChunk) { if (isLiquid(current) && chunk->hasBlockData()) addFace(position, EAST, texture, isTransparent); return; }
 	if (!subChunk->isNeighborTransparent(ivec3(0, position.y, position.z), EAST, current, _resolution))
 		return;
 
@@ -1047,6 +1090,9 @@ void SubChunk::sendFacesToDisplay()
 						break;
 					case SAND:
 						addBlock(SAND, ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
+						break;
+					case LAVA:
+						addBlock(LAVA,ivec3(x,y,z),T_LAVA,T_LAVA,T_LAVA,T_LAVA,T_LAVA,T_LAVA,true);
 						break;
 					case WATER_FLOW_1: case WATER_FLOW_2: case WATER_FLOW_3:
 					case WATER_FLOW_4: case WATER_FLOW_5: case WATER_FLOW_6: case WATER_FLOW_7:

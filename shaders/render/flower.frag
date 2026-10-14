@@ -93,6 +93,39 @@ float computeShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 	return samples / 9.0;
 }
 
+// Sparse world-space light field rebuilt when lava geometry changes. Entries
+// point to exposed face centers; falloff is evaluated at the actual fragment.
+layout(std430,binding=13) readonly buffer LavaLightCells { ivec4 lavaCells[]; };
+layout(std430,binding=14) readonly buffer LavaLightEmitters { vec4 lavaFaces[]; };
+uniform int lavaLightMask;
+uint lavaHash(ivec3 p) {
+	uint h=uint(p.x)*73856093u ^ uint(p.y)*19349663u ^ uint(p.z)*83492791u;
+	h^=h>>16; h*=0x7feb352du; h^=h>>15;
+	return h;
+}
+int lavaEmitterAt(ivec3 p) {
+	uint index=lavaHash(p)&uint(lavaLightMask);
+	for (int probe=0;probe<16;++probe) {
+		ivec4 cell=lavaCells[index];
+		if (cell.w==0) return -1;
+		if (all(equal(cell.xyz,p))) return cell.w-1;
+		index=(index+1u)&uint(lavaLightMask);
+	}
+	return -1;
+}
+vec3 lavaRadiance(vec3 worldPos) {
+	if (lavaLightMask<=0) return vec3(0.0);
+	ivec3 base=ivec3(floor(worldPos-vec3(0.5)));
+	float light=0.0;
+	for (int z=0;z<2;++z) for (int y=0;y<2;++y) for (int x=0;x<2;++x) {
+		int emitter=lavaEmitterAt(base+ivec3(x,y,z));
+		if (emitter<0) continue;
+		float d=distance(worldPos,lavaFaces[emitter].xyz);
+		light=max(light,0.85*(1.0-smoothstep(0.0,4.0,d)));
+	}
+	return vec3(1.0,0.28,0.04)*light;
+}
+
 void main() {
 	vec4 col = texture(flowerTex, vec3(vUV, float(vType)));
 	// Harden alpha cutout a bit to eliminate fringe pixels from semi-transparent sources
@@ -130,6 +163,6 @@ void main() {
 	float total = fullBright ? 1.0 : clamp(0.015 + surfaceFill + visibility * (skyFill + diffuse * 0.9),0.0,1.0) + calculatePlayerLight(vWorldPos);
 
 	float ao = mix(0.9, 1.0, vHeightMask);
-	vec3 rgb = col.rgb * ao * lightColor * total;
+	vec3 rgb = col.rgb * ao * (lightColor * total + lavaRadiance(vWorldPos));
 	FragColor = vec4(rgb, 1.0);
 }

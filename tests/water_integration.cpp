@@ -35,11 +35,60 @@ struct WaterIntegrationTest {
         camera.setPos({2.5f,-32.6f,2.5f});
         player.updateWaterImmersion();
         assert(!player.isUnderWater());
+        for (int z=-3; z<=-1; ++z) for (int x=-3; x<=-1; ++x)
+        for (int y=31;y<=32;++y) assert(loader.setBlock({-1,-1},{x,y,z},LAVA,true));
+        camera.setPos({2.5f,-32.65f,2.5f});
+        player.updateWaterImmersion();
+        assert(player.isUnderLava() && !player.isUnderWater());
+        gravity=true;
+        player.setGravity(gravity);
+        float dt=0.01f;
+        player.updateDeltaTime(dt);
+        player.updatePlayerStates();
+        assert(player._swimming && player._swimmingInLava);
+        player.findMoveRotationSpeed();
+        assert(std::abs(player._moveSpeed-MOVEMENT_SPEED*player._deltaTime*0.25f)<0.00001f);
+        // Exercise the real vertical integration with the same swim velocity.
+        auto vertical=[&](bool lava) {
+            camera.setPos({2.5f,-32.65f,2.5f});
+            player._fallSpeed=0.5f; player._falling=true; player._swimming=true; player._swimmingInLava=lava;
+            player.updateDeltaTime(dt);
+            auto pos=camera.getWorldPosition();
+            int floor=30;
+            player.updateFalling(pos,floor);
+            return camera.getWorldPosition().y-pos.y;
+        };
+        assert(std::abs(vertical(true)*2-vertical(false))<0.00001f);
+        gravity=false; player.setGravity(gravity);
+        player.updatePlayerStates();
+        assert(!player._swimming && player.isUnderLava());
+        player.findMoveRotationSpeed();
+        assert(std::abs(player._moveSpeed-MOVEMENT_SPEED*player._deltaTime)<0.00001f);
+        camera.setPos({2.5f,-34,2.5f});
+        player.updateWaterImmersion();
+        assert(!player.isUnderLava() && !player.isUnderWater());
     }
     static Chunk* load(ChunkLoader& loader, glm::ivec2 p) {
         return loader.loadChunk(0,0,0,p,1);
     }
     static void tick(ChunkLoader& loader) { loader.stepWater(); }
+    static void busyGeneration(ChunkLoader& loader) {
+        std::promise<void> locked, release;
+        auto released=release.get_future();
+        std::thread generation([&] {
+            std::lock_guard<std::recursive_mutex> lock(loader._blockEditMutex);
+            locked.set_value();
+            released.wait();
+        });
+        locked.get_future().wait();
+        size_t pending=loader.pendingWaterUpdates();
+        // Must return without advancing/removing events while generation owns
+        // the lock. This thread releases it only after the frame tick returns.
+        loader.updateWaterTick();
+        assert(loader.pendingWaterUpdates()==pending);
+        release.set_value();
+        generation.join();
+    }
     static void settle(ChunkLoader& loader) {
         int limit = 5000;
         while (loader.pendingWaterUpdates() && limit-- > 0) tick(loader);
@@ -58,6 +107,7 @@ struct WaterIntegrationTest {
         for (int x = 0; x <= 16; ++x) for (int z = 3; z <= 29; ++z)
             set(x,1023,z,STONE);
         set(0,1024,16,WATER);
+        busyGeneration(loader);
         settle(loader);
         assert(!loader._waterWaiting.empty());
         assert(read(1,1024,16) == AIR);
@@ -72,6 +122,19 @@ struct WaterIntegrationTest {
         }
         assert(loader.getChunk({0,0})->getModified());
         assert(loader.getChunk({-1,0})->getModified());
+        // Lava lighting tracks faces and responds to source/neighbor edits.
+        size_t baseEmitters=loader.lavaEmitters().size();
+        for (int z=14;z<=18;++z) for (int x=6;x<=10;++x) set(x,1087,z,STONE);
+        set(8,1088,16,AIR);
+        uint64_t revision=loader.lavaLightRevision();
+        set(8,1088,16,LAVA);
+        assert(loader.lavaLightRevision()>revision);
+        assert(loader.lavaEmitters().size()==baseEmitters+5);
+        revision=loader.lavaLightRevision();
+        set(9,1088,16,STONE);
+        assert(loader.lavaLightRevision()>revision && loader.lavaEmitters().size()==baseEmitters+4);
+        set(8,1088,16,AIR);
+        assert(loader.lavaEmitters().size()==baseEmitters);
         // Horizontal diagonal dependencies dirty both columns at the seam.
         assert(loader._dirtyChunks.count({0,0}) && loader._dirtyChunks.count({-1,0}));
         set(0,1024,16,AIR);

@@ -16,6 +16,8 @@
 #include "SubChunk.hpp"
 #include "CaveGenerator.hpp"
 #include "CaveWaterGenerator.hpp"
+#include "LavaGenerator.hpp"
+#include "LavaLighting.hpp"
 #include "Chunk.hpp"
 #include "Camera.hpp"
 #include "Chrono.hpp"
@@ -32,6 +34,8 @@ class ChunkLoader
 	friend struct WaterIntegrationTest;
 	friend struct SpawnFloraTest;
 private:
+	std::set<WaterPos> _lavaBlocks;
+	std::atomic_uint64_t _lavaLightRevision{1};
 	std::recursive_mutex _blockEditMutex; // Serialize simulation with edits and eviction.
 	std::mutex _waterMutex;
 	WaterUpdateQueue _waterQueue;
@@ -39,7 +43,7 @@ private:
 	bool _waterSourceConversion = true;
 	void waterChunkLoaded(Chunk& chunk);
 	void queueWater(const glm::ivec3& p);
-	void stepWater();
+	void stepWater(bool deferWhenBusy = false);
 
 	// Modification queue for blocks breaking
 	struct PendingBlock {
@@ -100,6 +104,7 @@ private:
 	NoiseGenerator	_perlinGenerator;
 	CaveGenerator	_caveGen;
 	CaveWaterGenerator _caveWaterGen;
+	LavaGenerator _lavaGen;
 
 	// Chunks edit tracking
 	std::unordered_set<ivec2, ivec2_hash> _dirtyChunks;
@@ -163,7 +168,8 @@ public:
 		std::mutex &sharedDrawDataMutex,
 		std::queue<DisplayData *>	&solidStagedDataQueue,
 		std::queue<DisplayData *>	&transparentStagedDataQueue,
-		CaveWaterSettings caveWaterSettings = {}
+		CaveWaterSettings caveWaterSettings = {},
+		LavaSettings lavaSettings = {}
 	);
 	~ChunkLoader();
 
@@ -193,6 +199,9 @@ public:
 	bool			getIsRunning();
 	NoiseGenerator &getNoiseGenerator();
 	const CaveWaterGenerator& getCaveWaterGenerator() const { return _caveWaterGen; }
+	const LavaGenerator& getLavaGenerator() const { return _lavaGen; }
+	uint64_t lavaLightRevision() const { return _lavaLightRevision.load(); }
+	std::vector<LavaEmitter> lavaEmitters();
 	void			getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
 	bool			hasRenderableChunks();
 

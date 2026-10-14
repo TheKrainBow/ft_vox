@@ -1,11 +1,15 @@
 #pragma once
-#include "Water.hpp"
+#include "Lava.hpp"
 #include <algorithm>
 #include <cmath>
 
 constexpr float SWIM_HORIZONTAL_CURRENT_SPEED = 0.45f;
 constexpr float SWIM_FALLING_CURRENT_SPEED = 1.5f;
 constexpr float SWIM_UPSTREAM_RESISTANCE = 0.25f;
+
+inline float swimmingMoveScale(bool gravity,bool swimming,bool lava) {
+    return gravity && swimming ? 0.5f*(lava ? LAVA_SWIM_SPEED_FACTOR : 1.0f) : 1.0f;
+}
 
 // Preserve the old source-water exit height, shifted with the visible waterline.
 inline bool swimmingSurfaceContact(float feetY, float surfaceY) {

@@ -14,6 +14,7 @@ class ChunkLoader;
 
 class SubChunk
 {
+	std::array<bool,CHUNK_SIZE*CHUNK_SIZE> _surfaceLavaColumns{};
 	public:
 		typedef struct s_Face
 		{

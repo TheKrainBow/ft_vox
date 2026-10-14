@@ -61,6 +61,7 @@ out vec2 TexCoord;
 out vec2 texCoords;
 out vec2 UV;
 uniform vec2 celestialUV;
+uniform int testTextureID;
 flat out int TextureID;
 out vec3 Normal;
 out vec3 FragPos;
@@ -69,7 +70,7 @@ void main() {
     gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
     TexCoord = texCoords = vec2(0.5);
     UV = celestialUV;
-    TextureID = 6;
+    TextureID = testTextureID;
     Normal = vec3(0, 1, 0);
     FragPos = vec3(0);
 })GLSL";
@@ -140,6 +141,7 @@ void main() {
 		active = program;
 		glUseProgram(active);
 		glUniform2f(loc("celestialUV"),0.5f,0.5f);
+		glUniform1i(loc("testTextureID"),6);
 		glUniform1i(loc("screenTexture"),0);
 		glUniform1i(loc("depthTexture"),1);
 		glUniform1i(loc("normalMap"),2);
@@ -164,6 +166,7 @@ void main() {
 		glUniform1f(loc("waterHeight"),0.8f);
 		glUniform1f(loc("renderDistance"),20);
 	}
+	float lastPixel[4]{};
 	auto render = [&](GLuint program, bool shadowed, bool player, bool submerged) {
 		active = program;
 		glUseProgram(active);
@@ -173,10 +176,9 @@ void main() {
 		float depth = shadowed ? 0 : 1;
 		glTexImage2D(GL_TEXTURE_2D,0,GL_DEPTH_COMPONENT32F,1,1,0,GL_DEPTH_COMPONENT,GL_FLOAT,&depth);
 		glDrawArrays(GL_TRIANGLES,0,3);
-		float pixel[4];
-		glReadPixels(0,0,1,1,GL_RGBA,GL_FLOAT,pixel);
+		glReadPixels(0,0,1,1,GL_RGBA,GL_FLOAT,lastPixel);
 		require(glGetError()==GL_NO_ERROR,"GPU render error");
-		return pixel[1];
+		return lastPixel[1];
 	};
 	for (bool submerged : {false,true}) {
 		float sun = render(water,false,false,submerged);
@@ -261,7 +263,29 @@ void main() {
 	const float zenith = render(skyGradient,false,false,false);
 	require(std::abs(horizon-0.4f)<0.001f && std::abs(zenith-0.1f)<0.001f,
 		"Sky gradient must follow world elevation as the camera turns");
-	std::cout << "Celestial halos, sunset sky gradient, water/fog and underwater filter GPU regressions passed\n";
+	glUseProgram(water);
+	glUniform1i(glGetUniformLocation(water,"testTextureID"),15);
+	glUniform1i(glGetUniformLocation(water,"fullBright"),false);
+	glUniform3f(glGetUniformLocation(water,"viewPos"),0,0.1f,0.2f);
+	const float lavaNear=render(water,true,false,false);
+	require(lastPixel[0]>0.95f && lavaNear>0.25f && lastPixel[2]<0.05f && std::abs(lastPixel[3]-0.98f)<0.001f,
+		"Near lava must be orange, self-lit and retain only ten percent of water transparency");
+	glUseProgram(water);
+	glUniform3f(glGetUniformLocation(water,"viewPos"),0,0,60);
+	const float lavaFar=render(water,true,false,false);
+	require(lavaFar<lavaNear-0.20f && lastPixel[0]>0.4f && lastPixel[0]<0.6f && std::abs(lastPixel[3]-0.99f)<0.001f,
+		"Lava must fade toward red with distance while staying almost opaque");
+	glUseProgram(fog);
+	glUniform1i(glGetUniformLocation(fog,"isInLava"),true);
+	render(fog,true,false,false);
+	require(lastPixel[0]>0.55f && lastPixel[0]>lastPixel[1]*6 && lastPixel[2]<0.02f,
+		"Eye immersion in lava must produce dense orange/red fog even without water immersion");
+	glUseProgram(filter);
+	glUniform1i(glGetUniformLocation(filter,"isInLava"),true);
+	render(filter,true,false,false);
+	require(lastPixel[0]>0.50f && lastPixel[1]<0.08f && lastPixel[2]<0.02f,
+		"The final lava immersion filter must remain very opaque after sky/sun compositing");
+	std::cout << "Lava appearance/opacity/fog, celestial halos, sky and water GPU regressions passed\n";
 	glDeleteVertexArrays(1,&vao);
 	glDeleteFramebuffers(1,&fbo);
 	glDeleteTextures(7,textures);

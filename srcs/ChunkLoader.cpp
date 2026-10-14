@@ -18,7 +18,8 @@ ChunkLoader::ChunkLoader(
 	std::mutex &sharedDrawDataMutex,
 	std::queue<DisplayData *>	&solidStagedDataQueue,
 	std::queue<DisplayData *>	&transparentStagedDataQueue,
-	CaveWaterSettings caveWaterSettings
+	CaveWaterSettings caveWaterSettings,
+	LavaSettings lavaSettings
 )
 :
 _sharedDrawDataMutex(sharedDrawDataMutex),
@@ -30,6 +31,7 @@ _isRunning(isRunning),
 _perlinGenerator(seed),
 _caveGen(seed),
 _caveWaterGen(seed, caveWaterSettings),
+_lavaGen(seed, lavaSettings),
 _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue)
 {
@@ -666,6 +668,13 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool
 	if (previous == value) return true;
 	// Write directly with localized coordinates to avoid re-dispatch loops
 	sc->setBlockLocal(lx, ly, lz, value);
+	WaterPos lavaPos{worldPos.x,worldPos.y,worldPos.z};
+	bool lightingChanged=isLava(previous) || isLava(value);
+	if (isLava(value)) _lavaBlocks.insert(lavaPos); else _lavaBlocks.erase(lavaPos);
+	for (auto d:{WaterPos{1,0,0},WaterPos{-1,0,0},WaterPos{0,1,0},WaterPos{0,-1,0},WaterPos{0,0,1},WaterPos{0,0,-1}})
+		lightingChanged=lightingChanged || _lavaBlocks.count({worldPos.x+d[0],worldPos.y+d[1],worldPos.z+d[2]});
+	if (lightingChanged) ++_lavaLightRevision;
+
 
 	// Only player actions count as modifications for eviction protection UI
 	if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
@@ -916,6 +925,11 @@ bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
 			--_chunksCount;
 		}
 	}
+	for (auto it=_lavaBlocks.begin();it!=_lavaBlocks.end();) {
+		if (floor_div((*it)[0],CHUNK_SIZE)==candidate.x && floor_div((*it)[2],CHUNK_SIZE)==candidate.y) it=_lavaBlocks.erase(it);
+		else ++it;
+	}
+	++_lavaLightRevision;
 	ivec2 chunkPos = chunk->getPosition();
 	_perlinGenerator.removePerlinMap(chunkPos.x, chunkPos.y);
 	chunk->freeSubChunks();
@@ -1033,6 +1047,11 @@ void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
     std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
     if (chunk.getResolution() != 1 || !chunk.hasBlockData()) return;
     auto cp = chunk.getPosition();
+    for (auto it=_lavaBlocks.begin();it!=_lavaBlocks.end();) {
+        if (floor_div((*it)[0],CHUNK_SIZE)==cp.x && floor_div((*it)[2],CHUNK_SIZE)==cp.y) it=_lavaBlocks.erase(it);
+        else ++it;
+    }
+    ++_lavaLightRevision;
     {
         std::lock_guard<std::mutex> lock(_waterMutex);
         auto it = _waterWaiting.find({cp.x,cp.y});
@@ -1052,6 +1071,7 @@ void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
         for (int z = 0; z < CHUNK_SIZE; ++z)
         for (int x = 0; x < CHUNK_SIZE; ++x) {
             char b = sc->getBlock({x,y,z});
+            if (isLava(b)) _lavaBlocks.insert({cp.x*32+x,sy*32+y,cp.y*32+z});
             if (!isWater(b)) continue;
             glm::ivec3 p(cp.x*CHUNK_SIZE+x, sy*CHUNK_SIZE+y, cp.y*CHUNK_SIZE+z);
             bool active = b != WATER || x == 0 || z == 0 ||
@@ -1075,8 +1095,14 @@ void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
         for (int dz = -1; dz <= 1; ++dz) markChunkDirty({cp.x+dx,cp.y+dz});
 }
 
-void ChunkLoader::stepWater() {
-    std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
+void ChunkLoader::stepWater(bool deferWhenBusy) {
+    std::unique_lock<std::recursive_mutex> editLock(_blockEditMutex, std::defer_lock);
+    // Refinement/initialization may hold this lock for a whole chunk build.
+    // Leave the queue intact and retry on the next game tick instead of
+    // making the renderer wait for generation or lighting collection.
+    if (deferWhenBusy) {
+        if (!editLock.try_lock()) return;
+    } else editLock.lock();
     std::vector<WaterPos> batch;
     {
         std::lock_guard<std::mutex> lock(_waterMutex);
@@ -1130,7 +1156,7 @@ size_t ChunkLoader::pendingWaterUpdates() {
 // Simulation must run even when a display snapshot is waiting for the renderer.
 // The game's fixed-step accumulator calls this once for every elapsed tick.
 void ChunkLoader::updateWaterTick() {
-    stepWater();
+    stepWater(true);
     bool dirty;
     {
         std::lock_guard<std::mutex> lock(_dirtyMutex);
@@ -1151,10 +1177,33 @@ void ChunkLoader::waterDebugSlice(glm::ivec3 center, std::array<std::string,17>&
             glm::ivec2 cp(floor_div(p.x,CHUNK_SIZE),floor_div(p.z,CHUNK_SIZE));
             auto c = getChunk(cp);
             char b = c && c->hasBlockData() && c->getResolution() == 1 ? getBlock(cp,p) : WATER_UNKNOWN;
-            std::string label = b == WATER ? "S" : b == WATER_FALLING ? "F8" :
+            std::string label = isLava(b) ? "L" : b == WATER ? "S" : b == WATER_FALLING ? "F8" :
                 isWater(b) ? std::to_string(waterAmount(b)) : b == WATER_UNKNOWN ? "?" :
                 waterReplaceable(b) ? "." : "#";
             row += label + std::string(3-label.size(),' ');
         }
     }
+}
+
+std::vector<LavaEmitter> ChunkLoader::lavaEmitters() {
+    std::lock_guard<std::recursive_mutex> lock(_blockEditMutex);
+    std::vector<LavaEmitter> emitters;
+    auto read=[&](WaterPos p) {
+        ivec2 cp{floor_div(p[0],32),floor_div(p[2],32)};
+        auto* chunk=getChunk(cp);
+        if (!chunk || !chunk->hasBlockData() || chunk->getResolution()!=1) return char(WATER_UNKNOWN);
+        return getBlock(cp,{p[0],p[1],p[2]});
+    };
+    for (auto p:_lavaBlocks) {
+        if (!isLava(read(p))) continue;
+        float height=isLava(read({p[0],p[1]+1,p[2]})) ? 1.0f : 13.0f/15.0f;
+        for (auto d:{WaterPos{1,0,0},WaterPos{-1,0,0},WaterPos{0,1,0},WaterPos{0,-1,0},WaterPos{0,0,1},WaterPos{0,0,-1}}) {
+            char adjacent=read({p[0]+d[0],p[1]+d[1],p[2]+d[2]});
+            if (adjacent==WATER_UNKNOWN || isLava(adjacent)) continue;
+            Direction direction=d[1]==1 ? UP : d[1]==-1 ? DOWN : NORTH;
+            bool exposed=faceDisplayCondition(LAVA,adjacent,direction);
+            if (exposed) emitters.push_back({p[0]+0.5f+d[0]*0.5f,p[1]+(d[1]==1 ? height : d[1]==-1 ? 0.0f : height*0.5f),p[2]+0.5f+d[2]*0.5f,0});
+        }
+    }
+    return emitters;
 }

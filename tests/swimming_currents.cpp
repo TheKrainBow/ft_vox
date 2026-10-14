@@ -4,6 +4,9 @@
 #include <iostream>
 
 int main() {
+    assert(swimmingMoveScale(true,true,true)==swimmingMoveScale(true,true,false)*0.5f);
+    assert(swimmingMoveScale(false,true,true)==1.0f);
+    assert(swimmingMoveScale(true,false,true)==1.0f);
     // Local immersion depth follows contiguous water, at any world elevation,
     // and stops at cave roofs, air gaps or unloaded terrain.
     for (char cap : {char(AIR), char(STONE), char(WATER_UNKNOWN)}) {

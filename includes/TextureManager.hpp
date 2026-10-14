@@ -24,6 +24,8 @@ enum TextureType {
 	T_CACTUS_TOP,
 	// Mesh-only water variant; shaders sample T_WATER (no extra atlas layer).
 	T_WATER_FULL = 14,
+	T_LAVA = 15,
+	T_LAVA_FULL = 16,
 };
 
 # define N_TEXTURES 14

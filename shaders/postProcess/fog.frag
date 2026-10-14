@@ -7,6 +7,7 @@ uniform sampler2D screenTexture;
 uniform sampler2D depthTexture;
 uniform float renderDistance;
 uniform int isUnderwater;
+uniform bool isInLava;
 uniform float nearPlane;
 uniform float farPlane;
 uniform vec3 viewPos;
@@ -66,6 +67,12 @@ void main() {
 	// Use uniforms for linearization
 	float linearDepth = linearizeDepth(currentDepth);
 
+	if (isInLava) {
+		float fog=1.0-0.08*exp(-1.2*min(linearDepth,30.0));
+		vec3 lavaTint=vec3(0.62,0.07,0.008);
+		FragColor=vec4(mix(sceneSRGB*vec3(0.8,0.18,0.025),lavaTint,fog),1.0);
+		return;
+	}
 	if (isUnderwater == 1) {
 		float depthMeters = max(0.0, waterHeight - viewPos.y);
 		float depthUnder  = smoothstep(UW_MIN_TINT_DEPTH, UW_MAX_TINT_DEPTH, depthMeters);

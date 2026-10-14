@@ -5,7 +5,7 @@ Raycaster::~Raycaster() { }
 
 static inline bool isSolidDeletable(BlockType b) {
 	// Flowers are deletable but non-solid in physics; still considered here
-	return (b != AIR && !isWater(b) && b != BEDROCK);
+	return (b != AIR && !isLiquid(b) && b != BEDROCK);
 }
 
 // Billboarded, non-solid plants rendered via the flower pipeline
@@ -173,7 +173,7 @@ BlockType Raycaster::raycastHitFetch(const glm::vec3& originWorld,
 			(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
 		);
 		BlockType b = _chunkLoader.getBlock(chunkPos, voxel);
-		if (isSolidDeletable(b) || (includeWaterSources && b == WATER)) {
+		if (isSolidDeletable(b) || (includeWaterSources && (b == WATER || isLava(b)))) {
 			outBlock = voxel;
 			return b;
 		}
@@ -522,7 +522,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
 				BlockType support = _chunkLoader.getBlock(belowChunk, below);
 				if (!flowerPlaceCondition(support, block)) return false;
 			} else {
-				if (!(current == AIR || isWater(current))) return false;
+				if (!(current == AIR || isLiquid(current))) return false;
 			}
 
 			bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);

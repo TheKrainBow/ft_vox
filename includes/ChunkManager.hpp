@@ -108,6 +108,8 @@ public:
 	// Draw data swapper
 	void updateDrawData();
 	void updateWaterTick();
+	uint64_t lavaLightRevision() const { return _chunkLoader.lavaLightRevision(); }
+	std::vector<LavaEmitter> lavaEmitters() { return _chunkLoader.lavaEmitters(); }
 	void waterDebugSlice(glm::ivec3 p, std::array<std::string,17>& rows) { _chunkLoader.waterDebugSlice(p,rows); }
 
 	// Mesh rendering methods

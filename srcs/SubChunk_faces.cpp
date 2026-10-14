@@ -351,6 +351,12 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 	// newFace.size = ivec2(1, 1);
 	newFace.direction = dir;
 	newFace.texture = texture;
+	if (texture == T_LAVA) {
+		bool covered=false;
+		if (position.y+_resolution<CHUNK_SIZE) covered=isLava(getBlock(position+ivec3(0,_resolution,0)));
+		else if (auto* upper=_chunk.getSubChunk(_position.y+1)) covered=isLava(upper->getBlock({position.x,0,position.z}));
+		if (dir==DOWN || covered) newFace.texture=T_LAVA_FULL;
+	}
 	if (texture == T_WATER && _resolution == 1) {
 		newFace.waterCorners = waterCorners(position);
 		// Only the corners touching this face determine whether it is a full

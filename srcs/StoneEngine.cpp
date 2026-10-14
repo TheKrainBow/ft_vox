@@ -45,12 +45,14 @@ bool isTransparent(char block)
 {
 	// Treat CACTUS like LOG for face-visibility decisions so ground caps render
 	// under the inset mesh (prevents a visible ring gap around the base).
-	return block == AIR || isWater(block) || block == LOG || block == CACTUS || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
+	return block == AIR || isLiquid(block) || block == LOG || block == CACTUS || block == LEAF || block == FLOWER_POPPY || block == FLOWER_DANDELION || block == FLOWER_CYAN || block == FLOWER_SHORT_GRASS || block == FLOWER_DEAD_BUSH;
 }
 
 // Display logs only if sides
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
+	if (isLava(blockToDisplay) && dir == UP) return !isLava(neighborBlock);
+	if (isLava(blockToDisplay) && isLava(neighborBlock)) return false;
 	if (isWater(blockToDisplay) && dir == UP) return !isWater(neighborBlock);
 	if (isWater(blockToDisplay) && isWater(neighborBlock)) return false;
 	// For leaves: always show faces, but if neighbor is also a leaf, only
@@ -127,6 +129,8 @@ StoneEngine::StoneEngine(int seed, ThreadPool &pool) : camera(),
 
 StoneEngine::~StoneEngine()
 {
+	// Stop world reads before destroying the chunk manager.
+	_lavaLightWorker.reset();
 	if (_window) _mouseCapture.release(_window);
 	// Ensure the GL context is current during teardown
 	if (_window) glfwMakeContextCurrent(_window);
@@ -144,6 +148,8 @@ StoneEngine::~StoneEngine()
 
 	glDeleteProgram(shaderProgram);
 	glDeleteProgram(waterShaderProgram);
+	GLuint lavaBuffers[]{_lavaLightCellsBuffer,_lavaEmittersBuffer};
+	glDeleteBuffers(2,lavaBuffers);
 	glDeleteProgram(alphaShaderProgram);
 	glDeleteProgram(sunShaderProgram);
 	if (shadowShaderProgram) glDeleteProgram(shadowShaderProgram);
@@ -810,6 +816,30 @@ void StoneEngine::calculateFps()
 	}
 }
 
+void StoneEngine::updateLavaLighting()
+{
+	if (!_lavaLightWorker)
+		_lavaLightWorker=std::make_unique<LavaLightWorker>([this] { return _chunkMgr.lavaEmitters(); });
+	_lavaLightWorker->request(_chunkMgr.lavaLightRevision());
+	auto ready=_lavaLightWorker->takeReady();
+	auto nextGrid=ready ? std::move(ready->grid) : _uploadedLavaGrid;
+	// Bind valid empty storage while the first background snapshot is pending.
+	if (!nextGrid) nextGrid=std::make_shared<LavaLightGrid>(buildLavaLightGrid({}));
+	if (nextGrid==_uploadedLavaGrid) return;
+	const auto& grid=*nextGrid;
+	if (!_lavaLightCellsBuffer) {
+		glGenBuffers(1,&_lavaLightCellsBuffer);
+		glGenBuffers(1,&_lavaEmittersBuffer);
+	}
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER,_lavaLightCellsBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER,grid.cells.size()*sizeof(LavaLightCell),grid.cells.data(),GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER,_lavaEmittersBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER,grid.emitters.size()*sizeof(LavaEmitter),grid.emitters.data(),GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER,0);
+	_lavaLightMask=grid.mask;
+	_uploadedLavaGrid=std::move(nextGrid);
+}
+
 void StoneEngine::setLightingUniforms(GLuint program)
 {
 	// Use the actual player position even when the render camera is mirrored.
@@ -818,6 +848,9 @@ void StoneEngine::setLightingUniforms(GLuint program)
 	glUniform1f(glGetUniformLocation(program, "playerLightRadius"), 10.0f);
 	glUniform1i(glGetUniformLocation(program, "playerLightEnabled"), playerLightEnabled ? 1 : 0);
 	glUniform1i(glGetUniformLocation(program, "fullBright"), fullBright ? 1 : 0);
+	glUniform1i(glGetUniformLocation(program,"lavaLightMask"),_lavaLightMask);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER,13,_lavaLightCellsBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER,14,_lavaEmittersBuffer);
 	glUniformMatrix4fv(glGetUniformLocation(program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 	glUniform1f(glGetUniformLocation(program, "shadowTexelWorld"), _shadowTexelWorld);
 	glUniform1f(glGetUniformLocation(program, "shadowNear"), _shadowNear);
@@ -1694,6 +1727,8 @@ void StoneEngine::display()
 		}
 	}
 
+	updateLavaLighting();
+
 	// Pass 0: shadow map
 	renderShadowMap();
 
@@ -1755,7 +1790,7 @@ void StoneEngine::display()
 	blitColor(writeFBO, readFBO);
 
 	// Apply the immersion filter after sun/moon compositing, before the UI.
-	if (_player.isUnderWater() && !showTriangleMesh) {
+	if ((_player.isUnderWater() || _player.isUnderLava()) && !showTriangleMesh) {
 		postProcessUnderwaterFilter();
 		blitColor(writeFBO, readFBO);
 	}
@@ -1931,6 +1966,7 @@ void StoneEngine::postProcessUnderwaterFilter()
 	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
 	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
 	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
+	glUniform1i(glGetUniformLocation(shader.program,"isInLava"),_player.isUnderLava());
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glDepthMask(GL_TRUE);
 	glCleanupTextureState();
@@ -1964,6 +2000,7 @@ void StoneEngine::postProcessFog()
 	glUniform3f(glGetUniformLocation(shader.program, "fogColor"),sky[0],sky[1],sky[2]);
 
 	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
+	glUniform1i(glGetUniformLocation(shader.program,"isInLava"),_player.isUnderLava());
 	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), _player.underwaterSurfaceHeight());
 	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
 	setLightingUniforms(shader.program);
@@ -2056,6 +2093,7 @@ void StoneEngine::postProcessGodRays()
 	glUniformMatrix4fv(glGetUniformLocation(shader.program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 	glUniform3fv(glGetUniformLocation(shader.program, "sunPos"), 1, glm::value_ptr(sunPos));
 	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
+	glUniform1i(glGetUniformLocation(shader.program,"isInLava"),_player.isUnderLava());
 
 	// Intensity scales with sun altitude and underwater state
 	float sunHeight = glm::clamp((sunPos.y - camPos.y) / 6000.0f, 0.0f, 1.0f);
@@ -2534,6 +2572,8 @@ void StoneEngine::updateChunkWorker()
 			oldCamPos = newCamPos;
 			oldCamChunk = camChunk;
 		}
+		// Camera movement needs no busy polling between frames.
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 }
 
@@ -2870,7 +2910,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
             _waterDebugBox->initData(_window,0,0,650,450);
             _waterDebugBox->loadFont("textures/CASCADIAMONO.TTF",16);
             _waterDebugBox->addLine("",Textbox::STRING,&_waterDebugTitle);
-            _waterDebugBox->addStaticText("S source | F8 falling | 7..1 amount | # solid | ? unloaded");
+            _waterDebugBox->addStaticText("S water | L lava | F8 falling | 7..1 amount | # solid | ? unloaded");
             for (auto& row : _waterDebugRows) _waterDebugBox->addLine("",Textbox::STRING,&row);
         }
     }

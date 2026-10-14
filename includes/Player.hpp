@@ -8,6 +8,7 @@
 
 class Player
 {
+	friend struct WaterIntegrationTest;
 private:
 	// References
 	Camera			&_cam;
@@ -18,6 +19,8 @@ private:
 	bool _swimming;
 	bool _jumping;
 	bool _isUnderWater;
+	bool _isUnderLava = false;
+	bool _swimmingInLava = false;
 	float _underwaterSurfaceHeight = 0.0f;
 	bool _ascending;
 	bool _sprinting;
@@ -63,6 +66,7 @@ public:
 	bool tryMoveStepwise(const glm::vec3 &moveVec, float stepSize);
 	bool isSprinting() const;
 	bool isUnderWater() const;
+	bool isUnderLava() const { return _isUnderLava; }
 	float underwaterSurfaceHeight() const { return _underwaterSurfaceHeight; }
 	void updateMovement();
 	void updateSwimSpeed();
@@ -79,7 +83,7 @@ public:
 	void toggleGravity();
 private:
 	// Movement check
-	bool waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current = nullptr, bool columnSurface = false);
+	bool liquidSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current = nullptr, bool columnSurface = false, char* fluid = nullptr);
 	bool canMove(const glm::vec3& offset, float extra);
 
 	// Udate player states

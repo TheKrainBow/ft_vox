@@ -3,6 +3,7 @@ ft_vox — Voxel World Renderer
 ft_vox is a real‑time voxel world renderer focused on smooth performance and large‑scale terrain streaming. It generates terrain procedurally, builds chunk meshes on worker threads, and renders with modern OpenGL techniques to keep frame times steady while you explore. 
  
 Highlights 
+- Lava cave pools/pockets, rare stone-ringed surface pools, local glow and slow swimming
 - Procedural terrain and biome shading with day/night cycle 
 - Chunked world streaming with LRU caching and prioritized loading 
 - Greedy meshing and solid/alpha split passes for efficiency 

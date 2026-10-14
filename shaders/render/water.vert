@@ -34,15 +34,15 @@ void main()
 	int textureID = (instanceData >> 25) & 0x7F;
 
 	bool shapedWater = (uint(instanceData) & 0x80000000u) != 0u;
-	bool fullWater = !shapedWater && textureID == 14; // T_WATER_FULL
-	if (fullWater) textureID = 6;
+	bool fullWater = !shapedWater && (textureID == 14 || textureID == 16); // T_WATER_FULL
+	if (fullWater) textureID = textureID == 16 ? 15 : 6;
 	if (shapedWater) {
 		textureID = 6;
 		lengthX = 0;
 		lengthY = 0;
 	}
-	// Keep only WATER in this pass
-	if (textureID != 6) {
+	// Water and lava share the liquid geometry/ripple pass.
+	if (textureID != 6 && textureID != 15) {
 		gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // outside clip
 		TexCoord = vec2(0.0); TextureID = textureID; Normal = vec3(0.0); FragPos = vec3(0.0);
 		return;

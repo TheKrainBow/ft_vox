@@ -14,7 +14,7 @@ void Player::updateNow(std::chrono::steady_clock::time_point &now)
 	_now = now;
 }
 
-bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current, bool columnSurface)
+bool Player::liquidSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current, bool columnSurface, char* fluid)
 {
 	ivec3 cell = ivec3(glm::floor(worldPos));
 	auto read = [&](int x, int y, int z) {
@@ -23,14 +23,17 @@ bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3
 		                  (int)std::floor(double(p.z) / CHUNK_SIZE)};
 		return _chunkMgr.getBlock(chunkPos, p);
 	};
-	if (!isWater(read(0, 0, 0))) return false;
+	char liquid=read(0,0,0);
+	if (!isLiquid(liquid)) return false;
+	bool lava=isLava(liquid);
+	if (fluid) *fluid=liquid;
 	if (current) {
-		auto flow = waterCurrent(read);
+		auto flow = lava ? std::array<float,3>{} : waterCurrent(read);
 		*current = {flow[0], flow[1], flow[2]};
 	}
 	float x = worldPos.x-cell.x, z = worldPos.z-cell.z;
-	surface = cell.y + (columnSurface ? waterColumnSurface(read,x,z) :
-		waterSurfaceHeight(waterSurfaceCorners(read),x,z));
+	surface = cell.y + (columnSurface ? (lava ? lavaColumnSurface(read,x,z) : waterColumnSurface(read,x,z)) :
+		waterSurfaceHeight(lava ? lavaSurfaceCorners(read) : waterSurfaceCorners(read),x,z));
 	return true;
 }
 
@@ -39,8 +42,10 @@ void Player::updateWaterImmersion()
 	vec3 worldPos = _cam.getWorldPosition();
 	// Underwater effects follow the visible surface, including shallow slopes.
 	_underwaterSurfaceHeight = worldPos.y;
-	_isUnderWater = waterSurfaceAt(worldPos,_underwaterSurfaceHeight,nullptr,true) &&
-		worldPos.y < _underwaterSurfaceHeight;
+	char fluid=AIR;
+	bool immersed=liquidSurfaceAt(worldPos,_underwaterSurfaceHeight,nullptr,true,&fluid) && worldPos.y<_underwaterSurfaceHeight;
+	_isUnderWater=immersed && isWater(fluid);
+	_isUnderLava=immersed && isLava(fluid);
 }
 
 void Player::updatePlayerStates()
@@ -49,6 +54,8 @@ void Player::updatePlayerStates()
 	updateWaterImmersion();
 	_waterCurrent = glm::vec3(0.0f);
 	if (!_gravity) {
+		_swimming=false;
+		_swimmingInLava=false;
 		_currentVelocity = glm::vec3(0.0f);
 		return;
 	}
@@ -64,16 +71,20 @@ void Player::updatePlayerStates()
 
 	// Keep the original surface pulses, lowering their exit height in shallow flow.
 	bool inWater = false;
+	_swimmingInLava=false;
 	float feetY = worldPos.y - EYE_HEIGHT;
 	float submerged = 0.0f;
 	for (int y = footCell - 2; y <= static_cast<int>(std::floor(worldPos.y)); ++y)
 	{
 		float surface;
 		glm::vec3 current;
-		if (waterSurfaceAt({worldPos.x, float(y), worldPos.z}, surface, &current))
+		char fluid=AIR;
+		if (liquidSurfaceAt({worldPos.x, float(y), worldPos.z}, surface, &current,false,&fluid))
 		{
-			if (y <= footCell + 1 && swimmingSurfaceContact(feetY, surface))
-				inWater = true;
+			if (y <= footCell + 1 && swimmingSurfaceContact(feetY, surface)) {
+				inWater=true;
+				_swimmingInLava=_swimmingInLava || isLava(fluid);
+			}
 			float depth = std::max(0.0f, std::min(worldPos.y, surface) - std::max(feetY, float(y)));
 			_waterCurrent += current * depth;
 			submerged += depth;
@@ -86,14 +97,14 @@ void Player::updatePlayerStates()
 	if (_ascending)
 	{
 		BlockType overhead = _chunkMgr.getBlock(chunkPos, {worldX, footCell + 2, worldZ});
-		if (!isWater(overhead) && overhead != AIR)
+		if (!isLiquid(overhead) && overhead != AIR)
 		{
 			_falling = false;
 			_fallSpeed = 0.0;
 		}
 	}
 	updateFalling(worldPos, _camTopBlock.height);
-	updateSwimming(inWater ? WATER : AIR);
+	updateSwimming(inWater ? (_swimmingInLava ? LAVA : WATER) : AIR);
 	updateJumping();
 }
 
@@ -121,7 +132,7 @@ bool Player::canMove(const glm::vec3& offset, float extra)
 	BlockType blockTorso = _chunkMgr.getBlock(chunkPos, worldPosTorso);
 	auto passable = [](BlockType b)
 	{
-		return (b == AIR || isWater(b) || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH);
+		return (b == AIR || isLiquid(b) || b == FLOWER_POPPY || b == FLOWER_DANDELION || b == FLOWER_CYAN || b == FLOWER_SHORT_GRASS || b == FLOWER_DEAD_BUSH);
 	};
 	return (passable(blockFeet) && passable(blockTorso));
 }
@@ -199,8 +210,7 @@ void Player::findMoveRotationSpeed()
 	else
 		_moveSpeed = MOVEMENT_SPEED * _deltaTime;
 
-	if (_swimming)
-		_moveSpeed *= 0.5f;
+	_moveSpeed *= swimmingMoveScale(_gravity,_swimming,_swimmingInLava);
 
 
 	if (!isWSL())
@@ -255,16 +265,16 @@ void Player::updateFalling(vec3 &worldPos, int &blockHeight)
 	}
 
 	// Integrate vertical position
-	_cam.move({0.0f, -(_fallSpeed * _deltaTime), 0.0f});
+	_cam.move({0.0f, -(_fallSpeed * _deltaTime)*(_swimmingInLava ? LAVA_SWIM_SPEED_FACTOR : 1.0f), 0.0f});
 }
 
 void Player::updateSwimming(BlockType block)
 {
-	if (!_swimming && isWater(block))
+	if (!_swimming && isLiquid(block))
 	{
 		_swimming = true;
 	}
-	if (_swimming && !isWater(block))
+	if (_swimming && !isLiquid(block))
 	{
 		_swimming = false;
 		_fallSpeed = 0.0;

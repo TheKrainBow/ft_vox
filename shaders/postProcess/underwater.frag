@@ -3,9 +3,16 @@ in vec2 texCoords;
 out vec4 FragColor;
 uniform sampler2D screenTexture;
 uniform int isUnderwater;
+uniform bool isInLava;
 
 void main() {
 	vec3 scene = texture(screenTexture, texCoords).rgb;
+	if (isInLava) {
+		vec3 color=mix(scene*vec3(0.65,0.12,0.025),vec3(0.62,0.07,0.008),0.90);
+		float edge=smoothstep(0.15,0.70,length(texCoords-vec2(0.5)));
+		FragColor=vec4(color*(1.0-0.20*edge),1.0);
+		return;
+	}
 	if (isUnderwater != 1) {
 		FragColor = vec4(scene, 1.0);
 		return;

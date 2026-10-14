@@ -269,9 +269,42 @@ vec3 computeSunPosition(float t, vec3 camPos) {
 	return camPos + vec3(radius * cos(angle), radius * sin(angle), 0.0);
 }
 
+// Sparse world-space light field rebuilt when lava geometry changes. Entries
+// point to exposed face centers; falloff is evaluated at the actual fragment.
+layout(std430,binding=13) readonly buffer LavaLightCells { ivec4 lavaCells[]; };
+layout(std430,binding=14) readonly buffer LavaLightEmitters { vec4 lavaFaces[]; };
+uniform int lavaLightMask;
+uint lavaHash(ivec3 p) {
+	uint h=uint(p.x)*73856093u ^ uint(p.y)*19349663u ^ uint(p.z)*83492791u;
+	h^=h>>16; h*=0x7feb352du; h^=h>>15;
+	return h;
+}
+int lavaEmitterAt(ivec3 p) {
+	uint index=lavaHash(p)&uint(lavaLightMask);
+	for (int probe=0;probe<16;++probe) {
+		ivec4 cell=lavaCells[index];
+		if (cell.w==0) return -1;
+		if (all(equal(cell.xyz,p))) return cell.w-1;
+		index=(index+1u)&uint(lavaLightMask);
+	}
+	return -1;
+}
+vec3 lavaRadiance(vec3 worldPos) {
+	if (lavaLightMask<=0) return vec3(0.0);
+	ivec3 base=ivec3(floor(worldPos-vec3(0.5)));
+	float light=0.0;
+	for (int z=0;z<2;++z) for (int y=0;y<2;++y) for (int x=0;x<2;++x) {
+		int emitter=lavaEmitterAt(base+ivec3(x,y,z));
+		if (emitter<0) continue;
+		float d=distance(worldPos,lavaFaces[emitter].xyz);
+		light=max(light,0.85*(1.0-smoothstep(0.0,4.0,d)));
+	}
+	return vec3(1.0,0.28,0.04)*light;
+}
+
 void main() {
 	// Non-water transparent surfaces (e.g., leaves) rendered with terrain atlas
-	if (TextureID != 6) {
+	if (TextureID != 6 && TextureID != 15) {
 		vec4 tex = texture(textureArray, vec3(TexCoord, TextureID));
 		// Masked alpha: discard fully/mostly transparent texels so depth works
 		if (tex.a < 0.5) discard;
@@ -296,7 +329,18 @@ void main() {
 	}
 	// Debug/wireframe mode: bright, saturated blue for clear visibility
 	if (showtrianglemesh) {
-		FragColor = vec4(DEBUG_WIREFRAME_BLUE, 1.0);
+		FragColor = vec4(TextureID == 15 ? vec3(1.0,0.25,0.02) : DEBUG_WIREFRAME_BLUE, 1.0);
+		return;
+	}
+	if (TextureID == 15) {
+		// Same ripple texture and distance fade as water, with emissive lava tint.
+		float tint = smoothstep(TINT_NEAR_DIST,TINT_FAR_DIST,distance(viewPos,FragPos));
+		vec3 color = mix(vec3(1.0,0.30,0.015),vec3(0.52,0.035,0.006),tint);
+		NormalInfo ripple=computeWaterNormal(FragPos);
+		float faceShade=0.80+0.20*max(normalize(Normal).y,0.0);
+		color=clamp((color+ripple.offset*0.35)*faceShade,0.0,1.0);
+		float alpha=1.0-(1.0-distanceAlpha(viewPos,FragPos))*0.1;
+		FragColor=vec4(color,alpha);
 		return;
 	}
 	vec3 waveFragPos = FragPos;
@@ -378,6 +422,7 @@ void main() {
 		alphaUW *= mix(0.60, 1.00, viewFactor);
 		alphaUW = clamp(alphaUW, 0.15, 0.70);
 		finalColor *= lightColor * waterLight;
+		finalColor += distanceTint(viewPos,waveFragPos)*lavaRadiance(waveFragPos);
 		FragColor = vec4(finalColor, alphaUW);
 		return;
 	}
@@ -385,5 +430,6 @@ void main() {
 	vec3 baseTint = distanceTint(viewPos, waveFragPos);
 	finalColor    = mix(baseTint, reflection, reflMix);
 	finalColor *= lightColor * waterLight;
+	finalColor += baseTint*lavaRadiance(waveFragPos);
 	FragColor     = vec4(finalColor, alpha);
 }

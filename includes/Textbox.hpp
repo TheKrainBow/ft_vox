@@ -47,7 +47,8 @@ const block_pair blockTab[NB_BLOCKS] = {
 	{flower_cyan,		"Blue orchid"},
 	{flower_short_grass,"Short grass"},
 	{flower_dead_bush,	"Dead bush"},
-	{cactus,			"Cactus"}
+	{cactus,			"Cactus"},
+	{lava, "Lava"}
 };
 
 const biome_pair biomeTab[NB_BIOMES] = {

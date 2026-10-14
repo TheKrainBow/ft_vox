@@ -63,6 +63,7 @@ SRC_NAME	=	stb_truetype.cpp		\
 				Noise3DGenerator.cpp	\
 				CaveGenerator.cpp		\
 				CaveWaterGenerator.cpp	\
+				LavaGenerator.cpp		\
 				Raycaster.cpp			\
 				Player.cpp
 
@@ -218,7 +219,7 @@ test: test-caves-integration
 # Surfaceless EGL exercises the terrain shader without opening a game window.
 .PHONY: test-player-light
 test-player-light:
-	$(CC) -std=c++17 -Wall -Wextra -Werror tests/player_lighting.cpp -lEGL -lGL -o /tmp/ft_vox-player-light-test
+	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/player_lighting.cpp -lEGL -lGL -o /tmp/ft_vox-player-light-test
 	/tmp/ft_vox-player-light-test
 	glslangValidator -l shaders/render/terrain.vert shaders/render/terrain.frag
 	glslangValidator -l shaders/render/alpha.vert shaders/render/alpha.frag
@@ -257,3 +258,17 @@ test-day-night:
 	glslangValidator -l shaders/postProcess/postProcess.vert shaders/postProcess/skyGradient.frag
 
 test: test-day-night
+
+.PHONY: test-lava
+test-lava:
+	$(CC) $(CFLAGS) -Iincludes tests/lava.cpp srcs/LavaGenerator.cpp srcs/CaveWaterGenerator.cpp -o /tmp/ft_vox-lava-test
+	/tmp/ft_vox-lava-test
+
+test: test-lava
+
+.PHONY: test-lava-worker
+test-lava-worker:
+	$(CC) $(CFLAGS) -pthread -Iincludes tests/lava_worker.cpp -o /tmp/ft_vox-lava-worker-test
+	timeout 15s /tmp/ft_vox-lava-worker-test
+
+test: test-lava-worker

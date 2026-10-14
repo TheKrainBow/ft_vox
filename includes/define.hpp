@@ -89,6 +89,7 @@
 # define GRASS 'G'
 # define SAND 's'
 # define WATER 'W'
+# define LAVA 'V'
 # define SNOW 'w'
 # define LOG 'l'
 # define LEAF 'L'
@@ -103,7 +104,7 @@
 
 
 // Update this number when adding new blocks (debug textbox importance)
-#define NB_BLOCKS 17
+#define NB_BLOCKS 18
 // AND the enum list (pls)
 	enum block_types {
 		air,
@@ -122,7 +123,8 @@
 		flower_cyan,
 		flower_short_grass,
 		flower_dead_bush,
-		cactus
+		cactus,
+		lava
 };
 struct block_correspondance
 {
@@ -147,7 +149,8 @@ const block_correspondance blockDebugTab[NB_BLOCKS] = {
 	{flower_cyan,        FLOWER_CYAN},
 	{flower_short_grass, FLOWER_SHORT_GRASS},
 	{flower_dead_bush,   FLOWER_DEAD_BUSH},
-	{cactus,             CACTUS}
+	{cactus,             CACTUS},
+	{lava, LAVA}
 };
 // AND this block tab in Textbox.hpp line 33
 // const block_pair blockTab[NB_BLOCKS]

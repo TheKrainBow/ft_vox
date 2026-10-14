@@ -10,6 +10,7 @@
 #include "Raycaster.hpp"
 #include "Player.hpp"
 #include "DayNightCycle.hpp"
+#include "LavaLightWorker.hpp"
 #include "MouseCapture.hpp"
 #include <cstddef>
 #include <vector>
@@ -64,6 +65,10 @@ class StoneEngine {
 
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
+		GLuint _lavaLightCellsBuffer=0, _lavaEmittersBuffer=0;
+		int _lavaLightMask=0;
+		std::unique_ptr<LavaLightWorker> _lavaLightWorker;
+		std::shared_ptr<const LavaLightGrid> _uploadedLavaGrid;
 
 		// Masked alpha pass (leaves)
 		GLuint alphaShaderProgram = 0;
@@ -271,6 +276,7 @@ class StoneEngine {
 		void	initWireframeResources();
 		void	renderAimHighlight();
 		void	setLightingUniforms(GLuint program);
+		void updateLavaLighting();
 		void	setFullscreen(bool enable);
 		void	renderLoadingScreen();
 		void	updateHelpStatusText();

@@ -103,6 +103,23 @@ int main() {
         assert(topVisible == !isWater(above));
     }
 
+    // Lava uses separate liquid material IDs, culls internal faces and retains
+    // its top below solid ceilings while water remains a different material.
+    for (char above : {char(AIR),char(STONE),char(WATER),char(LAVA)}) {
+        fill(*water,AIR);
+        fill(*center.getSubChunk(2),AIR);
+        water->setBlockLocal(8,31,8,LAVA);
+        center.getSubChunk(2)->setBlockLocal(8,0,8,above);
+        water->sendFacesToDisplay();
+        assert(water->getTranspDirCounts()[UP]==(above==LAVA ? 0 : 1));
+        bool lavaMaterial=false;
+        for (auto packed:water->getTransparentVertices()) {
+            int material=(uint32_t(packed)>>25)&127;
+            lavaMaterial= lavaMaterial || material==T_LAVA || material==T_LAVA_FULL;
+        }
+        assert(lavaMaterial);
+    }
+
     // Coarse faces must inspect the whole touching patch, even at a 4:1 ratio.
     fill(*adjacent, WATER);
     for (auto dir : {NORTH, SOUTH, EAST, WEST}) {

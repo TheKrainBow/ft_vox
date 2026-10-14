@@ -35,7 +35,7 @@ constexpr char waterFromAmount(int amount) {
         WATER_FLOW_1 + 7 - amount;
 }
 constexpr bool waterSupport(char b) {
-    return b != WATER_UNKNOWN && (!waterReplaceable(b) || b == WATER);
+    return b != WATER_UNKNOWN && b != LAVA && (!waterReplaceable(b) || b == WATER);
 }
 
 // Fifteenths are the renderer's existing four-bit corner format. Approximate
