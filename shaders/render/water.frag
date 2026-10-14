@@ -23,7 +23,7 @@ const float RIPPLE_LERP         = 0.50;   // 0..1 blend of layer1→layer2
 
 // Reflection + colors
 const float REFLECT_DISTANCE    = 5000.0;
-const vec3  SKY_COLOR           = vec3(0.53, 0.81, 0.92);
+uniform vec3 skyColor;
 const vec3  BLUE_TINT           = vec3(0.10, 0.20, 0.50);
 const vec3  WATER_BASE          = vec3(0.07, 0.14, 0.55);
 const vec3  UNDERWATER_COLOR    = vec3(0.00, 0.10, 0.30);
@@ -102,6 +102,30 @@ out vec4 FragColor;
 uniform vec3 playerLightPos;
 uniform float playerLightRadius;
 uniform bool playerLightEnabled;
+uniform bool fullBright;
+uniform sampler2DShadow shadowMap;
+uniform mat4 lightSpaceMatrix;
+uniform vec3 sunDir;
+uniform float moonLightStrength;
+uniform float shadowTexelWorld;
+uniform float shadowNear;
+uniform float shadowFar;
+uniform float shadowBiasSlope;
+uniform float shadowBiasConstant;
+
+float celestialVisibility(vec3 worldPos, vec3 normal) {
+	vec4 clip = lightSpaceMatrix * vec4(worldPos, 1.0);
+	vec3 p = clip.xyz / clip.w * 0.5 + 0.5;
+	if (any(lessThan(p, vec3(0.0))) || any(greaterThan(p, vec3(1.0)))) return 0.0;
+	float ndotl = max(dot(normalize(normal), normalize(sunDir.y >= 0.0 ? sunDir : -sunDir)), 0.0);
+	float bias = max((shadowBiasConstant + shadowBiasSlope * (1.0-ndotl)) * shadowTexelWorld, 0.0005);
+	bias /= max(shadowFar-shadowNear, 0.0001);
+	vec2 texel = 1.0 / vec2(textureSize(shadowMap, 0));
+	float visible = 0.0;
+	for (int x=-1; x<=1; ++x) for (int y=-1; y<=1; ++y)
+		visible += texture(shadowMap, vec3(p.xy + vec2(x,y)*texel, p.z-bias));
+	return visible / 9.0;
+}
 
 float calculatePlayerLight(vec3 worldPos) {
 	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
@@ -201,9 +225,9 @@ float distanceAlpha(vec3 cam, vec3 frag) {
 
 vec3 samplePlanar(vec3 refPointWS, out bool outOfBounds) {
 	vec4 c = planarProjection * planarView * vec4(refPointWS, 1.0);
-	if (c.w <= 0.0) { outOfBounds = true; return SKY_COLOR; }
+	if (c.w <= 0.0) { outOfBounds = true; return skyColor; }
 	vec2 uv = toUV(c, outOfBounds);
-	return outOfBounds ? SKY_COLOR : texture(planarTexture, uv).rgb;
+	return outOfBounds ? skyColor : texture(planarTexture, uv).rgb;
 }
 
 // tiny hash for dithering the seam (breaks the straight line)
@@ -214,9 +238,9 @@ float hash12(vec2 p) {
 // Planar sample that also returns UV to allow blurring only near seam
 vec3 samplePlanarUV(vec3 refPointWS, out vec2 uv, out bool outOfBounds) {
 	vec4 c = planarProjection * planarView * vec4(refPointWS, 1.0);
-	if (c.w <= 0.0) { outOfBounds = true; uv = vec2(0.5); return SKY_COLOR; }
+	if (c.w <= 0.0) { outOfBounds = true; uv = vec2(0.5); return skyColor; }
 	uv = toUV(c, outOfBounds);
-	return outOfBounds ? SKY_COLOR : texture(planarTexture, uv).rgb;
+	return outOfBounds ? skyColor : texture(planarTexture, uv).rgb;
 }
 
 vec3 samplePlanarBlur(vec2 uv) {               // very small 5-tap blur
@@ -279,6 +303,11 @@ void main() {
 	if (USE_FRAGMENT_Y_WAVE) {
 		waveFragPos.y += calcWave(FragPos);
 	}
+	float sunAmount = smoothstep(0.0, 0.15, sunDir.y);
+	float moonAmount = moonLightStrength * smoothstep(0.0,0.15,-sunDir.y);
+	float exposure = fullBright ? 1.0 : (sunAmount+moonAmount) * celestialVisibility(FragPos, Normal);
+	float diffuse = max(dot(normalize(Normal), normalize(sunDir.y >= 0.0 ? sunDir : -sunDir)), 0.0);
+	float waterLight = fullBright ? 1.0 : 0.025 + exposure * (0.55 + 0.37 * diffuse) + calculatePlayerLight(FragPos);
 
 	vec3 viewDir = normalize(waveFragPos - viewPos);
 	NormalInfo nfo = computeWaterNormal(waveFragPos);
@@ -304,7 +333,7 @@ void main() {
 	// Determine base reflection color
 	vec3 reflectedBase;
 	bool oobPlanar = false; vec2 uvPlanar; vec3 planarCol = samplePlanarUV(reflectedPoint, uvPlanar, oobPlanar);
-	reflectedBase = oobPlanar ? SKY_COLOR : planarCol;
+	reflectedBase = oobPlanar ? skyColor : planarCol;
 	
 
 	vec3 reflection = mix(reflectedBase, BLUE_TINT, REFLECTION_BLUE_MIX);
@@ -315,6 +344,8 @@ void main() {
 
 	float baseStrength = clamp(fres * heightFade, 0.0, 1.0);
 	float reflMix      = baseStrength * REFLECTION_STRENGTH_CAP;
+	// The ocean reflection and sky fallback must not glow inside a shaded cave.
+	reflMix *= exposure;
 
 	// Disable reflections on downward and side faces.
 	// Keep reflections only for upward-facing surfaces (Ny sufficiently positive).
@@ -346,13 +377,13 @@ void main() {
 		float alphaUW = mix(0.25, 0.60, depthUnder);
 		alphaUW *= mix(0.60, 1.00, viewFactor);
 		alphaUW = clamp(alphaUW, 0.15, 0.70);
-		finalColor += distanceTint(viewPos, waveFragPos) * lightColor * calculatePlayerLight(waveFragPos);
+		finalColor *= lightColor * waterLight;
 		FragColor = vec4(finalColor, alphaUW);
 		return;
 	}
 
 	vec3 baseTint = distanceTint(viewPos, waveFragPos);
 	finalColor    = mix(baseTint, reflection, reflMix);
-	finalColor += baseTint * lightColor * calculatePlayerLight(waveFragPos);
+	finalColor *= lightColor * waterLight;
 	FragColor     = vec4(finalColor, alpha);
 }

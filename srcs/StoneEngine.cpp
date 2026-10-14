@@ -51,6 +51,7 @@ bool isTransparent(char block)
 // Display logs only if sides
 bool faceDisplayCondition(char blockToDisplay, char neighborBlock, Direction dir)
 {
+	if (isWater(blockToDisplay) && dir == UP) return !isWater(neighborBlock);
 	if (isWater(blockToDisplay) && isWater(neighborBlock)) return false;
 	// For leaves: always show faces, but if neighbor is also a leaf, only
 	// emit the face for positive-axis directions to avoid z-fighting between
@@ -135,7 +136,6 @@ StoneEngine::~StoneEngine()
 	_chunkMgr.shutDownGL();
 
 	// Teardown GL resources owned by helper classes while context is valid
-	_skybox.shutdownGL();
 	_textureManager.shutdownGL();
 	debugBox.shutdownGL();
 	helpBox.shutdownGL();
@@ -360,59 +360,13 @@ void StoneEngine::initTextures()
 
 glm::vec3 StoneEngine::computeSunPosition(int timeValue, const glm::vec3 &cameraPos)
 {
-	const float pi = 3.14159265f;
-	const float radius = 6000.0f;
-	const float dayStart = 42000.0f;		  // sunrise
-	const float dayLen = 86400.0f - dayStart; // 44400 (day duration)
-	const float nightLen = dayStart;		  // 42000 (night duration)
-
-	float t = static_cast<float>(timeValue);
-	float angle;
-	if (t < dayStart)
-	{
-		// Night: traverse pi..2pi across [0, dayStart)
-		float phase = glm::clamp(t / nightLen, 0.0f, 1.0f);
-		angle = pi + phase * pi;
-	}
-	else
-	{
-		// Day: traverse 0..pi across [dayStart, 86400]
-		float phase = glm::clamp((t - dayStart) / dayLen, 0.0f, 1.0f);
-		angle = phase * pi;
-	}
-
-	float x = radius * cos(angle);
-	float y = radius * sin(angle); // y>0 during day, y<0 during night
-	float z = 0.0f;
-
-	// Return a position in the sun direction at a fixed radius from the camera,
-	// used only for visual effects (sun sprite, god rays)
-	return cameraPos + glm::vec3(x, y, z);
+	return cameraPos + computeSunDirection(timeValue)*6000.0f;
 }
 
 glm::vec3 StoneEngine::computeSunDirection(int timeValue)
 {
-	const float pi = 3.14159265f;
-	const float dayStart = 42000.0f;          // sunrise
-	const float dayLen   = 86400.0f - dayStart; // 44400 (day duration)
-	const float nightLen = dayStart;           // 42000 (night duration)
-
-	float t = static_cast<float>(timeValue);
-	float angle;
-	if (t < dayStart)
-	{
-		float phase = glm::clamp(t / nightLen, 0.0f, 1.0f);
-		angle = pi + phase * pi;
-	}
-	else
-	{
-		float phase = glm::clamp((t - dayStart) / dayLen, 0.0f, 1.0f);
-		angle = phase * pi;
-	}
-
-	// World-space directional light vector (pointing from world towards the sun)
-	glm::vec3 dir = glm::normalize(glm::vec3(cos(angle), sin(angle), 0.0f));
-	return dir;
+	const auto direction = dayNightCycle(timeValue).sunDirection;
+	return {direction[0],direction[1],direction[2]};
 }
 
 void initSunQuad(GLuint &vao, GLuint &vbo)
@@ -536,11 +490,9 @@ void StoneEngine::initRenderShaders()
 	waterShaderProgram = createShaderProgram("shaders/render/water.vert", "shaders/render/water.frag");
 	alphaShaderProgram = createShaderProgram("shaders/render/alpha.vert", "shaders/render/alpha.frag");
 	sunShaderProgram = createShaderProgram("shaders/render/sun.vert", "shaders/render/sun.frag");
-	skyboxProgram = createShaderProgram("shaders/render/skybox.vert", "shaders/render/skybox.frag");
 	shadowShaderProgram = createShaderProgram("shaders/render/terrain_shadow.vert", "shaders/render/terrain_shadow.frag");
 	initSunQuad(sunVAO, sunVBO);
 	initWireframeResources();
-	initSkybox();
 	initFlowerResources();
 }
 
@@ -601,72 +553,49 @@ void StoneEngine::setShadowResolution(int newSize)
 	rebuildShadowResources(RENDER_DISTANCE);
 }
 
-void StoneEngine::initSkybox()
+void StoneEngine::drawCelestialBodies(const glm::vec3& cameraPos, const glm::mat4& view, const glm::mat4& projection)
 {
-	// std::cerr << "[Skybox] Init starting..." << std::endl;
-	// First: single-file PNG (cross/strip/grid)
-	{
-		std::ifstream f(SKYBOX_SINGLE_PNG, std::ios::binary);
-		if (f.is_open())
-		{
-			_hasSkybox = _skybox.loadFromSinglePNG(SKYBOX_SINGLE_PNG, /*fixSeams=*/true);
-			// if (_hasSkybox) std::cerr << "[Skybox] Using single-file PNG: " << SKYBOX_SINGLE_PNG << std::endl;
-		}
-	}
-	if (!_hasSkybox)
-	{
-		std::cerr << "[Skybox] No skybox loaded (PNG)." << std::endl;
-	}
-}
-
-void StoneEngine::displaySun(FBODatas &targetFBO)
-{
-	if (showTriangleMesh)
-		return;
-	glBindFramebuffer(GL_FRAMEBUFFER, targetFBO.fbo);
-	// glDepthFunc(GL_LESS);
-	vec3 camPos = camera.getWorldPosition();
-	// Compute current sun position based on time
-	// Place the sun sprite far away in the current sun direction
-	glm::vec3 sunDir = computeSunDirection(timeValue);
-	glm::vec3 sunPos = camPos + sunDir * 6000.0f;
-
-	// Update view matrix
-
-	float radY, radX;
-	radX = camera.getAngles().x * (M_PI / 180.0);
-	radY = camera.getAngles().y * (M_PI / 180.0);
-
-	mat4 sunViewMatrix = mat4(1.0f);
-	sunViewMatrix = rotate(sunViewMatrix, radY, vec3(-1.0f, 0.0f, 0.0f));
-	sunViewMatrix = rotate(sunViewMatrix, radX, vec3(0.0f, -1.0f, 0.0f));
-	sunViewMatrix = translate(sunViewMatrix, vec3(camera.getPosition()));
-
+	const auto cycle = dayNightCycle(timeValue);
 	glUseProgram(sunShaderProgram);
-
-	// Set uniforms
-	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(sunViewMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
-
-	glm::vec3 sunColor(1.0, 0.6, 0.2); // warm sun
-	float height = clamp((sunPos.y - camPos.y) / 6000, 0.0f, 1.0f);
-	sunColor = mix(sunColor, vec3(1.0f), height);
-	glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
-	glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
-
-	glEnable(GL_DEPTH_TEST); // allow occlusion by terrain
-	glDepthMask(GL_FALSE);	 // prevent writing depth
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram,"view"),1,GL_FALSE,glm::value_ptr(view));
+	glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram,"projection"),1,GL_FALSE,glm::value_ptr(projection));
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE); // additive glow
-
+	glBlendFunc(GL_ONE,GL_ONE);
+	GLboolean wasCulling = glIsEnabled(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
 	glBindVertexArray(sunVAO);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	for (int body=0; body<2; ++body) {
+		bool moon = body == 1;
+		float visible = moon ? cycle.moonVisibility : cycle.sunVisibility;
+		if (visible <= 0.0f) continue;
+		const auto& dir = moon ? cycle.moonDirection : cycle.sunDirection;
+		glm::vec3 position = cameraPos + glm::vec3(dir[0],dir[1],dir[2])*6000.0f;
+		glm::vec3 color = moon ? glm::vec3(0.32f,0.52f,1.0f) :
+			glm::mix(glm::vec3(1.0f,0.45f,0.08f),glm::vec3(1.0f,0.78f,0.25f),std::max(0.0f,dir[1]));
+		glUniform3fv(glGetUniformLocation(sunShaderProgram,"sunPosition"),1,glm::value_ptr(position));
+		glUniform3fv(glGetUniformLocation(sunShaderProgram,"sunColor"),1,glm::value_ptr(color));
+		glUniform1f(glGetUniformLocation(sunShaderProgram,"intensity"),(moon ? 0.32f : 1.0f)*visible);
+		glUniform1f(glGetUniformLocation(sunShaderProgram,"discScale"),1.0f);
+		glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+	}
 	glBindVertexArray(0);
-
+	if (wasCulling) glEnable(GL_CULL_FACE);
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 	glCleanupTextureState();
+}
+
+void StoneEngine::displayCelestialBodies(FBODatas &targetFBO)
+{
+	if (showTriangleMesh) return;
+	glBindFramebuffer(GL_FRAMEBUFFER,targetFBO.fbo);
+	glm::mat4 view(1.0f);
+	view = glm::rotate(view,glm::radians(camera.getAngles().y),glm::vec3(-1,0,0));
+	view = glm::rotate(view,glm::radians(camera.getAngles().x),glm::vec3(0,-1,0));
+	view = glm::translate(view,camera.getPosition());
+	drawCelestialBodies(camera.getWorldPosition(),view,projectionMatrix);
 }
 
 void StoneEngine::initMsaaFramebuffers(FBODatas &fboData, int width, int height)
@@ -759,14 +688,14 @@ void StoneEngine::initFboShaders()
 	initMsaaFramebuffers(msaaFBO, windowWidth, windowHeight);
 	createPostProcessShader(postProcessShaders[GREEDYFIX], "shaders/postProcess/postProcess.vert", "shaders/postProcess/greedyMeshing.frag");
 	createPostProcessShader(postProcessShaders[FOG], "shaders/postProcess/postProcess.vert", "shaders/postProcess/fog.frag");
+	createPostProcessShader(postProcessShaders[UNDERWATER_FILTER], "shaders/postProcess/postProcess.vert", "shaders/postProcess/underwater.frag");
+	createPostProcessShader(postProcessShaders[SKY_GRADIENT], "shaders/postProcess/postProcess.vert", "shaders/postProcess/skyGradient.frag");
 	createPostProcessShader(postProcessShaders[GODRAYS], "shaders/postProcess/postProcess.vert", "shaders/postProcess/lightshafts.frag");
 	createPostProcessShader(
 		postProcessShaders[CROSSHAIR],
 		"shaders/postProcess/postProcess.vert",
 		"shaders/postProcess/crosshair.frag");
-	createPostProcessShader(postProcessShaders[SKYBOX_COMPOSITE],
-							"shaders/postProcess/postProcess.vert",
-							"shaders/postProcess/skyboxComposite.frag");
+
 }
 
 void StoneEngine::initDebugTextBox()
@@ -834,7 +763,8 @@ void StoneEngine::initHelpTextBox()
 	helpBox.addLine("F5:     Invert Camera", Textbox::STRING, &_empty); // no state; keep placeholder spacing
 	helpBox.addLine("F11:    Fullscreen ", Textbox::STRING, &_hFullscreen);
 	helpBox.addLine("G:      Gravity ", Textbox::STRING, &_hGravity);
-	helpBox.addLine("L:      Player Light (10 blocks) ", Textbox::STRING, &_hPlayerLight);
+	helpBox.addLine("F:      Player Light (10 blocks) ", Textbox::STRING, &_hPlayerLight);
+	helpBox.addLine("L:      Lighting ", Textbox::STRING, &_hLighting);
 	helpBox.addLine("M or ;: Mouse Capture ", Textbox::STRING, &_hMouseCapture);
 	helpBox.addLine("C:      Generation ", Textbox::STRING, &_hGeneration);
 	helpBox.addStaticText("");
@@ -852,6 +782,7 @@ void StoneEngine::updateHelpStatusText()
 	_hSprinting = onoff(_player.isSprinting());
 	_hUI = onoff(showUI);
 	_hPlayerLight = onoff(playerLightEnabled);
+	_hLighting = fullBright ? "Full light" : "Natural sun/moon/shadows";
 	_hMouseCapture = onoff(mouseCaptureToggle);
 	_hDebug = onoff(showDebugInfo);
 	_hHelp = onoff(showHelp);
@@ -879,13 +810,29 @@ void StoneEngine::calculateFps()
 	}
 }
 
-void StoneEngine::setPlayerLightUniforms(GLuint program)
+void StoneEngine::setLightingUniforms(GLuint program)
 {
 	// Use the actual player position even when the render camera is mirrored.
 	const glm::vec3 position = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(program, "playerLightPos"), 1, glm::value_ptr(position));
 	glUniform1f(glGetUniformLocation(program, "playerLightRadius"), 10.0f);
 	glUniform1i(glGetUniformLocation(program, "playerLightEnabled"), playerLightEnabled ? 1 : 0);
+	glUniform1i(glGetUniformLocation(program, "fullBright"), fullBright ? 1 : 0);
+	glUniformMatrix4fv(glGetUniformLocation(program, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+	glUniform1f(glGetUniformLocation(program, "shadowTexelWorld"), _shadowTexelWorld);
+	glUniform1f(glGetUniformLocation(program, "shadowNear"), _shadowNear);
+	glUniform1f(glGetUniformLocation(program, "shadowFar"), _shadowFar);
+	glUniform1f(glGetUniformLocation(program, "shadowBiasSlope"), _shadowBiasSlope);
+	glUniform1f(glGetUniformLocation(program, "shadowBiasConstant"), _shadowBiasConstant);
+	glm::vec3 sunDir = computeSunDirection(timeValue);
+	glUniform3fv(glGetUniformLocation(program, "sunDir"), 1, glm::value_ptr(sunDir));
+	glUniform1f(glGetUniformLocation(program,"moonLightStrength"),MOON_LIGHT_STRENGTH);
+	const auto sky = dayNightCycle(timeValue).skyColor;
+	glUniform3f(glGetUniformLocation(program,"skyColor"),sky[0],sky[1],sky[2]);
+	glUniform1i(glGetUniformLocation(program,"timeValue"),timeValue);
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, shadowMap);
+	glUniform1i(glGetUniformLocation(program, "shadowMap"), 5);
 }
 
 void StoneEngine::activateRenderShader()
@@ -908,30 +855,17 @@ void StoneEngine::activateRenderShader()
 	_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 
 	glUseProgram(shaderProgram);
-	setPlayerLightUniforms(shaderProgram);
+	setLightingUniforms(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 	// Pass rotation-only view to terrain shader (camera-relative positions in VS)
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, value_ptr(vec3(1.0f, 0.95f, 0.95f)));
-	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-	glUniform1f(glGetUniformLocation(shaderProgram, "shadowTexelWorld"), _shadowTexelWorld);
-	glUniform1f(glGetUniformLocation(shaderProgram, "shadowNear"), _shadowNear);
-	glUniform1f(glGetUniformLocation(shaderProgram, "shadowFar"), _shadowFar);
-	glUniform1f(glGetUniformLocation(shaderProgram, "shadowBiasSlope"), _shadowBiasSlope);
-	glUniform1f(glGetUniformLocation(shaderProgram, "shadowBiasConstant"), _shadowBiasConstant);
 
 	// Pass camera world position explicitly for camera-relative rendering
 	vec3 camWorld = camera.getWorldPosition();
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, value_ptr(camWorld));
 
-	// Provide a stable directional sun vector (camera-invariant)
-	glm::vec3 sunDir = computeSunDirection(timeValue);
-	glUniform3fv(glGetUniformLocation(shaderProgram, "sunDir"), 1, glm::value_ptr(sunDir));
-
-	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_2D, shadowMap);
-	glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 4);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _textureManager.getTextureArray());
@@ -965,6 +899,8 @@ void StoneEngine::renderShadowMap()
 
 	// ---------- Sun dir depends only on time ----------
 	glm::vec3 sunDir = glm::normalize(computeSunDirection(timeValue));
+	// Reuse the directional shadow map for the body above the horizon.
+	if (sunDir.y < 0.0f) sunDir = -sunDir;
 
 	// ---------- Grid-locked center near player (X/Z only) ----------
 	const float GRID = float(CHUNK_SIZE) * 4.0f;  // snap every 4 chunks (tweak 2..8)
@@ -1171,7 +1107,7 @@ void StoneEngine::activateTransparentShader()
 	vec3 viewPos = camera.getWorldPosition();
 
 	glUseProgram(waterShaderProgram);
-	setPlayerLightUniforms(waterShaderProgram);
+	setLightingUniforms(waterShaderProgram);
 
 	// Matrices & camera
 	glUniformMatrix4fv(glGetUniformLocation(waterShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
@@ -1186,8 +1122,8 @@ void StoneEngine::activateTransparentShader()
 	// In wireframe/triangle-mesh mode, force water to render flat deep blue with no reflections
 	glUniform1i(glGetUniformLocation(waterShaderProgram, "showtrianglemesh"), showTriangleMesh ? 1 : 0);
 
-	// Provide global water plane height to the water shader (for underwater depth-based effects)
-	glUniform1f(glGetUniformLocation(waterShaderProgram, "waterHeight"), OCEAN_HEIGHT + 2);
+	// Underwater depth follows the actual pool/stream surface at the camera.
+	glUniform1f(glGetUniformLocation(waterShaderProgram, "waterHeight"), _player.underwaterSurfaceHeight());
 
 	const float nearPlane = 0.1f;
 	const float farPlane = FAR_PLANE;
@@ -1652,7 +1588,7 @@ void StoneEngine::renderFlowers()
 		return;
 
 	glUseProgram(flowerProgram);
-	setPlayerLightUniforms(flowerProgram);
+	setLightingUniforms(flowerProgram);
 
 	// Build rotation-only view (same convention as terrain/water)
 	float radY = camera.getAngles().y * (M_PI / 180.0f);
@@ -1761,9 +1697,14 @@ void StoneEngine::display()
 	// Pass 0: shadow map
 	renderShadowMap();
 
+	// Refresh immersion after movement so the filter follows this frame’s camera.
+	_player.updateWaterImmersion();
 	prepareRenderPipeline();
+	glm::mat4 skyView(1.0f);
+	skyView = glm::rotate(skyView,glm::radians(camera.getAngles().y),glm::vec3(-1,0,0));
+	skyView = glm::rotate(skyView,glm::radians(camera.getAngles().x),glm::vec3(0,-1,0));
+	if (!showTriangleMesh) drawSkyGradient(skyView);
 
-	renderSkybox();		  // -> msaaFBO
 	renderSolidObjects(); // -> msaaFBO
 
 	// Cutout flowers pass (after opaque, before water/transparents)
@@ -1774,7 +1715,7 @@ void StoneEngine::display()
 	resolveMsaaToFbo(writeFBO, true);
 	blitColorDepth(writeFBO, readFBO);
 
-	displaySun(writeFBO);
+	displayCelestialBodies(writeFBO);
 	blitColor(writeFBO, readFBO);
 
 	renderPlanarReflection();
@@ -1809,11 +1750,15 @@ void StoneEngine::display()
 	// Fog
 	postProcessFog();
 	blitColor(writeFBO, readFBO);
-	postProcessSkyboxComposite();
+
+	displayCelestialBodies(writeFBO);
 	blitColor(writeFBO, readFBO);
 
-	displaySun(writeFBO);
-	blitColor(writeFBO, readFBO);
+	// Apply the immersion filter after sun/moon compositing, before the UI.
+	if (_player.isUnderWater() && !showTriangleMesh) {
+		postProcessUnderwaterFilter();
+		blitColor(writeFBO, readFBO);
+	}
 
 	if (showUI)
 	{
@@ -1853,54 +1798,6 @@ void StoneEngine::renderLoadingScreen()
 	_loadingBox.initData(_window, windowWidth / 2 - 90, windowHeight / 2 - 18, windowWidth, windowHeight);
 	_loadingBox.render();
 	glfwSwapBuffers(_window);
-}
-
-void StoneEngine::postProcessSkyboxComposite()
-{
-	if (showTriangleMesh)
-		return;
-
-	PostProcessShader &shader = postProcessShaders[SKYBOX_COMPOSITE];
-	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
-	glUseProgram(shader.program);
-	glBindVertexArray(shader.vao);
-	glDisable(GL_DEPTH_TEST);
-	glDepthMask(GL_FALSE);
-
-	// Inputs: scene color and depth
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
-	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, readFBO.depth);
-	glUniform1i(glGetUniformLocation(shader.program, "depthTexture"), 1);
-
-	// Cubemap
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
-	glUniform1i(glGetUniformLocation(shader.program, "skybox"), 2);
-
-	// Matrices and params
-	glm::mat4 invProj = glm::inverse(projectionMatrix);
-	glUniformMatrix4fv(glGetUniformLocation(shader.program, "invProjection"), 1, GL_FALSE, glm::value_ptr(invProj));
-	// Build rotation-only view and pass its inverse (transpose for pure rotation)
-	float radY = camera.getAngles().y * (M_PI / 180.0f);
-	float radX = camera.getAngles().x * (M_PI / 180.0f);
-	glm::mat4 viewRot(1.0f);
-	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
-	viewRot = glm::rotate(viewRot, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-	glm::mat3 invViewRot = glm::transpose(glm::mat3(viewRot));
-	glUniformMatrix3fv(glGetUniformLocation(shader.program, "invViewRot"), 1, GL_FALSE, glm::value_ptr(invViewRot));
-	// Treat only truly empty pixels (cleared depth ~= 1.0) as sky; keep far terrain
-	glUniform1f(glGetUniformLocation(shader.program, "depthThreshold"), 0.9999999f);
-	glUniform1i(glGetUniformLocation(shader.program, "useLod0"), 1);
-	glUniform1f(glGetUniformLocation(shader.program, "edgeBias"), 0.998f);
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-
-	glDepthMask(GL_TRUE);
-	glCleanupTextureState();
 }
 
 void StoneEngine::renderAimHighlight()
@@ -2021,6 +1918,24 @@ void StoneEngine::postProcessCrosshair()
 	glCleanupTextureState();
 }
 
+void StoneEngine::postProcessUnderwaterFilter()
+{
+	PostProcessShader &shader = postProcessShaders[UNDERWATER_FILTER];
+	glBindFramebuffer(GL_FRAMEBUFFER, writeFBO.fbo);
+	glUseProgram(shader.program);
+	glBindVertexArray(shader.vao);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	glDepthMask(GL_FALSE);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, readFBO.texture);
+	glUniform1i(glGetUniformLocation(shader.program, "screenTexture"), 0);
+	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glDepthMask(GL_TRUE);
+	glCleanupTextureState();
+}
+
 void StoneEngine::postProcessFog()
 {
 	if (showTriangleMesh)
@@ -2045,12 +1960,14 @@ void StoneEngine::postProcessFog()
 	glUniform1f(glGetUniformLocation(shader.program, "nearPlane"), NEAR_PLANE);
 	glUniform1f(glGetUniformLocation(shader.program, "farPlane"), FAR_PLANE);
 	glUniform1f(glGetUniformLocation(shader.program, "skyDepthThreshold"), 0.9999999f);
-	glUniform3f(glGetUniformLocation(shader.program, "fogColor"),
-				0.46f, 0.49f, 0.52f);
+	const auto sky = dayNightCycle(timeValue).skyColor;
+	glUniform3f(glGetUniformLocation(shader.program, "fogColor"),sky[0],sky[1],sky[2]);
 
 	glUniform1i(glGetUniformLocation(shader.program, "isUnderwater"), _player.isUnderWater());
-	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), OCEAN_HEIGHT + 2);
+	glUniform1f(glGetUniformLocation(shader.program, "waterHeight"), _player.underwaterSurfaceHeight());
 	glUniform3fv(glGetUniformLocation(shader.program, "viewPos"), 1, glm::value_ptr(camera.getWorldPosition()));
+	setLightingUniforms(shader.program);
+
 
 	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
 	if (auto render = _chunkMgr.getCurrentRenderPtr(); render)
@@ -2169,6 +2086,8 @@ void StoneEngine::renderPlanarReflection()
 		return;
 	}
 
+	const auto sky = dayNightCycle(timeValue).skyColor;
+	glClearColor(sky[0],sky[1],sky[2],1.0f);
 	glBindFramebuffer(GL_FRAMEBUFFER, tmpFBO.fbo);
 	glViewport(0, 0, windowWidth, windowHeight);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -2180,6 +2099,8 @@ void StoneEngine::renderPlanarReflection()
 	viewRotMirror = glm::rotate(viewRotMirror, -radY, glm::vec3(-1.0f, 0.0f, 0.0f));
 	viewRotMirror = glm::rotate(viewRotMirror, radX, glm::vec3(0.0f, -1.0f, 0.0f));
 
+	drawSkyGradient(viewRotMirror);
+
 	glm::vec3 camMir = glm::vec3(camPos.x, 2.0f * waterY - camPos.y, camPos.z);
 
 	glm::mat4 viewFullMirror = viewRotMirror;
@@ -2189,24 +2110,9 @@ void StoneEngine::renderPlanarReflection()
 	glm::vec4 planeWorld(0.0f, 1.0f, 0.0f, -waterY);
 	glm::mat4 projOblique = makeObliqueProjection(projectionMatrix, viewFullMirror, planeWorld);
 
-	// 0) Skybox into planar FBO so reflections include sky
-	if (_hasSkybox && skyboxProgram != 0)
-	{
-		glUseProgram(skyboxProgram);
-		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
-		glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
-		glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);
-		GLboolean cullSkyEnabled = glIsEnabled(GL_CULL_FACE);
-		glDisable(GL_CULL_FACE);
-		_skybox.render();
-		if (cullSkyEnabled)
-			glEnable(GL_CULL_FACE);
-	}
 
 	glUseProgram(shaderProgram);
-	setPlayerLightUniforms(shaderProgram);
+	setLightingUniforms(shaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "cameraPos"), 1, glm::value_ptr(camMir));
@@ -2226,7 +2132,7 @@ void StoneEngine::renderPlanarReflection()
 
 	// Also render masked alpha (leaves) into planar reflection
 	glUseProgram(alphaShaderProgram);
-	setPlayerLightUniforms(alphaShaderProgram);
+	setLightingUniforms(alphaShaderProgram);
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRotMirror));
 	glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
@@ -2246,44 +2152,42 @@ void StoneEngine::renderPlanarReflection()
 	_chunkMgr.renderTransparentBlocks();
 	_chunkMgr.setViewProj(prevView, projectionMatrix);
 
-	// 2) Add the sun sprite to the planar reflection so it can reflect in water
-	{
-		glUseProgram(sunShaderProgram);
-		// Use full mirrored view (with translation) and oblique projection
-		glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewFullMirror));
-		glUniformMatrix4fv(glGetUniformLocation(sunShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projOblique));
-
-		// Place sun far along its world-space direction relative to the mirrored camera
-		glm::vec3 sunDir = computeSunDirection(timeValue);
-		glm::vec3 sunPos = camMir + sunDir * 6000.0f;
-		glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunPosition"), 1, glm::value_ptr(sunPos));
-
-		glm::vec3 sunColor(1.0f, 0.6f, 0.2f);
-		float height = clamp((sunPos.y - camMir.y) / 6000.0f, 0.0f, 1.0f);
-		sunColor = mix(sunColor, glm::vec3(1.0f), height);
-		glUniform3fv(glGetUniformLocation(sunShaderProgram, "sunColor"), 1, glm::value_ptr(sunColor));
-		glUniform1f(glGetUniformLocation(sunShaderProgram, "intensity"), 1.0f);
-
-		glEnable(GL_DEPTH_TEST);   // sun should be occluded by mirrored terrain
-		glDepthMask(GL_FALSE);     // but not write depth
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_ONE, GL_ONE); // additive
-
-		glBindVertexArray(sunVAO);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		glBindVertexArray(0);
-
-		glDisable(GL_BLEND);
-		glDepthMask(GL_TRUE);
-	}
+	// Reflect the sun and the dimmer, opposite moon with the same orbit.
+	drawCelestialBodies(camMir,viewFullMirror,projOblique);
 
 	if (cullWasEnabled)
 		glEnable(GL_CULL_FACE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void StoneEngine::drawSkyGradient(const glm::mat4& viewRotation)
+{
+	const auto cycle = dayNightCycle(timeValue);
+	const auto& shader = postProcessShaders[SKY_GRADIENT];
+	glUseProgram(shader.program);
+	glm::mat4 invProjection = glm::inverse(projectionMatrix);
+	glm::mat3 invViewRot = glm::transpose(glm::mat3(viewRotation));
+	glUniformMatrix4fv(glGetUniformLocation(shader.program,"invProjection"),1,GL_FALSE,glm::value_ptr(invProjection));
+	glUniformMatrix3fv(glGetUniformLocation(shader.program,"invViewRot"),1,GL_FALSE,glm::value_ptr(invViewRot));
+	glUniform3fv(glGetUniformLocation(shader.program,"skyTopColor"),1,cycle.skyTopColor.data());
+	glUniform3fv(glGetUniformLocation(shader.program,"skyHorizonColor"),1,cycle.skyHorizonColor.data());
+	GLboolean wasCulling = glIsEnabled(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_BLEND);
+	glDisable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+	glBindVertexArray(shader.vao);
+	glDrawArrays(GL_TRIANGLES,0,6);
+	glBindVertexArray(0);
+	glDepthMask(GL_TRUE);
+	glEnable(GL_DEPTH_TEST);
+	if (wasCulling) glEnable(GL_CULL_FACE);
+}
+
 void StoneEngine::prepareRenderPipeline()
 {
+	const auto sky = dayNightCycle(timeValue).skyColor;
+	glClearColor(sky[0],sky[1],sky[2],1.0f);
 	// Default to filled geometry; wireframe overlay handled in renderSolidObjects()
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	if (showTriangleMesh)
@@ -2425,7 +2329,7 @@ void StoneEngine::renderTransparentObjects()
 		_chunkMgr.setViewProj(this->viewMatrix, projectionMatrix);
 		vec3 viewPos = camera.getWorldPosition();
 		glUseProgram(alphaShaderProgram);
-		setPlayerLightUniforms(alphaShaderProgram);
+		setLightingUniforms(alphaShaderProgram);
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "projection"), 1, GL_FALSE, value_ptr(projectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "model"), 1, GL_FALSE, value_ptr(modelMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(alphaShaderProgram, "view"), 1, GL_FALSE, value_ptr(viewRot));
@@ -2472,53 +2376,6 @@ void StoneEngine::renderTransparentObjects()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
 
-	glCleanupTextureState();
-}
-
-void StoneEngine::renderSkybox()
-{
-	if (showTriangleMesh)
-		return; // keep wireframe clean
-	if (!_hasSkybox || skyboxProgram == 0)
-	{
-		static bool once = false;
-		if (!once)
-		{
-			std::cerr << "[Skybox] Skip render: has=" << _hasSkybox << " prog=" << skyboxProgram << std::endl;
-			once = true;
-		}
-		return;
-	}
-
-	// Ensure drawing targets the current MSAA buffer
-	glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO.fbo);
-
-	// Rotation-only view so the cube follows the camera
-	float radY = camera.getAngles().y * (M_PI / 180.0f);
-	float radX = camera.getAngles().x * (M_PI / 180.0f);
-	glm::mat4 viewRot(1.0f);
-	viewRot = glm::rotate(viewRot, radY, glm::vec3(-1.0f, 0.0f, 0.0f));
-	viewRot = glm::rotate(viewRot, radX, glm::vec3(0.0f, -1.0f, 0.0f));
-
-	glUseProgram(skyboxProgram);
-	// Debug: verify texture/program once
-	// static bool infoOnce=false;
-	// if(!infoOnce){ std::cerr << "[Skybox] Render with program=" << skyboxProgram << " tex=" << _skybox.getTextureID() << std::endl; infoOnce=true; }
-	glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "view"), 1, GL_FALSE, glm::value_ptr(viewRot));
-	glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _skybox.getTextureID());
-	glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);
-
-	// Render inside of the cube. Disable face culling to avoid orientation issues.
-	GLboolean cullEnabled = glIsEnabled(GL_CULL_FACE);
-	glDisable(GL_CULL_FACE);
-
-	_skybox.render();
-
-	if (cullEnabled)
-		glEnable(GL_CULL_FACE);
 	glCleanupTextureState();
 }
 
@@ -2643,10 +2500,8 @@ void StoneEngine::updateGameTick()
 		timeValue += 6; // Increment time value per game tick
 	// std::cout << "timeValue: " << timeValue << std::endl;
 	// _chunkMgr.printSizes(); Debug container sizes
-	if (timeValue > 86400)
-		timeValue = 0;
-	if (timeValue < 0)
-		timeValue = 86400;
+	int cycleTime = timeValue.load();
+	timeValue = (cycleTime%86400+86400)%86400;
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "timeValue"), timeValue);
 	glUseProgram(postProcessShaders[GREEDYFIX].program);
@@ -2990,13 +2845,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	(void)scancode;
 	(void)mods;
 	if (action == GLFW_PRESS && key == GLFW_KEY_F)
-	{
-		// Change FOV without rebuilding framebuffers to avoid culling flashes
-		_fov = DEFAULT_FOV;
-		_mouseGlide = fvec2(0.0f);
-		// Update projection only; viewport is unchanged
-		projectionMatrix = perspective(radians(_fov), float(windowWidth) / float(windowHeight), NEAR_PLANE, FAR_PLANE);
-	}
+		playerLightEnabled = !playerLightEnabled;
 	if (action == GLFW_PRESS && key == GLFW_KEY_C)
 		updateChunk = !updateChunk;
 	if (action == GLFW_PRESS && key == GLFW_KEY_G)
@@ -3013,7 +2862,7 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 	if (action == GLFW_PRESS && key == GLFW_KEY_F1)
 		showUI = !showUI;
 	if (action == GLFW_PRESS && key == GLFW_KEY_L)
-		playerLightEnabled = !playerLightEnabled;
+		fullBright = !fullBright;
     if (action == GLFW_PRESS && key == GLFW_KEY_F7) {
         _showWaterDebug = !_showWaterDebug;
         if (_showWaterDebug && !_waterDebugBox) {

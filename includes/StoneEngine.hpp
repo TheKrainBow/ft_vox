@@ -6,10 +6,10 @@
 #include "Textbox.hpp"
 #include "define.hpp"
 #include "Chrono.hpp"
-#include "Skybox.hpp"
 #include "ChunkManager.hpp"
 #include "Raycaster.hpp"
 #include "Player.hpp"
+#include "DayNightCycle.hpp"
 #include "MouseCapture.hpp"
 #include <cstddef>
 #include <vector>
@@ -36,7 +36,8 @@ class StoneEngine {
 			FOG = 1,
 			GODRAYS = 2,
 			CROSSHAIR = 3,
-			SKYBOX_COMPOSITE = 4,
+			UNDERWATER_FILTER = 4,
+			SKY_GRADIENT = 5,
 		} ShaderType;
 	private:
 		// Display
@@ -60,11 +61,6 @@ class StoneEngine {
 		float _shadowTexelWorld = 0.0f;
 		float _shadowNear = 1.0f;
 		float _shadowFar  = 500.0f;
-
-		// Skybox
-		GLuint skyboxProgram = 0;
-		Skybox _skybox;
-		bool _hasSkybox = false;
 
 		GLuint waterShaderProgram;
 		GLuint waterNormalMap;
@@ -144,6 +140,7 @@ class StoneEngine {
 		bool showHelp;
 		bool showUI;
 		bool playerLightEnabled;
+		bool fullBright = false;
 		bool pauseTime = false;
 		bool gravity;
 		bool accelPlus = false;
@@ -217,6 +214,7 @@ class StoneEngine {
 		std::string _hSprinting;
 		std::string _hUI;
 		std::string _hPlayerLight;
+		std::string _hLighting;
 		std::string _hMouseCapture;
 		std::string _hDebug;
 		std::string _hHelp;
@@ -262,7 +260,6 @@ class StoneEngine {
 		void	initTextures();
 		void	initRenderShaders();
 		void	initShadowMapping();
-		void	initSkybox();
 		void	initFlowerResources();
 		void	initDebugTextBox();
 		void	initHelpTextBox();
@@ -273,8 +270,7 @@ class StoneEngine {
 		void	initMsaaFramebuffers(FBODatas &fboData, int width, int height);
 		void	initWireframeResources();
 		void	renderAimHighlight();
-		void	setPlayerLightUniforms(GLuint program);
-		void	postProcessSkyboxComposite();
+		void	setLightingUniforms(GLuint program);
 		void	setFullscreen(bool enable);
 		void	renderLoadingScreen();
 		void	updateHelpStatusText();
@@ -287,7 +283,6 @@ class StoneEngine {
 		// Runtime methods
 		void calculateFps();
 		void display();
-		void renderSkybox();
 		void renderOverlayAndUI();
 		void finalizeFrame();
 		void renderTransparentObjects();
@@ -295,7 +290,9 @@ class StoneEngine {
 		void renderFlowers();
 		void resolveMsaaToFbo(FBODatas &destinationFBO, bool resolveDepth);
 		void prepareRenderPipeline();
-		void displaySun(FBODatas &targetFBO);
+		void drawSkyGradient(const glm::mat4& viewRotation);
+		void displayCelestialBodies(FBODatas &targetFBO);
+		void drawCelestialBodies(const glm::vec3& cameraPos, const glm::mat4& view, const glm::mat4& projection);
 		void renderShadowMap();
 		void loadFirstChunks();
 		void loadNextChunks(ivec2 newCamChunk);
@@ -315,6 +312,7 @@ class StoneEngine {
 		void screenshotFBOBuffer(FBODatas &source, FBODatas &destination);
 		void postProcessGreedyFix();
 		void postProcessFog();
+		void postProcessUnderwaterFilter();
 		void postProcessGodRays();
 		void sendPostProcessFBOToDispay(const FBODatas &sourceFBO);
 	

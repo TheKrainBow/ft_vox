@@ -1,9 +1,41 @@
 #include "ChunkLoader.hpp"
+#include "Player.hpp"
 #include <cassert>
 #include <iostream>
 
 bool isWSL() { return false; }
 struct WaterIntegrationTest {
+    static void immersion(ChunkManager& world, Camera& camera) {
+        auto& loader = world._chunkLoader;
+        load(loader, {-1,-1});
+        for (int z=-3; z<=-1; ++z) for (int x=-3; x<=-1; ++x) {
+            assert(loader.setBlock({-1,-1},{x,30,z},STONE,true));
+            assert(loader.setBlock({-1,-1},{x,31,z},WATER,true));
+            assert(loader.setBlock({-1,-1},{x,32,z},WATER,true));
+            assert(loader.setBlock({-1,-1},{x,33,z},STONE,true));
+        }
+        Player player(camera,world);
+        bool gravity = false;
+        player.setGravity(gravity);
+        camera.setPos({2.5f,-31.5f,2.5f});
+        player.updatePlayerStates();
+        assert(player.isUnderWater());
+        assert(std::abs(player.underwaterSurfaceHeight()-(32.0f+13.0f/15.0f))<0.0001f);
+        camera.setPos({2.5f,-32.8f,2.5f});
+        player.updateWaterImmersion();
+        assert(player.isUnderWater());
+        camera.setPos({2.5f,-32.95f,2.5f});
+        player.updateWaterImmersion();
+        assert(!player.isUnderWater()); // Eyes above water, body still immersed.
+        for (int z=-3; z<=-1; ++z) for (int x=-3; x<=-1; ++x)
+            assert(loader.setBlock({-1,-1},{x,32,z},WATER_FLOW_3,true));
+        camera.setPos({2.5f,-32.45f,2.5f});
+        player.updateWaterImmersion();
+        assert(player.isUnderWater());
+        camera.setPos({2.5f,-32.6f,2.5f});
+        player.updateWaterImmersion();
+        assert(!player.isUnderWater());
+    }
     static Chunk* load(ChunkLoader& loader, glm::ivec2 p) {
         return loader.loadChunk(0,0,0,p,1);
     }
@@ -67,5 +99,7 @@ int main() {
     std::queue<DisplayData*> solids, transparent;
     ChunkLoader loader(42,camera,pool,chrono,&running,drawMutex,solids,transparent);
     WaterIntegrationTest::run(loader);
+    ChunkManager world(42,&running,camera,chrono,pool);
+    WaterIntegrationTest::immersion(world,camera);
     std::cout << "Water chunk-border wakeup, negative coordinates, mesh invalidation, cache and eviction checks passed\n";
 }

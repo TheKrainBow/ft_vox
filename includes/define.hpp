@@ -5,7 +5,7 @@
 # define SHOW_LOADCHUNK_TIME true
 # define RUNNING false
 # define CAPTURE_MOUSE true
-# define PLAYER_LIGHT_ENABLED true
+# define PLAYER_LIGHT_ENABLED false
 # define SHOW_UI true
 # define GRAVITY true
 # define FALLING false
@@ -79,11 +79,6 @@
 #endif
 #ifndef FAR_PLANE
 # define FAR_PLANE 9600.0f
-#endif
-
-// Single-file cubemap PNG (cross/strip/grid). If present, used first.
-#ifndef SKYBOX_SINGLE_PNG
-# define SKYBOX_SINGLE_PNG "textures/cloud1.png"
 #endif
 
 # define AIR 0

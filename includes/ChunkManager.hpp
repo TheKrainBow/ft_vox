@@ -27,6 +27,7 @@ class ChunkLoader;
 
 class ChunkManager
 {
+	friend struct WaterIntegrationTest;
 private:
 	// Seed for world generation
 	int	_seed;

@@ -5,6 +5,7 @@ layout(location = 0) in vec2 aPos; // Quad corners [-1,1] x [-1,1]
 uniform vec3 sunPosition;
 uniform mat4 view;
 uniform mat4 projection;
+uniform float discScale;
 
 out vec2 UV;
 
@@ -19,7 +20,7 @@ void main()
 	// Keep the same apparent size at a reference FOV (80 deg), and scale with current P[1][1].
 	const float baseFovDeg = 80.0;           // reference FOV used previously
 	const float baseSizeNDC = 0.15;          // vertical half-size at base FOV
-	float sizeY = baseSizeNDC * tan(radians(baseFovDeg * 0.5)) * projection[1][1];
+	float sizeY = baseSizeNDC * discScale * tan(radians(baseFovDeg * 0.5)) * projection[1][1];
 
 	vec2 offset = aPos * sizeY;
 

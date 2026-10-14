@@ -11,6 +11,27 @@ uniform float nearPlane;
 uniform float farPlane;
 uniform vec3 viewPos;
 uniform float waterHeight;
+uniform sampler2DShadow shadowMap;
+uniform mat4 lightSpaceMatrix;
+uniform vec3 sunDir;
+uniform float moonLightStrength;
+uniform bool playerLightEnabled;
+uniform bool fullBright;
+
+float underwaterLighting() {
+	if (fullBright) return 1.0;
+	vec4 clip = lightSpaceMatrix * vec4(viewPos,1.0);
+	vec3 p = clip.xyz / clip.w * 0.5 + 0.5;
+	float visibility = 0.0;
+	if (all(greaterThanEqual(p,vec3(0.0))) && all(lessThanEqual(p,vec3(1.0)))) {
+		vec2 texel = 1.0 / vec2(textureSize(shadowMap,0));
+		for (int x=-1; x<=1; ++x) for (int y=-1; y<=1; ++y)
+			visibility += texture(shadowMap,vec3(p.xy+vec2(x,y)*texel,p.z-0.00001));
+		visibility /= 9.0;
+	}
+	return clamp(0.025 + 0.92 * visibility * (smoothstep(0.0,0.15,sunDir.y) + moonLightStrength*smoothstep(0.0,0.15,-sunDir.y)) +
+		(playerLightEnabled ? 0.5 : 0.0),0.0,1.0);
+}
 
 // Fog controls
 const float UW_MIN_TINT_DEPTH = 1.5;   // meters below surface where tint begins
@@ -51,6 +72,7 @@ void main() {
 		vec3 shallowAqua = vec3(0.07, 0.24, 0.28);
 		vec3 deepBlue    = vec3(0.00, 0.12, 0.25);
 		vec3 uwTint      = mix(shallowAqua, deepBlue, depthUnder);
+		uwTint *= underwaterLighting();
 
 		float linDepthUW = linearDepth;
 
@@ -59,7 +81,8 @@ void main() {
 		float effDepth = min(linDepthUW * UW_DISTANCE_SPEED, maxPath);
 
 		float density = mix(UW_DENSITY_BASE * 2.0, UW_DENSITY_DEEP, depthRamp);
-		float fog = 1.0 - exp(-density * effDepth);
+		// A light tint is visible even in shallow pools with nearby cave walls.
+		float fog = 1.0 - 0.88 * exp(-density * effDepth);
 
 		const float skyDepthStart = 0.995;
 		const float skyDepthEnd   = 0.9999;

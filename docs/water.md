@@ -101,6 +101,13 @@ swimming/current tests, raycast regression and mouse capture regression. It need
 `glslangValidator`, `xvfb-run`, and the existing GL/X11 development dependencies.
 Individual targets are `test-water`, `test-water-integration`, `test-water-meshing`,
 `test-flowing-water`, `test-swimming`, `test-raycast`, and `test-mouse-capture`.
+`make test-water-lighting` uses headless EGL to render the real water and fog
+fragment shaders, checking sunlight/shadow contrast, player lighting, night water,
+and shallow underwater fog at cave elevations above sea level.
+The GPU suites also check dark cave/night terrain, full lighting, and the final
+underwater screen filter. The integration suite checks actual player immersion
+in a roofed pool across a vertical subchunk boundary, including shallow flow and
+leaving the water in fly mode.
 
 The rule suite checks timing, seven-block diamonds, waterfalls and landing reach,
 near/equal/out-of-range drops, walls, decay, 1×3 and 2×2 regeneration, disabled
@@ -114,7 +121,7 @@ This targets the specified modern Java rules, not bit-for-bit parity with a
 particular release. Deterministic coordinate tie order and the 512-event budget
 can differ from Java's scheduling order. Existing equal-weight surface corner
 averaging is retained instead of Java's weighted corner sampling; heights remain
-quantized and ocean reflections/fog retain the existing global sea plane. Swimming
+quantized and ocean planar reflections retain the existing global sea plane. Swimming
 constants remain project-specific. Boundary simulation pauses conservatively when
 any required local/search data is unavailable. Remote edits do not wake all water
 within the slope-search radius; as with neighbor-driven fluids, routing is evaluated
@@ -126,3 +133,54 @@ rules; current plants accept replacement, and other blocks block passage. Logs a
 cactus have inset render geometry but remain blockers in this fluid model.
 Buckets, item drops, mobs, boats, lava reactions, bubble columns, freezing, sponges,
 and Nether evaporation have no corresponding mechanics and were not added.
+
+## Water lighting and immersion fog
+
+Water samples the terrain shadow map with the active sun/moon direction and
+shadow bias parameters. Its tint is dark in shadow, brightens under sunlight, and retains the
+existing smooth player light. Sky/planar reflections fade with sunlight exposure
+so they cannot brighten unlit cave pools. A small ambient floor keeps dark water
+legible; lighting does not change its alpha or corner geometry.
+
+Player immersion tracks the top of the local contiguous water column using the
+shared corner heights, including flowing water and water under a solid ceiling.
+The scan is bounded to 1024 blocks. Both the water shader and underwater fog use
+this local surface height rather than sea level. Shallow immersion gets a light
+baseline fog tint even when cave walls are nearby, with increasing absorption
+over distance. Fog tint also responds to sunlight occlusion and the player's
+light, avoiding a bright blue glow in dark caves.
+
+A separate blue/green screen filter and soft vignette run after sun/moon
+compositing, before the crosshair and HUD. They depend on eye immersion rather
+than scene depth or sunlight, so even a shallow, dark cave pool has a visible
+underwater cue. Immersion is refreshed from the current camera before rendering.
+
+Natural lighting is the default: sun shadows attenuate ambient sky fill as well
+as diffuse/specular light, leaving caves very dark; night sky fill is also much
+lower. Surface terrain, leaves and plants receive a small daytime sky fill
+when a raised shadow-map sample clears low surface occluders. Cave roofs block
+that fill, and it switches off at night. Terrain, leaves, plants and water share
+the lighting mode and shadow map.
+**F** toggles the local player light, which starts off. **L** toggles full lighting
+everywhere for visibility, independent of sun or shadows. The help panel shows
+both toggles. The underwater filter stays active in either lighting mode.
+
+## Day/night sky and moon
+
+`DayNightCycle.hpp` preserves the existing orbit: sunrise at 42000, noon at 64200,
+sunset at 0/86400 and midnight at 21000. The moon stays exactly opposite the sun.
+The procedural sky blends from dark night blue through peach/orange sunset
+horizons and rose/violet upper skies to blue in daylight. Its vertical gradient
+follows the world horizon as the camera turns, including in planar reflections. Scene clear color, water reflection background and outdoor fog use
+the same cycle color; no skybox is loaded.
+
+The moon and sun share the same size and soft halo profile. The moon is blue
+with lower visual intensity; the sun stays yellow/orange even at midday. Its light strength is 6% of sunlight
+(`MOON_LIGHT_STRENGTH`). The body above the horizon uses the shared directional
+shadow map, so moonlight affects terrain, leaves, plants, water and underwater
+fog while cave roofs still block it. Both bodies appear in planar reflections.
+Existing P and numpad time controls also drive the sky and moon.
+
+`make test-day-night` checks opposite unit directions, smooth sky transitions,
+twilight colors and forward/backward day wrapping. GPU lighting tests verify dim
+moonlight on exposed terrain/water, roof occlusion and the moon disc's brightness.

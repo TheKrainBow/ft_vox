@@ -7,7 +7,7 @@ Highlights
 - Chunked world streaming with LRU caching and prioritized loading 
 - Greedy meshing and solid/alpha split passes for efficiency 
 - Water with planar reflections and animated normals 
-- Skybox support, dynamic sun, shadows, fog and light “god rays” 
+- Day/night sky colors, opposite sun and moon, shadows, fog and light “god rays”
 - Post‑process pipeline with MSAA resolve and UI overlay 
  
 Dependencies 
@@ -44,7 +44,8 @@ Toggles & Tools
 - F3: Debug overlay 
 - F4: Triangle mesh (wireframe) view 
 - F5: Invert camera 
-- L: Toggle player light (10-block radius; soft light and shadow fill fading smoothly with distance)
+- F: Toggle player light (10-block radius; off by default)
+- L: Switch between natural sun/moon lighting (default) and full lighting everywhere
 - G: Toggle gravity 
 - C: Toggle world generation/streaming 
 - P: Pause day/night time update 

@@ -15,6 +15,7 @@
 #include "NoiseGenerator.hpp"
 #include "SubChunk.hpp"
 #include "CaveGenerator.hpp"
+#include "CaveWaterGenerator.hpp"
 #include "Chunk.hpp"
 #include "Camera.hpp"
 #include "Chrono.hpp"
@@ -98,6 +99,7 @@ private:
 	// Terrain generation heavy lifters
 	NoiseGenerator	_perlinGenerator;
 	CaveGenerator	_caveGen;
+	CaveWaterGenerator _caveWaterGen;
 
 	// Chunks edit tracking
 	std::unordered_set<ivec2, ivec2_hash> _dirtyChunks;
@@ -160,7 +162,8 @@ public:
 		std::atomic_bool *isRunning,
 		std::mutex &sharedDrawDataMutex,
 		std::queue<DisplayData *>	&solidStagedDataQueue,
-		std::queue<DisplayData *>	&transparentStagedDataQueue
+		std::queue<DisplayData *>	&transparentStagedDataQueue,
+		CaveWaterSettings caveWaterSettings = {}
 	);
 	~ChunkLoader();
 
@@ -189,6 +192,7 @@ public:
 	TopBlock		findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
 	bool			getIsRunning();
 	NoiseGenerator &getNoiseGenerator();
+	const CaveWaterGenerator& getCaveWaterGenerator() const { return _caveWaterGen; }
 	void			getDisplayedChunksSnapshot(std::vector<glm::ivec2>& out);
 	bool			hasRenderableChunks();
 

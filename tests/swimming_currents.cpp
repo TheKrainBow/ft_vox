@@ -4,6 +4,15 @@
 #include <iostream>
 
 int main() {
+    // Local immersion depth follows contiguous water, at any world elevation,
+    // and stops at cave roofs, air gaps or unloaded terrain.
+    for (char cap : {char(AIR), char(STONE), char(WATER_UNKNOWN)}) {
+        auto column = [&](int, int y, int) -> char { return y <= 2 ? WATER : cap; };
+        float surface = waterColumnSurface(column,0.5f,0.5f);
+        assert(std::abs(surface - (2.0f + 13.0f/15.0f)) < 0.0001f);
+    }
+    auto shallow = [](int, int y, int) -> char { return y == 0 ? WATER_FLOW_3 : AIR; };
+    assert(std::abs(waterColumnSurface(shallow,0.5f,0.5f) - 8.0f/15.0f) < 0.0001f);
     // Each flow level lowers the existing swimming contact threshold.
     // Check both positive and negative world heights.
     for (float base : {-10.0f, 10.0f}) {

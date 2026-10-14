@@ -91,7 +91,8 @@ void main() {
 	glUniform1f(loc("playerLightRadius"), 10);
 	glUniform1f(loc("shadowNear"), 1);
 	glUniform1f(loc("shadowFar"), 500);
-	const float identity[] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+	// Top-down sunlight: raising the world sample moves it toward the light.
+	const float identity[] = {0.02f,0,0,0, 0,0,-0.02f,0, 0,0.02f,0,0, 0,0,0,1};
 	glUniformMatrix4fv(loc("lightSpaceMatrix"), 1, GL_FALSE, identity);
 
 	GLuint atlas;
@@ -127,11 +128,11 @@ void main() {
 	glBindVertexArray(vao);
 	glViewport(0, 0, 1, 1);
 
-	auto render = [&](float distance, bool enabled, bool shadowed) {
+	auto render = [&](float distance, bool enabled, bool shadowed, float shadowDepth = -1.0f) {
 		glUniform3f(loc("playerLightPos"), distance, 0, 0);
 		glUniform1i(loc("playerLightEnabled"), enabled);
 		glActiveTexture(GL_TEXTURE1);
-		const float depth = shadowed ? 0.0f : 1.0f;
+		const float depth = shadowDepth >= 0 ? shadowDepth : shadowed ? 0.0f : 1.0f;
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, 1, 1, 0,
 			GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -143,26 +144,28 @@ void main() {
 	const float sun = render(0, false, false);
 	const float dark = render(0, false, true);
 	require(sun > dark + 0.02f, "Fixture must contain a visible sun shadow");
+	// A low surface occluder blocks the sun but leaves the raised sky sample
+	// exposed. A thick cave roof blocks both samples and keeps its old darkness.
+	const float surfaceShade = render(0,false,true,0.40f);
+	require(surfaceShade > dark+0.02f && surfaceShade < sun,
+		"Surface shadows must receive gentle sky fill while caves remain dark");
 	const float peak = render(0, true, true);
-	require(std::abs((peak - sun) - 0.1f) < 0.0001f,
+	require(std::abs((peak - dark) - 0.1f) < 0.0001f,
 		"Peak player intensity must be half a unit of texture brightness");
-	require(std::abs(peak - render(0, true, false)) < 0.0001f,
-		"Player light must fill sun shadows at its source");
+	require(dark < sun * 0.1f, "Unlit caves must lose the daytime ambient fill");
 	float previousBrightness = peak;
-	float previousShadowContrast = 0;
 	for (float distance : {2.0f, 4.0f, 5.0f, 6.0f, 8.0f, 9.0f, 9.9f}) {
 		float bright = render(distance, true, true);
 		float sunny = render(distance, true, false);
 		float contrast = sunny - bright;
 		require(bright > dark && bright < previousBrightness,
 			"Light must fade progressively throughout the entire radius");
-		require(contrast > previousShadowContrast && contrast < sun - dark,
-			"Shadow fill must fade progressively with light intensity");
+		require(std::abs(contrast - (sun-dark)) < 0.0001f,
+			"Player light must preserve natural shadow contrast");
 		if (distance == 5.0f)
 			require(std::abs((sunny - sun) - 0.05f) < 0.0001f,
 				"Light must reach half its peak intensity halfway through the radius");
 		previousBrightness = bright;
-		previousShadowContrast = contrast;
 		std::cout << "Distance " << distance << ": shadowed=" << bright << ", contrast=" << contrast << '\n';
 	}
 	require(render(9.9f, true, true) - dark < 0.001f,
@@ -170,7 +173,23 @@ void main() {
 	for (float distance : {10.0f, 12.0f})
 		require(std::abs(render(distance, true, true) - dark) < 0.0001f,
 			"Player light must leave shadows unchanged at and beyond 10 blocks");
-	std::cout << "Player lighting GPU regression passed\n";
+	glUniform1i(loc("timeValue"), 0);
+	glUniform3f(loc("sunDir"),0,-1,0);
+	const float night = render(12,false,false);
+	glUniform1f(loc("moonLightStrength"),0.06f);
+	const float moonlit = render(12,false,false);
+	require(moonlit > night+0.003f && moonlit < sun*0.12f,
+		"The opposite moon must illuminate terrain much less strongly than the sun");
+	require(std::abs(render(12,false,true)-dark)<0.0001f,
+		"Moonlight must not illuminate caves through their roofs");
+	require(std::abs(render(12,false,true,0.40f)-dark)<0.0001f,
+		"Surface shadow fill must disappear at night");
+	require(night < sun*0.1f, "Surface terrain at night must be substantially darker than daylight");
+	glUniform1i(loc("fullBright"),true);
+	for (bool shadowed : {false,true})
+		require(std::abs(render(12,false,shadowed)-0.2f)<0.0001f,
+			"Full lighting must reveal terrain regardless of sun or occlusion");
+	std::cout << "Player lighting, dark caves/night and full lighting GPU regressions passed\n";
 	glDeleteVertexArrays(1, &vao);
 	glDeleteFramebuffers(1, &fbo);
 	glDeleteTextures(1, &output);

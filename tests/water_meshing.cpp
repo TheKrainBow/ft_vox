@@ -83,6 +83,26 @@ int main() {
         foundSlope = foundSlope || (uint32_t(packed) & 0x80000000u);
     assert(foundSlope);
 
+    // A solid ceiling leaves the lower water surface visible. Only water
+    // above it culls the top, including across vertical subchunk borders.
+    for (char current : {char(WATER), char(WATER_FLOW_1), char(WATER_FALLING)})
+    for (int y : {8, CHUNK_SIZE - 1})
+    for (char above : {char(AIR), char(STONE), char(DIRT), char(WATER),
+                       char(WATER_FLOW_3), char(WATER_FALLING)}) {
+        fill(*water, AIR);
+        auto* upper = center.getSubChunk(2);
+        fill(*upper, AIR);
+        water->setBlockLocal(8, y, 8, current);
+        if (y + 1 < CHUNK_SIZE) water->setBlockLocal(8, y + 1, 8, above);
+        else upper->setBlockLocal(8, 0, 8, above);
+        water->sendFacesToDisplay();
+        bool topVisible = false;
+        const auto& vertices = water->getTransparentVertices();
+        for (int i = 0; i < water->getTranspDirCounts()[UP]; ++i)
+            topVisible |= int((uint32_t(vertices[i]) >> 5) & 31u) == y;
+        assert(topVisible == !isWater(above));
+    }
+
     // Coarse faces must inspect the whole touching patch, even at a 4:1 ratio.
     fill(*adjacent, WATER);
     for (auto dir : {NORTH, SOUTH, EAST, WEST}) {

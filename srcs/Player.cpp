@@ -14,7 +14,7 @@ void Player::updateNow(std::chrono::steady_clock::time_point &now)
 	_now = now;
 }
 
-bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current)
+bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current, bool columnSurface)
 {
 	ivec3 cell = ivec3(glm::floor(worldPos));
 	auto read = [&](int x, int y, int z) {
@@ -28,23 +28,25 @@ bool Player::waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3
 		auto flow = waterCurrent(read);
 		*current = {flow[0], flow[1], flow[2]};
 	}
-	auto corners = waterSurfaceCorners(read);
-	surface = cell.y + waterSurfaceHeight(corners,
-		worldPos.x - cell.x, worldPos.z - cell.z);
+	float x = worldPos.x-cell.x, z = worldPos.z-cell.z;
+	surface = cell.y + (columnSurface ? waterColumnSurface(read,x,z) :
+		waterSurfaceHeight(waterSurfaceCorners(read),x,z));
 	return true;
 }
 
-bool Player::isPointInWater(const glm::vec3& worldPos)
+void Player::updateWaterImmersion()
 {
-	float surface;
-	return waterSurfaceAt(worldPos, surface) && worldPos.y < surface;
+	vec3 worldPos = _cam.getWorldPosition();
+	// Underwater effects follow the visible surface, including shallow slopes.
+	_underwaterSurfaceHeight = worldPos.y;
+	_isUnderWater = waterSurfaceAt(worldPos,_underwaterSurfaceHeight,nullptr,true) &&
+		worldPos.y < _underwaterSurfaceHeight;
 }
 
 void Player::updatePlayerStates()
 {
 	vec3 worldPos = _cam.getWorldPosition();
-	// Underwater effects follow the visible surface, including shallow slopes.
-	_isUnderWater = isPointInWater(worldPos);
+	updateWaterImmersion();
 	_waterCurrent = glm::vec3(0.0f);
 	if (!_gravity) {
 		_currentVelocity = glm::vec3(0.0f);

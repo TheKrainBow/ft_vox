@@ -104,3 +104,15 @@ inline float waterSurfaceHeight(const std::array<int, 4>& h, float x, float z) {
     return (h[3] + (1.0f - x) * (h[2] - h[3]) +
             (1.0f - z) * (h[1] - h[3])) / 15.0f;
 }
+
+// Height above the sampled cell of the top of its contiguous water column.
+// Bounded even for unusually tall waterfalls; unknown/solid/air ends the scan.
+template<class Read>
+float waterColumnSurface(Read read, float x, float z) {
+    int top = 0;
+    while (top < 1024 && isWater(read(0, top + 1, 0))) ++top;
+    auto corners = waterSurfaceCorners([&](int dx, int dy, int dz) {
+        return read(dx, top + dy, dz);
+    });
+    return top + waterSurfaceHeight(corners, x, z);
+}

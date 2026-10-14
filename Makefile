@@ -62,7 +62,7 @@ SRC_NAME	=	stb_truetype.cpp		\
 				ThreadPool.cpp			\
 				Noise3DGenerator.cpp	\
 				CaveGenerator.cpp		\
-				Skybox.cpp				\
+				CaveWaterGenerator.cpp	\
 				Raycaster.cpp			\
 				Player.cpp
 
@@ -231,3 +231,29 @@ test-spawn-flora: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
 	/tmp/ft_vox-spawn-flora-test
 
 test: test-spawn-flora
+
+.PHONY: test-cave-water
+test-cave-water:
+	$(CC) $(CFLAGS) -Iincludes tests/cave_water.cpp srcs/CaveWaterGenerator.cpp -o /tmp/ft_vox-cave-water-test
+	/tmp/ft_vox-cave-water-test
+
+test: test-cave-water
+
+.PHONY: test-water-lighting
+test-water-lighting:
+	$(CC) -std=c++17 -Wall -Wextra -Werror tests/water_lighting.cpp -lEGL -lGL -o /tmp/ft_vox-water-lighting-test
+	/tmp/ft_vox-water-lighting-test
+	glslangValidator -l shaders/render/water.vert shaders/render/water.frag
+	glslangValidator -l shaders/postProcess/postProcess.vert shaders/postProcess/fog.frag
+	glslangValidator -l shaders/postProcess/postProcess.vert shaders/postProcess/underwater.frag
+
+test: test-water-lighting
+
+.PHONY: test-day-night
+test-day-night:
+	$(CC) -std=c++17 -Wall -Wextra -Werror -Iincludes tests/day_night.cpp -o /tmp/ft_vox-day-night-test
+	/tmp/ft_vox-day-night-test
+	glslangValidator -l shaders/render/sun.vert shaders/render/sun.frag
+	glslangValidator -l shaders/postProcess/postProcess.vert shaders/postProcess/skyGradient.frag
+
+test: test-day-night

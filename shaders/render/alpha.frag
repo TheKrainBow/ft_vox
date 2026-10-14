@@ -17,6 +17,16 @@ out vec4 FragColor;
 uniform vec3 playerLightPos;
 uniform float playerLightRadius;
 uniform bool playerLightEnabled;
+uniform bool fullBright;
+uniform sampler2DShadow shadowMap;
+uniform mat4 lightSpaceMatrix;
+uniform vec3 sunDir;
+uniform float moonLightStrength;
+uniform float shadowTexelWorld;
+uniform float shadowNear;
+uniform float shadowFar;
+uniform float shadowBiasSlope;
+uniform float shadowBiasConstant;
 
 float calculatePlayerLight(vec3 worldPos) {
 	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
@@ -77,6 +87,33 @@ float calculateSpecularLight(float time, vec3 lightDir) {
 	return specular;
 }
 
+float computeShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
+{
+	vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
+	vec3 proj = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	proj = proj * 0.5 + 0.5;
+
+	if (proj.z < 0.0 || proj.z > 1.0 || proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0)
+		return 1.0;
+
+	vec3 n = normalize(normal);
+	vec3 l = normalize(lightDir);
+	float ndotl = max(dot(n, l), 0.0);
+
+	float biasWorld = shadowBiasConstant + shadowBiasSlope * (1.0 - ndotl);
+	biasWorld = max(biasWorld * shadowTexelWorld, 0.0005);
+	float biasDepth = biasWorld / max(shadowFar - shadowNear, 1e-4);
+
+	vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+	float samples = 0.0;
+	for (int x = -1; x <= 1; ++x)
+	for (int y = -1; y <= 1; ++y) {
+		vec2 offset = vec2(float(x), float(y)) * texelSize;
+		samples += 1.0 - texture(shadowMap, vec3(proj.xy + offset, proj.z - biasDepth));
+	}
+	return samples / 9.0;
+}
+
 void main() {
 	// Only leaves reach this shader, but keep guard
 	if (TextureID != 11) discard;
@@ -88,8 +125,8 @@ void main() {
 		if (texColor.a < 0.5) discard;
 	}
 
-	vec3 viewPos = cameraPos;
-	vec3 lightDir = normalize(computeSunPosition(timeValue) - FragPos);
+	if (fullBright) { FragColor = vec4(texColor.rgb * lightColor, 1.0); return; }
+	vec3 lightDir = normalize(sunDir.y >= 0.0 ? sunDir : -sunDir);
 
 	float ambient = calculateAmbientLight(timeValue);
 	float diffuse = calculateDiffuseLight(timeValue, lightDir);
@@ -105,12 +142,20 @@ void main() {
 	float dayPhase = clamp((timeValue - dayStart) / dayLen, 0.0, 1.0);
 	float sun = sin(dayPhase * pi);
 	sun = smoothstep(0.0, 0.15, sun);
-	float diffuseFactor = 0.2 * sun;
+	float moonAmt = moonLightStrength * smoothstep(0.0,0.15,-sunDir.y);
+	float diffuseFactor = 0.2 * (sun+moonAmt);
 
-	float finalAmbient  = ambient * ambientWeight;
-	float finalDiffuse  = diffuse * diffuseWeight * diffuseFactor;
-	float finalSpecular = specular * specularWeight;
-	float totalLight = clamp(finalAmbient + finalDiffuse + finalSpecular + 0.1, 0.0, 1.0) + calculatePlayerLight(FragPos);
+	float visibility = 1.0 - computeShadow(FragPos,Normal,lightDir);
+	float skyFill = mix(0.008,ambient * ambientWeight + 0.1,sun) + 0.15 * moonAmt;
+	// A little scattered daylight softens surface shadows. Probe above low
+	// occluders; a cave roof still blocks this fill. Direct sun stays shadowed.
+	float surfaceFill = 0.0;
+	if (visibility < 0.999 && sun > 0.0) {
+		float openSky = 1.0 - computeShadow(FragPos + vec3(0,12,0),vec3(0,1,0),lightDir);
+		surfaceFill = 0.14 * sun * (1.0-visibility) * openSky;
+	}
+	float totalLight = clamp(0.015 + surfaceFill + visibility * (skyFill +
+		diffuse * diffuseWeight * diffuseFactor + specular * specularWeight * (sun+moonAmt)),0.0,1.0) + calculatePlayerLight(FragPos);
 
 	vec3 result = totalLight * lightColor * texColor.rgb;
 	FragColor = vec4(result, 1.0);

@@ -3,6 +3,8 @@
 #include <cassert>
 #include <chrono>
 #include <iostream>
+#include <set>
+#include <tuple>
 
 bool isWSL() { return false; }
 
@@ -16,16 +18,23 @@ int main() {
 	ChunkLoader loader(42, camera, pool, chrono, &running, drawMutex, solids, transparent);
 	NoiseGenerator terrain(42);
 	CaveGenerator caves(42);
-	size_t checked = 0, crossings = 0;
+	CaveWaterSettings drySettings;
+	drySettings.caveWaterFrequency = 0;
+	ChunkLoader dryLoader(42, camera, pool, chrono, &running, drawMutex, solids, transparent, drySettings);
+	size_t checked = 0, crossings = 0, waterVoxels = 0, wetChunks = 0;
+	std::set<std::tuple<int,int,int>> waterPositions;
 	auto start = std::chrono::steady_clock::now();
 	// Adjacent actual terrain columns, including negative chunk coordinates.
-	for (int cz = -1; cz <= 1; ++cz) for (int cx = -1; cx <= 1; ++cx) {
+	for (int cz = -4; cz <= 4; ++cz) for (int cx = -4; cx <= 4; ++cx) {
 		ivec2 pos(cx, cz);
+		size_t waterBefore = waterVoxels;
 		auto* map = terrain.getPerlinMap(pos);
 		Chunk chunk(pos, map, caves, loader, pool, 1);
 		chunk.loadBlocks(); // Production worker pool: height, then surface pass.
 		Chunk repeated(pos, map, caves, loader, pool, 1);
 		repeated.loadBlocks();
+		Chunk dry(pos, map, caves, dryLoader, pool, 1);
+		dry.loadBlocks();
 		for (int z = 0; z < 32; ++z) for (int x = 0; x < 32; ++x) {
 			int height = map->heightMap[z * 32 + x];
 			auto column = caves.prepareColumn(cx * 32 + x, cz * 32 + z, height);
@@ -33,7 +42,13 @@ int main() {
 			for (int y = 1; y <= height - 7; ++y) {
 				char block = chunk.getSubChunk(y/32)->getBlock({x,y%32,z});
 				bool air = caves.classify(column,y) != CaveKind::Solid;
-				assert(block == (air ? AIR : STONE));
+				char dryBlock = dry.getSubChunk(y/32)->getBlock({x,y%32,z});
+				assert(dryBlock == (air ? AIR : STONE));
+				if (block == WATER) {
+					++waterVoxels;
+					waterPositions.emplace(cx*32+x,y,cz*32+z);
+					assert(y >= 12 && y < 180 && y < height-24);
+				} else assert(block == dryBlock);
 				assert(block == repeated.getSubChunk(y/32)->getBlock({x,y%32,z}));
 				++checked;
 				if (air && x == 0) {
@@ -41,9 +56,44 @@ int main() {
 					if (caves.isAir(nx,y,nz,int(terrain.getHeight({nx,nz})))) ++crossings;
 				}
 			}
+			// Every surface block and ocean source must match the disabled baseline.
+			for (int y=std::max(1,height-24); y<=std::max(height, OCEAN_HEIGHT)+1; ++y) {
+				auto* wetSub = chunk.getSubChunk(y/32);
+				auto* drySub = dry.getSubChunk(y/32);
+				assert(wetSub && drySub);
+				assert(wetSub->getBlock({x,y%32,z}) == drySub->getBlock({x,y%32,z}));
+			}
 		}
+		wetChunks += waterVoxels > waterBefore;
 	}
-	assert(checked > 100000 && crossings > 0);
+	assert(wetChunks > 0 && wetChunks < 81/2);
+	assert(checked > 100000 && crossings > 0 && waterVoxels > 0);
+	// Pools/pockets remain contained. Only a recessed single-source spring may
+	// have one open horizontal outlet, with a nearby landing floor below it.
+	size_t springs = 0;
+	for (auto [x,y,z] : waterPositions) {
+		int exits = 0;
+		glm::ivec3 mouth{};
+		for (auto d : {glm::ivec3(1,0,0),glm::ivec3(-1,0,0),glm::ivec3(0,0,1),glm::ivec3(0,0,-1),glm::ivec3(0,-1,0)}) {
+			int nx=x+d.x, ny=y+d.y, nz=z+d.z;
+			if (nx < -128 || nx >= 160 || nz < -128 || nz >= 160) continue;
+			if (caves.isAir(nx,ny,nz,int(terrain.getHeight({nx,nz}))) && !waterPositions.count({nx,ny,nz})) {
+				assert(d.y == 0);
+				++exits;
+				mouth = {nx,ny,nz};
+			}
+		}
+		if (!exits) continue;
+		++springs;
+		assert(exits == 1);
+		int height = int(terrain.getHeight({x,z}));
+		assert(!caves.isAir(x,y,z,height) && !caves.isAir(x,y+1,z,height));
+		int mouthHeight = int(terrain.getHeight({mouth.x,mouth.z}));
+		int drop = 1;
+		while (drop <= 16 && caves.isAir(mouth.x,mouth.y-drop,mouth.z,mouthHeight)) ++drop;
+		assert(drop >= 2 && drop <= 16);
+	}
+	assert(springs > 0);
 	// Exercise entrance preservation in the biome pass, including desert caps,
 	// using a broad but deterministic entrance mask to guarantee coverage.
 	CaveGenerationSettings settings;
@@ -71,6 +121,6 @@ int main() {
 	}
 	assert(openings > 0);
 	std::cout << "Production chunks: " << checked << " underground stone/air checks, "
-		<< crossings << " border crossings, " << openings << " preserved biome mouths; "
+		<< waterVoxels << " cave water voxels in " << wetChunks << "/81 chunks, " << springs << " wall springs, " << crossings << " border crossings, " << openings << " preserved biome mouths; "
 		<< std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count() << " seconds\n";
 }

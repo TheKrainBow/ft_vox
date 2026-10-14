@@ -17,7 +17,8 @@ ChunkLoader::ChunkLoader(
 	std::atomic_bool *isRunning,
 	std::mutex &sharedDrawDataMutex,
 	std::queue<DisplayData *>	&solidStagedDataQueue,
-	std::queue<DisplayData *>	&transparentStagedDataQueue
+	std::queue<DisplayData *>	&transparentStagedDataQueue,
+	CaveWaterSettings caveWaterSettings
 )
 :
 _sharedDrawDataMutex(sharedDrawDataMutex),
@@ -28,6 +29,7 @@ _buildingDisplay(false),
 _isRunning(isRunning),
 _perlinGenerator(seed),
 _caveGen(seed),
+_caveWaterGen(seed, caveWaterSettings),
 _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue)
 {

@@ -8,6 +8,7 @@ uniform sampler2DArray textureArray;
 uniform sampler2DShadow shadowMap;
 uniform mat4 lightSpaceMatrix;
 uniform vec3 sunDir;
+uniform float moonLightStrength;
 uniform float shadowTexelWorld;
 uniform float shadowNear;
 uniform float shadowFar;
@@ -24,6 +25,7 @@ out vec4 FragColor;
 uniform vec3 playerLightPos;
 uniform float playerLightRadius;
 uniform bool playerLightEnabled;
+uniform bool fullBright;
 
 float calculatePlayerLight(vec3 worldPos) {
 	if (!playerLightEnabled || playerLightRadius <= 0.0) return 0.0;
@@ -61,14 +63,12 @@ float computeShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 	vec3 proj = fragPosLightSpace.xyz / fragPosLightSpace.w;
 	proj = proj * 0.5 + 0.5;
 
-	if (proj.z > 1.0 || proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0)
-		return 0.0;
+	if (proj.z < 0.0 || proj.z > 1.0 || proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0)
+		return 1.0;
 
 	vec3 n = normalize(normal);
 	vec3 l = normalize(lightDir);
 	float ndotl = max(dot(n, l), 0.0);
-	if (ndotl <= 0.0)
-		return 0.0;
 
 	float biasWorld = shadowBiasConstant + shadowBiasSlope * (1.0 - ndotl);
 	biasWorld = max(biasWorld * shadowTexelWorld, 0.0005);
@@ -86,7 +86,8 @@ float computeShadow(vec3 fragPos, vec3 normal, vec3 lightDir)
 
 void main() {
 	vec4 texColor = texture(textureArray, vec3(TexCoord, TextureID));
-	vec3 lightDir = normalize(sunDir);
+	if (fullBright) { FragColor = vec4(texColor.rgb * lightColor, texColor.a); return; }
+	vec3 lightDir = normalize(sunDir.y >= 0.0 ? sunDir : -sunDir);
 	vec3 norm = normalize(Normal);
 
 	float ambient  = calculateAmbientLight(timeValue);
@@ -98,17 +99,24 @@ void main() {
 	const float dayLen   = 86400.0 - dayStart;
 	float dayPhase = clamp((timeValue - dayStart) / dayLen, 0.0, 1.0);
 	float sunAmt = smoothstep(0.0, 0.15, sin(dayPhase * pi));
-	float diffuseFactor = 0.2 * sunAmt;
+	float moonAmt = moonLightStrength * smoothstep(0.0,0.15,-sunDir.y);
+	float diffuseFactor = 0.2 * (sunAmt+moonAmt);
 
 	float playerLight = calculatePlayerLight(FragPos);
 	float shadow = computeShadow(FragPos, norm, lightDir);
-	// Fill sun shadows near the player, restoring their full contrast at 10 blocks.
-	float shadowFill = clamp(playerLight * 2.0, 0.0, 1.0);
-	float shadowFactor = 1.0 - shadow * (1.0 - shadowFill);
-
-	float totalLight = clamp(ambient * 0.6 +
-						   diffuse * 0.9 * diffuseFactor * shadowFactor +
-						   specular * 0.5 * shadowFactor + 0.1, 0.0, 1.0) + playerLight;
+	// Occlusion affects the sky fill as well as diffuse/specular sunlight.
+	// The remaining ambient floor is deliberately faint in caves and at night.
+	float visibility = 1.0 - shadow;
+	float skyFill = mix(0.008, ambient * 0.6 + 0.1, sunAmt) + 0.15 * moonAmt;
+	// A little scattered daylight softens surface shadows. Probe above low
+	// occluders; a cave roof still blocks this fill. Direct sun stays shadowed.
+	float surfaceFill = 0.0;
+	if (visibility < 0.999 && sunAmt > 0.0) {
+		float openSky = 1.0 - computeShadow(FragPos + vec3(0,12,0),vec3(0,1,0),lightDir);
+		surfaceFill = 0.14 * sunAmt * (1.0-visibility) * openSky;
+	}
+	float totalLight = clamp(0.015 + surfaceFill + visibility * (skyFill +
+		diffuse * 0.9 * diffuseFactor + specular * 0.5 * (sunAmt+moonAmt)),0.0,1.0) + playerLight;
 
 	vec3 result = totalLight * lightColor * texColor.rgb;
 	FragColor = vec4(result, texColor.a);

@@ -625,7 +625,47 @@ void SubChunk::loadBiome(int prevResolution)
 				loadTree(x, z);
 		}
 	}
-		_isFullyLoaded = true;
+	// Cave water is isolated from the surface biome pass and regenerated at LOD 1.
+	if (CAVES && _resolution == 1) {
+		const auto& water = _chunkLoader.getCaveWaterGenerator();
+		const auto& settings = water.settings();
+		CaveWaterPos origin{_position.x*CHUNK_SIZE, _position.y*CHUNK_SIZE, _position.z*CHUNK_SIZE};
+		if (origin.y < settings.caveWaterMaxY && origin.y+CHUNK_SIZE > settings.caveWaterMinY) {
+			// getHeight changes its noise settings. Use a private sampler rather than
+			// racing the loader's terrain sampler on generation workers.
+			std::unique_ptr<NoiseGenerator> terrain;
+			struct GeometryColumn { CaveGenerator::Column cave; int openBottom; };
+			std::map<std::pair<int,int>,GeometryColumn> columns;
+			std::map<std::array<int,3>,CaveWaterVoxel> voxels;
+			auto sample = [&](CaveWaterPos p) {
+				auto key = std::array<int,3>{p.x,p.y,p.z};
+				auto cached = voxels.find(key);
+				if (cached != voxels.end()) return cached->second;
+				auto coord = std::make_pair(p.x,p.z);
+				auto it = columns.find(coord);
+				if (it == columns.end()) {
+					if (!terrain) terrain = std::make_unique<NoiseGenerator>(water.seed());
+					int height = int(terrain->getHeight({p.x,p.z}));
+					auto c = _caveGen.prepareColumn(p.x,p.z,height);
+					int bottom = height+1;
+					while (bottom > 1 && _caveGen.classify(c,bottom-1) != CaveKind::Solid) --bottom;
+					it = columns.emplace(coord,GeometryColumn{c,bottom}).first;
+				}
+				const auto& c = it->second;
+				auto voxel = p.y >= c.cave.surfaceY-settings.minimumUndergroundDepth || p.y >= c.openBottom
+					? CaveWaterVoxel::Protected
+					: _caveGen.classify(c.cave,p.y) == CaveKind::Solid ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
+				voxels.emplace(key,voxel);
+				return voxel;
+			};
+			for (auto p : water.generate(origin,{origin.x+CHUNK_SIZE,origin.y+CHUNK_SIZE,origin.z+CHUNK_SIZE},sample)) {
+				int x=p.x-origin.x, y=p.y-origin.y, z=p.z-origin.z;
+				char block = getBlock({x,y,z});
+				if (block == AIR || block == STONE) setBlockLocal(x,y,z,WATER);
+			}
+		}
+	}
+	_isFullyLoaded = true;
 }
 
 

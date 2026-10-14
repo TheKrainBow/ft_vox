@@ -18,6 +18,7 @@ private:
 	bool _swimming;
 	bool _jumping;
 	bool _isUnderWater;
+	float _underwaterSurfaceHeight = 0.0f;
 	bool _ascending;
 	bool _sprinting;
 	bool _gravity;
@@ -54,6 +55,7 @@ public:
 	
 	// Player states update
 	void updatePlayerStates();
+	void updateWaterImmersion();
 	void updateNow(std::chrono::steady_clock::time_point &now);
 	void setGravity(bool &gravity);
 	void updateDeltaTime(float &newDelta);
@@ -61,6 +63,7 @@ public:
 	bool tryMoveStepwise(const glm::vec3 &moveVec, float stepSize);
 	bool isSprinting() const;
 	bool isUnderWater() const;
+	float underwaterSurfaceHeight() const { return _underwaterSurfaceHeight; }
 	void updateMovement();
 	void updateSwimSpeed();
 	void findMoveRotationSpeed();
@@ -76,8 +79,7 @@ public:
 	void toggleGravity();
 private:
 	// Movement check
-	bool waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current = nullptr);
-	bool isPointInWater(const glm::vec3& worldPos);
+	bool waterSurfaceAt(const glm::vec3& worldPos, float& surface, glm::vec3* current = nullptr, bool columnSurface = false);
 	bool canMove(const glm::vec3& offset, float extra);
 
 	// Udate player states
