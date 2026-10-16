@@ -150,6 +150,7 @@ int main() {
     for (auto [position,block]:blocks) if (block==LAVA) {
         auto [x,y,z]=position;
         if (blocks.count({x,y+1,z}) && blocks.at({x,y+1,z})==LAVA) continue;
+        assert(y==150); // Source replaces the surface block, rather than the block below.
         for (int dy=1;dy<=3;++dy) assert(blocks.at({x,y+dy,z})==AIR);
         for (int dz=-2;dz<=2;++dz) for (int dx=-2;dx<=2;++dx) {
             auto atLevel=blocks.find({x+dx,y,z+dz});
@@ -157,6 +158,29 @@ int main() {
             if (atLevel->second!=LAVA) assert(blocks.at({x+dx,150,z+dz})==STONE);
         }
     }
+    // Uneven ground gets a flat rim at the lava's level, rather than tall
+    // walls around a pool placed below the lowest surrounding column.
+    auto unevenHeight=[](int x,int) { return 150+((x%4+4)%4); };
+    auto unevenGeometry=[&](CaveWaterPos p) {
+        return p.y<=unevenHeight(p.x,p.z) ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
+    };
+    auto uneven=surfaceBlocks(lava.surface(min,max,unevenHeight,unevenGeometry,allow));
+    size_t unevenSurface=0;
+    for (auto [position,block]:uneven) if (block==LAVA) {
+        auto [x,y,z]=position;
+        auto above=uneven.find({x,y+1,z});
+        if (above!=uneven.end() && above->second==LAVA) continue;
+        ++unevenSurface;
+        assert(y==152);
+        for (int dy=1;dy<=3;++dy) assert(uneven.at({x,y+dy,z})==AIR);
+        for (int dz=-2;dz<=2;++dz) for (int dx=-2;dx<=2;++dx) {
+            assert(uneven.count({x+dx,y,z+dz}));
+            assert(uneven.at({x+dx,y+1,z+dz})==AIR);
+            char neighbor=uneven.at({x+dx,y,z+dz});
+            assert(neighbor==LAVA || neighbor==STONE);
+        }
+    }
+    assert(unevenSurface>0);
     assert(lava.surface(min,max,[](int,int) { return 111; },solid,allow).empty());
     assert(lava.surface(min,max,height,[](CaveWaterPos) { return CaveWaterVoxel::Air; },allow).empty());
     assert(lava.surface(min,max,height,solid,[](int,int) { return false; }).empty());
@@ -166,6 +190,46 @@ int main() {
     rare.surfaceChance=1;
     auto common=LavaGenerator(42,rare).surface({-2048,0,-2048},{2048,256,2048},height,solid,allow);
     assert(!rarePools.empty() && rarePools.size()<common.size()/5);
+    // Desert regions receive a valid pool without the rare-candidate roll.
+    LavaSettings deserts; deserts.surfaceChance=0.000001f; deserts.caveFrequency=0;
+    deserts.surfaceRegionSize=64;
+    LavaGenerator desertLava(42,deserts);
+    auto desertPlan=desertLava.surface(min,max,height,solid,allow,false,allow);
+    std::set<std::pair<int,int>> coveredDeserts;
+    for (auto p:desertPlan) if (p.block==LAVA)
+        coveredDeserts.emplace(int(std::floor(p.position.x/64.0)),int(std::floor(p.position.z/64.0)));
+    assert(coveredDeserts.size()==16);
+    assert(desertLava.surface(min,max,height,solid,allow).empty());
+    auto notDesert=[](int,int) { return false; };
+    assert(desertLava.surface(min,max,height,solid,allow,false,notDesert).empty());
+    // A small isolated desert still gets a pool; other biomes are left untouched.
+    auto island=[](int x,int z) { return x>=16 && x<=48 && z>=16 && z<=48; };
+    auto islandPlan=desertLava.surface({0,0,0},{64,256,64},height,solid,allow,false,island);
+    assert(!islandPlan.empty());
+    for (auto p:islandPlan) assert(island(p.position.x,p.position.z));
+    // Search past obstructed sites instead of abandoning the desert's only roll.
+    auto brokenGround=[](CaveWaterPos p) {
+        return p.x>=64 && p.z>=64 ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
+    };
+    LavaSettings wideDesert=deserts; wideDesert.surfaceRegionSize=192;
+    assert(!LavaGenerator(42,wideDesert).surface({0,0,0},{192,256,192},height,brokenGround,allow,false,allow).empty());
+    // Low deserts above the beach can host sealed pools, but ocean cannot.
+    auto lowDesert=[](int,int) { return OCEAN_HEIGHT+6; };
+    assert(!desertLava.surface(min,max,lowDesert,solid,allow,false,allow).empty());
+    auto ocean=[](int,int) { return OCEAN_HEIGHT; };
+    assert(desertLava.surface(min,max,ocean,solid,allow,false,allow).empty());
+    // Cached plans agree with arbitrary tiles, including negative coordinates.
+    LavaGenerator cachedDesert(42,deserts);
+    auto desertBlocks=surfaceBlocks(desertPlan);
+    assert(surfaceBlocks(cachedDesert.surface(min,max,height,solid,allow,true,allow))==desertBlocks);
+    SurfaceBlocks desertTiles;
+    for (int z=-128;z<128;z+=16) for (int x=-128;x<128;x+=16)
+        for (auto p:cachedDesert.surface({x,0,z},{x+16,256,z+16},height,solid,allow,true,allow))
+            desertTiles[{p.position.x,p.position.y,p.position.z}]=p.block;
+    assert(desertTiles==desertBlocks);
+    assert(desertLava.surface(min,max,height,[](CaveWaterPos) { return CaveWaterVoxel::Protected; },allow,false,allow).empty());
+    LavaSettings disabled=deserts; disabled.surfaceChance=0;
+    assert(LavaGenerator(42,disabled).surface(min,max,height,solid,allow,false,allow).empty());
     assert(!isWater(LAVA) && !waterReplaceable(LAVA) && !waterSupport(LAVA) && isLiquid(LAVA));
     assert(std::abs(lavaOpacity(0.8f)-0.98f)<0.0001f);
     assert(std::abs(lavaOpacity(0.9f)-0.99f)<0.0001f);

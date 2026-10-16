@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 			return p.y>h || caves.isAir(p.x,p.y,p.z,h) ? CaveWaterVoxel::Air : CaveWaterVoxel::Solid;
 		};
 		auto allowed=[&](int x,int z) { auto b=terrain.getBiome({x,z},heightAt(x,z)); return b==PLAINS || b==DESERT || b==MOUNTAINS; };
-		for (auto p:loader.getLavaGenerator().surface({cx*32,0,cz*32},{cx*32+32,640,cz*32+32},heightAt,baseGeometry,allowed))
+		for (auto p:loader.getLavaGenerator().surface({cx*32,0,cz*32},{cx*32+32,640,cz*32+32},heightAt,baseGeometry,allowed,false,[&](int x,int z) { return terrain.getBiome({x,z},heightAt(x,z))==DESERT; }))
 			surfacePlan[{p.position.x,p.position.y,p.position.z}]=p.block;
 		Chunk dry(pos, map, caves, dryLoader, pool, 1);
 		dry.loadBlocks();
@@ -170,6 +170,24 @@ int main(int argc, char** argv) {
 	};
 	auto surfaceAllowed=[&](int x,int z) { auto b=terrain.getBiome({x,z},surfaceHeight(x,z)); return b==PLAINS || b==DESERT || b==MOUNTAINS; };
 	auto surfacePools=loader.getLavaGenerator().surface({-8192,0,-8192},{8192,640,8192},surfaceHeight,surfaceGeometry,surfaceAllowed);
+	// Seed 42 has a low desert here. Check the completed production terrain,
+	// including biome caps, rather than only the surface placement plan.
+	assert(terrain.getBiome({984,177},terrain.getHeight({984,177}))==DESERT);
+	{
+		ivec2 desertPos{30,5};
+		Chunk desert(desertPos,terrain.getPerlinMap(desertPos),caves,loader,pool,1);
+		desert.loadBlocks();
+		int ground=int(terrain.getHeight({984,177})), top=-1;
+		for (int y=ground-4;y<=ground+3;++y) {
+			auto* sub=desert.getSubChunk(y/32);
+			if (sub && sub->getBlock({24,y%32,17})==LAVA) top=y;
+		}
+		assert(top>=ground-1); // Pool stays near the local surface elevation.
+		for (int y=top+1;y<=ground+10;++y) {
+			auto* sub=desert.getSubChunk(y/32);
+			assert(!sub || sub->getBlock({24,y%32,17})==AIR);
+		}
+	}
 	size_t realSurfaceLava=0;
 	for (auto p:surfacePools) if (p.block==LAVA) ++realSurfaceLava;
 	assert(realSurfaceLava>0);

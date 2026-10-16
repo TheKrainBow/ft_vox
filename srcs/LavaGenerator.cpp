@@ -79,33 +79,39 @@ std::vector<CaveWaterPos> LavaGenerator::caves(CaveWaterPos min,CaveWaterPos max
     },cacheFeatures);
 }
 std::vector<LavaPlacement> LavaGenerator::surface(CaveWaterPos min,CaveWaterPos max,
-    const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed, bool cacheFeatures) const {
+    const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed, bool cacheFeatures, const Allowed& desert) const {
     std::vector<LavaPlacement> result;
     int size=m_settings.surfaceRegionSize;
-    if (m_settings.surfaceChance<=0) return result;
-    for (int rz=floorDiv(min.z-8,size);rz<=floorDiv(max.z+7,size);++rz)
-    for (int rx=floorDiv(min.x-8,size);rx<=floorDiv(max.x+7,size);++rx) {
+    if (m_settings.surfaceChance<=0 || max.x<=min.x || max.z<=min.z) return result;
+    for (int rz=floorDiv(min.z,size);rz<=floorDiv(max.z-1,size);++rz)
+    for (int rx=floorDiv(min.x,size);rx<=floorDiv(max.x-1,size);++rx) {
         uint64_t h=mix(m_seed^mix(uint32_t(rx))^mix(uint64_t(uint32_t(rz))+739));
         auto random=[&](int salt) { return (mix(h+salt)>>11)*(1.0/9007199254740992.0); };
-        if (random(0)>=m_settings.surfaceChance) continue;
+        bool rareCandidate = random(0)<m_settings.surfaceChance;
+        if (!rareCandidate && !desert) continue;
         int cx=rx*size+10+int(random(1)*(size-20)), cz=rz*size+10+int(random(2)*(size-20));
-        int radius=3+int(random(3)*4), bound=radius+2;
-        if (cx+bound<min.x || cx-bound>=max.x || cz+bound<min.z || cz-bound>=max.z) continue;
-        auto analyse = [&]() {
+        int radius=3+int(random(3)*4);
+        auto poolAt = [&](int cx,int cz,int radius,bool desertOnly) {
+            int bound=radius+2;
             std::vector<LavaPlacement> plan;
             int low=height(cx,cz),high=low;
-            bool valid=low>OCEAN_HEIGHT+12;
+            int minimumHeight=OCEAN_HEIGHT+(desertOnly ? 3 : 12);
+            bool valid=low>minimumHeight;
             for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x) {
                 int surfaceY=height(cx+x,cz+z);
                 low=std::min(low,surfaceY); high=std::max(high,surfaceY);
-                if (high-low>3 || !allowed(cx+x,cz+z)) valid=false;
+                if (high-low>3 || !allowed(cx+x,cz+z) || (desertOnly && !desert(cx+x,cz+z))) valid=false;
             }
-            valid=valid && low>OCEAN_HEIGHT+12;
-            int level=low-1;
+            valid=valid && low>minimumHeight;
+            // Match the local ground elevation and grade the stone rim to the
+            // same level. Using the lowest column minus one dug deep pits.
+            int level=(low+high+1)/2;
             // Solid support and a sealed stone shell; no cave or water breakthrough.
-            for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x)
-            for (int y=level-2;y<=level && valid;++y)
-                if (sample({cx+x,y,cz+z})!=CaveWaterVoxel::Solid) valid=false;
+            for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x) {
+                int ground=height(cx+x,cz+z);
+                for (int y=level-2;y<=std::min(level,ground) && valid;++y)
+                    if (sample({cx+x,y,cz+z})!=CaveWaterVoxel::Solid) valid=false;
+            }
             if (!valid) return plan;
             auto shapeAt=[&](int x,int z) {
                 return float(x*x)/(radius*radius)+float(z*z)/(radius*radius*0.8f*0.8f)
@@ -130,14 +136,39 @@ std::vector<LavaPlacement> LavaGenerator::surface(CaveWaterPos min,CaveWaterPos 
                 float shape=shapes[index];
                 int wx=cx+x,wz=cz+z;
                 int surfaceY=height(wx,wz);
-                for (int y=level-2;y<=surfaceY+2;++y) {
+                for (int y=level-2;y<=std::max(surfaceY,level)+3;++y) {
                     char block=STONE;
                     if (shape<1.0f) {
                         if (y>level) block=AIR;
                         else if (y==level || (y==level-1 && shape<0.65f)) block=LAVA;
-                    } else if (y>surfaceY) block=AIR;
+                    } else if (y>level) block=AIR;
                     plan.push_back({{wx,y,wz},block});
                 }
+            }
+            return plan;
+        };
+        auto analyse = [&]() {
+            std::vector<LavaPlacement> plan;
+            if (rareCandidate) plan=poolAt(cx,cz,radius,false);
+            // A valid rare pool already serves the desert in this region.
+            if (!desert || (!plan.empty() && desert(cx,cz))) return plan;
+            // Search the whole region in a seeded order. Unlike random retries,
+            // this visits every grid site and cannot repeatedly miss the same area.
+            // Eight-block spacing keeps plans cheap enough for streaming workers.
+            int cells=(size-20)/8+1, total=cells*cells;
+            int start=int(random(4)*total);
+            for (int i=0;i<total;++i) {
+                int index=(start+i)%total;
+                int x=rx*size+10+(index%cells)*8;
+                int z=rz*size+10+(index/cells)*8;
+                if (!desert(x,z)) continue;
+                // Keep the independently selected non-desert pool and its bank clear.
+                if (!plan.empty() && std::abs(x-cx)<24 && std::abs(z-cz)<24) continue;
+                auto extra=poolAt(x,z,radius,true);
+                if (extra.empty() && radius!=3) extra=poolAt(x,z,3,true);
+                if (extra.empty()) continue;
+                plan.insert(plan.end(),extra.begin(),extra.end());
+                break;
             }
             return plan;
         };

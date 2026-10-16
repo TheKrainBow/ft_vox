@@ -89,9 +89,13 @@ void SubChunk::loadHeight(int prevResolution)
 		Biome biome=terrain->getBiome({x,z},surface);
 		return biome==PLAINS || biome==DESERT || biome==MOUNTAINS;
 	};
+	auto desert = [&](int x,int z) {
+		int surface=height(x,z);
+		return terrain->getBiome({x,z},surface)==DESERT;
+	};
 	CaveWaterPos origin{_position.x*32,_position.y*32,_position.z*32};
 	bool cacheSurface = &_caveGen == &_chunkLoader.getCaveGenerator();
-	for (auto placement:_chunkLoader.getLavaGenerator().surface(origin,{origin.x+32,origin.y+32,origin.z+32},height,geometry,allowed,cacheSurface)) {
+	for (auto placement:_chunkLoader.getLavaGenerator().surface(origin,{origin.x+32,origin.y+32,origin.z+32},height,geometry,allowed,cacheSurface,desert)) {
 		auto p=placement.position;
 		int x=p.x-origin.x,z=p.z-origin.z;
 		_surfaceLavaColumns[z*32+x]=true;

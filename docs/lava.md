@@ -34,11 +34,25 @@ reservations. Reservations cover complete lava feature regions, so cached plans
 remain independent of which subchunk requests them first.
 Chunk order, negative coordinates and unloaded neighbors do not change placement.
 
-Occasional surface pools use independent 192² regions with a 12% candidate chance,
+Deserts additionally search each 192² region for one suitable pool, independently
+of the rare candidate roll. A seeded eight-block grid retries alternate sites and
+falls back to radius 3 when a larger pool does not fit. The complete pool and
+its two-block bank must remain in desert, above beach level, with solid support.
+This gives broad deserts repeated coverage and small deserts a pool wherever a
+sampled site fits; tiny, steep or cave-pierced patches can still be unsuitable.
+Biomes are a continuous climate field without IDs for connected desert areas, so
+coverage is regional rather than a global connected-biome guarantee. Searches
+and rejected plans share the existing cache; chunk loading order does not change
+placement. Setting `surfaceChance = 0` disables all surface lava.
+
+Occasional surface pools in other terrain use independent 192² regions with a 12% candidate chance,
 radii 3–6 and one/two blocks of lava depth. Sites must be above sea level +12,
 have no more than three blocks of relief, and have solid containment. Forest,
 snow, ocean and beach locations are rejected. A stone floor and complete two-block
-stone bank surround the actual shoreline, including its corners. Lava columns are
+stone bank surround the actual shoreline, including its corners. Pool sources
+replace blocks at the midpoint of the local terrain elevation range; the bank
+is graded to that same level, leaving only the normal 2/15-block source-surface
+offset below its stone edge. Lava columns are
 cleared to the sky; the two-block bank also keeps nearby tree canopies out of them.
 The surface plan is stamped before biome caps/decorations; reserved
 columns skip those writes. Failed sites are rejected rather than cutting large
