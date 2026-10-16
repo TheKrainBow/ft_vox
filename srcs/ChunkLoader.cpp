@@ -1,4 +1,5 @@
 #include "ChunkLoader.hpp"
+#include "GenerationPriority.hpp"
 
 static inline int mod_floor(int a, int b) {
 	int r = a % b;
@@ -36,10 +37,27 @@ _solidStagedDataQueue(solidStagedDataQueue),
 _transparentStagedDataQueue(transparentStagedDataQueue)
 {
 	initData();
+	_displayWorker = std::thread([this] {
+		for (;;) {
+			{
+				std::unique_lock<std::mutex> lock(_displayWakeMutex);
+				_displayWake.wait(lock,[this] { return _displayStop || _displayRequested; });
+				if (_displayStop) return;
+				_displayRequested = false;
+			}
+			updateFillData(true);
+		}
+	});
 }
 
 ChunkLoader::~ChunkLoader()
 {
+	{
+		std::lock_guard<std::mutex> lock(_displayWakeMutex);
+		_displayStop = true;
+	}
+	_displayWake.notify_one();
+	_displayWorker.join();
 	std::lock_guard<std::mutex> lock(_chunksMutex);
 	for (auto it = _chunks.begin(); it != _chunks.end(); it++)
 	{
@@ -106,6 +124,15 @@ void ChunkLoader::initSpawn()
 
 // Edits (queue if chunk not ready)
 bool ChunkLoader::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool byPlayer) {
+	std::unique_lock<std::recursive_mutex> editLock(_blockEditMutex,std::try_to_lock);
+	if (!editLock.owns_lock()) {
+		{
+			std::lock_guard<std::mutex> lock(_pendingMutex);
+			_pendingEdits[chunkPos].push_back({worldPos,value,byPlayer});
+		}
+		scheduleDisplayUpdate();
+		return false;
+	}
 	auto chunk = getChunk(chunkPos);
 	if (!chunk) {
 		std::lock_guard<std::mutex> lk(_pendingMutex);
@@ -113,41 +140,45 @@ bool ChunkLoader::setBlockOrQueue(ivec2 chunkPos, ivec3 worldPos, BlockType valu
 		return false;
 	}
 
-	if (chunk->isBuilding()) {
+	if (chunk->isBuilding() || chunk->needsGeneration(floor_div(worldPos.y, CHUNK_SIZE))) {
 		std::lock_guard<std::mutex> lk(_pendingMutex);
 		_pendingEdits[chunkPos].push_back({worldPos, value, byPlayer});
 		return false;
 	}
 
-	return setBlock(chunkPos, worldPos, value, byPlayer);
+	bool written = setBlock(chunkPos, worldPos, value, byPlayer);
+	if (written && byPlayer) {
+		markBlockDirty(worldPos, true);
+		scheduleDisplayUpdate();
+	}
+	return written;
 }
 
 // Edits (queue if chunk not ready)
 void ChunkLoader::applyPendingFor(const ivec2& pos) {
+	auto* chunk = getChunk(pos);
+	if (!chunk || chunk->isBuilding()) return;
 	std::vector<PendingBlock> edits;
 	{
-		std::lock_guard<std::mutex> lk(_pendingMutex);
+		std::lock_guard<std::mutex> lock(_pendingMutex);
 		auto it = _pendingEdits.find(pos);
-		if (it != _pendingEdits.end()) {
-			edits.swap(it->second);
-			_pendingEdits.erase(it);
-		}
+		if (it == _pendingEdits.end()) return;
+		// Leave unfinished layers in their original order, ahead of any new
+		// queued clicks. Only drain the layers whose terrain has arrived.
+		auto& waiting = it->second;
+		auto end = std::remove_if(waiting.begin(), waiting.end(), [&](const PendingBlock& edit) {
+			if (chunk->needsGeneration(floor_div(edit.worldPos.y, CHUNK_SIZE))) return false;
+			edits.push_back(edit);
+			return true;
+		});
+		waiting.erase(end, waiting.end());
+		if (waiting.empty()) _pendingEdits.erase(it);
 	}
-	if (edits.empty()) return;
-
-	bool anyPlayerEdit = false;
-	for (const auto& e : edits) {
-		setBlock(pos, e.worldPos, e.value, e.byPlayer);
-		anyPlayerEdit = anyPlayerEdit || e.byPlayer;
+	for (const auto& edit : edits) {
+		if (setBlock(pos, edit.worldPos, edit.value, edit.byPlayer) && edit.byPlayer)
+			markBlockDirty(edit.worldPos, true);
 	}
-
-	if (anyPlayerEdit) {
-		if (auto c = getChunk(pos)) {
-			if (!c->getModified()) { c->setAsModified(); ++_modifiedCount; }
-			c->sendFacesToDisplay();
-		}
-	}
-	updateFillData();
+	if (!edits.empty()) scheduleDisplayUpdate();
 }
 
 // Single chunk loader
@@ -243,172 +274,118 @@ Chunk *ChunkLoader::loadChunk(int x, int z, int render, const ivec2 &chunkPos, i
 	return chunk;
 }
 
-// Chunk loading based on frustum view
-void ChunkLoader::loadChunks(ivec2 chunkPos) {
-	if (_renderDistance <= 0)
-		return;
-
-	const int renderDistance = _renderDistance.load(std::memory_order_relaxed);
-	const int baseResolution = RESOLUTION;
-	_threshold = std::numeric_limits<int>::max();
-
-	const int maxRadius = std::max(0, (renderDistance - 1) / 2);
-
-	struct CandidateInfo {
-		glm::ivec2 offset;
-		int radius;
-	};
-
-	std::vector<CandidateInfo> candidates;
-	candidates.reserve(static_cast<size_t>((maxRadius * 2) + 1) * static_cast<size_t>((maxRadius * 2) + 1));
-	for (int dz = -maxRadius; dz <= maxRadius; ++dz) {
-		for (int dx = -maxRadius; dx <= maxRadius; ++dx) {
-			glm::ivec2 offset(dx, dz);
-			candidates.push_back({offset, std::max(std::abs(dx), std::abs(dz))});
-		}
-	}
-
-	std::vector<char> processed(candidates.size(), 0);
-	size_t remaining = candidates.size();
-
-	std::vector<std::future<void>> retLst;
-	_currentRender = 0;
-	const int updateBatch = 32;
-	int batchCounter = 0;
-	int maxRadiusLoaded = 0;
-
-	auto enqueueUpdate = [&]() {
-		retLst.emplace_back(_threadPool.enqueue(&ChunkLoader::updateFillData, this));
-		batchCounter = 0;
-	};
-
-	const float fallbackCos = std::cos(glm::radians(70.0f));
-
-	while (remaining > 0 && getIsRunning()) {
-		Frustum localFrustum;
-		bool hasFrustum = false;
+// Allocate column metadata first; terrain is generated by the global layer queue.
+Chunk* ChunkLoader::prepareStreamingChunk(ivec2 pos, int resolution) {
+	Chunk* chunk = getChunk(pos);
+	if (!chunk) {
+		auto* map = _perlinGenerator.getPerlinMap(pos, resolution);
+		auto created = std::make_unique<Chunk>(pos, map, _caveGen, *this, _threadPool, resolution);
 		{
-			std::lock_guard<std::mutex> lk(_frustumMutex);
-			if (_hasCachedFrustum) {
-				localFrustum = _cachedFrustum;
-				hasFrustum = true;
+			std::lock_guard<std::mutex> lock(_chunksMutex);
+			auto inserted = _chunks.emplace(pos, created.get());
+			chunk = inserted.first->second;
+			if (inserted.second) {
+				created.release();
+				++_chunksCount;
 			}
 		}
-
-		glm::vec3 camChunkLoader = _camera.getWorldPosition();
-		glm::vec3 camDir = _camera.getDirection();
-		glm::vec2 forward2D(camDir.x, camDir.z);
-		if (glm::length(forward2D) < 1e-5f)
-			forward2D = glm::vec2(0.0f, 1.0f);
-		else
-			forward2D = glm::normalize(forward2D);
-
-		size_t bestIndex = std::numeric_limits<size_t>::max();
-		bool bestVisible = false;
-		float bestForward = -2.0f;
-		float bestDistance = std::numeric_limits<float>::max();
-
-		for (size_t i = 0; i < candidates.size(); ++i) {
-			if (processed[i])
-				continue;
-
-			const CandidateInfo &cand = candidates[i];
-			glm::ivec2 chunkCoord = chunkPos + cand.offset;
-			glm::vec3 aabbMin(
-				static_cast<float>(chunkCoord.x * CHUNK_SIZE),
-				-2048.0f,
-				static_cast<float>(chunkCoord.y * CHUNK_SIZE));
-			glm::vec3 aabbMax = aabbMin + glm::vec3(CHUNK_SIZE, 4096.0f, CHUNK_SIZE);
-
-			float chunkCenterX = aabbMin.x + CHUNK_SIZE * 0.5f;
-			float chunkCenterZ = aabbMin.z + CHUNK_SIZE * 0.5f;
-			glm::vec2 toCenter2D(chunkCenterX - camChunkLoader.x, chunkCenterZ - camChunkLoader.z);
-			float len = glm::length(toCenter2D);
-			float forwardDot = len > 1e-5f ? glm::dot(toCenter2D / len, forward2D) : 1.0f;
-			float distance2 = toCenter2D.x * toCenter2D.x + toCenter2D.y * toCenter2D.y;
-
-			bool visible = false;
-			if (hasFrustum)
-				visible = localFrustum.aabbVisible(aabbMin, aabbMax);
-			else
-				visible = (forwardDot >= fallbackCos);
-
-			bool better = false;
-			if (bestIndex == std::numeric_limits<size_t>::max()) {
-				better = true;
-			} else if (visible != bestVisible) {
-				better = visible;
-			} else if (visible) {
-				if (distance2 != bestDistance) {
-					better = distance2 < bestDistance;
-				} else if (forwardDot != bestForward) {
-					better = forwardDot > bestForward;
-				} else {
-					better = cand.radius < candidates[bestIndex].radius;
-				}
-			} else {
-				if (forwardDot != bestForward) {
-					better = forwardDot > bestForward;
-				} else if (distance2 != bestDistance) {
-					better = distance2 < bestDistance;
-				} else {
-					better = cand.radius < candidates[bestIndex].radius;
-				}
-			}
-
-			if (better) {
-				bestIndex = i;
-				bestVisible = visible;
-				bestForward = forwardDot;
-				bestDistance = distance2;
-			}
-		}
-		if (bestIndex == std::numeric_limits<size_t>::max())
-			break;
-
-		const CandidateInfo &chosen = candidates[bestIndex];
-		int chunkResolution = baseResolution;
-		int thresholdStep = LOD_THRESHOLD;
-		while ((std::abs(chosen.offset.x) >= thresholdStep || std::abs(chosen.offset.y) >= thresholdStep) && chunkResolution < CHUNK_SIZE) {
-			chunkResolution = std::min(CHUNK_SIZE, chunkResolution * 2);
-			if (thresholdStep > std::numeric_limits<int>::max() / 2) {
-				thresholdStep = std::numeric_limits<int>::max();
-				break;
-			}
-			thresholdStep *= 2;
-			if (thresholdStep <= 0) {
-				thresholdStep = std::numeric_limits<int>::max();
-				break;
-			}
-		}
-		loadChunk(chosen.offset.x, chosen.offset.y, 0, chunkPos, chunkResolution);
-		processed[bestIndex] = 1;
-		--remaining;
-		maxRadiusLoaded = std::max(maxRadiusLoaded, chosen.radius);
-		_currentRender = std::min(renderDistance, maxRadiusLoaded * 2 + 2);
-
-		if (++batchCounter >= updateBatch)
-			enqueueUpdate();
-
-		if (hasMoved(chunkPos))
-			break;
+		chunk->getNeighbors(false);
+	} else if (chunk->getResolution() > resolution) {
+		std::lock_guard<std::mutex> buildLock(_displayBuildMutex);
+		std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
+		size_t before = chunk->getMemorySize();
+		chunk->updateResolution(resolution);
+		if (chunk->getMemorySize() > before)
+			_chunksMemoryUsage.fetch_add(chunk->getMemorySize() - before);
+		waterChunkLoaded(*chunk);
 	}
-
-	if (batchCounter > 0)
-		enqueueUpdate();
-
-	for (auto &ret : retLst) {
-		while (ret.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout) {
-			if (!getIsRunning())
-				break;
-		}
+	bool redisplayed;
+	{
+		std::lock_guard<std::mutex> lock(_displayedChunksMutex);
+		redisplayed = _displayedChunks.emplace(pos, chunk).second;
+		if (redisplayed) ++_displayedCount;
 	}
+	touchLRU(pos);
+	if (redisplayed && chunk->hasBlockData()) {
+		rescanFlowersForChunk(pos);
+		scheduleDisplayUpdate();
+	}
+	return chunk;
+}
+
+// Rank subchunks across all columns instead of finishing columns bottom-to-top.
+void ChunkLoader::loadChunks(ivec2 chunkPos) {
+	const int renderDistance = _renderDistance.load();
+	if (renderDistance <= 0) return;
+	_threshold = std::numeric_limits<int>::max();
+	_currentRender = 0;
+	const int radius = std::max(0, (renderDistance - 1) / 2);
+	struct Candidate { Chunk* chunk; int layer; };
+	std::vector<Candidate> pending;
+	// Prepare nearer columns first so metadata work remains local as well.
+	for (int ring = 0; ring <= radius && getIsRunning(); ++ring) {
+		for (int dz = -ring; dz <= ring; ++dz) for (int dx = -ring; dx <= ring; ++dx) {
+			if (std::max(std::abs(dx), std::abs(dz)) != ring) continue;
+			int resolution = RESOLUTION;
+			for (int threshold = LOD_THRESHOLD; ring >= threshold && resolution < CHUNK_SIZE;) {
+				resolution = std::min(CHUNK_SIZE, resolution * 2);
+				if (threshold > std::numeric_limits<int>::max() / 2) break;
+				threshold *= 2;
+			}
+			auto* chunk = prepareStreamingChunk(chunkPos + ivec2(dx, dz), resolution);
+			for (int layer = 0; layer <= chunk->maxGenerationLayer(); ++layer)
+				if (chunk->needsGeneration(layer)) pending.push_back({chunk, layer});
+		}
+		if (hasMoved(chunkPos)) return;
+	}
+	// Queue only one small batch. Camera height/direction changes can reorder
+	// everything remaining before the next batch, without stale FIFO world jobs.
+	const size_t batchSize = std::max(size_t(1), std::min(size_t(4), _threadPool.workerCount()));
+	while (!pending.empty() && getIsRunning()) {
+		glm::vec3 eye = _camera.getWorldPosition();
+		glm::vec3 forward = _camera.getDirection();
+		Frustum frustum;
+		bool hasFrustum;
+		{
+			std::lock_guard<std::mutex> lock(_frustumMutex);
+			hasFrustum = _hasCachedFrustum;
+			frustum = _cachedFrustum;
+		}
+		auto priority = [&](const Candidate& candidate) {
+			auto pos = candidate.chunk->getPosition();
+			return generationPriority({pos.x, candidate.layer, pos.y}, eye, forward,
+			                          hasFrustum ? &frustum : nullptr);
+		};
+		size_t count = std::min(batchSize, pending.size());
+		std::partial_sort(pending.begin(), pending.begin() + count, pending.end(),
+			[&](const Candidate& a, const Candidate& b) { return priority(a) < priority(b); });
+		std::vector<std::future<std::unique_ptr<SubChunk>>> futures;
+		for (size_t i = 0; i < count; ++i) {
+			auto task = pending[i];
+			futures.emplace_back(_threadPool.enqueue([task] { return task.chunk->generateLayer(task.layer); }));
+		}
+		// Always join the active batch before movement cancellation/shutdown.
+		for (size_t i = 0; i < count; ++i) {
+			auto generated = futures[i].get();
+			auto task = pending[i];
+			std::lock_guard<std::mutex> buildLock(_displayBuildMutex);
+			std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
+			size_t before = task.chunk->getMemorySize();
+			task.chunk->installLayer(task.layer, std::move(generated));
+			_chunksMemoryUsage.fetch_add(task.chunk->getMemorySize() - before);
+			waterChunkLoaded(*task.chunk, task.layer);
+			applyPendingFor(task.chunk->getPosition());
+		}
+		pending.erase(pending.begin(), pending.begin() + count);
+		scheduleDisplayUpdate();
+		if (hasMoved(chunkPos)) break;
+	}
+	_currentRender = renderDistance;
+	enforceCountBudget();
 }
 
 void ChunkLoader::unloadChunks(ivec2 newCamChunk)
 {
-	// make sure queued edits + dirty meshes are up-to-date
-	flushDirtyChunks();
 
 	std::vector<ivec2> toErase;
 	{
@@ -439,7 +416,7 @@ void ChunkLoader::unloadChunks(ivec2 newCamChunk)
 			clearFlowerScanMarksFor(key);
 		}
 	}
-	updateFillData();
+	scheduleDisplayUpdate();
 	// After display set shrinks, re-check cache pressure
 	enforceCountBudget();
 }
@@ -457,8 +434,9 @@ bool ChunkLoader::hasMoved(const ivec2 &oldPos)
 }
 
 // Update data to be rendered
-void ChunkLoader::updateFillData()
+void ChunkLoader::updateFillData(bool incremental)
 {
+	std::lock_guard<std::mutex> buildLock(_displayBuildMutex);
 	// If the engine is shutting down, skip any deferred heavy work
 	if (!getIsRunning()) {
 		return;
@@ -466,16 +444,16 @@ void ChunkLoader::updateFillData()
 	// Avoid piling up heavy builds and starving the render thread
 	if (_buildingDisplay.exchange(true))
 		return;
-	// If a staged update already exists, skip this build (coalesced)
+	std::vector<ivec2> pending;
 	{
-		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
-		if (!_solidStagedDataQueue.empty() || !_transparentStagedDataQueue.empty())
-		{
-			_buildingDisplay = false;
-			return;
-		}
+		std::lock_guard<std::mutex> lock(_pendingMutex);
+		for (const auto& entry : _pendingEdits) pending.push_back(entry.first);
 	}
-	flushDirtyChunks();
+	for (auto pos : pending) {
+		auto* chunk=getChunk(pos);
+		if (chunk && !chunk->isBuilding()) applyPendingFor(pos);
+	}
+	flushDirtyChunks(incremental);
 	DisplayData *fillData = new DisplayData();
 	DisplayData *transparentData = new DisplayData();
 	buildFacesToDisplay(fillData, transparentData);
@@ -489,6 +467,13 @@ void ChunkLoader::updateFillData()
 	else
 	{
 		std::lock_guard<std::mutex> lk(_sharedDrawDataMutex);
+		// Replace stale staged snapshots so edits are visible on the next upload.
+		while (!_solidStagedDataQueue.empty()) {
+			delete _solidStagedDataQueue.front(); _solidStagedDataQueue.pop();
+		}
+		while (!_transparentStagedDataQueue.empty()) {
+			delete _transparentStagedDataQueue.front(); _transparentStagedDataQueue.pop();
+		}
 		_solidStagedDataQueue.emplace(fillData);
 		_transparentStagedDataQueue.emplace(transparentData);
 	}
@@ -516,14 +501,11 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 	for (const auto& c : snapshot) {
 		if (!getIsRunning())
 			return ;
-		totalSolidVerts += c->getVertices().size();
-		totalTransVerts += c->getTransparentVertices().size();
-		totalSolidCmds  += c->getIndirectData().size();
-		totalTransCmds  += c->getTransparentIndirectData().size();
-		totalSSBOS      += c->getSSBOSolid().size();
-		totalSSBOT      += c->getSSBOTransp().size();
-		totalMetaS      += c->getIndirectData().size();
-		totalMetaT      += c->getTransparentIndirectData().size();
+		auto sizes = c->displaySizes();
+		totalSolidVerts += sizes[0]; totalTransVerts += sizes[1];
+		totalSolidCmds += sizes[2]; totalTransCmds += sizes[3];
+		totalSSBOS += sizes[4]; totalSSBOT += sizes[5];
+		totalMetaS += sizes[2]; totalMetaT += sizes[3];
 	}
 	fillData->vertexData.reserve(fillData->vertexData.size() + totalSolidVerts);
 	fillData->indirectBufferData.reserve(fillData->indirectBufferData.size() + totalSolidCmds);
@@ -597,22 +579,129 @@ void ChunkLoader::buildFacesToDisplay(DisplayData* fillData, DisplayData* transp
 }
 
 // Dirty chunks management
-void ChunkLoader::flushDirtyChunks() {
-	std::vector<ivec2> toRemesh;
+void ChunkLoader::flushDirtyChunks(bool incremental) {
+	// Snapshot candidates before ranking: never inspect chunk/subchunk state
+	// while holding the dirty lock used by concurrent edits and generation.
+	std::vector<std::pair<ivec2, std::set<int>>> candidates;
+	if (incremental) {
+		std::lock_guard<std::mutex> lock(_dirtyMutex);
+		if (_urgentLayers.empty()) {
+			for (auto pos : _dirtyChunks) {
+				auto layers = _dirtyLayers.find(pos);
+				candidates.emplace_back(pos, layers == _dirtyLayers.end() ?
+				                        std::set<int>{} : layers->second);
+			}
+		}
+	}
+	ivec2 next(0);
+	bool haveNext = false;
+	GenerationPriority best{};
+	if (!candidates.empty()) {
+		auto eye = _camera.getWorldPosition();
+		auto forward = _camera.getDirection();
+		Frustum frustum;
+		bool hasFrustum;
+		{
+			std::lock_guard<std::mutex> lock(_frustumMutex);
+			frustum = _cachedFrustum;
+			hasFrustum = _hasCachedFrustum;
+		}
+		for (const auto& candidate : candidates) {
+			auto* chunk = getChunk(candidate.first);
+			if (!chunk || !chunk->hasBlockData()) continue;
+			std::vector<int> layers;
+			chunk->getSubIndices(layers);
+			for (int layer : layers) {
+				if (!candidate.second.empty() && !candidate.second.count(layer)) continue;
+				// Dirty neighboring layers may not have arrived yet. They must
+				// not promote a distant column using geometry it cannot display.
+				if (chunk->needsGeneration(layer)) continue;
+				auto priority = generationPriority({candidate.first.x, layer, candidate.first.y},
+				                                   eye, forward, hasFrustum ? &frustum : nullptr);
+				if (!haveNext || priority < best) {
+					haveNext = true;
+					best = priority;
+					next = candidate.first;
+				}
+			}
+		}
+	}
+
+	std::vector<std::pair<ivec2, std::set<int>>> jobs;
+	bool more = false;
 	{
 		std::lock_guard<std::mutex> lk(_dirtyMutex);
-		if (_dirtyChunks.empty()) return;
-		toRemesh.assign(_dirtyChunks.begin(), _dirtyChunks.end());
-		_dirtyChunks.clear();
+		if (incremental && !_urgentLayers.empty()) {
+			// Publish player changes together before unrelated background columns.
+			for (auto& entry : _urgentLayers) {
+				auto layers = std::move(entry.second);
+				auto dirty = _dirtyLayers.find(entry.first);
+				if (dirty != _dirtyLayers.end()) {
+					layers.insert(dirty->second.begin(), dirty->second.end());
+					_dirtyLayers.erase(dirty);
+					_dirtyChunks.erase(entry.first);
+				}
+				// Keep a queued full rebuild: it may contain generation changes
+				// outside the edited layers.
+				jobs.emplace_back(entry.first, std::move(layers));
+			}
+			_urgentLayers.clear();
+		} else {
+			while (!_dirtyChunks.empty()) {
+				auto pos = incremental && haveNext ? next : *_dirtyChunks.begin();
+				std::set<int> layers;
+				auto dirty = _dirtyLayers.find(pos);
+				if (dirty != _dirtyLayers.end()) {
+					layers = std::move(dirty->second);
+					_dirtyLayers.erase(dirty);
+				}
+				jobs.emplace_back(pos, std::move(layers));
+				_dirtyChunks.erase(pos);
+				_urgentLayers.erase(pos);
+				// Bound background work so an edit never waits for a whole world batch.
+				if (incremental) break;
+			}
+		}
+		more = !_dirtyChunks.empty() || !_urgentLayers.empty();
 	}
-	for (const auto& p : toRemesh) {
-		if (auto c = getChunk(p)) c->sendFacesToDisplay();
+	for (const auto& job : jobs) {
+		if (auto c = getChunk(job.first))
+			c->sendFacesToDisplay(job.second.empty() ? nullptr : &job.second);
 	}
+	if (incremental && more) scheduleDisplayUpdate();
 }
 
 void ChunkLoader::markChunkDirty(const ivec2& pos) {
 	std::lock_guard<std::mutex> lk(_dirtyMutex);
 	_dirtyChunks.insert(pos);
+	_dirtyLayers.erase(pos);
+}
+
+void ChunkLoader::markLayerDirty(const ivec2& pos, int layer) {
+	std::lock_guard<std::mutex> lock(_dirtyMutex);
+	for (int dx = -1; dx <= 1; ++dx) for (int dz = -1; dz <= 1; ++dz) {
+		ivec2 neighbor = pos + ivec2(dx, dz);
+		bool inserted = _dirtyChunks.insert(neighbor).second;
+		if (inserted || _dirtyLayers.count(neighbor))
+			for (int dy = -1; dy <= 1; ++dy) _dirtyLayers[neighbor].insert(layer + dy);
+	}
+}
+
+void ChunkLoader::markBlockDirty(const ivec3& worldPos, bool urgent) {
+	std::lock_guard<std::mutex> lk(_dirtyMutex);
+	// Faces and liquid corner heights sample adjacent cells, including diagonals.
+	// Include vertical neighbors at subchunk boundaries as well.
+	for (int dx = -1; dx <= 1; ++dx)
+		for (int dz = -1; dz <= 1; ++dz) {
+			ivec2 pos(floor_div(worldPos.x + dx, CHUNK_SIZE),
+			          floor_div(worldPos.z + dz, CHUNK_SIZE));
+			bool inserted = _dirtyChunks.insert(pos).second;
+			for (int dy = -1; dy <= 1; ++dy) {
+				int layer = floor_div(worldPos.y + dy, CHUNK_SIZE);
+				if (inserted || _dirtyLayers.count(pos)) _dirtyLayers[pos].insert(layer);
+				if (urgent) _urgentLayers[pos].insert(layer);
+			}
+		}
 }
 
 // Shared data getters
@@ -678,13 +767,8 @@ bool ChunkLoader::setBlock(ivec2 chunkPos, ivec3 worldPos, BlockType value, bool
 
 	// Only player actions count as modifications for eviction protection UI
 	if (byPlayer && !chunk->getModified()) { chunk->setAsModified(); ++_modifiedCount; }
-	markChunkDirty(chunkPos);
+	markBlockDirty(worldPos);
 	queueWater(worldPos);
-	// Corner heights depend on diagonal cells as well as face neighbors.
-	for (int dx = -1; dx <= 1; ++dx)
-		for (int dz = -1; dz <= 1; ++dz)
-			markChunkDirty({(int)std::floor(double(worldPos.x + dx) / CHUNK_SIZE),
-			                (int)std::floor(double(worldPos.z + dz) / CHUNK_SIZE)});
 	return true;
 }
 
@@ -783,9 +867,12 @@ bool ChunkLoader::hasRenderableChunks() {
 }
 
 void ChunkLoader::scheduleDisplayUpdate() {
-	if (_buildingDisplay) return;
 	if (!getIsRunning()) return;
-	_threadPool.enqueue(&ChunkLoader::updateFillData, this);
+	{
+		std::lock_guard<std::mutex> lock(_displayWakeMutex);
+		_displayRequested = true;
+	}
+	_displayWake.notify_one();
 }
 
 void ChunkLoader::rebuildDisplayDataNow()
@@ -858,6 +945,7 @@ void ChunkLoader::enforceCountBudget() {
 }
 
 bool ChunkLoader::evictChunkAt(const ivec2& candidate) {
+	std::lock_guard<std::mutex> buildLock(_displayBuildMutex);
     std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
 	// Lookup the chunk
 	Chunk* chunk = nullptr;
@@ -1035,7 +1123,8 @@ void ChunkLoader::queueWater(const glm::ivec3& p) {
     std::lock_guard<std::mutex> lock(_waterMutex);
     auto schedule = [&](glm::ivec3 q) {
         glm::ivec2 cp(floor_div(q.x, CHUNK_SIZE), floor_div(q.z, CHUNK_SIZE));
-        if (isWater(getBlock(cp,q))) _waterQueue.schedule({q.x,q.y,q.z});
+        char block=getBlock(cp,q);
+        if (isLiquid(block)) _waterQueue.schedule({q.x,q.y,q.z},isLava(block) ? LAVA_TICK_DELAY : WATER_TICK_DELAY);
     };
     schedule(p);
     for (auto d : WATER_SIDES) schedule({p.x+d[0],p.y,p.z+d[2]});
@@ -1043,12 +1132,14 @@ void ChunkLoader::queueWater(const glm::ivec3& p) {
     schedule({p.x,p.y-1,p.z});
 }
 
-void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
+void ChunkLoader::waterChunkLoaded(Chunk& chunk, int layer) {
+    const bool singleLayer = layer != std::numeric_limits<int>::min();
     std::lock_guard<std::recursive_mutex> editLock(_blockEditMutex);
     if (chunk.getResolution() != 1 || !chunk.hasBlockData()) return;
     auto cp = chunk.getPosition();
     for (auto it=_lavaBlocks.begin();it!=_lavaBlocks.end();) {
-        if (floor_div((*it)[0],CHUNK_SIZE)==cp.x && floor_div((*it)[2],CHUNK_SIZE)==cp.y) it=_lavaBlocks.erase(it);
+        if (floor_div((*it)[0],CHUNK_SIZE)==cp.x && floor_div((*it)[2],CHUNK_SIZE)==cp.y &&
+            (!singleLayer || floor_div((*it)[1],CHUNK_SIZE)==layer)) it=_lavaBlocks.erase(it);
         else ++it;
     }
     ++_lavaLightRevision;
@@ -1056,14 +1147,18 @@ void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
         std::lock_guard<std::mutex> lock(_waterMutex);
         auto it = _waterWaiting.find({cp.x,cp.y});
         if (it != _waterWaiting.end()) {
-            for (auto p : it->second) _waterQueue.schedule(p);
+            for (auto p : it->second) {
+                char block=getBlock({floor_div(p[0],32),floor_div(p[2],32)},{p[0],p[1],p[2]});
+                _waterQueue.schedule(p,isLava(block) ? LAVA_TICK_DELAY : WATER_TICK_DELAY);
+            }
             _waterWaiting.erase(it);
         }
     }
     // One-time initialization, never a per-frame scan. Interior ocean sources
     // cannot spread; only exposed and boundary water needs an initial tick.
     std::vector<int> subs;
-    chunk.getSubIndices(subs);
+    if (singleLayer) subs.push_back(layer);
+    else chunk.getSubIndices(subs);
     std::sort(subs.begin(), subs.end());
     for (int sy : subs) {
         auto* sc = chunk.getSubChunk(sy);
@@ -1072,9 +1167,9 @@ void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
         for (int x = 0; x < CHUNK_SIZE; ++x) {
             char b = sc->getBlock({x,y,z});
             if (isLava(b)) _lavaBlocks.insert({cp.x*32+x,sy*32+y,cp.y*32+z});
-            if (!isWater(b)) continue;
+            if (!isLiquid(b)) continue;
             glm::ivec3 p(cp.x*CHUNK_SIZE+x, sy*CHUNK_SIZE+y, cp.y*CHUNK_SIZE+z);
-            bool active = b != WATER || x == 0 || z == 0 ||
+            bool active = b != (isLava(b) ? LAVA : WATER) || x == 0 || z == 0 ||
                 x == CHUNK_SIZE-1 || z == CHUNK_SIZE-1;
             for (auto d : {glm::ivec3(1,0,0), glm::ivec3(-1,0,0),
                 glm::ivec3(0,0,1), glm::ivec3(0,0,-1), glm::ivec3(0,-1,0)}) {
@@ -1086,12 +1181,13 @@ void ChunkLoader::waterChunkLoaded(Chunk& chunk) {
             }
             if (active) {
                 std::lock_guard<std::mutex> lock(_waterMutex);
-                _waterQueue.schedule({p.x,p.y,p.z});
+                _waterQueue.schedule({p.x,p.y,p.z},isLava(b) ? LAVA_TICK_DELAY : WATER_TICK_DELAY);
             }
         }
     }
     // Diagonal surface samples must refresh when formerly missing data arrives.
-    for (int dx = -1; dx <= 1; ++dx)
+    if (singleLayer) markLayerDirty(cp,layer);
+    else for (int dx = -1; dx <= 1; ++dx)
         for (int dz = -1; dz <= 1; ++dz) markChunkDirty({cp.x+dx,cp.y+dz});
 }
 
@@ -1121,7 +1217,8 @@ void ChunkLoader::stepWater(bool deferWhenBusy) {
             auto cp = chunkAt(q);
             Chunk* c = getChunk(cp);
             char b = WATER_UNKNOWN;
-            if (!c || !c->hasBlockData() || c->getResolution() != 1)
+            if (!c || !c->hasBlockData() || c->getResolution() != 1 ||
+                c->needsGeneration(floor_div(q[1],CHUNK_SIZE)))
                 missing.insert({cp.x,cp.y});
             else b = getBlock(cp, {q[0],q[1],q[2]});
             cache[q] = b;
@@ -1132,7 +1229,8 @@ void ChunkLoader::stepWater(bool deferWhenBusy) {
             changes[q] = b;
             cache[q] = b;
         };
-        processWaterTick(read, write, p, _waterSourceConversion);
+        if (isLava(read(p))) processLavaTick(read,write,p);
+        else processWaterTick(read, write, p, _waterSourceConversion);
         if (!missing.empty()) {
             std::lock_guard<std::mutex> lock(_waterMutex);
             for (auto cp : missing) _waterWaiting[cp].insert(p);
@@ -1195,8 +1293,9 @@ std::vector<LavaEmitter> ChunkLoader::lavaEmitters() {
         return getBlock(cp,{p[0],p[1],p[2]});
     };
     for (auto p:_lavaBlocks) {
-        if (!isLava(read(p))) continue;
-        float height=isLava(read({p[0],p[1]+1,p[2]})) ? 1.0f : 13.0f/15.0f;
+        char block=read(p);
+        if (!isLava(block)) continue;
+        float height=isLava(read({p[0],p[1]+1,p[2]})) ? 1.0f : lavaHeight(block)/15.0f;
         for (auto d:{WaterPos{1,0,0},WaterPos{-1,0,0},WaterPos{0,1,0},WaterPos{0,-1,0},WaterPos{0,0,1},WaterPos{0,0,-1}}) {
             char adjacent=read({p[0]+d[0],p[1]+d[1],p[2]+d[2]});
             if (adjacent==WATER_UNKNOWN || isLava(adjacent)) continue;

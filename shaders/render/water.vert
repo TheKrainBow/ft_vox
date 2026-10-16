@@ -32,6 +32,12 @@ void main()
 	int lengthX   = (instanceData >> 15) & 0x1F;
 	int lengthY   = (instanceData >> 20) & 0x1F;
 	int textureID = (instanceData >> 25) & 0x7F;
+	float lavaHeight = 13.0 / 15.0;
+	if (textureID >= 17 && textureID <= 23) {
+		int amount = 8 - (textureID - 16);
+		lavaHeight = float((amount * 15 + 4) / 9) / 15.0;
+		textureID = 15;
+	}
 
 	bool shapedWater = (uint(instanceData) & 0x80000000u) != 0u;
 	bool fullWater = !shapedWater && (textureID == 14 || textureID == 16); // T_WATER_FULL
@@ -71,7 +77,7 @@ void main()
 	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
 	// Four shared corner heights replace the rectangle dimensions for shaped water.
-	vec4 heights = vec4(fullWater ? 1.0 : 13.0 / 15.0);
+	vec4 heights = vec4(fullWater ? 1.0 : textureID == 15 ? lavaHeight : 13.0 / 15.0);
 	if (shapedWater) {
 		uint corners = uint(instanceData) >> 15;
 		heights = vec4(float(corners & 15u), float((corners >> 4) & 15u),

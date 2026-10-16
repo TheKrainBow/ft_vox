@@ -5,7 +5,8 @@ in vec2 texCoords;
 
 uniform sampler2D screenTexture;
 uniform sampler2D depthTexture;
-uniform float renderDistance;
+uniform float loadedDistance;
+uniform mat4 inverseProjection;
 uniform int isUnderwater;
 uniform bool isInLava;
 uniform float nearPlane;
@@ -103,15 +104,20 @@ void main() {
 	}
 	else
 	{
-		float fogNear   = renderDistance * 6.0;
-		float fogRange  = renderDistance * 20.0;
+		// Both the loading frontier and fragment distance are radial world
+		// distances, including height and off-center screen positions.
+		vec4 viewPosition = inverseProjection * vec4(texCoords * 2.0 - 1.0, currentDepth * 2.0 - 1.0, 1.0);
+		float distance = length(viewPosition.xyz / viewPosition.w);
+		float fogFar = max(loadedDistance, 1.0);
+		float fogNear = fogFar * 0.25;
+		float fogRange = max(fogFar - fogNear, 1e-3);
 
 		// Distance beyond the near threshold
-		float d = max(0.0, linearDepth - fogNear);
+		float d = max(0.0, distance - fogNear);
 
-		// Mild extinction (Beer–Lambert); smaller = softer
-		const float OUT_DENSITY = 0.0014;
-		float fog = 1.0 - exp(-OUT_DENSITY * d);
+		// Scale extinction with the current frontier, reaching the existing
+		// maximum fog amount at the farthest rendered subchunk.
+		float fog = 1.0 - exp(-2.0 * d / fogRange);
 
 		// Ease so it doesn’t become dense at fogNear
 		float t = clamp(d / max(fogRange, 1e-3), 0.0, 1.0);

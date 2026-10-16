@@ -138,7 +138,7 @@ CaveWaterGenerator::CaveWaterGenerator(uint64_t seed, CaveWaterSettings settings
 	m_settings.caveWaterSpringChance = std::max(0.0f, settings.caveWaterSpringChance);
 }
 
-std::vector<CaveWaterPos> CaveWaterGenerator::generate(CaveWaterPos min, CaveWaterPos max, const Sample& geometry) const {
+std::vector<CaveWaterPos> CaveWaterGenerator::generate(CaveWaterPos min, CaveWaterPos max, const Sample& geometry, bool cacheFeatures) const {
 	const auto& s = m_settings;
 	std::vector<CaveWaterPos> result;
 	float totalWeight = s.caveWaterPoolChance + s.caveWaterPocketChance + s.caveWaterSpringChance;
@@ -174,29 +174,57 @@ std::vector<CaveWaterPos> CaveWaterGenerator::generate(CaveWaterPos min, CaveWat
 		// 85% of pools use radii 2..5; the remaining ponds may reach the maximum.
 		int limit = random(5) < 0.85 ? std::min(s.caveWaterMaxRadius, std::max(radius,5)) : s.caveWaterMaxRadius;
 		radius += int(random(6)*(limit-radius+1));
+		auto analyse = [&]() {
+			std::vector<CaveWaterPos> water;
+			for (int dz=-6; dz<=6 && water.empty(); dz+=2)
+			for (int dx=-6; dx<=6 && water.empty(); dx+=2)
+			for (int dy=-8; dy<=8 && water.empty(); ++dy) {
+				CaveWaterPos p{center.x+dx,center.y+dy,center.z+dz};
+				if (sample(p) != CaveWaterVoxel::Air) continue;
+				if (isSpring) water = spring(p,h,sample);
+				else if (isPocket) {
+					water = pocket(p,std::min(radius,3),1+int(random(7)*4),h,sample);
+					if (int(water.size()) > s.maxVisitedVoxels) water.clear();
+				}
+				else if (sample({p.x,p.y-1,p.z}) == CaveWaterVoxel::Solid) {
+					for (int depth=1+int(random(7)*4); depth>=1 && water.empty(); --depth)
+						water = pool(p,radius,depth,s.maxVisitedVoxels,sample);
+				}
+			}
+	#ifdef DEBUG_CAVE_WATER
+			int waterLevel = water.empty() ? -1 : std::max_element(water.begin(),water.end(),
+				[](CaveWaterPos a, CaveWaterPos b) { return a.y < b.y; })->y;
+			std::clog << "cave water " << center.x << ',' << center.y << ',' << center.z
+				<< (isSpring ? " spring" : isPocket ? " pocket" : " pool") << " radius=" << (isSpring ? 1 : radius)
+				<< " level=" << waterLevel << " voxels=" << water.size() << (water.empty() ? " rejected" : " accepted") << '\n';
+	#endif
+			return water;
+		};
 		std::vector<CaveWaterPos> water;
-		for (int dz=-6; dz<=6 && water.empty(); dz+=2)
-		for (int dx=-6; dx<=6 && water.empty(); dx+=2)
-		for (int dy=-8; dy<=8 && water.empty(); ++dy) {
-			CaveWaterPos p{center.x+dx,center.y+dy,center.z+dz};
-			if (sample(p) != CaveWaterVoxel::Air) continue;
-			if (isSpring) water = spring(p,h,sample);
-			else if (isPocket) {
-				water = pocket(p,std::min(radius,3),1+int(random(7)*4),h,sample);
-				if (int(water.size()) > s.maxVisitedVoxels) water.clear();
+		if (!cacheFeatures) water = analyse();
+		else {
+			std::shared_future<std::vector<CaveWaterPos>> future;
+			std::shared_ptr<std::promise<std::vector<CaveWaterPos>>> producer;
+			{
+				std::lock_guard<std::mutex> lock(m_cacheMutex);
+				auto key = std::array<int,3>{rx,ry,rz};
+				auto found = m_features.find(key);
+				if (found != m_features.end()) future = found->second;
+				else {
+					producer = std::make_shared<std::promise<std::vector<CaveWaterPos>>>();
+					future = producer->get_future().share();
+					// Bound retained plans during long journeys. Copies of in-flight
+					// futures remain valid if their cache entry is evicted.
+					if (m_features.size() >= 2048) m_features.erase(m_features.begin());
+					m_features.emplace(key,future);
+				}
 			}
-			else if (sample({p.x,p.y-1,p.z}) == CaveWaterVoxel::Solid) {
-				for (int depth=1+int(random(7)*4); depth>=1 && water.empty(); --depth)
-					water = pool(p,radius,depth,s.maxVisitedVoxels,sample);
+			if (producer) {
+				try { producer->set_value(analyse()); }
+				catch (...) { producer->set_exception(std::current_exception()); throw; }
 			}
+			water = future.get();
 		}
-#ifdef DEBUG_CAVE_WATER
-		int waterLevel = water.empty() ? -1 : std::max_element(water.begin(),water.end(),
-			[](CaveWaterPos a, CaveWaterPos b) { return a.y < b.y; })->y;
-		std::clog << "cave water " << center.x << ',' << center.y << ',' << center.z
-			<< (isSpring ? " spring" : isPocket ? " pocket" : " pool") << " radius=" << (isSpring ? 1 : radius)
-			<< " level=" << waterLevel << " voxels=" << water.size() << (water.empty() ? " rejected" : " accepted") << '\n';
-#endif
 		for (auto p : water)
 			if (p.x>=min.x && p.x<max.x && p.y>=min.y && p.y<max.y && p.z>=min.z && p.z<max.z)
 				result.push_back(p);

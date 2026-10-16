@@ -11,6 +11,17 @@ Highlights
 - Day/night sky colors, opposite sun and moon, shadows, fog and light “god rays”
 - Post‑process pipeline with MSAA resolve and UI overlay 
  
+Terrain streaming prioritizes the player's field of view in every direction,
+including looking down from flight or up from a cave. Visible layers load outward
+along the viewing direction, favoring terrain near the crosshair over side regions.
+Generation and mesh publication share this priority. Small worker batches re-rank
+as the camera moves or turns, and completed layers display before the rest of their
+column finishes. `make test-generation-priority` checks ordering, partial streaming
+and cache reuse.
+Fog tracks the farthest currently displayed subchunk in 3D, updating as terrain
+streams in, unloads, or moves relative to the player. `make test-fog-distance`
+checks that distance and validates the fog shader.
+
 Dependencies 
 - OpenGL + GLU 
 - GLEW 
@@ -36,7 +47,7 @@ Basic Controls
 - Fly up/down: Space / Left Shift (with gravity off) 
 - Sprint: Left Ctrl (toggle when gravity on; hold for fast fly when off) 
 - Break / Place / Pick block: Mouse Left / Right / Middle 
-- Zoom FOV: Mouse wheel 
+- Zoom FOV: Mouse wheel (Z resets to the default 80 degrees)
 - Fullscreen: F11 
  
 Toggles & Tools 
@@ -107,6 +118,12 @@ surface corners follow water amounts and become full-height beneath other water.
 Press **F7** for a water-state slice at your feet (`S`, `F8`, or amount `7..1`).
 Water edits persist in the existing in-memory modified-chunk cache; the project
 does not save worlds to disk.
+
+Lava flows using the same routing rules every fifteen ticks (750 ms), three times
+slower than water, without regenerating sources. Flowing lava remains emissive
+and uses the same opaque orange immersion filter. Cave-fluid feature plans are
+cached across subchunks. Block edits rebuild meshes on a dedicated display worker
+and replace stale staged snapshots without waiting behind terrain generation.
 
 Run `make test` for all regressions, or `make test-water` for the fluid rules and
 shader validation. See [water architecture, rules, tests and parity limits](docs/water.md).

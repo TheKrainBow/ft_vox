@@ -17,64 +17,50 @@ _isModified(false)
 	_north = _south = _east = _west = nullptr;
 }
 
+int Chunk::maxGenerationLayer() const {
+	return std::max(int(_perlinMap->heighest), OCEAN_HEIGHT) / CHUNK_SIZE + 1;
+}
+
+bool Chunk::needsGeneration(int layer) {
+	if (layer < 0 || layer > maxGenerationLayer()) return false;
+	std::lock_guard<std::mutex> lock(_subChunksMutex);
+	return !_generatedLayers.count(layer);
+}
+
+std::unique_ptr<SubChunk> Chunk::generateLayer(int layer) {
+	auto sub = std::make_unique<SubChunk>(ivec3(_position.x, layer, _position.y),
+		_perlinMap, _caveGen, *this, _chunkLoader, _resolution.load());
+	sub->loadHeight(0);
+	sub->loadBiome(0);
+	return sub;
+}
+
+void Chunk::installLayer(int layer, std::unique_ptr<SubChunk> generated) {
+	SubChunk* existing = nullptr;
+	{
+		std::lock_guard<std::mutex> lock(_subChunksMutex);
+		auto it = _subChunks.find(layer);
+		if (it != _subChunks.end()) existing = it->second;
+		else {
+			_memorySize += generated->getMemorySize();
+			_subChunks.emplace(layer, generated.release());
+		}
+	}
+	if (existing) existing->adoptGeneratedBlocks(*generated);
+	{
+		std::lock_guard<std::mutex> lock(_subChunksMutex);
+		_generatedLayers.insert(layer);
+	}
+	if (!_isInit.exchange(true)) _memorySize += sizeof(*this);
+}
+
 void Chunk::loadBlocks() {
-	// Disallow external edits when building
 	_isBuilding = true;
-
-	int heighest = _perlinMap->heighest;
-	if (heighest < OCEAN_HEIGHT) heighest = OCEAN_HEIGHT;
-
-	const int minYIdx = 0;
-	const int maxYIdx = (heighest / CHUNK_SIZE) + 1;
-
-	std::vector<std::future<std::pair<int, SubChunk*>>> futures;
-	futures.reserve(maxYIdx - minYIdx + 1);
-
-	for (int idx = minYIdx; _chunkLoader.getIsRunning() && idx <= maxYIdx; ++idx) {
-		futures.emplace_back(_pool.enqueue([this, idx]() -> std::pair<int, SubChunk*>
-		{
-			int res = _resolution.load();
-			auto* sub = new SubChunk(
-				{ _position.x, idx, _position.y },
-				_perlinMap, _caveGen, *this, _chunkLoader, res
-			);
-			sub->loadHeight(0);
-			sub->loadBiome(0);
-			return { idx, sub };
-		}));
-	}
-
-	size_t localMem = 0;
-	for (auto& f : futures) {
-		auto [idx, generated] = f.get();
-		SubChunk* existing = nullptr;
-		{
-			std::lock_guard<std::mutex> lk(_subChunksMutex);
-			auto it = _subChunks.find(idx);
-			if (it == _subChunks.end()) {
-				_subChunks.emplace(idx, generated);
-			} else {
-				existing = it->second;
-				it->second = generated;
-			}
-		}
-		if (existing) {
-			// migrate non-air, then destroy
-			for (int y = 0; y < CHUNK_SIZE; y += _resolution)
-			for (int z = 0; z < CHUNK_SIZE; z += _resolution)
-			for (int x = 0; x < CHUNK_SIZE; x += _resolution) {
-				char b = existing->getBlock({x, y, z});
-				if (b != AIR) generated->setBlock(x, y, z, b);
-			}
-			delete existing;
-		}
-		localMem += generated->getMemorySize();
-	}
-
-	_memorySize += localMem;
-	_isInit = true;
-	_memorySize += sizeof(*this);
-	// Allow external edits when not building
+	std::vector<std::future<std::unique_ptr<SubChunk>>> futures;
+	for (int layer = 0; _chunkLoader.getIsRunning() && layer <= maxGenerationLayer(); ++layer)
+		futures.emplace_back(_pool.enqueue([this, layer] { return generateLayer(layer); }));
+	for (size_t layer = 0; layer < futures.size(); ++layer)
+		installLayer(int(layer), futures[layer].get());
 	_isBuilding = false;
 }
 
@@ -150,7 +136,7 @@ Chunk::~Chunk() {
 	_subChunks.clear();
 }
 
-void Chunk::getNeighbors()
+void Chunk::getNeighbors(bool remesh)
 {
 	ivec2 northPos{_position.x, _position.y - 1};
 	ivec2 southPos{_position.x, _position.y + 1};
@@ -167,23 +153,23 @@ void Chunk::getNeighbors()
 
 	if (_north) {
 		_north->setSouthChunk(this);
-		_north->sendFacesToDisplay();
+		if (remesh) _north->sendFacesToDisplay();
 	}
 	if (_south) {
 		_south->setNorthChunk(this);
-		_south->sendFacesToDisplay();
+		if (remesh) _south->sendFacesToDisplay();
 	}
 	if (_east) {
 		_east->setWestChunk(this);
-		_east->sendFacesToDisplay();
+		if (remesh) _east->sendFacesToDisplay();
 	}
 	if (_west) {
 		_west->setEastChunk(this);
-		_west->sendFacesToDisplay();
+		if (remesh) _west->sendFacesToDisplay();
 	}
 
 	// If fully surrounded, generate faces immediately.
-	if (_hasAllNeighbors)
+	if (remesh && _hasAllNeighbors)
 		sendFacesToDisplay();
 }
 
@@ -266,7 +252,7 @@ void Chunk::clearFaces() {
 	_metaTransp.clear();
 }
 
-void Chunk::sendFacesToDisplay()
+void Chunk::sendFacesToDisplay(const std::set<int>* layers)
 {
 	// Build faces even if not fully surrounded yet. Missing neighbors are treated
 	// as transparent at borders; when neighbors arrive, both chunks will be
@@ -291,7 +277,8 @@ void Chunk::sendFacesToDisplay()
 	size_t badDirSum  = 0;
 	for (SubChunk* sc : subs) {
 		if (!sc) continue;
-		sc->sendFacesToDisplay();
+		if (!layers || !_facesSent || layers->count(sc->getPosition().y))
+			sc->sendFacesToDisplay();
 		totalSolid += sc->getVertices().size();
 		totalTrans += sc->getTransparentVertices().size();
 		// Debug: verify per-direction counts sum to total
@@ -396,6 +383,12 @@ std::vector<int> &Chunk::getTransparentVertices() {
 std::vector<DrawArraysIndirectCommand> &Chunk::getTransparentIndirectData() {
 	std::lock_guard<std::mutex> lock(_sendFacesMutex);
 	return _transparentIndirectBufferData;
+}
+
+std::array<size_t,6> Chunk::displaySizes() {
+	std::lock_guard<std::mutex> lock(_sendFacesMutex);
+	return {_vertexData.size(),_transparentVertexData.size(),_indirectBufferData.size(),
+		_transparentIndirectBufferData.size(),_ssboSolid.size(),_ssboTransp.size()};
 }
 
 bool Chunk::hasAnyDraws() {

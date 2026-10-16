@@ -663,6 +663,7 @@ void SubChunk::loadBiome(int prevResolution)
 	// Cave water is isolated from the surface biome pass and regenerated at LOD 1.
 	if (CAVES && _resolution == 1) {
 		const auto& water = _chunkLoader.getCaveWaterGenerator();
+		bool cacheFeatures = &_caveGen == &_chunkLoader.getCaveGenerator();
 		const auto& settings = water.settings();
 		CaveWaterPos origin{_position.x*CHUNK_SIZE, _position.y*CHUNK_SIZE, _position.z*CHUNK_SIZE};
 		const auto& lavaSettings=_chunkLoader.getLavaGenerator().settings();
@@ -695,12 +696,12 @@ void SubChunk::loadBiome(int prevResolution)
 				voxels.emplace(key,voxel);
 				return voxel;
 			};
-			for (auto p : water.generate(origin,{origin.x+CHUNK_SIZE,origin.y+CHUNK_SIZE,origin.z+CHUNK_SIZE},sample)) {
+			for (auto p : water.generate(origin,{origin.x+CHUNK_SIZE,origin.y+CHUNK_SIZE,origin.z+CHUNK_SIZE},sample,cacheFeatures)) {
 				int x=p.x-origin.x, y=p.y-origin.y, z=p.z-origin.z;
 				char block = getBlock({x,y,z});
 				if (block == AIR || block == STONE) setBlockLocal(x,y,z,WATER);
 			}
-			for (auto p : _chunkLoader.getLavaGenerator().caves(origin,{origin.x+32,origin.y+32,origin.z+32},sample,water)) {
+			for (auto p : _chunkLoader.getLavaGenerator().caves(origin,{origin.x+32,origin.y+32,origin.z+32},sample,water,cacheFeatures)) {
 				int x=p.x-origin.x,y=p.y-origin.y,z=p.z-origin.z;
 				char block=getBlock({x,y,z});
 				if (block==AIR || block==STONE) setBlockLocal(x,y,z,LAVA);
@@ -825,6 +826,19 @@ void SubChunk::setBlock(int x, int y, int z, char block)
 	// Otherwise, delegate to World using ABSOLUTE world coords
 	_chunkLoader.setBlockOrQueue(targetChunk, { wx, wy, wz }, static_cast<BlockType>(block), /*byPlayer=*/false);
 	_chunkLoader.markChunkDirty(targetChunk);
+}
+
+// Keep the placeholder's address stable for concurrent block readers. Edits
+// spilled into this layer before terrain arrived take precedence over terrain.
+void SubChunk::adoptGeneratedBlocks(SubChunk& generated)
+{
+	std::lock_guard<std::mutex> lock(_dataMutex);
+	const size_t size = size_t(_chunkSize) * _chunkSize * _chunkSize;
+	for (size_t i = 0; i < size; ++i)
+		if (_blocks[i] != AIR) generated._blocks[i] = _blocks[i];
+	_blocks = std::move(generated._blocks);
+	_surfaceLavaColumns = generated._surfaceLavaColumns;
+	_isFullyLoaded = true;
 }
 
 void SubChunk::setBlockLocal(int x, int y, int z, char block)
@@ -1092,8 +1106,13 @@ void SubChunk::sendFacesToDisplay()
 						addBlock(SAND, ivec3(x, y, z), T_SAND, T_SAND, T_SAND, T_SAND, T_SAND, T_SAND);
 						break;
 					case LAVA:
-						addBlock(LAVA,ivec3(x,y,z),T_LAVA,T_LAVA,T_LAVA,T_LAVA,T_LAVA,T_LAVA,true);
+					case LAVA_FLOW_1: case LAVA_FLOW_2: case LAVA_FLOW_3: case LAVA_FLOW_4:
+					case LAVA_FLOW_5: case LAVA_FLOW_6: case LAVA_FLOW_7: case LAVA_FALLING: {
+						char block=getBlock({x,y,z});
+						TextureType texture=block==LAVA || block==LAVA_FALLING ? T_LAVA : TextureType(T_LAVA_FLOW_1+block-LAVA_FLOW_1);
+						addBlock(block,ivec3(x,y,z),texture,texture,texture,texture,texture,texture,true);
 						break;
+					}
 					case WATER_FLOW_1: case WATER_FLOW_2: case WATER_FLOW_3:
 					case WATER_FLOW_4: case WATER_FLOW_5: case WATER_FLOW_6: case WATER_FLOW_7:
 					case WATER_FALLING:

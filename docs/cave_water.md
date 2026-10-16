@@ -8,11 +8,15 @@ caves, and is rebuilt when a coarse chunk returns to full resolution.
 
 The generator samples original cave geometry and a private seeded height sampler,
 including outside the output chunk. It never reads unloaded neighbors or modifies
-them. Every intersecting subchunk reconstructs the complete feature and writes
+them. Every intersecting subchunk uses the complete feature plan and writes
 only its own portion, giving identical results across negative coordinates,
 horizontal/vertical borders and generation order. Centers are inset from feature
 region edges so independent features cannot remove each other’s containment. Column and voxel samples are
-cached for the duration of one generation call; no shared mutable cache is used.
+cached for the duration of one generation call. Production generation also shares
+a bounded cache of 2,048 complete feature plans (including rejected candidates).
+Concurrent subchunks share an in-flight result rather than repeating noise and
+containment searches. Exact voxel validation and feature placement are unchanged;
+custom geometry samplers remain uncached unless explicitly opted in.
 
 Pools fill actual connected cave depressions, usually 1–4 blocks deep with radii
 2–5. Fifteen percent of pool candidates can use larger radii, up to 10. A fill

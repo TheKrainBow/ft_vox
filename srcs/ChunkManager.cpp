@@ -97,14 +97,14 @@ bool ChunkManager::hasRenderableChunks()
 }
 
 // Shared data setters
-void ChunkManager::setViewProj(const glm::mat4& view, const glm::mat4& proj)
+void ChunkManager::setViewProj(const glm::mat4& view, const glm::mat4& proj, bool generationView)
 {
 	Frustum f = Frustum::fromVP(proj * view);
 	glm::vec4 planes[6];
 	for (int i = 0; i < 6; ++i)
 		planes[i] = glm::vec4(f.p[i].n, f.p[i].d);
 	_chunkRenderer.setViewProj(planes);
-	_chunkLoader.setViewProj(f);
+	if (generationView) _chunkLoader.setViewProj(f);
 }
 
 void ChunkManager::setOcclusionSource(GLuint depthTex, int width, int height,

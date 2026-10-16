@@ -121,6 +121,20 @@ int main() {
     }
 
     // Coarse faces must inspect the whole touching patch, even at a 4:1 ratio.
+    for (char flow : {char(LAVA_FLOW_1),char(LAVA_FLOW_4),char(LAVA_FLOW_7),char(LAVA_FALLING)}) {
+        fill(*water,AIR);
+        fill(*center.getSubChunk(2),AIR);
+        water->setBlockLocal(8,31,8,flow);
+        water->sendFacesToDisplay();
+        assert(water->getTranspDirCounts()[UP]==1);
+        int texture=flow==LAVA_FALLING ? T_LAVA : T_LAVA_FLOW_1+flow-LAVA_FLOW_1;
+        assert(((uint32_t(water->getTransparentVertices().front())>>25)&127)==uint32_t(texture));
+        center.getSubChunk(2)->setBlockLocal(8,0,8,LAVA_FLOW_1);
+        water->sendFacesToDisplay();
+        assert(water->getTranspDirCounts()[UP]==0);
+    }
+
+    // Coarse faces must inspect the whole touching patch, even at a 4:1 ratio.
     fill(*adjacent, WATER);
     for (auto dir : {NORTH, SOUTH, EAST, WEST}) {
         assert(!adjacent->isNeighborTransparent({0, 0, 0}, dir, WATER, 4));

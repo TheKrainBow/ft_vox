@@ -143,6 +143,24 @@ void ChunkRenderer::updateDrawData()
 	// removed debug mismatch logs for transparent
 }
 
+// Read the active render snapshot, not queued generation or cached columns.
+// Origins survive CPU instance-buffer cleanup after upload. Recompute against
+// the current eye so flying vertically and moving back toward terrain both work.
+float ChunkRenderer::furthestLoadedDistance(const glm::vec3& eye) const
+{
+	float distanceSquared = 0.0f;
+	for (const auto* data : {_solidDrawData, _transparentDrawData}) {
+		if (!data) continue;
+		for (const auto& origin : data->ssboData) {
+			glm::vec3 minimum(origin);
+			glm::vec3 maximum = minimum + glm::vec3(CHUNK_SIZE);
+			glm::vec3 extent = glm::max(glm::abs(minimum - eye), glm::abs(maximum - eye));
+			distanceSquared = std::max(distanceSquared, glm::dot(extent, extent));
+		}
+	}
+	return std::sqrt(distanceSquared);
+}
+
 // Render passes for solid and transparent blocks
 int ChunkRenderer::renderSolidBlocks()
 {

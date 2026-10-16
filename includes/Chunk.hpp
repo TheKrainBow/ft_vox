@@ -9,6 +9,7 @@
 
 #include "ThreadPool.hpp"
 #include <future>
+#include <set>
 
 class SubChunk;
 class ChunkLoader;
@@ -23,6 +24,7 @@ class Chunk
 		std::atomic_bool					_facesSent;
 		std::atomic_bool					_hasAllNeighbors;
 		std::unordered_map<int, SubChunk *>	_subChunks;
+		std::set<int> _generatedLayers;
 		std::mutex							_subChunksMutex;
 		std::atomic_bool					_isInit;
 		ChunkLoader							&_chunkLoader;
@@ -52,11 +54,11 @@ class Chunk
 	public:
 		Chunk(ivec2 pos, PerlinMap *perlinMap, CaveGenerator &caveGen, ChunkLoader &chunkMgr, ThreadPool &pool, int resolution = 1);
 		~Chunk();
-		void getNeighbors();
+		void getNeighbors(bool remesh = true);
 		SubChunk *getSubChunk(int y);
 		SubChunk *getOrCreateSubChunk(int y, bool generate = true);
 		void updateResolution(int newResolution);
-		void sendFacesToDisplay();
+		void sendFacesToDisplay(const std::set<int>* layers = nullptr);
 		bool isReady();
 		bool hasBlockData() const { return _isInit.load() && !_isBuilding.load(); }
 		std::atomic_int	&getResolution();
@@ -74,6 +76,10 @@ class Chunk
 	
 		void clearFaces();
 		void loadBlocks();
+		int maxGenerationLayer() const;
+		bool needsGeneration(int layer);
+		std::unique_ptr<SubChunk> generateLayer(int layer);
+		void installLayer(int layer, std::unique_ptr<SubChunk> generated);
 		void unloadNeighbor(Direction dir);
 		void unloadNeighbors();
 		TopBlock getTopBlock(int localX, int localZ);
@@ -86,6 +92,7 @@ class Chunk
 		std::vector<vec4> &getSSBOTransp();
 		// Thread-safe quick predicate to know if any draw commands are present
 		bool hasAnyDraws();
+		std::array<size_t,6> displaySizes();
 		void freeSubChunks();
 		void getAABB(glm::vec3& minp, glm::vec3& maxp);
 		void snapshotDisplayData(

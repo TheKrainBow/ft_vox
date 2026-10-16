@@ -67,6 +67,16 @@ struct WaterIntegrationTest {
         camera.setPos({2.5f,-34,2.5f});
         player.updateWaterImmersion();
         assert(!player.isUnderLava() && !player.isUnderWater());
+        for (int z=-3;z<=-1;++z) for (int x=-3;x<=-1;++x) {
+            assert(loader.setBlock({-1,-1},{x,32,z},AIR,true));
+            assert(loader.setBlock({-1,-1},{x,31,z},LAVA_FLOW_7,true));
+        }
+        camera.setPos({2.5f,-31.1f,2.5f});
+        player.updateWaterImmersion();
+        assert(player.isUnderLava());
+        camera.setPos({2.5f,-31.2f,2.5f});
+        player.updateWaterImmersion();
+        assert(!player.isUnderLava()); // Thin flows use their rendered height.
     }
     static Chunk* load(ChunkLoader& loader, glm::ivec2 p) {
         return loader.loadChunk(0,0,0,p,1);
@@ -122,6 +132,17 @@ struct WaterIntegrationTest {
         }
         assert(loader.getChunk({0,0})->getModified());
         assert(loader.getChunk({-1,0})->getModified());
+        // Lava uses the production scheduler across the negative chunk seam.
+        for (int x=-8;x<=8;++x) for (int z=8;z<=24;++z) set(x,1151,z,STONE);
+        set(0,1152,16,LAVA);
+        for (int i=0;i<WATER_TICK_DELAY;++i) tick(loader);
+        assert(read(-1,1152,16)==AIR && read(1,1152,16)==AIR);
+        settle(loader);
+        assert(read(-1,1152,16)==LAVA_FLOW_1 && read(1,1152,16)==LAVA_FLOW_1);
+        assert(read(7,1152,16)==LAVA_FLOW_7 && read(8,1152,16)==AIR);
+        set(0,1152,16,AIR);
+        settle(loader);
+        for (int x=-8;x<=8;++x) for (int z=8;z<=24;++z) assert(!isLava(read(x,1152,z)));
         // Lava lighting tracks faces and responds to source/neighbor edits.
         size_t baseEmitters=loader.lavaEmitters().size();
         for (int z=14;z<=18;++z) for (int x=6;x<=10;++x) set(x,1087,z,STONE);
@@ -136,8 +157,12 @@ struct WaterIntegrationTest {
         set(8,1088,16,AIR);
         assert(loader.lavaEmitters().size()==baseEmitters);
         // Horizontal diagonal dependencies dirty both columns at the seam.
-        assert(loader._dirtyChunks.count({0,0}) && loader._dirtyChunks.count({-1,0}));
-        set(0,1024,16,AIR);
+        {
+            std::lock_guard<std::mutex> displayLock(loader._displayBuildMutex);
+            set(0,1024,16,AIR);
+            std::lock_guard<std::mutex> dirtyLock(loader._dirtyMutex);
+            assert(loader._dirtyChunks.count({0,0}) && loader._dirtyChunks.count({-1,0}));
+        }
         settle(loader);
         for (int x = -8; x <= 8; ++x) for (int dz = -8; dz <= 8; ++dz)
             assert(!isWater(read(x,1024,16+dz)));

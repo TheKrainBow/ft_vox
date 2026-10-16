@@ -173,6 +173,7 @@ public:
 
 	// Swap current rendering data with new one sent from ChunkLoader
 	void updateDrawData();
+	float furthestLoadedDistance(const glm::vec3& eye) const;
 
 	// Control optional GPU sync after draw (avoid buffer races across passes)
 	void setSyncAfterDraw(bool enabled) { _syncAfterDraw = enabled; }

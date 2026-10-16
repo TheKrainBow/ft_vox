@@ -41,7 +41,7 @@ private:
 	WaterUpdateQueue _waterQueue;
 	std::map<std::array<int, 2>, std::set<WaterPos>> _waterWaiting;
 	bool _waterSourceConversion = true;
-	void waterChunkLoaded(Chunk& chunk);
+	void waterChunkLoaded(Chunk& chunk, int layer = std::numeric_limits<int>::min());
 	void queueWater(const glm::ivec3& p);
 	void stepWater(bool deferWhenBusy = false);
 
@@ -98,6 +98,10 @@ private:
 
 	// Concurrency guard to avoid concurrent/stacked heavy builds
 	std::atomic_bool	_buildingDisplay;
+	std::mutex _displayBuildMutex, _displayWakeMutex;
+	std::condition_variable _displayWake;
+	bool _displayRequested = false, _displayStop = false;
+	std::thread _displayWorker;
 	std::atomic_bool	*_isRunning;
 
 	// Terrain generation heavy lifters
@@ -108,6 +112,9 @@ private:
 
 	// Chunks edit tracking
 	std::unordered_set<ivec2, ivec2_hash> _dirtyChunks;
+	// A missing layer entry means the entire dirty column needs rebuilding.
+	std::unordered_map<ivec2, std::set<int>, ivec2_hash> _dirtyLayers;
+	std::unordered_map<ivec2, std::set<int>, ivec2_hash> _urgentLayers;
 
 	// Frustum loading data
 	Frustum	_cachedFrustum;
@@ -149,10 +156,13 @@ private:
 	Chunk *loadChunk(int x, int z, int render, const ivec2 &chunkPos, int resolution);
 	bool hasMoved(const ivec2 &oldPos);
 	void buildFacesToDisplay(DisplayData *fillData, DisplayData *transparentFillData);
-	void updateFillData();
+	void updateFillData(bool incremental = false);
 
 	// Chunks edit tracking
-	void	flushDirtyChunks();
+	void	flushDirtyChunks(bool incremental = false);
+	void markBlockDirty(const ivec3& worldPos, bool urgent = false);
+	void markLayerDirty(const ivec2& pos, int layer);
+	Chunk* prepareStreamingChunk(ivec2 pos, int resolution);
 
 	// LRU + cache budget helpers
 	void touchLRU(const ivec2& pos);
@@ -198,6 +208,7 @@ public:
 	TopBlock		findBlockUnderPlayer(ivec2 chunkPos, ivec3 worldPos);
 	bool			getIsRunning();
 	NoiseGenerator &getNoiseGenerator();
+	CaveGenerator &getCaveGenerator() { return _caveGen; }
 	const CaveWaterGenerator& getCaveWaterGenerator() const { return _caveWaterGen; }
 	const LavaGenerator& getLavaGenerator() const { return _lavaGen; }
 	uint64_t lavaLightRevision() const { return _lavaLightRevision.load(); }

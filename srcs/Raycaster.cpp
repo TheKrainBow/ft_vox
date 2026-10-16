@@ -199,35 +199,7 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 	BlockType hitTypeBefore = _chunkLoader.getBlock(chunkPos, hit);
 
 	// Try to apply immediately (falls back to queue if chunk not ready)
-	bool wroteNow = _chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
-
-	if (wroteNow)
-	{
-		// 1) Rebuild current chunk mesh
-		if (Chunk* c = _chunkLoader.getChunk(chunkPos))
-		{
-			c->setAsModified();
-			c->sendFacesToDisplay();
-		}
-
-		// 2) If at border, rebuild neighbor meshes that share the broken face
-		const int lx = (hit.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-		const int lz = (hit.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-
-		ivec2 neighbors[4];
-		int n = 0;
-		if (lx == 0)               neighbors[n++] = { chunkPos.x - 1, chunkPos.y };
-		if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { chunkPos.x + 1, chunkPos.y };
-		if (lz == 0)               neighbors[n++] = { chunkPos.x,     chunkPos.y - 1 };
-		if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { chunkPos.x,     chunkPos.y + 1 };
-
-		for (int i = 0; i < n; ++i)
-			if (Chunk* nc = _chunkLoader.getChunk(neighbors[i]))
-				nc->sendFacesToDisplay();
-
-		// 3) Stage a fresh display snapshot off-thread (coalesced)
-		_chunkLoader.scheduleDisplayUpdate();
-	}
+	_chunkLoader.setBlockOrQueue(chunkPos, hit, AIR, /*byPlayer=*/true);
 
 	// If the broken block was a support block, handle any plant sitting above
 	if (hitTypeBefore == SAND || hitTypeBefore == DIRT || hitTypeBefore == GRASS)
@@ -252,27 +224,7 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 				BlockType curType = _chunkLoader.getBlock(curChunk, cur);
 				if (curType != CACTUS) break;
 
-				bool wrote = _chunkLoader.setBlockOrQueue(curChunk, cur, AIR, /*byPlayer=*/true);
-				if (wrote)
-				{
-					if (Chunk* c2 = _chunkLoader.getChunk(curChunk))
-					{
-						c2->setAsModified();
-						c2->sendFacesToDisplay();
-					}
-
-					const int lx2 = (cur.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-					const int lz2 = (cur.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-					ivec2 neighbors2[4];
-					int n2 = 0;
-					if (lx2 == 0)               neighbors2[n2++] = { curChunk.x - 1, curChunk.y };
-					if (lx2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x + 1, curChunk.y };
-					if (lz2 == 0)               neighbors2[n2++] = { curChunk.x,     curChunk.y - 1 };
-					if (lz2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x,     curChunk.y + 1 };
-					for (int i = 0; i < n2; ++i)
-						if (Chunk* nc2 = _chunkLoader.getChunk(neighbors2[i]))
-							nc2->sendFacesToDisplay();
-				}
+				_chunkLoader.setBlockOrQueue(curChunk, cur, AIR, /*byPlayer=*/true);
 
 				// Move upward
 				cur.y += 1;
@@ -284,29 +236,7 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 		else if (isFlower(aboveType))
 		{
 			// Remove a single billboard plant above when breaking its support
-			bool wroteTop = _chunkLoader.setBlockOrQueue(aboveChunk, above, AIR, /*byPlayer=*/true);
-			if (wroteTop)
-			{
-				if (Chunk* c2 = _chunkLoader.getChunk(aboveChunk))
-				{
-					c2->setAsModified();
-					c2->sendFacesToDisplay();
-				}
-
-				const int lx2 = (above.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-				const int lz2 = (above.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-				ivec2 neighbors2[4];
-				int n2 = 0;
-				if (lx2 == 0)               neighbors2[n2++] = { aboveChunk.x - 1, aboveChunk.y };
-				if (lx2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { aboveChunk.x + 1, aboveChunk.y };
-				if (lz2 == 0)               neighbors2[n2++] = { aboveChunk.x,     aboveChunk.y - 1 };
-				if (lz2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { aboveChunk.x,     aboveChunk.y + 1 };
-				for (int i = 0; i < n2; ++i)
-					if (Chunk* nc2 = _chunkLoader.getChunk(neighbors2[i]))
-						nc2->sendFacesToDisplay();
-
-				_chunkLoader.scheduleDisplayUpdate();
-			}
+			_chunkLoader.setBlockOrQueue(aboveChunk, above, AIR, /*byPlayer=*/true);
 		}
 	}
 
@@ -323,27 +253,7 @@ bool Raycaster::raycastDeleteOne(const glm::vec3& originWorld,
 			BlockType curType = _chunkLoader.getBlock(curChunk, cur);
 			if (curType != CACTUS) break;
 
-			bool wrote = _chunkLoader.setBlockOrQueue(curChunk, cur, AIR, /*byPlayer=*/true);
-			if (wrote)
-			{
-				if (Chunk* c2 = _chunkLoader.getChunk(curChunk))
-				{
-					c2->setAsModified();
-					c2->sendFacesToDisplay();
-				}
-
-				const int lx2 = (cur.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-				const int lz2 = (cur.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-				ivec2 neighbors2[4];
-				int n2 = 0;
-				if (lx2 == 0)               neighbors2[n2++] = { curChunk.x - 1, curChunk.y };
-				if (lx2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x + 1, curChunk.y };
-				if (lz2 == 0)               neighbors2[n2++] = { curChunk.x,     curChunk.y - 1 };
-				if (lz2 == CHUNK_SIZE - 1)  neighbors2[n2++] = { curChunk.x,     curChunk.y + 1 };
-				for (int i = 0; i < n2; ++i)
-					if (Chunk* nc2 = _chunkLoader.getChunk(neighbors2[i]))
-						nc2->sendFacesToDisplay();
-			}
+			_chunkLoader.setBlockOrQueue(curChunk, cur, AIR, /*byPlayer=*/true);
 
 			cur.y += 1;
 		}
@@ -452,33 +362,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
 					(int)std::floor((float)voxel.z / (float)CHUNK_SIZE)
 				);
 
-				bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, voxel, block, /*byPlayer=*/true);
-				if (wroteNow) {
-					// Rebuild current chunk mesh
-					if (Chunk* c = _chunkLoader.getChunk(placeChunk))
-					{
-						c->setAsModified();
-						c->sendFacesToDisplay();
-					}
-
-					// If at border, also rebuild neighbors that share faces
-					const int lx = (voxel.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-					const int lz = (voxel.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-
-					ivec2 neighbors[4];
-					int n = 0;
-					if (lx == 0)               neighbors[n++] = { placeChunk.x - 1, placeChunk.y };
-					if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x + 1, placeChunk.y };
-					if (lz == 0)               neighbors[n++] = { placeChunk.x,     placeChunk.y - 1 };
-					if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x,     placeChunk.y + 1 };
-
-					for (int i2 = 0; i2 < n; ++i2)
-						if (Chunk* nc = _chunkLoader.getChunk(neighbors[i2]))
-							nc->sendFacesToDisplay();
-
-					// Stage a fresh display snapshot off-thread (coalesced)
-					_chunkLoader.scheduleDisplayUpdate();
-				}
+				_chunkLoader.setBlockOrQueue(placeChunk, voxel, block, /*byPlayer=*/true);
 
 				outPlaced = voxel;
 				return true;
@@ -525,33 +409,7 @@ bool Raycaster::raycastPlaceOne(const glm::vec3& originWorld,
 				if (!(current == AIR || isLiquid(current))) return false;
 			}
 
-			bool wroteNow = _chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);
-			if (wroteNow) {
-				// Rebuild current chunk mesh
-				if (Chunk* c = _chunkLoader.getChunk(placeChunk))
-				{
-					c->setAsModified();
-					c->sendFacesToDisplay();
-				}
-
-				// If at border, also rebuild neighbors that share faces
-				const int lx = (prev.x % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-				const int lz = (prev.z % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
-
-				ivec2 neighbors[4];
-				int n = 0;
-				if (lx == 0)               neighbors[n++] = { placeChunk.x - 1, placeChunk.y };
-				if (lx == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x + 1, placeChunk.y };
-				if (lz == 0)               neighbors[n++] = { placeChunk.x,     placeChunk.y - 1 };
-				if (lz == CHUNK_SIZE - 1)  neighbors[n++] = { placeChunk.x,     placeChunk.y + 1 };
-
-				for (int i2 = 0; i2 < n; ++i2)
-					if (Chunk* nc = _chunkLoader.getChunk(neighbors[i2]))
-						nc->sendFacesToDisplay();
-
-				// Stage a fresh display snapshot off-thread (coalesced)
-				_chunkLoader.scheduleDisplayUpdate();
-			}
+			_chunkLoader.setBlockOrQueue(placeChunk, prev, block, /*byPlayer=*/true);
 
 			// Return the actual placed cell from this first pass
 			outPlaced = prev;

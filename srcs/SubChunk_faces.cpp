@@ -351,7 +351,7 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 	// newFace.size = ivec2(1, 1);
 	newFace.direction = dir;
 	newFace.texture = texture;
-	if (texture == T_LAVA) {
+	if (texture == T_LAVA || (texture>=T_LAVA_FLOW_1 && texture<=T_LAVA_FLOW_7)) {
 		bool covered=false;
 		if (position.y+_resolution<CHUNK_SIZE) covered=isLava(getBlock(position+ivec3(0,_resolution,0)));
 		else if (auto* upper=_chunk.getSubChunk(_position.y+1)) covered=isLava(upper->getBlock({position.x,0,position.z}));

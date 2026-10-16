@@ -27,32 +27,37 @@ LavaGenerator::LavaGenerator(uint64_t seed,LavaSettings settings)
     m_settings.surfaceChance=std::clamp(settings.surfaceChance,0.0f,1.0f);
 }
 std::vector<CaveWaterPos> LavaGenerator::caves(CaveWaterPos min,CaveWaterPos max,
-    const CaveWaterGenerator::Sample& sample,const CaveWaterGenerator& water) const {
+    const CaveWaterGenerator::Sample& sample,const CaveWaterGenerator& water, bool cacheFeatures) const {
     if (max.y<=m_settings.caveMinY || min.y>=m_settings.caveMaxY || m_settings.caveFrequency<=0) return {};
     // Include every water feature that could touch a lava analysis volume. This
     // reservation is reconstructed from world geometry, including unloaded chunks.
-    auto wet = water.generate({min.x-64,min.y-32,min.z-64},{max.x+64,max.y+32,max.z+64},sample);
     std::set<std::array<int,3>> reserved;
-    for (auto p:wet) for (int z=-2;z<=2;++z) for (int y=-2;y<=2;++y) for (int x=-2;x<=2;++x)
-        reserved.insert({p.x+x,p.y+y,p.z+z});
-    // Recessed water springs can spill to a landing below their source.
-    // Keep lava away from that runoff corridor and its horizontal reach too.
-    for (auto p:wet) {
-        if (sample(p)!=CaveWaterVoxel::Solid) continue;
-        for (auto d:{std::array<int,2>{1,0},{-1,0},{0,1},{0,-1}}) {
-            CaveWaterPos mouth{p.x+d[0],p.y,p.z+d[1]};
-            if (sample(mouth)!=CaveWaterVoxel::Air) continue;
-            int drop=1;
-            while (drop<=16 && sample({mouth.x,mouth.y-drop,mouth.z})==CaveWaterVoxel::Air) ++drop;
-            if (drop>16) continue;
-            for (int y=mouth.y-drop;y<=mouth.y+2;++y)
-            for (int z=-9;z<=9;++z) for (int x=-9;x<=9;++x)
-                if (std::abs(x)+std::abs(z)<=9) reserved.insert({mouth.x+x,y,mouth.z+z});
+    bool reservationsReady = false;
+    auto reserveWater = [&] {
+        auto wet = water.generate({min.x-64,min.y-32,min.z-64},{max.x+64,max.y+32,max.z+64},sample,cacheFeatures);
+        for (auto p:wet) for (int z=-2;z<=2;++z) for (int y=-2;y<=2;++y) for (int x=-2;x<=2;++x)
+            reserved.insert({p.x+x,p.y+y,p.z+z});
+        // Recessed water springs can spill to a landing below their source.
+        // Keep lava away from that runoff corridor and its horizontal reach too.
+        for (auto p:wet) {
+            if (sample(p)!=CaveWaterVoxel::Solid) continue;
+            for (auto d:{std::array<int,2>{1,0},{-1,0},{0,1},{0,-1}}) {
+                CaveWaterPos mouth{p.x+d[0],p.y,p.z+d[1]};
+                if (sample(mouth)!=CaveWaterVoxel::Air) continue;
+                int drop=1;
+                while (drop<=16 && sample({mouth.x,mouth.y-drop,mouth.z})==CaveWaterVoxel::Air) ++drop;
+                if (drop>16) continue;
+                for (int y=mouth.y-drop;y<=mouth.y+2;++y)
+                for (int z=-9;z<=9;++z) for (int x=-9;x<=9;++x)
+                    if (std::abs(x)+std::abs(z)<=9) reserved.insert({mouth.x+x,y,mouth.z+z});
+            }
         }
-    }
+    };
     return m_caves.generate(min,max,[&](CaveWaterPos p) {
+        // Cached/rejected lava features need no new water reservation analysis.
+        if (!reservationsReady) { reserveWater(); reservationsReady = true; }
         return reserved.count({p.x,p.y,p.z}) ? CaveWaterVoxel::Protected : sample(p);
-    });
+    },cacheFeatures);
 }
 std::vector<LavaPlacement> LavaGenerator::surface(CaveWaterPos min,CaveWaterPos max,
     const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed) const {

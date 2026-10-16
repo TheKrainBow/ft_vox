@@ -34,6 +34,14 @@ int main() {
         split.insert(part.begin(),part.end());
     }
     assert(split==hot && hot==positions(lava.caves(min,max,basins,water)));
+    LavaGenerator cachedLava(42,ls);
+    size_t probes=0;
+    auto counted=[&](CaveWaterPos p) { ++probes; return basins(p); };
+    assert(hot==positions(cachedLava.caves(min,max,counted,water,true)));
+    size_t firstProbes=probes;
+    assert(firstProbes>0);
+    assert(hot==positions(cachedLava.caves(min,max,counted,water,true)));
+    assert(probes==firstProbes); // Reused lava needs no new water reservations.
     auto solid=[](CaveWaterPos) { return CaveWaterVoxel::Solid; };
     auto allow=[](int,int) { return true; };
     auto height=[](int,int) { return 150; };

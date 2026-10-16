@@ -777,6 +777,7 @@ void StoneEngine::initHelpTextBox()
 	helpBox.addStaticText("Mouse Left:  Hold to break blocks");
 	helpBox.addStaticText("Mouse Right: Place block");
 	helpBox.addStaticText("Mouse Middle: Pick block");
+	helpBox.addStaticText("Mouse Wheel: Zoom (Z: Reset)");
 }
 
 static inline const char *onoff(bool v) { return v ? "(On)" : "(Off)"; }
@@ -1018,7 +1019,7 @@ void StoneEngine::renderShadowMap()
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
-	_chunkMgr.setViewProj(lightView, lightProj);
+	_chunkMgr.setViewProj(lightView, lightProj, false);
 
 	// Solid geometry: cull FRONT faces in shadow pass as well
 	glEnable(GL_CULL_FACE);
@@ -2006,16 +2007,11 @@ void StoneEngine::postProcessFog()
 	setLightingUniforms(shader.program);
 
 
-	GLint loc = glGetUniformLocation(shader.program, "renderDistance");
-	if (auto render = _chunkMgr.getCurrentRenderPtr(); render)
-	{
-		_bestRender = std::max(_bestRender, *render);
-		glUniform1f(loc, _bestRender - 5);
-	}
-	else
-	{
-		glUniform1f(loc, RENDER_DISTANCE);
-	}
+	glUniform1f(glGetUniformLocation(shader.program, "loadedDistance"),
+		_chunkMgr.furthestLoadedDistance(camera.getWorldPosition()));
+	const glm::mat4 inverseProjection = glm::inverse(projectionMatrix);
+	glUniformMatrix4fv(glGetUniformLocation(shader.program, "inverseProjection"),
+		1, GL_FALSE, glm::value_ptr(inverseProjection));
 
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2164,7 +2160,7 @@ void StoneEngine::renderPlanarReflection()
 		glDisable(GL_CULL_FACE);
 
 	glm::mat4 prevView = this->viewMatrix;
-	_chunkMgr.setViewProj(viewFullMirror, projOblique); // <- use oblique for culling too
+	_chunkMgr.setViewProj(viewFullMirror, projOblique, false); // <- use oblique for culling too
 	_chunkMgr.updateDrawData();
 	_chunkMgr.renderSolidBlocks();
 
@@ -2482,25 +2478,10 @@ void StoneEngine::loadNextChunks(ivec2 newCamChunk)
 	// 1) Load new chunks for the new camera center
 	// 2) Then unload chunks outside the radius
 	// This avoids transient empty displayed sets while a build is occurring.
-	if (getIsRunning())
-	{
-		std::future<void> loadRet = _pool.enqueue(&ChunkManager::loadChunks, &_chunkMgr, newCamChunk);
-		while (loadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
-		{
-			if (!getIsRunning()) break;
-		}
-		if (loadRet.valid()) loadRet.get();
-	}
-
-	if (getIsRunning())
-	{
-		std::future<void> unloadRet = _pool.enqueue(&ChunkManager::unloadChunks, &_chunkMgr, newCamChunk);
-		while (unloadRet.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
-		{
-			if (!getIsRunning()) break;
-		}
-		if (unloadRet.valid()) unloadRet.get();
-	}
+	// This already runs on the chunk orchestration thread. Keep pool workers
+	// available for subchunk jobs, including configurations with one worker.
+	if (getIsRunning()) _chunkMgr.loadChunks(newCamChunk);
+	if (getIsRunning()) _chunkMgr.unloadChunks(newCamChunk);
 
 	chronoHelper.stopChrono(0);
 	chronoHelper.printChrono(0);
@@ -2556,7 +2537,7 @@ void StoneEngine::updateChunkWorker()
 	while (getIsRunning())
 	{
 		vec3 newCamPos = camera.getPosition();
-		if (oldCamPos.x != newCamPos.x || oldCamPos.z != newCamPos.z || firstIteration)
+		if (oldCamPos != newCamPos || firstIteration)
 		{
 			// Check new chunk position for necessary updates to chunks
 			ivec2 camChunk = camera.getChunkPosition(CHUNK_SIZE);
@@ -2565,7 +2546,8 @@ void StoneEngine::updateChunkWorker()
 				loadFirstChunks();
 				firstIteration = false;
 			}
-			else if (updateChunk && (floor(oldCamChunk.x) != floor(camChunk.x) || floor(oldCamChunk.y) != floor(camChunk.y)))
+			else if (updateChunk && (oldCamChunk != camChunk ||
+				int(std::floor(-oldCamPos.y / CHUNK_SIZE)) != int(std::floor(-newCamPos.y / CHUNK_SIZE))))
 			{
 				loadNextChunks(camChunk);
 			}
@@ -2888,6 +2870,11 @@ void StoneEngine::keyAction(int key, int scancode, int action, int mods)
 		playerLightEnabled = !playerLightEnabled;
 	if (action == GLFW_PRESS && key == GLFW_KEY_C)
 		updateChunk = !updateChunk;
+	if (action == GLFW_PRESS && key == GLFW_KEY_Z)
+	{
+		_fov = DEFAULT_FOV;
+		scrollAction(0.0);
+	}
 	if (action == GLFW_PRESS && key == GLFW_KEY_G)
 	{
 		gravity = !gravity;

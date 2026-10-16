@@ -17,7 +17,7 @@ int main() {
 	std::queue<DisplayData*> solids, transparent;
 	ChunkLoader loader(42, camera, pool, chrono, &running, drawMutex, solids, transparent);
 	NoiseGenerator terrain(42);
-	CaveGenerator caves(42);
+	CaveGenerator& caves = loader.getCaveGenerator();
 	CaveWaterSettings drySettings;
 	drySettings.caveWaterFrequency = 0;
 	LavaSettings noLava; noLava.caveFrequency=0; noLava.surfaceChance=0;

@@ -90,6 +90,7 @@
 # define SAND 's'
 # define WATER 'W'
 # define LAVA 'V'
+constexpr char LAVA_FLOW_FIRST = 1, LAVA_FLOW_LAST = 8;
 # define SNOW 'w'
 # define LOG 'l'
 # define LEAF 'L'

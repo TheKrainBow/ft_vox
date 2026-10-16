@@ -25,6 +25,7 @@ public:
 		return res;
 	}
 
+	size_t workerCount() const { return workers.size(); }
 	void joinThreads();
 
 private:

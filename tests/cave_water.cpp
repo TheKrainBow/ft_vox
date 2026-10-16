@@ -5,6 +5,7 @@
 #include <iostream>
 #include <set>
 #include <tuple>
+#include <atomic>
 
 using Positions = std::set<std::tuple<int,int,int>>;
 static Positions positions(const std::vector<CaveWaterPos>& water) {
@@ -43,6 +44,24 @@ int main() {
 		tiled.insert(part.begin(),part.end());
 	}
 	assert(all == tiled);
+	// Immutable-world plans are shared across subchunks without repeat samples.
+	CaveWaterGenerator cached(42,settings);
+	size_t probes=0;
+	auto counted=[&](CaveWaterPos p) { ++probes; return basins(p); };
+	assert(all==positions(cached.generate(min,max,counted,true)));
+	size_t firstProbes=probes;
+	assert(firstProbes>0);
+	assert(all==positions(cached.generate(min,max,counted,true)));
+	assert(probes==firstProbes);
+	CaveWaterGenerator concurrent(42,settings);
+	std::atomic_size_t concurrentProbes{0};
+	auto sharedSample=[&](CaveWaterPos p) { ++concurrentProbes; return basins(p); };
+	std::vector<std::future<std::vector<CaveWaterPos>>> jobs;
+	for (int i=0;i<4;++i) jobs.push_back(std::async(std::launch::async,[&] {
+		return concurrent.generate(min,max,sharedSample,true);
+	}));
+	for (auto& job:jobs) assert(positions(job.get())==all);
+	assert(concurrentProbes==firstProbes);
 	auto flat = [](CaveWaterPos p) { return p.y>=18 ? CaveWaterVoxel::Air : CaveWaterVoxel::Solid; };
 	assert(gen.generate(min,max,flat).empty()); // Unbounded cave floor leaks.
 	auto unknown = [](CaveWaterPos) { return CaveWaterVoxel::Protected; };

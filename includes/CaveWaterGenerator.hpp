@@ -2,6 +2,10 @@
 #include <cstdint>
 #include <functional>
 #include <vector>
+#include <array>
+#include <map>
+#include <mutex>
+#include <future>
 
 struct CaveWaterSettings {
 	float caveWaterFrequency = 1.0; // Chance per 48^3 feature region, before validation.
@@ -27,8 +31,12 @@ public:
 	uint64_t seed() const { return m_seed; }
 	const CaveWaterSettings& settings() const { return m_settings; }
 	// Half-open output box. Analysis uses world geometry, never loaded neighbors.
-	std::vector<CaveWaterPos> generate(CaveWaterPos min, CaveWaterPos max, const Sample& sample) const;
+	// Cache only with an immutable world-geometry sampler. Test/custom samplers
+	// retain uncached semantics by default.
+	std::vector<CaveWaterPos> generate(CaveWaterPos min, CaveWaterPos max, const Sample& sample, bool cacheFeatures = false) const;
 private:
+	mutable std::mutex m_cacheMutex;
+	mutable std::map<std::array<int,3>,std::shared_future<std::vector<CaveWaterPos>>> m_features;
 	uint64_t m_seed;
 	CaveWaterSettings m_settings;
 };

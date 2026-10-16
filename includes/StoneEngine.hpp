@@ -186,7 +186,6 @@ class StoneEngine {
 		ivec3 sunPosition;
 		std::atomic_int timeValue;
 		TopBlock camTopBlock;
-		int _bestRender = 0;
 		int	_biome;
 		double _humidity;
 		double _temperature;

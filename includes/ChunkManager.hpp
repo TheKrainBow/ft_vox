@@ -88,7 +88,7 @@ public:
 	BlockType	getBlock(ivec2 chunkPos, ivec3 worldPos);
 
 	// View projection setter for renderer
-	void	setViewProj(const glm::mat4& view, const glm::mat4& proj);
+	void	setViewProj(const glm::mat4& view, const glm::mat4& proj, bool generationView = true);
 
 	// Previous-frame depth for occlusion culling
 	void	setOcclusionSource(GLuint depthTex, int width, int height,
@@ -107,6 +107,9 @@ public:
 
 	// Draw data swapper
 	void updateDrawData();
+	float furthestLoadedDistance(const glm::vec3& eye) const {
+		return _chunkRenderer.furthestLoadedDistance(eye);
+	}
 	void updateWaterTick();
 	uint64_t lavaLightRevision() const { return _chunkLoader.lavaLightRevision(); }
 	std::vector<LavaEmitter> lavaEmitters() { return _chunkLoader.lavaEmitters(); }

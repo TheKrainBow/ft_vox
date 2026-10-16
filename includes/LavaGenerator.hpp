@@ -16,7 +16,7 @@ public:
     explicit LavaGenerator(uint64_t seed, LavaSettings settings = {});
     const LavaSettings& settings() const { return m_settings; }
     std::vector<CaveWaterPos> caves(CaveWaterPos min,CaveWaterPos max,
-        const CaveWaterGenerator::Sample& sample,const CaveWaterGenerator& water) const;
+        const CaveWaterGenerator::Sample& sample,const CaveWaterGenerator& water, bool cacheFeatures = false) const;
     // Complete surface feature plans for this XZ box, including stone banks and
     // clearing the open cavity. Each subchunk applies only its own Y portion.
     std::vector<LavaPlacement> surface(CaveWaterPos min,CaveWaterPos max,

@@ -1,5 +1,6 @@
 #pragma once
 #include "Water.hpp"
+#include "Lava.hpp"
 #include <cstdint>
 #include <map>
 #include <set>
@@ -21,9 +22,9 @@ class WaterUpdateQueue {
     std::set<std::pair<uint64_t, WaterPos>> _events;
     std::set<WaterPos> _pending;
 public:
-    void schedule(WaterPos p) {
+    void schedule(WaterPos p, int delay = WATER_TICK_DELAY) {
         if (p[1] > 0 && _pending.insert(p).second)
-            _events.insert({_tick + WATER_TICK_DELAY, p});
+            _events.insert({_tick + delay, p});
     }
     std::vector<WaterPos> advance(size_t budget = 512) {
         ++_tick;
@@ -38,6 +39,7 @@ public:
     }
     size_t size() const { return _events.size(); }
 };
+
 
 // The current block set has full blockers and replaceable decorations, no
 // waterlogging. Keep both faces/positions in this API for future partial blocks.
@@ -133,4 +135,16 @@ void processWaterTick(Read& read, Write write, WaterPos p, bool sourceConversion
         if (isWater(next) && (next == WATER || !isWater(old) ||
             waterAmount(next) > waterAmount(old)) && next != old) write(q, next);
     }
+}
+
+// Reuse the routing/decay rules while keeping the two fluids impermeable.
+// Lava never creates extra source blocks from neighboring sources.
+template<class Read, class Write>
+void processLavaTick(Read& read, Write write, WaterPos p) {
+    auto lavaRead = [&](WaterPos q) {
+        char b = read(q);
+        return isWater(b) ? char(STONE) : lavaAsWater(b);
+    };
+    auto lavaWrite = [&](WaterPos q, char b) { write(q, waterAsLava(b)); };
+    processWaterTick(lavaRead, lavaWrite, p, false);
 }

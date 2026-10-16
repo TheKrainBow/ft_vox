@@ -272,3 +272,32 @@ test-lava-worker:
 	timeout 15s /tmp/ft_vox-lava-worker-test
 
 test: test-lava-worker
+
+.PHONY: test-lava-flow
+test-lava-flow:
+	$(CC) $(CFLAGS) -Iincludes tests/lava_flow.cpp -o /tmp/ft_vox-lava-flow-test
+	/tmp/ft_vox-lava-flow-test
+
+test: test-lava-flow
+
+.PHONY: test-display-edits
+test-display-edits: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/display_edits.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-display-edits-test $(LDFLAGS)
+	timeout 15s /tmp/ft_vox-display-edits-test
+
+test: test-display-edits
+
+.PHONY: test-generation-priority
+test-generation-priority: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/generation_priority.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-generation-priority-test $(LDFLAGS)
+	timeout 30s /tmp/ft_vox-generation-priority-test
+
+test: test-generation-priority
+
+.PHONY: test-fog-distance
+test-fog-distance: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
+	$(CC) $(CFLAGS) $(INCLUDES) tests/fog_distance.cpp $(filter-out $(OBJ_PATH)main.o,$(OBJ)) -o /tmp/ft_vox-fog-distance-test $(LDFLAGS)
+	/tmp/ft_vox-fog-distance-test
+	glslangValidator -l shaders/postProcess/postProcess.vert shaders/postProcess/fog.frag
+
+test: test-fog-distance
