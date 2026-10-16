@@ -39,11 +39,11 @@ void main()
 		textureID = 15;
 	}
 
-	bool shapedWater = (uint(instanceData) & 0x80000000u) != 0u;
-	bool fullWater = !shapedWater && (textureID == 14 || textureID == 16); // T_WATER_FULL
+	bool shapedLiquid = (uint(instanceData) & 0x80000000u) != 0u;
+	bool fullWater = !shapedLiquid && (textureID == 14 || textureID == 16); // T_WATER_FULL
 	if (fullWater) textureID = textureID == 16 ? 15 : 6;
-	if (shapedWater) {
-		textureID = 6;
+	if (shapedLiquid) {
+		textureID = (drawMeta[gl_DrawID] & 8u) != 0u ? 15 : 6;
 		lengthX = 0;
 		lengthY = 0;
 	}
@@ -76,9 +76,9 @@ void main()
 	if (direction == 4) { basePos.z = -basePos.z + lengthY; normal = vec3(0,-1,0); }
 	if (direction == 5) { basePos.y += res; normal = vec3(0,1,0); }
 
-	// Four shared corner heights replace the rectangle dimensions for shaped water.
+	// Four shared corner heights replace the rectangle dimensions for shaped liquids.
 	vec4 heights = vec4(fullWater ? 1.0 : textureID == 15 ? lavaHeight : 13.0 / 15.0);
-	if (shapedWater) {
+	if (shapedLiquid) {
 		uint corners = uint(instanceData) >> 15;
 		heights = vec4(float(corners & 15u), float((corners >> 4) & 15u),
 		    float((corners >> 8) & 15u), float((corners >> 12) & 15u)) / 15.0;

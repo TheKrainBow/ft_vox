@@ -1,5 +1,6 @@
 #include "LavaGenerator.hpp"
 #include "LavaLighting.hpp"
+#include "WaterSimulation.hpp"
 #include <cassert>
 #include <set>
 #include <map>
@@ -43,6 +44,53 @@ int main() {
     assert(firstProbes>0);
     assert(hot==positions(cachedLava.caves(min,max,counted,water,true)));
     assert(probes==firstProbes); // Reused lava needs no new water reservations.
+    LavaGenerator reverseCached(42,ls);
+    Positions reverseHot;
+    for (int z=96;z>=-128;z-=32) for (int x=96;x>=-128;x-=32)
+    for (int y=56;y>=8;y-=16) {
+        auto part=positions(reverseCached.caves({x,y,z},{x+32,std::min(y+16,64),z+32},basins,water,true));
+        reverseHot.insert(part.begin(),part.end());
+    }
+    assert(reverseHot==hot);
+    CaveWaterSettings dry; dry.caveWaterFrequency=0;
+    CaveWaterGenerator noWater(42,dry);
+    LavaSettings springSettings=ls; springSettings.springChance=100;
+    LavaGenerator springLava(42,springSettings);
+    auto wall=[](CaveWaterPos p) {
+        return p.y>16 && local(p.x)<8 ? CaveWaterVoxel::Air : CaveWaterVoxel::Solid;
+    };
+    auto sources=springLava.caves(min,max,wall,noWater);
+    // The mixed generator may also choose a floor pocket below the cave.
+    sources.erase(std::remove_if(sources.begin(),sources.end(),[](CaveWaterPos p) { return p.y<=16; }),sources.end());
+    assert(!sources.empty());
+    for (auto p:sources) {
+        assert(wall(p)==CaveWaterVoxel::Solid);
+        int exits=0;
+        for (auto d:WATER_SIDES) exits+=wall({p.x+d[0],p.y,p.z+d[2]})==CaveWaterVoxel::Air;
+        assert(exits==1 && wall({p.x,p.y+1,p.z})==CaveWaterVoxel::Solid && wall({p.x,p.y-1,p.z})==CaveWaterVoxel::Solid);
+    }
+    auto source=sources.front();
+    WaterPos sourcePos{source.x,source.y,source.z};
+    std::map<WaterPos,char> flowing{{sourcePos,LAVA}};
+    auto read=[&](WaterPos p) {
+        auto it=flowing.find(p);
+        return it!=flowing.end() ? it->second : wall({p[0],p[1],p[2]})==CaveWaterVoxel::Air ? char(AIR) : char(STONE);
+    };
+    auto write=[&](WaterPos p,char b) { flowing[p]=b; };
+    processLavaTick(read,write,sourcePos);
+    WaterPos mouth{};
+    for (auto d:WATER_SIDES) if (wall({source.x+d[0],source.y,source.z+d[2]})==CaveWaterVoxel::Air)
+        mouth={source.x+d[0],source.y,source.z+d[2]};
+    assert(read(mouth)==LAVA_FLOW_1);
+    for (int y=source.y;y>17;--y) {
+        processLavaTick(read,write,{mouth[0],y,mouth[2]});
+        assert(read({mouth[0],y-1,mouth[2]})==LAVA_FALLING);
+    }
+    processLavaTick(read,write,{mouth[0],17,mouth[2]});
+    assert(isLava(read({mouth[0],17,mouth[2]+1})));
+    size_t sourceCount=0;
+    for (auto entry:flowing) sourceCount+=entry.second==LAVA;
+    assert(sourceCount==1);
     auto solid=[](CaveWaterPos) { return CaveWaterVoxel::Solid; };
     auto allow=[](int,int) { return true; };
     auto height=[](int,int) { return 150; };
@@ -98,6 +146,17 @@ int main() {
         }
     }
     assert(surfaceLava>0 && stone>surfaceLava);
+    // Every shoreline has a full two-block stone bank and an open sky column.
+    for (auto [position,block]:blocks) if (block==LAVA) {
+        auto [x,y,z]=position;
+        if (blocks.count({x,y+1,z}) && blocks.at({x,y+1,z})==LAVA) continue;
+        for (int dy=1;dy<=3;++dy) assert(blocks.at({x,y+dy,z})==AIR);
+        for (int dz=-2;dz<=2;++dz) for (int dx=-2;dx<=2;++dx) {
+            auto atLevel=blocks.find({x+dx,y,z+dz});
+            assert(atLevel!=blocks.end());
+            if (atLevel->second!=LAVA) assert(blocks.at({x+dx,150,z+dz})==STONE);
+        }
+    }
     assert(lava.surface(min,max,[](int,int) { return 111; },solid,allow).empty());
     assert(lava.surface(min,max,height,[](CaveWaterPos) { return CaveWaterVoxel::Air; },allow).empty());
     assert(lava.surface(min,max,height,solid,[](int,int) { return false; }).empty());
@@ -128,6 +187,26 @@ int main() {
     auto step=[](int x,int y,int) { return y==0 || (x==1 && y==1) ? char(LAVA) : char(AIR); };
     for (int corner:lavaSurfaceCorners(step)) assert(corner==13);
     assert(std::abs(lavaColumnSurface(step,0.9f,0.5f)-13.0f/15.0f)<0.0001f);
+
+    auto stream=[](int x,int y,int) {
+        if (y!=0) return char(AIR);
+        return x<0 ? char(LAVA_FLOW_1) : char(LAVA_FLOW_4);
+    };
+    auto corners=lavaSurfaceCorners(stream);
+    assert((corners==std::array<int,4>{10,7,10,7}));
+    for (float x:{0.0f,0.25f,0.9f,1.0f})
+        for (float z:{0.1f,0.8f})
+            assert(std::abs(lavaColumnSurface(stream,x,z)-waterSurfaceHeight(corners,x,z))<0.0001f);
+    auto neighboring=[&](int x,int y,int z) { return stream(x-1,y,z); };
+    auto left=lavaSurfaceCorners(neighboring);
+    assert(left[1]==corners[0] && left[3]==corners[2]);
+    auto mixed=[](int x,int y,int) {
+        return y!=0 ? char(WATER) : x<0 ? char(WATER) : char(LAVA_FLOW_4);
+    };
+    for (int corner:lavaSurfaceCorners(mixed)) assert(corner==7);
+    auto covered=[](int,int y,int) { return y<=1 ? char(LAVA_FLOW_4) : char(AIR); };
+    for (int corner:lavaSurfaceCorners(covered)) assert(corner==15);
+    assert(std::abs(lavaColumnSurface(covered,0.5f,0.5f)-(1+7.0f/15.0f))<0.0001f);
 
     std::cout << "Lava: " << hot.size() << " cave voxels, " << surfaceLava
         << " surface voxels; containment, water exclusion, borders, rarity and light bounds passed\n";

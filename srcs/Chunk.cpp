@@ -320,13 +320,14 @@ void Chunk::sendFacesToDisplay(const std::set<int>* layers)
 	}
 
 	// Reserve to reduce reallocations
-	// Up to 6 draws per subchunk (one per face direction)
+	// Up to 6 solid draws and 12 transparent draws per subchunk
+	// (each transparent direction may have a separate shaped-lava draw).
 	_indirectBufferData.reserve(_indirectBufferData.size() + subs.size() * 6);
-	_transparentIndirectBufferData.reserve(_transparentIndirectBufferData.size() + subs.size() * 6);
+	_transparentIndirectBufferData.reserve(_transparentIndirectBufferData.size() + subs.size() * 12);
 	_ssboSolid.reserve(_ssboSolid.size() + subs.size() * 6);
-	_ssboTransp.reserve(_ssboTransp.size() + subs.size() * 6);
+	_ssboTransp.reserve(_ssboTransp.size() + subs.size() * 12);
 	_metaSolid.reserve(_metaSolid.size() + subs.size() * 6);
-	_metaTransp.reserve(_metaTransp.size() + subs.size() * 6);
+	_metaTransp.reserve(_metaTransp.size() + subs.size() * 12);
 	// Reserve draw meta arrays in staged data (filled by ChunkLoader)
 	_vertexData.reserve(_vertexData.size() + totalSolid);
 	_transparentVertexData.reserve(_transparentVertexData.size() + totalTrans);
@@ -369,11 +370,17 @@ void Chunk::sendFacesToDisplay(const std::set<int>* layers)
 			int d = torder[ii];
 			int count = tDirCounts ? tDirCounts[d] : 0;
 			if (count <= 0) continue;
-			_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{ 4, (uint32_t)count, 0, running });
-			// duplicate ssbo origin for matching draw (transparent pass uses same origins)
-			_ssboTransp.push_back(vec4{ pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load() });
-			_metaTransp.push_back((uint32_t)d);
-			running += (uint32_t)count;
+			// Shaped instances use all 32 bits for position and corner heights.
+			// Keep their material in draw metadata (bit 3) without growing instances.
+			int lavaCount = sc->getLavaShapedCounts()[d];
+			for (int group = 0; group < 2; ++group) {
+				int groupCount = group ? lavaCount : count - lavaCount;
+				if (!groupCount) continue;
+				_transparentIndirectBufferData.push_back(DrawArraysIndirectCommand{ 4, (uint32_t)groupCount, 0, running });
+				_ssboTransp.push_back(vec4{ pos.x * CHUNK_SIZE, pos.y * CHUNK_SIZE, pos.z * CHUNK_SIZE, _resolution.load() });
+				_metaTransp.push_back((uint32_t)d | (group ? 8u : 0u));
+				running += (uint32_t)groupCount;
+			}
 		}
 
 		// Discover and record any flower cells in this subchunk for the renderer

@@ -280,6 +280,13 @@ test-lava:
 
 test: test-lava
 
+.PHONY: test-fluid-generation
+test-fluid-generation:
+	$(CC) $(CFLAGS) -Iincludes tests/fluid_generation.cpp srcs/CaveWaterGenerator.cpp srcs/LavaGenerator.cpp -pthread -o /tmp/ft_vox-fluid-generation-test
+	/tmp/ft_vox-fluid-generation-test
+
+test: test-fluid-generation
+
 .PHONY: test-lava-worker
 test-lava-worker:
 	$(CC) $(CFLAGS) -pthread -Iincludes tests/lava_worker.cpp -o /tmp/ft_vox-lava-worker-test

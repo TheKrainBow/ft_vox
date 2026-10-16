@@ -36,7 +36,7 @@ std::vector<CaveWaterPos> pool(CaveWaterPos floor, int radius, int depth, int bu
 			if (voxel == CaveWaterVoxel::Protected) return {};
 			if (voxel == CaveWaterVoxel::Solid) continue;
 			if (std::abs(p.x-floor.x) > radius || std::abs(p.z-floor.z) > radius ||
-				p.y < floor.y || p.y > floor.y+3) return {};
+				p.y < floor.y) return {};
 			if (visited.insert(p).second) {
 				if (int(queue.size()) >= budget) return {};
 				queue.push_back(p);
@@ -94,7 +94,7 @@ std::vector<CaveWaterPos> pocket(CaveWaterPos air, int radius, int depth, uint64
 
 // One source recessed into a wall, with one open face toward the cave.
 // Require a nearby cave floor below the outlet rather than a bottomless shaft.
-std::vector<CaveWaterPos> spring(CaveWaterPos mouth, uint64_t hash,
+std::vector<CaveWaterPos> spring(CaveWaterPos mouth, uint64_t hash, int clearance,
 	const CaveWaterGenerator::Sample& sample) {
 	int drop = 0;
 	for (int depth = 1; depth <= 16; ++depth) {
@@ -113,6 +113,15 @@ std::vector<CaveWaterPos> spring(CaveWaterPos mouth, uint64_t hash,
 			if (q == mouth) continue;
 			if (sample(q) != CaveWaterVoxel::Solid) { valid = false; break; }
 		}
+		if (valid && clearance > 0) {
+			// Test the possible fall/spread against protected geometry, including
+			// the other fluid's reservations, before committing the source.
+			for (int y = mouth.y-drop+1; y <= mouth.y && valid; ++y)
+			for (int z = -clearance; z <= clearance && valid; ++z)
+			for (int x = -clearance; x <= clearance; ++x)
+				if (std::abs(x)+std::abs(z) <= clearance &&
+					sample({mouth.x+x,y,mouth.z+z}) == CaveWaterVoxel::Protected) { valid = false; break; }
+		}
 		if (valid) return {source};
 	}
 	return {};
@@ -122,13 +131,21 @@ std::vector<CaveWaterPos> spring(CaveWaterPos mouth, uint64_t hash,
 CaveWaterGenerator::CaveWaterGenerator(uint64_t seed, CaveWaterSettings settings)
 	: m_seed(seed), m_settings(settings) {
 	m_settings.regionSize = std::clamp(settings.regionSize, 32, 256);
-	m_settings.caveWaterMinRadius = std::clamp(settings.caveWaterMinRadius, 2, 12);
-	m_settings.caveWaterMaxRadius = std::clamp(settings.caveWaterMaxRadius, m_settings.caveWaterMinRadius, 12);
-	m_settings.regionSize = std::max(m_settings.regionSize, 2*(6+m_settings.caveWaterMaxRadius)+1);
-	m_settings.caveWaterFrequency = std::clamp(settings.caveWaterFrequency, 0.0f, 1.0f);
+	m_settings.caveWaterMinRadius = std::clamp(settings.caveWaterMinRadius, 2, 24);
+	m_settings.caveWaterMaxRadius = std::clamp(settings.caveWaterMaxRadius, m_settings.caveWaterMinRadius, 24);
+	// A radius-three pocket reaches five blocks; retain a solid boundary too.
+	m_settings.regionSize = std::max(m_settings.regionSize, 2*(6+std::max(6,m_settings.caveWaterMaxRadius))+1);
+	m_settings.caveWaterFrequency = std::clamp(settings.caveWaterFrequency, 0.0f, 4.0f);
 	m_settings.caveWaterMinY = std::max(2, settings.caveWaterMinY);
 	m_settings.minimumUndergroundDepth = std::max(16, settings.minimumUndergroundDepth);
-	m_settings.maxVisitedVoxels = std::clamp(settings.maxVisitedVoxels, 16, 4096);
+	m_settings.maxVisitedVoxels = std::clamp(settings.maxVisitedVoxels, 16, 16384);
+	m_settings.largePoolChance = std::clamp(settings.largePoolChance, 0.0f, 1.0f);
+	m_settings.smallPoolMaxRadius = std::clamp(settings.smallPoolMaxRadius, m_settings.caveWaterMinRadius, m_settings.caveWaterMaxRadius);
+	m_settings.largePoolMinRadius = std::clamp(settings.largePoolMinRadius, m_settings.caveWaterMinRadius, m_settings.caveWaterMaxRadius);
+	m_settings.maxDepth = std::clamp(settings.maxDepth, 1, 8);
+	m_settings.deepFrequencyMultiplier = std::clamp(settings.deepFrequencyMultiplier, 0.0f, 4.0f);
+	m_settings.upperFrequencyMultiplier = std::clamp(settings.upperFrequencyMultiplier, 0.0f, 4.0f);
+	m_settings.springClearanceRadius = std::clamp(settings.springClearanceRadius, 0, 9);
 	m_settings.caveWaterPoolChance = std::max(0.0f, settings.caveWaterPoolChance);
 	m_settings.caveWaterPocketChance = std::max(0.0f, settings.caveWaterPocketChance);
 	m_settings.caveWaterSpringChance = std::max(0.0f, settings.caveWaterSpringChance);
@@ -138,63 +155,96 @@ std::vector<CaveWaterPos> CaveWaterGenerator::generate(CaveWaterPos min, CaveWat
 	const auto& s = m_settings;
 	std::vector<CaveWaterPos> result;
 	float totalWeight = s.caveWaterPoolChance + s.caveWaterPocketChance + s.caveWaterSpringChance;
-	if (s.caveWaterFrequency <= 0 || max.y <= s.caveWaterMinY || min.y >= s.caveWaterMaxY ||
+	if (max.x <= min.x || max.z <= min.z || max.y <= min.y ||
+		s.caveWaterFrequency <= 0 || max.y <= s.caveWaterMinY || min.y >= s.caveWaterMaxY ||
 		totalWeight <= 0) return result;
-	// Search can move a feature six blocks horizontally and eight vertically.
-	int halo = 6 + s.caveWaterMaxRadius * 2;
+	const int verticalHalo = 8+s.maxDepth;
 	auto sample = [&](CaveWaterPos p) {
 		return p.y < s.caveWaterMinY || p.y >= s.caveWaterMaxY
 			? CaveWaterVoxel::Protected : geometry(p);
 	};
-	for (int rz = floorDiv(min.z-halo,s.regionSize); rz <= floorDiv(max.z-1+halo,s.regionSize); ++rz)
-	for (int rx = floorDiv(min.x-halo,s.regionSize); rx <= floorDiv(max.x-1+halo,s.regionSize); ++rx)
-	for (int ry = floorDiv(std::max(min.y-12,s.caveWaterMinY-8),s.regionSize);
-		ry <= floorDiv(std::min(max.y+8,s.caveWaterMaxY+8),s.regionSize); ++ry) {
-		uint64_t h = mix(m_seed ^ mix(uint32_t(rx)) ^ mix(uint64_t(uint32_t(ry))+71) ^ mix(uint64_t(uint32_t(rz))+139));
-		auto random = [&](int salt) { return (mix(h+salt)>>11) * (1.0/9007199254740992.0); };
-		if (random(0) >= s.caveWaterFrequency) continue;
-		// Keep wet volumes inside their feature region so neighboring features
-		// cannot remove each other's containment walls. Chunk seams are unrelated.
-		int inset = 6+s.caveWaterMaxRadius;
-		CaveWaterPos center{rx*s.regionSize+inset+int(random(1)*(s.regionSize-2*inset)),
-			ry*s.regionSize+12+int(random(2)*(s.regionSize-24)),
-			rz*s.regionSize+inset+int(random(3)*(s.regionSize-2*inset))};
-		if (center.x+halo < min.x || center.x-halo >= max.x ||
-			center.z+halo < min.z || center.z-halo >= max.z ||
-			center.y+12 < min.y || center.y-12 >= max.y) continue;
-		// The decision and all search limits are independent of the output box.
-		double type = random(4)*totalWeight;
-		bool isSpring = type >= s.caveWaterPoolChance+s.caveWaterPocketChance;
-		bool isPocket = !isSpring && type >= s.caveWaterPoolChance;
-		int radius = s.caveWaterMinRadius;
-		// 85% of pools use radii 2..5; the remaining ponds may reach the maximum.
-		int limit = random(5) < 0.85 ? std::min(s.caveWaterMaxRadius, std::max(radius,5)) : s.caveWaterMaxRadius;
-		radius += int(random(6)*(limit-radius+1));
+	// The inset keeps every wet XZ coordinate inside its feature region.
+	// Analyze complete regions, including all attempts, independently of output.
+	for (int rz = floorDiv(min.z,s.regionSize); rz <= floorDiv(max.z-1,s.regionSize); ++rz)
+	for (int rx = floorDiv(min.x,s.regionSize); rx <= floorDiv(max.x-1,s.regionSize); ++rx)
+	for (int ry = floorDiv(std::max(min.y-verticalHalo,s.caveWaterMinY-8),s.regionSize);
+		ry <= floorDiv(std::min(max.y+verticalHalo,s.caveWaterMaxY+8),s.regionSize); ++ry) {
+		float t = std::clamp((ry*s.regionSize+s.regionSize*0.5f-s.caveWaterMinY)/
+			std::max(1.0f,float(s.caveWaterMaxY-s.caveWaterMinY)),0.0f,1.0f);
+		float multiplier = s.upperFrequencyMultiplier +
+			(s.deepFrequencyMultiplier-s.upperFrequencyMultiplier)*(1-t)*(1-t);
+		float frequency = std::clamp(s.caveWaterFrequency*multiplier,0.0f,4.0f);
+		if (frequency <= 0) continue;
+		uint64_t regionHash = mix(m_seed ^ mix(uint32_t(rx)) ^ mix(uint64_t(uint32_t(ry))+71) ^ mix(uint64_t(uint32_t(rz))+139));
 		auto analyse = [&]() {
-			std::vector<CaveWaterPos> water;
-			for (int dz=-6; dz<=6 && water.empty(); dz+=2)
-			for (int dx=-6; dx<=6 && water.empty(); dx+=2)
-			for (int dy=-8; dy<=8 && water.empty(); ++dy) {
-				CaveWaterPos p{center.x+dx,center.y+dy,center.z+dz};
-				if (sample(p) != CaveWaterVoxel::Air) continue;
-				if (isSpring) water = spring(p,h,sample);
-				else if (isPocket) {
-					water = pocket(p,std::min(radius,3),1+int(random(7)*4),h,sample);
-					if (int(water.size()) > s.maxVisitedVoxels) water.clear();
+			std::vector<CaveWaterPos> plan;
+			std::unordered_set<CaveWaterPos,Hash> reserved;
+			auto featureSample = [&](CaveWaterPos p) {
+				return reserved.count(p) ? CaveWaterVoxel::Protected : sample(p);
+			};
+			for (int attempt = 0; attempt < 4 && attempt < frequency; ++attempt) {
+				uint64_t h = attempt == 0 ? regionHash : mix(regionHash+uint64_t(attempt)*0x9e3779b97f4a7c15ULL);
+				auto random = [&](int salt) { return (mix(h+salt)>>11) * (1.0/9007199254740992.0); };
+				if (random(0) >= std::min(1.0f,frequency-attempt)) continue;
+				int budget = s.maxVisitedVoxels-int(plan.size());
+				if (budget <= 0) break;
+				int inset = 6+std::max(6,s.caveWaterMaxRadius);
+				CaveWaterPos center{rx*s.regionSize+inset+int(random(1)*(s.regionSize-2*inset)),
+					ry*s.regionSize+12+int(random(2)*(s.regionSize-24)),
+					rz*s.regionSize+inset+int(random(3)*(s.regionSize-2*inset))};
+				double type = random(4)*totalWeight;
+				bool isSpring = type >= s.caveWaterPoolChance+s.caveWaterPocketChance;
+				bool isPocket = !isSpring && type >= s.caveWaterPoolChance;
+				bool large = random(5) < s.largePoolChance && s.caveWaterMaxRadius > s.smallPoolMaxRadius;
+				int lowRadius = large ? s.largePoolMinRadius : s.caveWaterMinRadius;
+				int highRadius = large ? s.caveWaterMaxRadius : s.smallPoolMaxRadius;
+				int radius = lowRadius+int(random(6)*(highRadius-lowRadius+1));
+				if (isPocket) {
+					int limit = std::max(2,std::min(8,s.caveWaterMaxRadius/2));
+					int low = std::min(5,limit);
+					radius = large ? low+int(random(6)*(limit-low+1)) : std::min(radius,3);
 				}
-				else if (sample({p.x,p.y-1,p.z}) == CaveWaterVoxel::Solid) {
-					for (int depth=1+int(random(7)*4); depth>=1 && water.empty(); --depth)
-						water = pool(p,radius,depth,s.maxVisitedVoxels,sample);
+				int lowDepth = large ? std::min(3,s.maxDepth) : 1;
+				int highDepth = large ? s.maxDepth : std::min(3,s.maxDepth);
+				int depth = lowDepth+int(random(7)*(highDepth-lowDepth+1));
+				std::vector<CaveWaterPos> water;
+				for (int dz=-6; dz<=6 && water.empty(); dz+=2)
+				for (int dx=-6; dx<=6 && water.empty(); dx+=2)
+				for (int dy=-8; dy<=8 && water.empty(); ++dy) {
+					CaveWaterPos p{center.x+dx,center.y+dy,center.z+dz};
+					if (featureSample(p) != CaveWaterVoxel::Air) continue;
+					if (isSpring) water = spring(p,h,s.springClearanceRadius,featureSample);
+					else if (isPocket) water = pocket(p,radius,depth,h,featureSample);
+					else if (featureSample({p.x,p.y-1,p.z}) == CaveWaterVoxel::Solid) {
+						for (int fillDepth=depth; fillDepth>=1 && water.empty(); --fillDepth)
+							water = pool(p,radius,fillDepth,budget,featureSample);
+					}
+					if (int(water.size()) > budget) water.clear();
+					if (std::any_of(water.begin(),water.end(),[&](CaveWaterPos q) {
+						return q.x < rx*s.regionSize || q.x >= (rx+1)*s.regionSize ||
+							q.z < rz*s.regionSize || q.z >= (rz+1)*s.regionSize;
+					})) water.clear();
+					if (large && !isSpring && !water.empty()) {
+						int minX=water.front().x,maxX=minX,minZ=water.front().z,maxZ=minZ;
+						for (auto q:water) { minX=std::min(minX,q.x);maxX=std::max(maxX,q.x);minZ=std::min(minZ,q.z);maxZ=std::max(maxZ,q.z); }
+						int span = isPocket ? 8 : std::max(8,2*s.largePoolMinRadius-2);
+						if (std::max(maxX-minX+1,maxZ-minZ+1) < span) water.clear();
+					}
+				}
+#ifdef DEBUG_CAVE_WATER
+				std::clog << "cave fluid " << center.x << ',' << center.y << ',' << center.z
+					<< " attempt=" << attempt << (isSpring ? " spring" : isPocket ? " pocket" : " pool")
+					<< " radius=" << (isSpring ? 1 : radius) << " voxels=" << water.size() << '\n';
+#endif
+				plan.insert(plan.end(),water.begin(),water.end());
+				// Later attempts must preserve the wet volume and every supporting
+				// face of earlier features, including recessed spring walls.
+				for (auto p:water) {
+					reserved.insert(p);
+					for (auto d:sides) reserved.insert(add(p,d));
 				}
 			}
-	#ifdef DEBUG_CAVE_WATER
-			int waterLevel = water.empty() ? -1 : std::max_element(water.begin(),water.end(),
-				[](CaveWaterPos a, CaveWaterPos b) { return a.y < b.y; })->y;
-			std::clog << "cave water " << center.x << ',' << center.y << ',' << center.z
-				<< (isSpring ? " spring" : isPocket ? " pocket" : " pool") << " radius=" << (isSpring ? 1 : radius)
-				<< " level=" << waterLevel << " voxels=" << water.size() << (water.empty() ? " rejected" : " accepted") << '\n';
-	#endif
-			return water;
+			return plan;
 		};
 		std::vector<CaveWaterPos> uncached;
 		std::shared_future<std::vector<CaveWaterPos>> future;

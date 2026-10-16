@@ -357,8 +357,10 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 		else if (auto* upper=_chunk.getSubChunk(_position.y+1)) covered=isLava(upper->getBlock({position.x,0,position.z}));
 		if (dir==DOWN || covered) newFace.texture=T_LAVA_FULL;
 	}
-	if (texture == T_WATER && _resolution == 1) {
-		newFace.waterCorners = waterCorners(position);
+	bool lava = texture == T_LAVA || (texture >= T_LAVA_FLOW_1 && texture <= T_LAVA_FLOW_7);
+	if ((texture == T_WATER || lava) && _resolution == 1) {
+		newFace.waterCorners = waterCorners(position, lava);
+		if (lava && !newFace.waterCorners) newFace.texture = T_LAVA;
 		// Only the corners touching this face determine whether it is a full
 		// rectangle. Bottom faces always lie on the block boundary.
 		uint32_t corners = (newFace.waterCorners >> 15) & 0xffffu;
@@ -368,7 +370,7 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 		if (dir == WEST) mask = 0x0f0fu;
 		if (dir == EAST) mask = 0xf0f0u;
 		if (dir == DOWN || (corners & mask) == mask) {
-			newFace.texture = T_WATER_FULL;
+			newFace.texture = lava ? T_LAVA_FULL : T_WATER_FULL;
 			newFace.waterCorners = 0;
 		}
 	}
@@ -380,7 +382,7 @@ void SubChunk::addFace(ivec3 position, Direction dir, TextureType texture, bool 
 
 // Every cell sharing a corner samples the same four world cells, including
 // across chunk boundaries. Flat source surfaces retain greedy meshing.
-uint32_t SubChunk::waterCorners(ivec3 position) {
+uint32_t SubChunk::waterCorners(ivec3 position, bool lava) {
     auto read = [&](ivec3 local) -> char {
         if (local.x >= 0 && local.x < CHUNK_SIZE && local.y >= 0 &&
             local.y < CHUNK_SIZE && local.z >= 0 && local.z < CHUNK_SIZE)
@@ -389,9 +391,10 @@ uint32_t SubChunk::waterCorners(ivec3 position) {
         return _chunkLoader.getBlock({(int)std::floor(double(world.x) / CHUNK_SIZE),
             (int)std::floor(double(world.z) / CHUNK_SIZE)}, world);
     };
-    auto heights = waterSurfaceCorners([&](int x, int y, int z) {
+    auto sample = [&](int x, int y, int z) {
         return read(position + ivec3(x, y, z));
-    });
+    };
+    auto heights = lava ? lavaSurfaceCorners(sample) : waterSurfaceCorners(sample);
     uint32_t packed = 0;
     for (int i = 0; i < 4; ++i) packed |= uint32_t(heights[i]) << (4 * i);
     return packed == 0xddddu ? 0 : (0x80000000u | (packed << 15));

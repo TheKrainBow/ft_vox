@@ -127,12 +127,77 @@ int main() {
         water->setBlockLocal(8,31,8,flow);
         water->sendFacesToDisplay();
         assert(water->getTranspDirCounts()[UP]==1);
-        int texture=flow==LAVA_FALLING ? T_LAVA : T_LAVA_FLOW_1+flow-LAVA_FLOW_1;
-        assert(((uint32_t(water->getTransparentVertices().front())>>25)&127)==uint32_t(texture));
+        uint32_t top=uint32_t(water->getTransparentVertices().front());
+        if (flow==LAVA_FALLING) {
+            assert(!(top&0x80000000u) && ((top>>25)&127)==T_LAVA);
+        } else {
+            assert(top&0x80000000u);
+            uint32_t height=lavaHeight(flow);
+            assert(((top>>15)&0xffffu)==height*0x1111u);
+            assert(water->getLavaShapedCounts()[UP]==1);
+        }
         center.getSubChunk(2)->setBlockLocal(8,0,8,LAVA_FLOW_1);
         water->sendFacesToDisplay();
         assert(water->getTranspDirCounts()[UP]==0);
     }
+
+    // Flat pools and the full-height body of a lava fall remain greedy meshes.
+    fill(*water,LAVA);
+    fill(*center.getSubChunk(2),AIR);
+    fill(*adjacent,LAVA);
+    water->sendFacesToDisplay();
+    assert(water->getTranspDirCounts()[UP]==1);
+    assert(water->getLavaShapedCounts()[UP]==0);
+    fill(*water,AIR);
+    for (int y=4;y<20;++y)
+        for (int z=8;z<11;++z)
+            for (int x=8;x<12;++x)
+                water->setBlockLocal(x,y,z,LAVA_FALLING);
+    water->sendFacesToDisplay();
+    assert(water->getTranspDirCounts()[DOWN]==1);
+    for (auto dir:{NORTH,SOUTH,EAST,WEST})
+        assert(water->getTranspDirCounts()[dir]==2);
+
+    // A source stays flat while the adjacent stream slopes away from its edge.
+    fill(*water,AIR);
+    fill(*center.getSubChunk(2),AIR);
+    water->setBlockLocal(8,8,8,LAVA);
+    water->setBlockLocal(9,8,8,LAVA_FLOW_4);
+    water->setBlockLocal(15,8,8,WATER_FLOW_1);
+    water->sendFacesToDisplay();
+    bool sourceTop=false,flowTop=false;
+    for (int i=0;i<water->getTranspDirCounts()[UP];++i) {
+        uint32_t top=uint32_t(water->getTransparentVertices()[i]);
+        if ((top&31u)==8) {
+            assert(!(top&0x80000000u) && ((top>>25)&127)==T_LAVA);
+            sourceTop=true;
+        }
+        if ((top&31u)==9) {
+            assert((top&0x80000000u) && ((top>>15)&0xffffu)==0x7d7du);
+            flowTop=true;
+        }
+    }
+    assert(sourceTop && flowTop);
+    center.sendFacesToDisplay();
+    std::vector<int> solidVertices,liquidVertices;
+    std::vector<DrawArraysIndirectCommand> solidCommands,liquidCommands;
+    std::vector<vec4> solidOrigins,liquidOrigins;
+    std::vector<uint32_t> solidMeta,liquidMeta;
+    center.snapshotDisplayData(solidVertices,solidCommands,solidOrigins,
+        liquidVertices,liquidCommands,liquidOrigins,solidMeta,liquidMeta);
+    assert(liquidCommands.size()==liquidMeta.size());
+    size_t lavaInstances=0;
+    for (size_t i=0;i<liquidCommands.size();++i) {
+        const auto& command=liquidCommands[i];
+        if (!(liquidMeta[i]&8u)) continue;
+        lavaInstances+=command.instanceCount;
+        for (uint32_t j=0;j<command.instanceCount;++j) {
+            uint32_t bits=uint32_t(liquidVertices[command.baseInstance+j]);
+            assert(bits&0x80000000u);
+            assert((bits&31u)==9); // Water and regular source faces use other draws.
+        }
+    }
+    assert(lavaInstances==4); // Top and three exposed sides, bottom remains flat.
 
     // Coarse faces must inspect the whole touching patch, even at a 4:1 ratio.
     fill(*adjacent, WATER);

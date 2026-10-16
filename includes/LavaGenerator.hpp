@@ -3,10 +3,12 @@
 #include "Lava.hpp"
 
 struct LavaSettings {
-    float caveFrequency = 0.5f;
-    int caveMinY = 8, caveMaxY = 180;
-    float surfaceChance = 0.06f;
-    int surfaceRegionSize = 256;
+    float caveFrequency = 1.0f;
+    int caveMinY = 4, caveMaxY = 180;
+    float surfaceChance = 0.12f;
+    int surfaceRegionSize = 192;
+    float deepFrequencyMultiplier = 4.0f, upperFrequencyMultiplier = 0.15f;
+    float springChance = 0.25f;
 };
 struct LavaPlacement { CaveWaterPos position; char block; };
 class LavaGenerator {

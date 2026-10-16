@@ -58,6 +58,7 @@ class SubChunk
 		// Per-direction face counts for last processFaces()
 		int _dirCounts[6] = {0,0,0,0,0,0};
 		int _transpDirCounts[6] = {0,0,0,0,0,0};
+		int _lavaShapedCounts[6] = {0,0,0,0,0,0};
 
 		bool						_needUpdate;
 		bool						_needTransparentUpdate;
@@ -97,6 +98,7 @@ class SubChunk
 		std::vector<int> &getTransparentVertices();
 		const int* getDirCounts() const { return _dirCounts; }
 		const int* getTranspDirCounts() const { return _transpDirCounts; }
+		const int* getLavaShapedCounts() const { return _lavaShapedCounts; }
 		void updateResolution(int resolution, PerlinMap *perlinMap);
 	private:
 		void addBlock(BlockType block, ivec3 position, TextureType down, TextureType up, TextureType north, TextureType south, TextureType east, TextureType west, bool transparent);
@@ -107,7 +109,7 @@ class SubChunk
 		void addEastFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
 		void addWestFace(BlockType block, ivec3 position, TextureType texture, bool isTransparent);
 	
-		uint32_t waterCorners(ivec3 position);
+		uint32_t waterCorners(ivec3 position, bool lava = false);
 		void processFaces(bool isTransparent);
 		void processUpVertex(std::vector<Face> *faces, std::vector<int> *vertexData);
 		void processDownVertex(std::vector<Face> *faces, std::vector<int> *vertexData);

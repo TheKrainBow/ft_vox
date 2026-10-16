@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 				} else if (block==LAVA) {
 					++lavaVoxels;
 					lavaPositions.emplace(cx*32+x,y,cz*32+z);
-					assert(y>=8 && y<180 && y<height-24);
+					assert(y>=loader.getLavaGenerator().settings().caveMinY && y<180 && y<height-24);
 				} else assert(block == dryBlock);
 				assert(block == repeated.getSubChunk(y/32)->getBlock({x,y%32,z}));
 				++checked;
@@ -113,6 +113,19 @@ int main(int argc, char** argv) {
 	}
 	assert(springs > 0);
 	assert(lavaVoxels>0);
+	size_t deepLava=0,lavaSprings=0;
+	for (auto [x,y,z]:lavaPositions) {
+		deepLava+=y<48;
+		int h=int(terrain.getHeight({x,z}));
+		if (caves.isAir(x,y,z,h)) continue;
+		int exits=0;
+		for (auto d:{ivec2(1,0),ivec2(-1,0),ivec2(0,1),ivec2(0,-1)})
+			exits+=caves.isAir(x+d.x,y,z+d.y,int(terrain.getHeight({x+d.x,z+d.y})));
+		if (!exits) continue;
+		assert(exits==1 && !caves.isAir(x,y+1,z,h) && !caves.isAir(x,y-1,z,h));
+		++lavaSprings;
+	}
+	assert(deepLava>0 && lavaSprings>0);
 	for (auto [x,y,z]:lavaPositions) for (int dz=-2;dz<=2;++dz) for (int dy=-2;dy<=2;++dy) for (int dx=-2;dx<=2;++dx)
 		assert(!waterPositions.count({x+dx,y+dy,z+dz}));
 	// Exercise entrance preservation in the biome pass, including desert caps,
@@ -161,6 +174,6 @@ int main(int argc, char** argv) {
 	for (auto p:surfacePools) if (p.block==LAVA) ++realSurfaceLava;
 	assert(realSurfaceLava>0);
 	std::cout << "Production chunks: " << checked << " underground stone/air checks, "
-		<< realSurfaceLava << " planned rare surface lava voxels, " << lavaVoxels << " cave lava voxels, " << waterVoxels << " cave water voxels in " << wetChunks << "/81 chunks, " << springs << " wall springs, " << crossings << " border crossings, " << openings << " preserved biome mouths; "
+		<< realSurfaceLava << " planned rare surface lava voxels, " << lavaVoxels << " cave lava voxels (" << deepLava << " below Y48, " << lavaSprings << " wall springs), " << waterVoxels << " cave water voxels in " << wetChunks << "/81 chunks, " << springs << " water wall springs, " << crossings << " border crossings, " << openings << " preserved biome mouths; "
 		<< std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count() << " seconds\n";
 }

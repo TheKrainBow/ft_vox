@@ -9,13 +9,17 @@
 #include <cstddef>
 
 struct CaveWaterSettings {
-	float caveWaterFrequency = 1.0; // Chance per 48^3 feature region, before validation.
+	float caveWaterFrequency = 1.4f; // Expected candidate attempts per 48^3 region (0..4).
 	int caveWaterMinY = 12, caveWaterMaxY = 180; // Maximum is exclusive.
 	float caveWaterPoolChance = 0.75f, caveWaterPocketChance = 0.25f;
 	float caveWaterSpringChance = 0.25f; // Relative weight for single-source wall outlets.
-	int caveWaterMinRadius = 2, caveWaterMaxRadius = 10;
+	int caveWaterMinRadius = 2, caveWaterMaxRadius = 16;
 	int regionSize = 48, minimumUndergroundDepth = 24;
-	int maxVisitedVoxels = 2048;
+	int maxVisitedVoxels = 8192;
+	float largePoolChance = 0.6f;
+	int smallPoolMaxRadius = 5, largePoolMinRadius = 8, maxDepth = 6;
+	float deepFrequencyMultiplier = 1, upperFrequencyMultiplier = 1;
+	int springClearanceRadius = 0; // Lava additionally protects its potential runoff.
 };
 
 struct CaveWaterPos {

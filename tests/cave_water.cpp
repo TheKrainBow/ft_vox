@@ -80,12 +80,28 @@ int main() {
 	auto pocketWater = pockets.generate(min,max,walls);
 	assert(!pocketWater.empty());
 	for (auto p : pocketWater) {
-		assert(p.y>=16 && p.y<20);
+		assert(p.y>=20-settings.maxDepth && p.y<20);
 		assert(walls(p) == CaveWaterVoxel::Solid);
 	}
 	// A cave extending down alongside the wall would drain a pocket: reject it.
 	auto openWall = [](CaveWaterPos p) { return local(p.x)<8 ? CaveWaterVoxel::Air : CaveWaterVoxel::Solid; };
 	assert(pockets.generate(min,max,openWall).empty());
+	// Tight custom radii still leave a solid region boundary. Arbitrary output
+	// tiles must reconstruct the same complete multi-candidate pocket plans.
+	CaveWaterSettings narrow=settings;
+	narrow.caveWaterFrequency=4; narrow.caveWaterMaxRadius=3;
+	narrow.largePoolChance=0; narrow.regionSize=32;
+	CaveWaterGenerator narrowPockets(42,narrow), narrowCached(42,narrow);
+	auto narrowPlan=positions(narrowPockets.generate(min,max,walls));
+	assert(!narrowPlan.empty());
+	Positions narrowTiles;
+	for (int z=min.z;z<max.z;z+=17) for (int x=min.x;x<max.x;x+=17)
+	for (int y=min.y;y<max.y;y+=13) {
+		auto part=positions(narrowCached.generate({x,y,z},
+			{std::min(x+17,max.x),std::min(y+13,max.y),std::min(z+17,max.z)},walls,true));
+		narrowTiles.insert(part.begin(),part.end());
+	}
+	assert(narrowTiles==narrowPlan);
 	settings.caveWaterPocketChance = 0;
 	settings.caveWaterSpringChance = 1;
 	CaveWaterGenerator springs(42,settings);

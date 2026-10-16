@@ -3,6 +3,7 @@
 #include <iostream>
 
 int main() {
+    static_assert(LAVA_TICK_DELAY == 2*WATER_TICK_DELAY, "Lava must flow at half water speed");
     WaterUpdateQueue queue;
     WaterPos wet{1,11,1}, hot{3,11,1};
     queue.schedule(wet);
