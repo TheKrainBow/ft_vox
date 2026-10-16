@@ -1,4 +1,5 @@
 #include "SubChunk.hpp"
+#include <unordered_map>
 
 SubChunk::SubChunk(ivec3 position,
 	PerlinMap *perlinMap,
@@ -34,28 +35,32 @@ void SubChunk::loadHeight(int prevResolution)
 {
 	(void)prevResolution;
 
-	for (int z = 0; z < CHUNK_SIZE ; z += _resolution)
 	{
-		for (int x = 0; x < CHUNK_SIZE ; x += _resolution)
+		// One lock protects both initial generation and rebuilding a live LOD.
+		// These writes are already local; avoid world routing and a lock per voxel.
+		std::lock_guard<std::mutex> lock(_dataMutex);
+		const size_t plane = size_t(_chunkSize)*_chunkSize;
+		for (int lz = 0; lz < _chunkSize; ++lz)
 		{
-			int maxHeight = (*_heightMap)[z * CHUNK_SIZE + x];
-			const auto caveColumn = _caveGen.prepareColumn(
-				x + _position.x * CHUNK_SIZE, z + _position.z * CHUNK_SIZE, maxHeight);
-			for (int y = 0; y < CHUNK_SIZE ; y += _resolution)
+			int z = lz*_resolution;
+			for (int lx = 0; lx < _chunkSize; ++lx)
 			{
-				int globalY = y + _position.y * CHUNK_SIZE;
-				if (globalY <= 0) {
-					if (globalY == 0)
-						setBlock(x, y, z, BEDROCK);
-					continue;
+				int x = lx*_resolution;
+				int maxHeight = (*_heightMap)[z*CHUNK_SIZE+x];
+				const auto* caveColumn = CAVES && _resolution == 1 && _position.y*CHUNK_SIZE <= maxHeight
+					? &_chunk.caveColumn(x,z) : nullptr;
+				const size_t columnIndex = size_t(lx) + size_t(lz)*_chunkSize;
+				for (int ly = 0; ly < _chunkSize; ++ly)
+				{
+					int globalY = ly*_resolution + _position.y*CHUNK_SIZE;
+					if (globalY <= 0) {
+						if (globalY == 0) _blocks[columnIndex + size_t(ly)*plane] = BEDROCK;
+						continue;
+					}
+					if (globalY > maxHeight) break;
+					if (!caveColumn || _caveGen.classify(*caveColumn,globalY) == CaveKind::Solid)
+						_blocks[columnIndex + size_t(ly)*plane] = STONE;
 				}
-				// Default: solid below surface
-				if (globalY > maxHeight)
-					break;
-				
-				if (!CAVES || _resolution != 1 ||
-					_caveGen.classify(caveColumn, globalY) == CaveKind::Solid)
-					setBlock(x, y, z, STONE);
 			}
 		}
 	}
@@ -63,9 +68,9 @@ void SubChunk::loadHeight(int prevResolution)
 	// Stamp rare surface features before biome caps/decorations, which skip
 	// their reserved columns. Sampling never depends on loaded neighbors.
 	std::unique_ptr<NoiseGenerator> terrain;
-	std::map<std::pair<int,int>,CaveGenerator::Column> columns;
+	std::unordered_map<CaveWaterPos,CaveGenerator::Column,CaveWaterPosHash> columns;
 	auto height = [&](int x,int z) {
-		auto key=std::make_pair(x,z);
+		CaveWaterPos key{x,0,z};
 		auto it=columns.find(key);
 		if (it==columns.end()) {
 			if (!terrain) terrain=std::make_unique<NoiseGenerator>(_chunkLoader.getCaveWaterGenerator().seed());
@@ -77,7 +82,7 @@ void SubChunk::loadHeight(int prevResolution)
 		int surface=height(p.x,p.z);
 		if (p.y<=0) return CaveWaterVoxel::Protected;
 		if (p.y>surface) return CaveWaterVoxel::Air;
-		return _caveGen.classify(columns.at({p.x,p.z}),p.y)==CaveKind::Solid ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
+		return _caveGen.classify(columns.at({p.x,0,p.z}),p.y)==CaveKind::Solid ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
 	};
 	auto allowed = [&](int x,int z) {
 		int surface=height(x,z);
@@ -85,7 +90,8 @@ void SubChunk::loadHeight(int prevResolution)
 		return biome==PLAINS || biome==DESERT || biome==MOUNTAINS;
 	};
 	CaveWaterPos origin{_position.x*32,_position.y*32,_position.z*32};
-	for (auto placement:_chunkLoader.getLavaGenerator().surface(origin,{origin.x+32,origin.y+32,origin.z+32},height,geometry,allowed)) {
+	bool cacheSurface = &_caveGen == &_chunkLoader.getCaveGenerator();
+	for (auto placement:_chunkLoader.getLavaGenerator().surface(origin,{origin.x+32,origin.y+32,origin.z+32},height,geometry,allowed,cacheSurface)) {
 		auto p=placement.position;
 		int x=p.x-origin.x,z=p.z-origin.z;
 		_surfaceLavaColumns[z*32+x]=true;
@@ -623,9 +629,14 @@ void SubChunk::loadBiome(int prevResolution)
 			double surfaceLevel = (*_heightMap)[z * CHUNK_SIZE + x];
 			surfaceLevel = surfaceLevel - (int(surfaceLevel) % _resolution);
 			int adjustOceanHeight = OCEAN_HEIGHT - (OCEAN_HEIGHT % _resolution);
-			if (CAVES && _resolution == 1 && _caveGen.isAir(
-				x + _position.x * CHUNK_SIZE, int(surfaceLevel),
-				z + _position.z * CHUNK_SIZE, int(surfaceLevel)))
+			// These biomes only touch their local cap (trees require local grass).
+			// Other layers would just query out-of-range AIR five or six times.
+			if (biome == PLAINS || biome == FOREST || biome == MOUNTAINS || biome == SNOWY) {
+				int bottom = _position.y*CHUNK_SIZE;
+				if (surfaceLevel < bottom-(_resolution-1) || surfaceLevel-5*_resolution >= bottom+CHUNK_SIZE)
+					continue;
+			}
+			if (CAVES && _resolution == 1 && _chunk.surfaceCave(x,z))
 				continue;
 			switch (biome)
 			{
@@ -673,18 +684,20 @@ void SubChunk::loadBiome(int prevResolution)
 			// racing the loader's terrain sampler on generation workers.
 			std::unique_ptr<NoiseGenerator> terrain;
 			struct GeometryColumn { CaveGenerator::Column cave; int openBottom; };
-			std::map<std::pair<int,int>,GeometryColumn> columns;
-			std::map<std::array<int,3>,CaveWaterVoxel> voxels;
+			std::unordered_map<CaveWaterPos,GeometryColumn,CaveWaterPosHash> columns;
+			std::unordered_map<CaveWaterPos,CaveWaterVoxel,CaveWaterPosHash> voxels;
 			auto sample = [&](CaveWaterPos p) {
-				auto key = std::array<int,3>{p.x,p.y,p.z};
-				auto cached = voxels.find(key);
+				auto cached = voxels.find(p);
 				if (cached != voxels.end()) return cached->second;
-				auto coord = std::make_pair(p.x,p.z);
+				CaveWaterPos coord{p.x,0,p.z};
 				auto it = columns.find(coord);
 				if (it == columns.end()) {
-					if (!terrain) terrain = std::make_unique<NoiseGenerator>(water.seed());
-					int height = int(terrain->getHeight({p.x,p.z}));
-					auto c = _caveGen.prepareColumn(p.x,p.z,height);
+					int x = p.x-origin.x, z = p.z-origin.z;
+					bool local = x >= 0 && x < CHUNK_SIZE && z >= 0 && z < CHUNK_SIZE;
+					if (!local && !terrain) terrain = std::make_unique<NoiseGenerator>(water.seed());
+					auto c = local ? _chunk.caveColumn(x,z)
+						: _caveGen.prepareColumn(p.x,p.z,int(terrain->getHeight({p.x,p.z})));
+					int height = c.surfaceY;
 					int bottom = height+1;
 					while (bottom > 1 && _caveGen.classify(c,bottom-1) != CaveKind::Solid) --bottom;
 					it = columns.emplace(coord,GeometryColumn{c,bottom}).first;
@@ -693,7 +706,7 @@ void SubChunk::loadBiome(int prevResolution)
 				auto voxel = p.y >= c.cave.surfaceY-settings.minimumUndergroundDepth || p.y >= c.openBottom
 					? CaveWaterVoxel::Protected
 					: _caveGen.classify(c.cave,p.y) == CaveKind::Solid ? CaveWaterVoxel::Solid : CaveWaterVoxel::Air;
-				voxels.emplace(key,voxel);
+				voxels.emplace(p,voxel);
 				return voxel;
 			};
 			for (auto p : water.generate(origin,{origin.x+CHUNK_SIZE,origin.y+CHUNK_SIZE,origin.z+CHUNK_SIZE},sample,cacheFeatures)) {

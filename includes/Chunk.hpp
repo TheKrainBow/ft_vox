@@ -8,6 +8,8 @@
 #include "Chrono.hpp"
 
 #include "ThreadPool.hpp"
+#include "CaveGenerator.hpp"
+#include <array>
 #include <future>
 #include <set>
 
@@ -46,6 +48,14 @@ class Chunk
 		std::vector<DrawArraysIndirectCommand>	_indirectBufferData;
 		std::mutex								_sendFacesMutex;
 		CaveGenerator							&_caveGen;
+		struct CaveColumns {
+			std::array<CaveGenerator::Column,CHUNK_SIZE*CHUNK_SIZE> columns;
+			std::array<bool,CHUNK_SIZE*CHUNK_SIZE> surfaceAir;
+		};
+		std::once_flag _caveColumnsOnce;
+		std::unique_ptr<CaveColumns> _caveColumns;
+		std::atomic_bool _hasCaveColumns{false};
+		void prepareCaveColumns();
 		std::atomic_int							_resolution;
 		ThreadPool								&_pool;
 		std::atomic_bool						_isBuilding;
@@ -76,6 +86,8 @@ class Chunk
 	
 		void clearFaces();
 		void loadBlocks();
+		const CaveGenerator::Column& caveColumn(int x, int z);
+		bool surfaceCave(int x, int z);
 		int maxGenerationLayer() const;
 		bool needsGeneration(int layer);
 		std::unique_ptr<SubChunk> generateLayer(int layer);

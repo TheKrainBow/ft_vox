@@ -5,6 +5,7 @@
 
 // Frequencies are inverse blocks; thresholds use signed Perlin noise [-1, 1].
 struct CaveGenerationSettings {
+	int noiseSampleStep = 1; // 1: original layout; 2/4: interpolate slow fields.
 	int minY = 1, maxY = 640; // Bedrock is y=0; current surface peaks reach ~630.
 	float bottomProtectionHeight = 10, topProtectionHeight = 16;
 	float surfaceProtectionDepth = 14, deepCaveDepth = 75;
@@ -47,8 +48,21 @@ private:
 		Roughness, NoodleA, NoodleB, NoodleRegion, Entrance, PillarA, PillarB,
 		PillarY, WarpX, WarpY, WarpZ, FieldCount };
 	CaveGenerationSettings m_settings;
+	uint64_t m_cacheId;
 	std::vector<Noise3DGenerator> m_noise;
-	float sample(Field field, float x, float y, float z, float xzScale, float yScale) const;
+	float rawSample(Field field, float x, float y, float z, float xzScale, float yScale) const {
+		// Fractional phases avoid shared Perlin lattice zeros at the world origin.
+		float phase = static_cast<int>(field) * 13.371f;
+		return m_noise[field].noise(x*xzScale + phase + 0.31f,
+			y*yScale + phase + 0.73f, z*xzScale + phase + 0.19f);
+	}
+	float sample(Field field, float x, float y, float z, float xzScale, float yScale) const {
+		if (m_settings.noiseSampleStep > 1 &&
+			(field == Cheese || field == Region || field == Thickness || field == NoodleRegion))
+			return interpolatedSample(field,x,y,z,xzScale,yScale);
+		return rawSample(field,x,y,z,xzScale,yScale);
+	}
+	float interpolatedSample(Field field, float x, float y, float z, float xzScale, float yScale) const;
 	float tunnelDistance(Field a, Field b, float x, float y, float z, float xzScale, float yScale) const;
 	bool isCheese(const Column& column, float x, float y, float z, float protection, float depth) const;
 };

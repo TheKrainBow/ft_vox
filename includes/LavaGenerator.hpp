@@ -19,9 +19,13 @@ public:
         const CaveWaterGenerator::Sample& sample,const CaveWaterGenerator& water, bool cacheFeatures = false) const;
     // Complete surface feature plans for this XZ box, including stone banks and
     // clearing the open cavity. Each subchunk applies only its own Y portion.
+    // Only enable caching with immutable world geometry; custom samplers default off.
     std::vector<LavaPlacement> surface(CaveWaterPos min,CaveWaterPos max,
-        const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed) const;
+        const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed,
+        bool cacheFeatures = false) const;
 private:
+    mutable std::mutex m_surfaceMutex;
+    mutable std::map<std::array<int,2>,std::shared_future<std::vector<LavaPlacement>>> m_surfaceFeatures;
     uint64_t m_seed;
     LavaSettings m_settings;
     CaveWaterGenerator m_caves;

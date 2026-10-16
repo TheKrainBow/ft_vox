@@ -6,6 +6,7 @@
 #include <map>
 #include <mutex>
 #include <future>
+#include <cstddef>
 
 struct CaveWaterSettings {
 	float caveWaterFrequency = 1.0; // Chance per 48^3 feature region, before validation.
@@ -20,6 +21,16 @@ struct CaveWaterSettings {
 struct CaveWaterPos {
 	int x, y, z;
 	bool operator==(const CaveWaterPos& p) const { return x == p.x && y == p.y && z == p.z; }
+};
+struct CaveWaterPosHash {
+	size_t operator()(CaveWaterPos p) const {
+		uint64_t h = uint64_t(uint32_t(p.x))*0x9e3779b185ebca87ULL
+			^ uint64_t(uint32_t(p.y))*0xc2b2ae3d27d4eb4fULL
+			^ uint64_t(uint32_t(p.z))*0x165667b19e3779f9ULL;
+		h ^= h >> 30;
+		h *= 0xbf58476d1ce4e5b9ULL;
+		return size_t(h ^ (h >> 27));
+	}
 };
 // Protected includes surface terrain, unavailable geometry and bedrock.
 enum class CaveWaterVoxel { Solid, Air, Protected };

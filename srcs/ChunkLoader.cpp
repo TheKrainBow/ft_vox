@@ -20,7 +20,8 @@ ChunkLoader::ChunkLoader(
 	std::queue<DisplayData *>	&solidStagedDataQueue,
 	std::queue<DisplayData *>	&transparentStagedDataQueue,
 	CaveWaterSettings caveWaterSettings,
-	LavaSettings lavaSettings
+	LavaSettings lavaSettings,
+	CaveGenerationSettings caveSettings
 )
 :
 _sharedDrawDataMutex(sharedDrawDataMutex),
@@ -30,7 +31,7 @@ _threadPool(pool),
 _buildingDisplay(false),
 _isRunning(isRunning),
 _perlinGenerator(seed),
-_caveGen(seed),
+_caveGen(seed, caveSettings),
 _caveWaterGen(seed, caveWaterSettings),
 _lavaGen(seed, lavaSettings),
 _solidStagedDataQueue(solidStagedDataQueue),

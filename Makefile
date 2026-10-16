@@ -216,6 +216,20 @@ test-caves-integration: $(filter-out $(OBJ_PATH)main.o,$(OBJ))
 
 test: test-caves-integration
 
+.PHONY: test-cave-sampling
+test-cave-sampling: test-caves-integration
+	$(CC) $(CFLAGS) -Iincludes tests/cave_sampling.cpp srcs/CaveGenerator.cpp srcs/Noise3DGenerator.cpp -pthread -o /tmp/ft_vox-cave-sampling-test
+	/tmp/ft_vox-cave-sampling-test
+	/tmp/ft_vox-caves-integration-test 2
+	/tmp/ft_vox-caves-integration-test 4
+
+test: test-cave-sampling
+
+.PHONY: bench-cave-sampling
+bench-cave-sampling:
+	$(CC) $(CFLAGS) -Iincludes tests/cave_sampling_benchmark.cpp srcs/CaveGenerator.cpp srcs/Noise3DGenerator.cpp -pthread -o /tmp/ft_vox-cave-sampling-benchmark
+	/tmp/ft_vox-cave-sampling-benchmark
+
 # Surfaceless EGL exercises the terrain shader without opening a game window.
 .PHONY: test-player-light
 test-player-light:

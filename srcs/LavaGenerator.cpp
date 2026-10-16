@@ -1,7 +1,7 @@
 #include "LavaGenerator.hpp"
 #include <algorithm>
 #include <cmath>
-#include <set>
+#include <unordered_set>
 #include <array>
 
 namespace {
@@ -31,7 +31,7 @@ std::vector<CaveWaterPos> LavaGenerator::caves(CaveWaterPos min,CaveWaterPos max
     if (max.y<=m_settings.caveMinY || min.y>=m_settings.caveMaxY || m_settings.caveFrequency<=0) return {};
     // Include every water feature that could touch a lava analysis volume. This
     // reservation is reconstructed from world geometry, including unloaded chunks.
-    std::set<std::array<int,3>> reserved;
+    std::unordered_set<CaveWaterPos,CaveWaterPosHash> reserved;
     bool reservationsReady = false;
     auto reserveWater = [&] {
         auto wet = water.generate({min.x-64,min.y-32,min.z-64},{max.x+64,max.y+32,max.z+64},sample,cacheFeatures);
@@ -60,7 +60,7 @@ std::vector<CaveWaterPos> LavaGenerator::caves(CaveWaterPos min,CaveWaterPos max
     },cacheFeatures);
 }
 std::vector<LavaPlacement> LavaGenerator::surface(CaveWaterPos min,CaveWaterPos max,
-    const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed) const {
+    const Height& height,const CaveWaterGenerator::Sample& sample,const Allowed& allowed, bool cacheFeatures) const {
     std::vector<LavaPlacement> result;
     int size=m_settings.surfaceRegionSize;
     if (m_settings.surfaceChance<=0) return result;
@@ -72,37 +72,67 @@ std::vector<LavaPlacement> LavaGenerator::surface(CaveWaterPos min,CaveWaterPos 
         int cx=rx*size+8+int(random(1)*(size-16)), cz=rz*size+8+int(random(2)*(size-16));
         int radius=3+int(random(3)*3), bound=radius+2;
         if (cx+bound<min.x || cx-bound>=max.x || cz+bound<min.z || cz-bound>=max.z) continue;
-        int low=height(cx,cz),high=low;
-        bool valid=low>OCEAN_HEIGHT+12;
-        for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x) {
-            int surfaceY=height(cx+x,cz+z);
-            low=std::min(low,surfaceY); high=std::max(high,surfaceY);
-            if (high-low>3 || !allowed(cx+x,cz+z)) valid=false;
-        }
-        valid=valid && low>OCEAN_HEIGHT+12;
-        int level=low-1;
-        // Solid support and a sealed stone shell; no cave or water breakthrough.
-        for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x)
-        for (int y=level-2;y<=level && valid;++y)
-            if (sample({cx+x,y,cz+z})!=CaveWaterVoxel::Solid) valid=false;
-        if (!valid) continue;
-        for (int z=-bound;z<=bound;++z) for (int x=-bound;x<=bound;++x) {
-            float shape=float(x*x)/(radius*radius)+float(z*z)/(radius*radius*0.8f*0.8f)
-                +0.06f*std::sin(x*1.1f+z*0.8f+float(h%31));
-            float bankLimit=float((radius+2)*(radius+2))/(radius*radius);
-            if (shape>bankLimit) continue;
-            int wx=cx+x,wz=cz+z;
-            if (wx<min.x || wx>=max.x || wz<min.z || wz>=max.z) continue;
-            int surfaceY=height(wx,wz);
-            for (int y=level-2;y<=surfaceY+2;++y) {
-                char block=STONE;
-                if (shape<1.0f) {
-                    if (y>level) block=AIR;
-                    else if (y==level || (y==level-1 && shape<0.65f)) block=LAVA;
-                } else if (y>surfaceY) block=AIR;
-                result.push_back({{wx,y,wz},block});
+        auto analyse = [&]() {
+            std::vector<LavaPlacement> plan;
+            int low=height(cx,cz),high=low;
+            bool valid=low>OCEAN_HEIGHT+12;
+            for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x) {
+                int surfaceY=height(cx+x,cz+z);
+                low=std::min(low,surfaceY); high=std::max(high,surfaceY);
+                if (high-low>3 || !allowed(cx+x,cz+z)) valid=false;
             }
+            valid=valid && low>OCEAN_HEIGHT+12;
+            int level=low-1;
+            // Solid support and a sealed stone shell; no cave or water breakthrough.
+            for (int z=-bound;z<=bound && valid;++z) for (int x=-bound;x<=bound && valid;++x)
+            for (int y=level-2;y<=level && valid;++y)
+                if (sample({cx+x,y,cz+z})!=CaveWaterVoxel::Solid) valid=false;
+            if (!valid) return plan;
+            for (int z=-bound;z<=bound;++z) for (int x=-bound;x<=bound;++x) {
+                float shape=float(x*x)/(radius*radius)+float(z*z)/(radius*radius*0.8f*0.8f)
+                    +0.06f*std::sin(x*1.1f+z*0.8f+float(h%31));
+                float bankLimit=float((radius+2)*(radius+2))/(radius*radius);
+                if (shape>bankLimit) continue;
+                int wx=cx+x,wz=cz+z;
+                int surfaceY=height(wx,wz);
+                for (int y=level-2;y<=surfaceY+2;++y) {
+                    char block=STONE;
+                    if (shape<1.0f) {
+                        if (y>level) block=AIR;
+                        else if (y==level || (y==level-1 && shape<0.65f)) block=LAVA;
+                    } else if (y>surfaceY) block=AIR;
+                    plan.push_back({{wx,y,wz},block});
+                }
+            }
+            return plan;
+        };
+        std::vector<LavaPlacement> uncached;
+        const std::vector<LavaPlacement>* plan = &uncached;
+        std::shared_future<std::vector<LavaPlacement>> future;
+        if (!cacheFeatures) uncached = analyse();
+        else {
+            std::shared_ptr<std::promise<std::vector<LavaPlacement>>> producer;
+            {
+                std::lock_guard<std::mutex> lock(m_surfaceMutex);
+                auto key = std::array<int,2>{rx,rz};
+                auto found = m_surfaceFeatures.find(key);
+                if (found != m_surfaceFeatures.end()) future = found->second;
+                else {
+                    producer = std::make_shared<std::promise<std::vector<LavaPlacement>>>();
+                    future = producer->get_future().share();
+                    if (m_surfaceFeatures.size() >= 512) m_surfaceFeatures.erase(m_surfaceFeatures.begin());
+                    m_surfaceFeatures.emplace(key,future);
+                }
+            }
+            if (producer) {
+                try { producer->set_value(analyse()); }
+                catch (...) { producer->set_exception(std::current_exception()); throw; }
+            }
+            plan = &future.get();
         }
+        for (const auto& p : *plan)
+            if (p.position.x>=min.x && p.position.x<max.x && p.position.z>=min.z && p.position.z<max.z)
+                result.push_back(p);
     }
     return result;
 }

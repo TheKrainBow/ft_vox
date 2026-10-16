@@ -33,6 +33,10 @@ surface plans are also sampled at the current chunk LOD.
 Production generation caches complete cave water/lava features across subchunks.
 Water reservations are constructed lazily when a new lava feature needs geometry;
 reusing a lava plan needs no additional cave noise or reservation analysis.
+Surface features also share a bounded cache of 512 complete plans, including
+rejections, across subchunks and worker threads. Custom height/geometry/biome
+samplers remain uncached unless explicitly opted in. Water-separation reservations
+use a hash set; containment and the separation distance are unchanged.
 
 ## Light and immersion
 

@@ -14,11 +14,7 @@ uint64_t mix(uint64_t v) {
 	v = (v ^ (v >> 27)) * 0x94d049bb133111ebULL;
 	return v ^ (v >> 31);
 }
-struct Hash {
-	size_t operator()(CaveWaterPos p) const {
-		return mix(uint32_t(p.x)) ^ mix(uint64_t(uint32_t(p.y)) + 17) ^ mix(uint64_t(uint32_t(p.z)) + 37);
-	}
-};
+using Hash = CaveWaterPosHash;
 int floorDiv(int a, int b) { return a / b - (a % b < 0); }
 constexpr std::array<CaveWaterPos,6> sides = {{{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,-1,0},{0,1,0}}};
 CaveWaterPos add(CaveWaterPos p, CaveWaterPos d) { return {p.x+d.x,p.y+d.y,p.z+d.z}; }
@@ -200,10 +196,11 @@ std::vector<CaveWaterPos> CaveWaterGenerator::generate(CaveWaterPos min, CaveWat
 	#endif
 			return water;
 		};
-		std::vector<CaveWaterPos> water;
-		if (!cacheFeatures) water = analyse();
+		std::vector<CaveWaterPos> uncached;
+		std::shared_future<std::vector<CaveWaterPos>> future;
+		const std::vector<CaveWaterPos>* water = &uncached;
+		if (!cacheFeatures) uncached = analyse();
 		else {
-			std::shared_future<std::vector<CaveWaterPos>> future;
 			std::shared_ptr<std::promise<std::vector<CaveWaterPos>>> producer;
 			{
 				std::lock_guard<std::mutex> lock(m_cacheMutex);
@@ -223,9 +220,9 @@ std::vector<CaveWaterPos> CaveWaterGenerator::generate(CaveWaterPos min, CaveWat
 				try { producer->set_value(analyse()); }
 				catch (...) { producer->set_exception(std::current_exception()); throw; }
 			}
-			water = future.get();
+			water = &future.get();
 		}
-		for (auto p : water)
+		for (auto p : *water)
 			if (p.x>=min.x && p.x<max.x && p.y>=min.y && p.y<max.y && p.z>=min.z && p.z<max.z)
 				result.push_back(p);
 	}

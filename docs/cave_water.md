@@ -17,6 +17,10 @@ a bounded cache of 2,048 complete feature plans (including rejected candidates).
 Concurrent subchunks share an in-flight result rather than repeating noise and
 containment searches. Exact voxel validation and feature placement are unchanged;
 custom geometry samplers remain uncached unless explicitly opted in.
+Cached plans are read without copying their entire voxel vectors. Temporary
+column/voxel lookups use hash tables, and local columns reuse the chunk's immutable
+cave data. Optional cave noise interpolation is shared with stone generation;
+containment and placement still validate individual voxels.
 
 Pools fill actual connected cave depressions, usually 1–4 blocks deep with radii
 2–5. Fifteen percent of pool candidates can use larger radii, up to 10. A fill

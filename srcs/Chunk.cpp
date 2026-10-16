@@ -64,7 +64,34 @@ void Chunk::loadBlocks() {
 	_isBuilding = false;
 }
 
-size_t Chunk::getMemorySize() { return _memorySize; }
+size_t Chunk::getMemorySize() {
+	return _memorySize + (_hasCaveColumns.load() ? sizeof(CaveColumns) : 0);
+}
+
+void Chunk::prepareCaveColumns() {
+	std::call_once(_caveColumnsOnce, [this] {
+		auto data = std::make_unique<CaveColumns>();
+		for (int z = 0; z < CHUNK_SIZE; ++z) for (int x = 0; x < CHUNK_SIZE; ++x) {
+			int i = z*CHUNK_SIZE+x;
+			auto& column = data->columns[i];
+			column = _caveGen.prepareColumn(_position.x*CHUNK_SIZE+x,
+				_position.y*CHUNK_SIZE+z, int(_perlinMap->heightMap[i]));
+			data->surfaceAir[i] = _caveGen.classify(column,column.surfaceY) != CaveKind::Solid;
+		}
+		_caveColumns = std::move(data);
+		_hasCaveColumns = true;
+	});
+}
+
+const CaveGenerator::Column& Chunk::caveColumn(int x, int z) {
+	prepareCaveColumns();
+	return _caveColumns->columns[z*CHUNK_SIZE+x];
+}
+
+bool Chunk::surfaceCave(int x, int z) {
+	prepareCaveColumns();
+	return _caveColumns->surfaceAir[z*CHUNK_SIZE+x];
+}
 
 TopBlock Chunk::getTopBlock(int localX, int localZ) {
 	std::lock_guard<std::mutex> lock(_subChunksMutex);

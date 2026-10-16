@@ -8,20 +8,22 @@
 
 bool isWSL() { return false; }
 
-int main() {
+int main(int argc, char** argv) {
 	Camera camera;
 	ThreadPool pool(4);
 	Chrono chrono;
 	std::atomic_bool running(true);
 	std::mutex drawMutex;
 	std::queue<DisplayData*> solids, transparent;
-	ChunkLoader loader(42, camera, pool, chrono, &running, drawMutex, solids, transparent);
+	CaveGenerationSettings caveSettings;
+	caveSettings.noiseSampleStep = argc > 1 ? std::stoi(argv[1]) : 1;
+	ChunkLoader loader(42, camera, pool, chrono, &running, drawMutex, solids, transparent, {}, {}, caveSettings);
 	NoiseGenerator terrain(42);
 	CaveGenerator& caves = loader.getCaveGenerator();
 	CaveWaterSettings drySettings;
 	drySettings.caveWaterFrequency = 0;
 	LavaSettings noLava; noLava.caveFrequency=0; noLava.surfaceChance=0;
-	ChunkLoader dryLoader(42, camera, pool, chrono, &running, drawMutex, solids, transparent, drySettings,noLava);
+	ChunkLoader dryLoader(42, camera, pool, chrono, &running, drawMutex, solids, transparent, drySettings,noLava,caveSettings);
 	size_t checked = 0, crossings = 0, waterVoxels = 0, wetChunks = 0, lavaVoxels = 0;
 	std::set<std::tuple<int,int,int>> waterPositions, lavaPositions;
 	auto start = std::chrono::steady_clock::now();
@@ -116,6 +118,7 @@ int main() {
 	// Exercise entrance preservation in the biome pass, including desert caps,
 	// using a broad but deterministic entrance mask to guarantee coverage.
 	CaveGenerationSettings settings;
+	settings.noiseSampleStep = caveSettings.noiseSampleStep;
 	settings.entranceThreshold = -1;
 	CaveGenerator mouths(42, settings);
 	size_t openings = 0;

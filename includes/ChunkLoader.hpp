@@ -179,7 +179,8 @@ public:
 		std::queue<DisplayData *>	&solidStagedDataQueue,
 		std::queue<DisplayData *>	&transparentStagedDataQueue,
 		CaveWaterSettings caveWaterSettings = {},
-		LavaSettings lavaSettings = {}
+		LavaSettings lavaSettings = {},
+		CaveGenerationSettings caveSettings = {}
 	);
 	~ChunkLoader();
 

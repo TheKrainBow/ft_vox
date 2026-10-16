@@ -21,7 +21,9 @@ static uint64_t chunk(const CaveGenerator& caves, int cx, int cz) {
 
 int main(int argc, char** argv) {
 	uint64_t seed = argc > 2 ? std::stoull(argv[2]) : 42;
-	CaveGenerator caves(seed), repeat(seed), other(seed + 1);
+	CaveGenerationSettings settings;
+	settings.noiseSampleStep = argc > 3 ? std::stoi(argv[3]) : 1;
+	CaveGenerator caves(seed, settings), repeat(seed, settings), other(seed + 1, settings);
 	for (int cz = -1; cz <= 1; ++cz) for (int cx = -1; cx <= 1; ++cx) {
 		auto job = std::async(std::launch::async, [&caves, cx, cz] { return chunk(caves, cx, cz); });
 		auto expected = chunk(repeat, cx, cz);
